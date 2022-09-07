@@ -106,7 +106,7 @@ static bool CheckExtensionSupport(BB::Allocator a_TempAllocator, BB::Slice<const
 	return true;
 }
 
-static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, BB::Slice<const char*> a_Layers)
+static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, const BB::Slice<const char*> a_Layers)
 {
 	// check layers if they are available.
 	uint32_t t_LayerCount;
@@ -129,11 +129,9 @@ static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, BB::Slice
 	return true;
 }
 
-static QueueFamilyIndices FindQueueFamilies(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice)
+//If a_Index is nullptr it will just check if we have a queue that has a graphics bit.
+static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, uint32_t* a_Index)
 {
-	QueueFamilyIndices t_Indices;
-	t_Indices.graphicsFamily = EMPTY_FAMILY_INDICES;
-
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
 
@@ -144,14 +142,22 @@ static QueueFamilyIndices FindQueueFamilies(Allocator a_TempAllocator, VkPhysica
 	{
 		if (t_QueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
-			t_Indices.graphicsFamily = i;
+			if (a_Index != nullptr)
+			{
+				*a_Index = i;
+			}
+			return true;
 		}
 	}
-
-	return t_Indices;
+	if (a_Index != nullptr)
+	{
+		*a_Index = EMPTY_FAMILY_INDICES;
+	}
+	return false;
 }
 
-static bool HasPresentQueueSupport(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, VkSurfaceKHR a_Surface, uint32_t& a_Index)
+//If a_Index is nullptr it will just check if we have a queue that is available.
+static bool QueueHasPresentSupport(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, VkSurfaceKHR a_Surface, uint32_t* a_Index)
 {
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
@@ -164,12 +170,17 @@ static bool HasPresentQueueSupport(Allocator a_TempAllocator, VkPhysicalDevice a
 		vkGetPhysicalDeviceSurfaceSupportKHR(a_PhysicalDevice, i, a_Surface, &t_PresentSupport);
 		if (t_PresentSupport == true)
 		{
-			a_Index = i;
+			if (a_Index != nullptr)
+			{
+				*a_Index = i;
+			}
 			return true;
 		}
 	}
-
-	a_Index = EMPTY_FAMILY_INDICES;
+	if (a_Index != nullptr)
+	{
+		*a_Index = EMPTY_FAMILY_INDICES;
+	}
 	return false;
 }
 
@@ -194,7 +205,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 
 		if (t_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 			t_DeviceFeatures.geometryShader &&
-			FindQueueFamilies(a_TempAllocator, t_PhysicalDevices[i]).graphicsFamily != EMPTY_FAMILY_INDICES &&
+			QueueFindGraphicsBit(a_TempAllocator, t_PhysicalDevices[i], nullptr) &&
 			t_SwapChainDetails.formatCount != 0 &&
 			t_SwapChainDetails.presentModeCount != 0)
 		{
@@ -206,15 +217,16 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 	return VK_NULL_HANDLE;
 }
 
-static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, BB::Slice<const char*>& a_DeviceExtensions, VkPhysicalDevice a_PhysicalDevice, VkQueue* a_GraphicsQueue)
+static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<const char*>& a_DeviceExtensions, VkPhysicalDevice a_PhysicalDevice, VkQueue* a_GraphicsQueue)
 {
 	VkDevice t_ReturnDevice;
 
-	QueueFamilyIndices t_Indices = FindQueueFamilies(a_TempAllocator, a_PhysicalDevice);
+	uint32_t t_Indices;
+	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_Indices);
 
 	VkDeviceQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	t_QueueCreateInfo.queueFamilyIndex = t_Indices.graphicsFamily;
+	t_QueueCreateInfo.queueFamilyIndex = t_Indices;
 	t_QueueCreateInfo.queueCount = 1;
 	float t_QueuePriority = 1.0f;
 	t_QueueCreateInfo.pQueuePriorities = &t_QueuePriority;
@@ -233,7 +245,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, BB::Slice<const c
 	VKASSERT(vkCreateDevice(a_PhysicalDevice, &t_CreateInfo, nullptr, &t_ReturnDevice),
 		"Failed to create logical device Vulkan.");
 
-	vkGetDeviceQueue(t_ReturnDevice, t_Indices.graphicsFamily, 0, a_GraphicsQueue);
+	vkGetDeviceQueue(t_ReturnDevice, t_Indices, 0, a_GraphicsQueue);
 
 	return t_ReturnDevice;
 }
@@ -276,6 +288,7 @@ static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKH
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
 	VkPresentModeKHR t_ChosenPresentMode = ChoosePresentMode(t_SwapchainDetails.presentModes, t_SwapchainDetails.presentModeCount);
 
+
 	VkExtent2D t_ChosenExtent;
 	t_ChosenExtent.width = Math::clamp(t_SurfaceWidth,
 		t_SwapchainDetails.capabilities.minImageExtent.width,
@@ -292,7 +305,7 @@ static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKH
 		t_ImageCount = t_SwapchainDetails.capabilities.maxImageCount;
 	}
 
-	VkSwapchainCreateInfoKHR t_SwapCreateInfo;
+	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
 	t_SwapCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	t_SwapCreateInfo.surface = a_Surface;
 	t_SwapCreateInfo.minImageCount = t_ImageCount;
@@ -303,12 +316,16 @@ static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKH
 	t_SwapCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	t_SwapCreateInfo.preTransform = t_SwapchainDetails.capabilities.currentTransform;
 	t_SwapCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	t_SwapCreateInfo.presentMode = t_ChosenPresentMode;
+	t_SwapCreateInfo.clipped = VK_TRUE;
 	t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	QueueFamilyIndices t_Indices = FindQueueFamilies(a_TempAllocator, a_PhysicalDevice);
-	uint32_t t_QueueFamilyIndices[] = { t_Indices.graphicsFamily, t_Indices.presentFamily };
+	uint32_t t_GraphicFamily, t_PresentFamily; 
+	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_GraphicFamily);
+	QueueHasPresentSupport(a_TempAllocator, a_PhysicalDevice, a_Surface, &t_PresentFamily);
+	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
-	if (t_Indices.graphicsFamily != t_Indices.presentFamily)
+	if (t_GraphicFamily != t_PresentFamily)
 	{
 		t_SwapCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		t_SwapCreateInfo.queueFamilyIndexCount = 2;
@@ -393,18 +410,21 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 	}
 
 	//Get the physical Device
-	t_ReturnBackend.device.physicalDevice = FindPhysicalDevice(a_TempAllocator, t_ReturnBackend.instance, t_ReturnBackend.surface);
+	t_ReturnBackend.device.physicalDevice = FindPhysicalDevice(a_TempAllocator, 
+		t_ReturnBackend.instance, 
+		t_ReturnBackend.surface);
 	//Get the logical device and the graphics queue.
 	t_ReturnBackend.device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
+		a_CreateInfo.deviceExtensions,
 		t_ReturnBackend.device.physicalDevice,
 		&t_ReturnBackend.device.graphicsQueue);
 
 	{
 		uint32_t t_PresentIndex;
-		if (HasPresentQueueSupport(a_TempAllocator,
+		if (QueueHasPresentSupport(a_TempAllocator,
 			t_ReturnBackend.device.physicalDevice,
 			t_ReturnBackend.surface,
-			t_PresentIndex))
+			&t_PresentIndex))
 		{
 			vkGetDeviceQueue(t_ReturnBackend.device.logicalDevice, t_PresentIndex, 0, &t_ReturnBackend.device.presentQueue);
 		}
