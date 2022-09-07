@@ -20,8 +20,9 @@ void RenderBackend::InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_Re
 	if (a_Debug)
 	{
 		t_Extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		t_Extensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 	}
+	BB::Array<const char*> t_DeviceExtensions{ m_TempAllocator };
+	t_DeviceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
 	int t_WindowWidth;
 	int t_WindowHeight;
@@ -29,6 +30,7 @@ void RenderBackend::InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_Re
 
 	VulkanBackendCreateInfo t_BackendCreateInfo;
 	t_BackendCreateInfo.extensions = t_Extensions;
+	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(AppOSDevice().GetOSWindowHandle(a_WindowHandle));
 	t_BackendCreateInfo.version = 0;
 	t_BackendCreateInfo.validationLayers = true;

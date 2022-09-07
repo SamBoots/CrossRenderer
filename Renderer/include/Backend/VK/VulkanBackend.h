@@ -35,7 +35,10 @@ struct VulkanBackend
 struct VulkanBackendCreateInfo
 {
 	BB::Slice<const char*> extensions;
+	BB::Slice<const char*> deviceExtensions;
+#ifdef _WIN32
 	HWND hwnd;
+#endif //_WIN32
 	int version;
 	bool validationLayers;
 	const char* appName;

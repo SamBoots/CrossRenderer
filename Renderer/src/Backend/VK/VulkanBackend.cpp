@@ -66,6 +66,23 @@ static void DestroyVulkanDebug(VkInstance a_Instance, VkDebugUtilsMessengerEXT& 
 	t_DestroyDebugFunc(a_Instance, a_DebugMsgger, nullptr);
 }
 
+static SwapchainSupportDetails QuerySwapChainSupport(BB::Allocator a_TempAllocator, const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
+{
+	SwapchainSupportDetails t_SwapDetails;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.capabilities);
+
+	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, nullptr);
+	t_SwapDetails.formats = BBnewArr<VkSurfaceFormatKHR>(a_TempAllocator, t_SwapDetails.formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, t_SwapDetails.formats);
+
+	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, nullptr);
+	t_SwapDetails.presentModes = BBnewArr<VkPresentModeKHR>(a_TempAllocator, t_SwapDetails.presentModeCount);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, t_SwapDetails.presentModes);
+
+	return t_SwapDetails;
+}
+
 static bool CheckExtensionSupport(BB::Allocator a_TempAllocator, BB::Slice<const char*> a_Extensions)
 {
 	// check extensions if they are available.
@@ -158,6 +175,8 @@ static bool HasPresentQueueSupport(Allocator a_TempAllocator, VkPhysicalDevice a
 
 static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkInstance a_Instance, const VkSurfaceKHR a_Surface)
 {
+	VkPhysicalDevice t_ReturnDevice;
+
 	uint32_t t_DeviceCount = 0;
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, nullptr);
 	BB_ASSERT(t_DeviceCount != 0, "Failed to find any GPU's with vulkan support.");
@@ -179,7 +198,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 			t_SwapChainDetails.formatCount != 0 &&
 			t_SwapChainDetails.presentModeCount != 0)
 		{
-				return t_PhysicalDevices[i];
+			return t_PhysicalDevices[i];
 		}
 	}
 
@@ -187,7 +206,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 	return VK_NULL_HANDLE;
 }
 
-static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, VkQueue* a_GraphicsQueue)
+static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, BB::Slice<const char*>& a_DeviceExtensions, VkPhysicalDevice a_PhysicalDevice, VkQueue* a_GraphicsQueue)
 {
 	VkDevice t_ReturnDevice;
 
@@ -208,7 +227,8 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, VkPhysicalDevice 
 	t_CreateInfo.queueCreateInfoCount = 1;
 	t_CreateInfo.pEnabledFeatures = &t_DeviceFeatures;
 
-	t_CreateInfo.enabledExtensionCount = 0;
+	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
+	t_CreateInfo.enabledExtensionCount = a_DeviceExtensions.size();
 
 	VKASSERT(vkCreateDevice(a_PhysicalDevice, &t_CreateInfo, nullptr, &t_ReturnDevice),
 		"Failed to create logical device Vulkan.");
@@ -216,23 +236,6 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, VkPhysicalDevice 
 	vkGetDeviceQueue(t_ReturnDevice, t_Indices.graphicsFamily, 0, a_GraphicsQueue);
 
 	return t_ReturnDevice;
-}
-
-static SwapchainSupportDetails QuerySwapChainSupport(BB::Allocator a_TempAllocator, const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
-{
-	SwapchainSupportDetails t_SwapDetails;
-
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.capabilities);
-
-	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, nullptr);
-	t_SwapDetails.formats = BBnewArr<VkSurfaceFormatKHR>(a_TempAllocator, t_SwapDetails.formatCount);
-	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, t_SwapDetails.formats);
-
-	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, nullptr);
-	t_SwapDetails.presentModes = BBnewArr<VkPresentModeKHR>(a_TempAllocator, t_SwapDetails.presentModeCount);
-	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, t_SwapDetails.presentModes);
-
-	return t_SwapDetails;
 }
 
 static VkSurfaceFormatKHR ChooseSurfaceFormat(VkSurfaceFormatKHR* a_Formats, size_t a_FormatCount)
@@ -264,8 +267,10 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
+static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
 {
+	VkSwapchainKHR t_ReturnSwapchain;
+
 	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
 
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
@@ -280,6 +285,44 @@ static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKH
 		t_SwapchainDetails.capabilities.maxImageExtent.height);
 
 	//Now create the swapchain.
+	uint32_t t_ImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+	if (t_SwapchainDetails.capabilities.maxImageCount > 0 && t_ImageCount > 
+		t_SwapchainDetails.capabilities.maxImageCount) 
+	{
+		t_ImageCount = t_SwapchainDetails.capabilities.maxImageCount;
+	}
+
+	VkSwapchainCreateInfoKHR t_SwapCreateInfo;
+	t_SwapCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	t_SwapCreateInfo.surface = a_Surface;
+	t_SwapCreateInfo.minImageCount = t_ImageCount;
+	t_SwapCreateInfo.imageFormat = t_ChosenFormat.format;
+	t_SwapCreateInfo.imageColorSpace = t_ChosenFormat.colorSpace;
+	t_SwapCreateInfo.imageExtent = t_ChosenExtent;
+	t_SwapCreateInfo.imageArrayLayers = 1;
+	t_SwapCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	t_SwapCreateInfo.preTransform = t_SwapchainDetails.capabilities.currentTransform;
+	t_SwapCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	QueueFamilyIndices t_Indices = FindQueueFamilies(a_TempAllocator, a_PhysicalDevice);
+	uint32_t t_QueueFamilyIndices[] = { t_Indices.graphicsFamily, t_Indices.presentFamily };
+
+	if (t_Indices.graphicsFamily != t_Indices.presentFamily)
+	{
+		t_SwapCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		t_SwapCreateInfo.queueFamilyIndexCount = 2;
+		t_SwapCreateInfo.pQueueFamilyIndices = t_QueueFamilyIndices;
+	} 
+	else
+	{
+		t_SwapCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		t_SwapCreateInfo.queueFamilyIndexCount = 0;
+		t_SwapCreateInfo.pQueueFamilyIndices = nullptr;
+	}
+
+	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &t_ReturnSwapchain), "Vulkan: Failed to create swapchain.");
+	return t_ReturnSwapchain;
 }
 
 VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
@@ -367,6 +410,13 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 		}
 	}
 
+	t_ReturnBackend.swapchain = CreateSwapchain(a_TempAllocator,
+		t_ReturnBackend.surface,
+		t_ReturnBackend.device.physicalDevice,
+		t_ReturnBackend.device.logicalDevice,
+		a_CreateInfo.windowWidth,
+		a_CreateInfo.windowHeight);
+
 	return t_ReturnBackend;
 }
 
@@ -374,6 +424,7 @@ void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBacke
 {
 	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
 
+	vkDestroySwapchainKHR(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.swapchain, nullptr);
 	vkDestroyDevice(a_VulkanBackend.device.logicalDevice, nullptr);
 
 	if (a_VulkanBackend.debugMessenger != 0)
