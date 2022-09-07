@@ -173,9 +173,11 @@ void FreelistAllocator::Free(void* a_Ptr)
 	}
 }
 
-void BB::allocators::FreelistAllocator::Clear() const
+void BB::allocators::FreelistAllocator::Clear()
 {
-	BB_ASSERT(false, "Freelist allocator is not meant to be cleared yet.");
+	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_Start);
+	m_FreeBlocks->size = m_TotalAllocSize;
+	m_FreeBlocks->next = nullptr;
 }
 
 BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t)

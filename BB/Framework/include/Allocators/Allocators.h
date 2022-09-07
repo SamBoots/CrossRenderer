@@ -40,7 +40,7 @@ namespace BB
 
 			void* Alloc(size_t a_Size, size_t a_Alignment);
 			void Free(void* a_Ptr);
-			void Clear() const;
+			void Clear();
 
 			struct AllocHeader 
 			{
