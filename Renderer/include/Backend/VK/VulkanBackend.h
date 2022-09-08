@@ -18,13 +18,23 @@ struct VulkanDevice
 	VkQueue presentQueue;
 };
 
+struct SwapChain
+{
+	VkSwapchainKHR swapChain;
+	VkImage* images;
+	VkImageView* imageViews;
+	size_t imageCount;
+	VkFormat imageFormat;
+	VkExtent2D extent;
+};
+
 struct VulkanBackend
 {
 	VkInstance instance;
 	VulkanDevice device;
 	VkSurfaceKHR surface;
 
-	VkSwapchainKHR swapchain;
+	SwapChain mainSwapChain;
 
 //Debug
 	VkDebugUtilsMessengerEXT debugMessenger;

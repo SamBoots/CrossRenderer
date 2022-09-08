@@ -168,7 +168,7 @@ static bool QueueHasPresentSupport(Allocator a_TempAllocator, VkPhysicalDevice a
 	{
 		VkBool32 t_PresentSupport = false;
 		vkGetPhysicalDeviceSurfaceSupportKHR(a_PhysicalDevice, i, a_Surface, &t_PresentSupport);
-		if (t_PresentSupport == true)
+		if (t_PresentSupport == VK_TRUE)
 		{
 			if (a_Index != nullptr)
 			{
@@ -279,9 +279,9 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
+static SwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
 {
-	VkSwapchainKHR t_ReturnSwapchain;
+	SwapChain t_ReturnSwapchain;
 
 	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
 
@@ -338,7 +338,42 @@ static VkSwapchainKHR CreateSwapchain(BB::Allocator a_TempAllocator, VkSurfaceKH
 		t_SwapCreateInfo.pQueueFamilyIndices = nullptr;
 	}
 
-	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &t_ReturnSwapchain), "Vulkan: Failed to create swapchain.");
+	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &t_ReturnSwapchain.swapChain), "Vulkan: Failed to create swapchain.");
+	
+	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &t_ImageCount, nullptr);
+	t_ReturnSwapchain.images = BBnewArr<VkImage>(a_SysAllocator, t_ImageCount);
+	t_ReturnSwapchain.imageViews = BBnewArr<VkImageView>(a_SysAllocator, t_ImageCount);
+	t_ReturnSwapchain.imageCount = t_ImageCount;
+	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &t_ImageCount, t_ReturnSwapchain.images);
+	
+	VkImageViewCreateInfo t_ImageViewCreateInfo{};
+	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	t_ImageViewCreateInfo.format = t_ChosenFormat.format;
+	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	t_ImageViewCreateInfo.subresourceRange.levelCount = 1;
+	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
+
+	for (uint32_t i = 0; i < t_ImageCount; i++)
+	{
+		t_ImageViewCreateInfo.image = t_ReturnSwapchain.images[i];
+		VKASSERT(vkCreateImageView(a_Device,
+			&t_ImageViewCreateInfo,
+			nullptr,
+			&t_ReturnSwapchain.imageViews[i]), 
+			"Vulkan: Failed to create swapchain image views.");
+	}
+
+
+	t_ReturnSwapchain.imageFormat = t_ChosenFormat.format;
+	t_ReturnSwapchain.extent = t_ChosenExtent;
+
 	return t_ReturnSwapchain;
 }
 
@@ -430,7 +465,8 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 		}
 	}
 
-	t_ReturnBackend.swapchain = CreateSwapchain(a_TempAllocator,
+	t_ReturnBackend.mainSwapChain = CreateSwapchain(a_SysAllocator,
+		a_TempAllocator,
 		t_ReturnBackend.surface,
 		t_ReturnBackend.device.physicalDevice,
 		t_ReturnBackend.device.logicalDevice,
@@ -444,7 +480,15 @@ void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBacke
 {
 	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
 
-	vkDestroySwapchainKHR(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.swapchain, nullptr);
+
+	for (size_t i = 0; i < a_VulkanBackend.mainSwapChain.imageCount; i++)
+	{
+		vkDestroyImageView(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.mainSwapChain.imageViews[i], nullptr);
+	}
+	BBfreeArr(a_SysAllocator, a_VulkanBackend.mainSwapChain.images);
+	BBfreeArr(a_SysAllocator, a_VulkanBackend.mainSwapChain.imageViews);
+
+	vkDestroySwapchainKHR(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.mainSwapChain.swapChain, nullptr);
 	vkDestroyDevice(a_VulkanBackend.device.logicalDevice, nullptr);
 
 	if (a_VulkanBackend.debugMessenger != 0)
