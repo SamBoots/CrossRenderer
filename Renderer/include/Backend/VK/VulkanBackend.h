@@ -9,6 +9,13 @@ namespace BB
 	struct Allocator;
 }
 
+struct VulkanPipeline
+{
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+	VkDescriptorSet descSet;
+};
+
 struct VulkanDevice
 {
 	VkDevice logicalDevice;
@@ -58,4 +65,10 @@ struct VulkanBackendCreateInfo
 };
 
 VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo);
+VkPipeline CreatePipeline(VkDevice a_Device, 
+	const VkExtent2D& a_SwapChainExtent, 
+	VkRenderPass r_RenderPass, 
+	const VkDescriptorSetLayout* a_DescriptorSetLayouts, 
+	size_t a_Layouts);
+
 void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend);

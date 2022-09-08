@@ -17,6 +17,7 @@ endif ()
 #Add source to this project's executable.
 add_executable (Renderer 
 "include/Backend/RenderBackend.h"
+"include/Backend/BackendCommands.h"
 "include/Backend/VK/VulkanBackend.h"
 "include/Backend/VK/VulkanInitializers.h"
 

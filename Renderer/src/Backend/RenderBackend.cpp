@@ -17,12 +17,14 @@ void RenderBackend::InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_Re
 	BB::Array<const char*> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back("VK_KHR_win32_surface");
 	t_Extensions.emplace_back("VK_KHR_surface");
+	t_Extensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 	if (a_Debug)
 	{
 		t_Extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
 	BB::Array<const char*> t_DeviceExtensions{ m_TempAllocator };
 	t_DeviceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	t_DeviceExtensions.emplace_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
 
 	int t_WindowWidth;
 	int t_WindowHeight;

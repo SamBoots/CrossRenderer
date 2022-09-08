@@ -476,11 +476,31 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 	return t_ReturnBackend;
 }
 
+VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBackend, const VkDescriptorSetLayout* a_DescriptorSetLayouts, size_t a_Layouts)
+{
+	VkPipeline t_ReturnPipeline;
+	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo;
+	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
+	t_DynamicPipeCreateInfo.pDynamicStates = &t_DynamicStates;
+
+	//Set viewport to nullptr and let the commandbuffer handle it via 
+	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
+		1, nullptr, 1, nullptr
+	);
+
+	VkGraphicsPipelineCreateInfo t_PipeCreateInfo;
+	t_PipeCreateInfo.pDynamicState = t_DynamicPipeCreateInfo;
+	t_PipeCreateInfo.pViewportState = &t_ViewportState;
+
+	return t_ReturnPipeline;
+}
+
 void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
 {
 	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
-
-
 	for (size_t i = 0; i < a_VulkanBackend.mainSwapChain.imageCount; i++)
 	{
 		vkDestroyImageView(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.mainSwapChain.imageViews[i], nullptr);
