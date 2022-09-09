@@ -476,6 +476,22 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 	return t_ReturnBackend;
 }
 
+static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBackend,
+	BB::Slice<VkPushConstantRange> a_PushConstants)
+{
+	VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
+		0,
+		nullptr,
+		a_PushConstants.size(),
+		a_PushConstants.data()
+	);
+
+	VkPipelineLayout t_Layout{};
+
+	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice, &t_LayoutCreateInfo, nullptr, &t_Layout),
+		"Vulkan: Failed to create pipelinelayout.");
+}
+
 VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBackend, const VkDescriptorSetLayout* a_DescriptorSetLayouts, size_t a_Layouts)
 {
 	VkPipeline t_ReturnPipeline;
@@ -484,16 +500,58 @@ VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBacken
 	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo;
 	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
-	t_DynamicPipeCreateInfo.pDynamicStates = &t_DynamicStates;
+	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
 	//Set viewport to nullptr and let the commandbuffer handle it via 
 	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
-		1, nullptr, 1, nullptr
+		1,
+		nullptr,
+		1,
+		nullptr
 	);
+	VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
+		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+		VK_FALSE);
+	VkPipelineRasterizationStateCreateInfo t_Rasterizer = VkInit::PipelineRasterizationStateCreateInfo(
+		VK_FALSE,
+		VK_FALSE,
+		VK_FALSE,
+		VK_POLYGON_MODE_FILL,
+		VK_CULL_MODE_BACK_BIT,
+		VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
+		VK_FALSE,
+		VK_SAMPLE_COUNT_1_BIT);
+	VkPipelineDepthStencilStateCreateInfo t_DepthStencil = VkInit::PipelineDepthStencilStateCreateInfo(
+		VK_TRUE,
+		VK_TRUE,
+		VK_FALSE,
+		VK_FALSE,
+		VK_COMPARE_OP_LESS);
+	VkPipelineColorBlendAttachmentState t_ColorblendAttachment = VkInit::PipelineColorBlendAttachmentState(
+		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+		VK_FALSE);
+	VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
+		VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
+
+	//VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_VulkanBackend);
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo;
-	t_PipeCreateInfo.pDynamicState = t_DynamicPipeCreateInfo;
+	t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 	t_PipeCreateInfo.pViewportState = &t_ViewportState;
+	t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
+	t_PipeCreateInfo.pRasterizationState = &t_Rasterizer;
+	t_PipeCreateInfo.pMultisampleState = &t_MultiSampling;
+	t_PipeCreateInfo.pDepthStencilState = &t_DepthStencil;
+	t_PipeCreateInfo.pColorBlendState = &t_ColorBlending;
+
+	VKASSERT(vkCreateGraphicsPipelines(a_VulkanBackend.device.logicalDevice,
+		VK_NULL_HANDLE,
+		1,
+		&t_PipeCreateInfo,
+		nullptr,
+		&t_ReturnPipeline),
+		"Vulkan: Failed to create graphics Pipeline.");
 
 	return t_ReturnPipeline;
 }
