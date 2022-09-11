@@ -27,4 +27,10 @@ namespace BB
 	};
 
 	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
+
+	struct Buffer
+	{
+		void* data;
+		uint64_t size;
+	};
 }

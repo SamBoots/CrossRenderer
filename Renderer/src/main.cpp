@@ -1,6 +1,8 @@
 #include "OS/OSDevice.h"
 #include "Backend/RenderBackend.h"
 
+using namespace BB;
+
 int main()
 {
 	BB::WindowHandle t_MainWindow = BB::AppOSDevice().CreateOSWindow(BB::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");

@@ -2,6 +2,7 @@
 #include "OSDevice.h"
 
 #include <Windows.h>
+#include <fstream>
 #include "Storage/Slotmap.h"
 
 using namespace BB;
@@ -148,6 +149,22 @@ const uint32_t OSDevice::LatestOSError() const
 	return static_cast<uint32_t>(GetLastError());
 }
 
+Buffer OSDevice::ReadFile(Allocator a_SysAllocator, const char* a_Path)
+{
+	std::ifstream t_File(a_Path, std::ios::ate | std::ios::binary);
+
+	BB_WARNING(t_File.is_open(), "Failed to readfile!", WarningType::HIGH);
+	Buffer t_FileBuffer;
+	t_FileBuffer.size = static_cast<uint64_t>(t_File.tellg());
+	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
+
+	t_File.seekg(0);
+	t_File.read(reinterpret_cast<char*>(t_FileBuffer.data), t_FileBuffer.size);
+	t_File.close();
+
+	return t_FileBuffer;
+}
+
 WindowHandle OSDevice::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
 {
 	return WindowHandle(static_cast<uint32_t>(m_OSDevice->OSWindows.emplace(a_Style, a_X, a_Y, a_Width, a_Height, a_WindowName)));
@@ -205,4 +222,12 @@ bool BB::OSDevice::ProcessMessages() const
 
 
 	return true;
+}
+
+char* BB::OSDevice::GetExePath(Allocator a_SysAllocator) const
+{
+	//Can force to use the return value to get the size but I decide for 256 for ease of use.
+	char* a_Buffer = reinterpret_cast<char*>(BBalloc(a_SysAllocator, 256));
+	GetModuleFileNameA(nullptr, a_Buffer, 256);
+	return a_Buffer;
 }

@@ -20,6 +20,7 @@ add_executable (Renderer
 "include/Backend/BackendCommands.h"
 "include/Backend/VK/VulkanBackend.h"
 "include/Backend/VK/VulkanInitializers.h"
+"include/Backend/VK/VulkanCommon.h"
 
 "src/Backend/RenderBackend.cpp"
 "src/Backend/VK/VulkanBackend.cpp"

@@ -2,23 +2,30 @@
 #include "AllocTypes.h"
 #include "Common.h"
 
-enum class RenderAPI
+namespace BB
 {
-	VULKAN
-};
+	struct ShaderCreateInfo;
 
-class RenderBackend
-{
-public:
-	void InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug);
-	void DestroyBackend();
+	enum class RenderAPI
+	{
+		VULKAN
+	};
 
-	void Update();
+	class RenderBackend
+	{
+	public:
+		void InitBackend(WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug);
+		void DestroyBackend();
 
-private:
-	BB::FreeListAllocator_t m_SystemAllocator{ BB::mbSize * 4 };
-	BB::FreeListAllocator_t m_TempAllocator{ BB::kbSize * 4 };
+		void Update();
 
-	void* APIbackend;
-	RenderAPI currentRenderAPI;
-};
+		void CreateShader(const ShaderCreateInfo& t_ShaderInfo);
+
+	private:
+		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
+		FreeListAllocator_t m_TempAllocator{ kbSize * 4 };
+
+		void* APIbackend;
+		RenderAPI currentRenderAPI;
+	};
+}

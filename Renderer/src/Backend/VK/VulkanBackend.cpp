@@ -2,15 +2,19 @@
 #include "VulkanBackend.h"
 #include "VulkanInitializers.h"
 
-#include "Utils/Logger.h"
-
 #include <iostream>
 
-#define VKASSERT(a_VKResult, a_Msg)\
-	if (a_VKResult != VK_SUCCESS)\
-		BB_ASSERT(false, a_Msg);\
+using namespace BB;
 
-constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX;
+struct FramebufferAttachment
+{
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView view;
+	VkFormat format;
+	VkImageSubresourceRange subresourceRange;
+	VkAttachmentDescription description;
+};
 
 struct SwapchainSupportDetails
 {
@@ -27,16 +31,13 @@ struct QueueFamilyIndices
 	uint32_t presentFamily;
 };
 
-using namespace BB;
-
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT a_MessageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT a_MessageType,
 	const VkDebugUtilsMessengerCallbackDataEXT * a_pCallbackData,
-	void* a_pUserData) {
-
+	void* a_pUserData) 
+{
 	std::cerr << "validation layer: " << a_pCallbackData->pMessage << std::endl;
-
 	return VK_FALSE;
 }
 
@@ -186,8 +187,6 @@ static bool QueueHasPresentSupport(Allocator a_TempAllocator, VkPhysicalDevice a
 
 static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkInstance a_Instance, const VkSurfaceKHR a_Surface)
 {
-	VkPhysicalDevice t_ReturnDevice;
-
 	uint32_t t_DeviceCount = 0;
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, nullptr);
 	BB_ASSERT(t_DeviceCount != 0, "Failed to find any GPU's with vulkan support.");
@@ -377,7 +376,97 @@ static SwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_T
 	return t_ReturnSwapchain;
 }
 
-VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
+struct VulkanShaderResult
+{
+	VkShaderModule* shaderModules;
+	VkPipelineShaderStageCreateInfo* pipelineShaderStageInfo;
+};
+
+//Creates VkPipelineShaderStageCreateInfo equal to the amount of ShaderCreateInfos in a_CreateInfo.
+static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevice a_Device, const Slice<BB::ShaderCreateInfo> a_CreateInfo)
+{
+	VulkanShaderResult t_ReturnResult;
+
+	t_ReturnResult.pipelineShaderStageInfo = BBnewArr<VkPipelineShaderStageCreateInfo>(a_TempAllocator, a_CreateInfo.size());
+	t_ReturnResult.shaderModules = BBnewArr<VkShaderModule>(a_TempAllocator, a_CreateInfo.size());
+	
+	VkShaderModuleCreateInfo t_ShaderModCreateInfo{};
+	t_ShaderModCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	for (size_t i = 0; i < a_CreateInfo.size(); i++)
+	{
+		t_ShaderModCreateInfo.codeSize = a_CreateInfo[i].buffer.size;
+		t_ShaderModCreateInfo.pCode = reinterpret_cast<const uint32_t*>(a_CreateInfo[i].buffer.data);
+
+		VKASSERT(vkCreateShaderModule(a_Device, &t_ShaderModCreateInfo, nullptr, &t_ReturnResult.shaderModules[i]),
+			"Vulkan: Failed to create shadermodule.");
+
+		t_ReturnResult.pipelineShaderStageInfo[i] = VkInit::PipelineShaderStageCreateInfo(
+			VKConv::ShaderStageBits(a_CreateInfo[i].shaderStage),
+			t_ReturnResult.shaderModules[i],
+			"main",
+			nullptr);
+	}
+
+	return t_ReturnResult;
+}
+
+static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBackend,
+	Slice<VkPushConstantRange> a_PushConstants)
+{
+	VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
+		0,
+		nullptr,
+		a_PushConstants.size(),
+		a_PushConstants.data()
+	);
+
+	VkPipelineLayout t_Layout{};
+
+	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice, &t_LayoutCreateInfo, nullptr, &t_Layout),
+		"Vulkan: Failed to create pipelinelayout.");
+
+	return t_Layout;
+}
+
+VkRenderPass CreateRenderPass(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const RenderPassCreateInfo& a_PassInfo)
+{
+	VkRenderPass t_ReturnPass;
+
+	//Color Attachment.
+	VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(a_PassInfo.swapchainFormat,
+		VK_SAMPLE_COUNT_1_BIT, a_PassInfo.loadOp, a_PassInfo.storeOp,
+		VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, a_PassInfo.initialLayout,
+		a_PassInfo.finalLayout);
+	VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	
+	VkAttachmentDescription* t_Attachments = BBnewArr<VkAttachmentDescription>(a_TempAllocator,
+		2);
+	t_Attachments[0] = t_ColorAttachment;
+
+	//DEPTH BUFFER
+	VkAttachmentDescription t_DepthAttachment = VkInit::AttachmentDescription(a_PassInfo.depthFormat,
+		VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, a_PassInfo.initialLayout,
+		a_PassInfo.finalLayout);
+	VkAttachmentReference t_DepthAttachmentRef = VkInit::AttachmentReference(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	t_Attachments[1] = t_DepthAttachment;
+
+	VkSubpassDescription t_Subpass = VkInit::SubpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 1, &t_ColorAttachmentRef, &t_DepthAttachmentRef);
+	VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(VK_SUBPASS_EXTERNAL, 0,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+
+	VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
+		1, t_Attachments, 1, &t_Subpass, 1, &t_Dependency);
+
+	VKASSERT(vkCreateRenderPass(a_Backend.device.logicalDevice, &t_RenderPassInfo, nullptr, &t_ReturnPass),
+		"Vulkan: Failed to create renderpass.");
+
+	return t_ReturnPass;
+}
+
+VulkanBackend BB::VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
 
@@ -476,31 +565,62 @@ VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_Sys
 	return t_ReturnBackend;
 }
 
-static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBackend,
-	BB::Slice<VkPushConstantRange> a_PushConstants)
+VulkanFrameBuffer BB::CreateFrameBuffer(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const RenderPassCreateInfo& a_FramebufferCreateInfo)
 {
-	VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
+	VulkanFrameBuffer t_ReturnFrameBuffer;
+
+	VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
+		a_FramebufferCreateInfo.swapchainFormat,
+		VK_SAMPLE_COUNT_1_BIT,
+		a_FramebufferCreateInfo.loadOp, 
+		a_FramebufferCreateInfo.storeOp,
+		VK_ATTACHMENT_LOAD_OP_DONT_CARE, 
+		VK_ATTACHMENT_STORE_OP_DONT_CARE, 
+		a_FramebufferCreateInfo.initialLayout,
+		a_FramebufferCreateInfo.finalLayout);
+	VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(
+		0, 
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	VkSubpassDescription t_Subpass = VkInit::SubpassDescription(
+		VK_PIPELINE_BIND_POINT_GRAPHICS, 
+		1, 
+		&t_ColorAttachmentRef, 
+		nullptr);
+	VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(
+		VK_SUBPASS_EXTERNAL, 
 		0,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 
+		0,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+
+	VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
+		1, &t_ColorAttachment, 1, &t_Subpass, 1, &t_Dependency);
+
+	VKASSERT(vkCreateRenderPass(a_VulkanBackend.device.logicalDevice,
+		&t_RenderPassInfo,
 		nullptr,
-		a_PushConstants.size(),
-		a_PushConstants.data()
-	);
+		&t_ReturnFrameBuffer.renderPass),
+		"Vulkan: Failed to create graphics Pipeline.");
 
-	VkPipelineLayout t_Layout{};
-
-	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice, &t_LayoutCreateInfo, nullptr, &t_Layout),
-		"Vulkan: Failed to create pipelinelayout.");
+	return t_ReturnFrameBuffer;
 }
 
-VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBackend, const VkDescriptorSetLayout* a_DescriptorSetLayouts, size_t a_Layouts)
+VulkanPipeline BB::CreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
-	VkPipeline t_ReturnPipeline;
-	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VulkanPipeline t_ReturnPipeline;
 
-	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo;
+	//Get dynamic state for the viewport and scissor.
+	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
 	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
 	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
+
+	VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
+		a_VulkanBackend.device.logicalDevice,
+		a_CreateInfo.shaderCreateInfos);
 
 	//Set viewport to nullptr and let the commandbuffer handle it via 
 	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
@@ -509,6 +629,12 @@ VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBacken
 		1,
 		nullptr
 	);
+
+	VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
+		0,
+		nullptr,
+		0,
+		nullptr);
 	VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
 		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		VK_FALSE);
@@ -534,29 +660,63 @@ VkPipeline CreatePipeline(VkDevice a_Device, const VulkanBackend& a_VulkanBacken
 	VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
 		VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
 
-	//VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_VulkanBackend);
+	VkPushConstantRange t_PushConstantMatrix;
+	t_PushConstantMatrix.size = 256;
+	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	t_PushConstantMatrix.offset = 0;
 
-	VkGraphicsPipelineCreateInfo t_PipeCreateInfo;
+	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_VulkanBackend, BB::Slice(&t_PushConstantMatrix, 1));
+
+	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
+	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 	t_PipeCreateInfo.pViewportState = &t_ViewportState;
+	t_PipeCreateInfo.pVertexInputState = &t_VertexInput;
 	t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
 	t_PipeCreateInfo.pRasterizationState = &t_Rasterizer;
 	t_PipeCreateInfo.pMultisampleState = &t_MultiSampling;
 	t_PipeCreateInfo.pDepthStencilState = &t_DepthStencil;
 	t_PipeCreateInfo.pColorBlendState = &t_ColorBlending;
 
+	t_PipeCreateInfo.pStages = t_ShaderCreateResult.pipelineShaderStageInfo;
+	t_PipeCreateInfo.stageCount = 2;
+	t_PipeCreateInfo.layout = t_PipeLayout;
+	t_PipeCreateInfo.renderPass = a_CreateInfo.pVulkanFrameBuffer->renderPass;
+	t_PipeCreateInfo.subpass = 0;
+	//Optimalization for later.
+	t_PipeCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	t_PipeCreateInfo.basePipelineIndex = -1;
+
 	VKASSERT(vkCreateGraphicsPipelines(a_VulkanBackend.device.logicalDevice,
 		VK_NULL_HANDLE,
 		1,
 		&t_PipeCreateInfo,
 		nullptr,
-		&t_ReturnPipeline),
+		&t_ReturnPipeline.pipeline),
 		"Vulkan: Failed to create graphics Pipeline.");
 
+
+	vkDestroyShaderModule(a_VulkanBackend.device.logicalDevice,
+		t_ShaderCreateResult.shaderModules[0],
+		nullptr);
+	vkDestroyShaderModule(a_VulkanBackend.device.logicalDevice,
+		t_ShaderCreateResult.shaderModules[1],
+		nullptr);
+	
 	return t_ReturnPipeline;
 }
 
-void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
+void BB::VkDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer, const VulkanBackend& a_VulkanBackend)
+{
+	vkDestroyRenderPass(a_VulkanBackend.device.logicalDevice, a_FrameBuffer.renderPass, nullptr);
+}
+
+void BB::DestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_VulkanBackend)
+{
+	vkDestroyPipeline(a_VulkanBackend.device.logicalDevice, a_Pipeline.pipeline, nullptr);
+}
+
+void BB::VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
 {
 	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
 	for (size_t i = 0; i < a_VulkanBackend.mainSwapChain.imageCount; i++)

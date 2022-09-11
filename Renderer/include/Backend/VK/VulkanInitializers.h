@@ -228,7 +228,6 @@ namespace VkInit
 		t_RenderPassInfo.pDependencies = a_Dependancies;
 		t_RenderPassInfo.flags = a_Flags;
 		t_RenderPassInfo.pNext = a_Next;
-
 		return t_RenderPassInfo;
 	}
 

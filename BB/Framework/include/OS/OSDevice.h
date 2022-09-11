@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include "Common.h"
+#include "AllocTypes.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -40,6 +41,9 @@ namespace BB
 		//Prints the latest OS error and returns the error code, if it has no error code it returns 0.
 		const uint32_t LatestOSError() const;
 
+		//Reads an external file from path.
+		Buffer ReadFile(Allocator a_SysAllocator, const char* a_Path);
+
 		WindowHandle CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName);
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void*.
 		void* GetOSWindowHandle(WindowHandle a_Handle);
@@ -49,7 +53,10 @@ namespace BB
 		//Exits the application.
 		void ExitApp() const;
 
-;		bool ProcessMessages() const;
+		bool ProcessMessages() const;
+
+		//Get the path where the project's exe file is located.
+		char* GetExePath(Allocator a_SysAllocator) const;
 
 	private:
 		OSDevice_o* m_OSDevice;

@@ -1,76 +1,132 @@
 #pragma once
+#include "VulkanCommon.h"
 #include "Utils/Slice.h"
-
-#include <vulkan/vulkan.h>
 
 
 namespace BB
 {
 	struct Allocator;
-}
+	struct BBRenderBufferInfo;
+	struct BBRenderImageInfo;
+	struct BBShaderInfo;
 
-struct VulkanPipeline
-{
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descSet;
-};
 
-struct VulkanDevice
-{
-	VkDevice logicalDevice;
-	VkPhysicalDevice physicalDevice;
+	struct VulkanPipeline
+	{
+		VkPipeline pipeline;
+	};
 
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
-};
+	struct VulkanDevice
+	{
+		VkDevice logicalDevice;
+		VkPhysicalDevice physicalDevice;
 
-struct SwapChain
-{
-	VkSwapchainKHR swapChain;
-	VkImage* images;
-	VkImageView* imageViews;
-	size_t imageCount;
-	VkFormat imageFormat;
-	VkExtent2D extent;
-};
+		VkQueue graphicsQueue;
+		VkQueue presentQueue;
+	};
 
-struct VulkanBackend
-{
-	VkInstance instance;
-	VulkanDevice device;
-	VkSurfaceKHR surface;
+	struct SwapChain
+	{
+		VkSwapchainKHR swapChain;
+		VkFormat imageFormat;
+		VkExtent2D extent;
+		VkImage* images;
+		VkImageView* imageViews;
+		uint32_t imageCount;
+	};
 
-	SwapChain mainSwapChain;
+	struct VulkanFrameBuffer
+	{
+		uint32_t width;
+		uint32_t height;
+		VkFramebuffer* framebuffers;
+		VkRenderPass renderPass;
+		VkRenderPassBeginInfo renderPassBeginInfo;
+		uint32_t frameBufferCount;
+	};
 
-//Debug
-	VkDebugUtilsMessengerEXT debugMessenger;
-	const char** extensions;
-	size_t extensionCount;
-};
+	struct VulkanBackend
+	{
+		VkInstance instance;
+		VulkanDevice device;
+		VkSurfaceKHR surface;
 
-struct VulkanBackendCreateInfo
-{
-	BB::Slice<const char*> extensions;
-	BB::Slice<const char*> deviceExtensions;
+		SwapChain mainSwapChain;
+
+		//Debug
+		VkDebugUtilsMessengerEXT debugMessenger;
+		const char** extensions;
+		uint32_t extensionCount;
+	};
+
+	struct VulkanBackendCreateInfo
+	{
+		Slice<const char*> extensions;
+		Slice<const char*> deviceExtensions;
 #ifdef _WIN32
-	HWND hwnd;
+		HWND hwnd;
 #endif //_WIN32
-	const char* appName;
-	const char* engineName;
-	uint32_t windowWidth;
-	uint32_t windowHeight;
-	int version;
-	bool validationLayers;
-};
+		const char* appName;
+		const char* engineName;
+		uint32_t windowWidth;
+		uint32_t windowHeight;
+		int version;
+		bool validationLayers;
+	};
 
-VulkanBackend VKCreateBackend(BB::Allocator a_TempAllocator,
-	BB::Allocator a_SysAllocator, 
-	const VulkanBackendCreateInfo& a_CreateInfo);
+	struct DepthCreateInfo
+	{
+		VkFormat depthFormat;
+		VkImageLayout initialLayout;
+		VkImageLayout finalLayout;
+	};
 
-VkPipeline CreatePipeline(const VulkanBackend& a_VulkanBackend,
-	VkRenderPass r_RenderPass, 
-	const VkDescriptorSetLayout* a_DescriptorSetLayouts, 
-	size_t a_Layouts);
+	struct RenderPassCreateInfo
+	{
+		VkFormat swapchainFormat;
+		VkAttachmentLoadOp loadOp;
+		VkAttachmentStoreOp storeOp;
+		VkImageLayout initialLayout;
+		VkImageLayout finalLayout;
 
-void VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend);
+		VkFormat depthFormat;
+	};
+
+	struct VulkanFrameBufferCreateInfo
+	{
+		uint32_t width;
+		uint32_t height;
+
+		VkImageView* viewAttachment;
+		uint32_t viewAttachmentCount;
+		VkImageView depthTestView;
+	};
+
+	struct VulkanPipelineCreateInfo
+	{
+		const VulkanFrameBuffer* pVulkanFrameBuffer;
+		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
+	};
+
+	VulkanBackend VKCreateBackend(Allocator a_TempAllocator,
+		Allocator a_SysAllocator,
+		const VulkanBackendCreateInfo& a_CreateInfo);
+
+	//UNFINISHED, ONLY DOES RENDERPASS.
+	VulkanFrameBuffer CreateFrameBuffer(Allocator a_SysAllocator, 
+		Allocator a_TempAllocator, 
+		const VulkanBackend& a_VulkanBackend,
+		const RenderPassCreateInfo& a_FramebufferCreateInfo);
+
+	VulkanPipeline CreatePipeline(Allocator a_TempAllocator,
+		const VulkanBackend& a_VulkanBackend,
+		const VulkanPipelineCreateInfo& a_CreateInfo);
+
+	void VkDestroyFramebuffer(Allocator a_SysAllocator,
+		VulkanFrameBuffer& a_FrameBuffer,
+		const VulkanBackend& a_VulkanBackend);
+	void DestroyPipeline(VulkanPipeline& a_Pipeline,
+		const VulkanBackend& a_VulkanBackend);
+	void VKDestroyBackend(BB::Allocator a_SysAllocator, 
+		VulkanBackend& a_VulkanBackend);
+}

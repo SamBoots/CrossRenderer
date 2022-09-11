@@ -8,7 +8,7 @@
 
 using namespace BB;
 
-void RenderBackend::InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
+void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
 {
 	currentRenderAPI = a_RenderAPI;
 	APIbackend = BBnew<VulkanBackend>(m_SystemAllocator);
@@ -42,6 +42,35 @@ void RenderBackend::InitBackend(BB::WindowHandle& a_WindowHandle, RenderAPI a_Re
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
 	*vkBackend = VKCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
+
+	RenderPassCreateInfo t_FrameBufferCreateInfo;
+	t_FrameBufferCreateInfo.swapchainFormat = vkBackend->mainSwapChain.imageFormat;
+	t_FrameBufferCreateInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	t_FrameBufferCreateInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	t_FrameBufferCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	t_FrameBufferCreateInfo.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VulkanFrameBuffer t_FrameBuffer = CreateFrameBuffer(m_SystemAllocator,
+		m_TempAllocator, *vkBackend, t_FrameBufferCreateInfo);
+
+	ShaderCreateInfo t_ShaderBuffers[2];
+	t_ShaderBuffers[0].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
+	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+	t_ShaderBuffers[1].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
+	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
+
+	VulkanPipelineCreateInfo t_PipelineCreateInfo;
+	t_PipelineCreateInfo.pVulkanFrameBuffer = &t_FrameBuffer;
+	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
+
+	VulkanPipeline t_Pipeline = CreatePipeline(m_TempAllocator, *vkBackend, t_PipelineCreateInfo);
+
+	VkDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
+	DestroyPipeline(t_Pipeline, *vkBackend);
+	VKDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
+	BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
+	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
+	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
 }
 
 void RenderBackend::DestroyBackend()
@@ -49,8 +78,8 @@ void RenderBackend::DestroyBackend()
 	switch (currentRenderAPI)
 	{
 	case RenderAPI::VULKAN:
-		VKDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
-		BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
+		//VKDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
+		//BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
 		break;
 	default:
 		break;
@@ -60,4 +89,9 @@ void RenderBackend::DestroyBackend()
 void RenderBackend::Update()
 {
 	m_TempAllocator.Clear();
+}
+
+void RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
+{
+
 }
