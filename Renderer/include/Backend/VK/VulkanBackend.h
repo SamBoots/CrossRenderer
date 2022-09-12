@@ -6,10 +6,6 @@
 namespace BB
 {
 	struct Allocator;
-	struct BBRenderBufferInfo;
-	struct BBRenderImageInfo;
-	struct BBShaderInfo;
-
 
 	struct VulkanPipeline
 	{
@@ -57,6 +53,9 @@ namespace BB
 		VkDebugUtilsMessengerEXT debugMessenger;
 		const char** extensions;
 		uint32_t extensionCount;
+
+		//The .cpp only object.
+		struct VulkanBackend_o* object;
 	};
 
 	struct VulkanBackendCreateInfo

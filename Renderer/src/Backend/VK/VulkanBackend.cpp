@@ -1,10 +1,30 @@
 #pragma once
 #include "VulkanBackend.h"
 #include "VulkanInitializers.h"
+#include "Hashmap.h"
 
 #include <iostream>
 
 using namespace BB;
+
+using PipelineLayoutHash = uint64_t;
+
+struct BB::VulkanBackend_o
+{
+	OL_HashMap<PipelineLayoutHash, VkPipelineLayout>* pipelineLayouts;
+};
+
+PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
+{
+	PipelineLayoutHash t_Hash = 25;
+	t_Hash ^= t_CreateInfo.pushConstantRangeCount;
+	for (uint32_t i = 0; i < t_CreateInfo.pushConstantRangeCount; i++)
+	{
+		t_Hash ^= static_cast<PipelineLayoutHash>(t_CreateInfo.pPushConstantRanges[i].size << 13);
+	}
+
+	return t_Hash;
+}
 
 struct FramebufferAttachment
 {
@@ -413,19 +433,29 @@ static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevic
 static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBackend,
 	Slice<VkPushConstantRange> a_PushConstants)
 {
-	VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
+	const VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
 		0,
 		nullptr,
 		a_PushConstants.size(),
 		a_PushConstants.data()
 	);
 
-	VkPipelineLayout t_Layout{};
+	PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
+	VkPipelineLayout* t_FoundLayout = a_VulkanBackend.object->pipelineLayouts->find(t_DescriptorHash);
 
-	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice, &t_LayoutCreateInfo, nullptr, &t_Layout),
+	if (t_FoundLayout != nullptr)
+		return *t_FoundLayout;
+
+	VkPipelineLayout t_NewLayout = VK_NULL_HANDLE;
+	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice,
+		&t_LayoutCreateInfo,
+		nullptr,
+		&t_NewLayout),
 		"Vulkan: Failed to create pipelinelayout.");
 
-	return t_Layout;
+	a_VulkanBackend.object->pipelineLayouts->insert(t_DescriptorHash, t_NewLayout);
+
+	return t_NewLayout;
 }
 
 VkRenderPass CreateRenderPass(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const RenderPassCreateInfo& a_PassInfo)
@@ -469,6 +499,9 @@ VkRenderPass CreateRenderPass(Allocator a_TempAllocator, const VulkanBackend& a_
 VulkanBackend BB::VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
+	t_ReturnBackend.object = BBnew<VulkanBackend_o>(a_SysAllocator);
+	t_ReturnBackend.object->pipelineLayouts = 
+		BBnew<OL_HashMap<PipelineLayoutHash, VkPipelineLayout>>(a_SysAllocator, a_SysAllocator);
 
 	//Check if the extensions and layers work.
 	BB_ASSERT(CheckExtensionSupport(a_TempAllocator, a_CreateInfo.extensions),
@@ -718,6 +751,17 @@ void BB::DestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_Vulk
 
 void BB::VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
 {
+	for (auto t_It = a_VulkanBackend.object->pipelineLayouts->begin(); 
+		t_It < a_VulkanBackend.object->pipelineLayouts->end(); t_It++)
+	{
+		vkDestroyPipelineLayout(a_VulkanBackend.device.logicalDevice, 
+			*t_It->value,
+			nullptr);
+	}
+
+	BBfree(a_SysAllocator, a_VulkanBackend.object->pipelineLayouts);
+	BBfree(a_SysAllocator, a_VulkanBackend.object);
+
 	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
 	for (size_t i = 0; i < a_VulkanBackend.mainSwapChain.imageCount; i++)
 	{
