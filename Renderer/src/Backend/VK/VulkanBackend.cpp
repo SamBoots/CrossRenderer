@@ -4,15 +4,16 @@
 #include "Hashmap.h"
 
 #include <iostream>
+namespace BB
+{
+	using PipelineLayoutHash = uint64_t;
+	struct VulkanBackend_o
+	{
+		OL_HashMap<PipelineLayoutHash, VkPipelineLayout>* pipelineLayouts;
+	};
+}
 
 using namespace BB;
-
-using PipelineLayoutHash = uint64_t;
-
-struct BB::VulkanBackend_o
-{
-	OL_HashMap<PipelineLayoutHash, VkPipelineLayout>* pipelineLayouts;
-};
 
 PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
 {
@@ -259,7 +260,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	t_CreateInfo.pEnabledFeatures = &t_DeviceFeatures;
 
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
-	t_CreateInfo.enabledExtensionCount = a_DeviceExtensions.size();
+	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
 
 	VKASSERT(vkCreateDevice(a_PhysicalDevice, &t_CreateInfo, nullptr, &t_ReturnDevice),
 		"Failed to create logical device Vulkan.");
@@ -431,12 +432,12 @@ static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevic
 }
 
 static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBackend,
-	Slice<VkPushConstantRange> a_PushConstants)
+	const Slice<VkPushConstantRange> a_PushConstants)
 {
 	const VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
 		0,
 		nullptr,
-		a_PushConstants.size(),
+		static_cast<uint32_t>(a_PushConstants.size()),
 		a_PushConstants.data()
 	);
 
@@ -458,45 +459,7 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 	return t_NewLayout;
 }
 
-VkRenderPass CreateRenderPass(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const RenderPassCreateInfo& a_PassInfo)
-{
-	VkRenderPass t_ReturnPass;
-
-	//Color Attachment.
-	VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(a_PassInfo.swapchainFormat,
-		VK_SAMPLE_COUNT_1_BIT, a_PassInfo.loadOp, a_PassInfo.storeOp,
-		VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, a_PassInfo.initialLayout,
-		a_PassInfo.finalLayout);
-	VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	
-	VkAttachmentDescription* t_Attachments = BBnewArr<VkAttachmentDescription>(a_TempAllocator,
-		2);
-	t_Attachments[0] = t_ColorAttachment;
-
-	//DEPTH BUFFER
-	VkAttachmentDescription t_DepthAttachment = VkInit::AttachmentDescription(a_PassInfo.depthFormat,
-		VK_SAMPLE_COUNT_1_BIT, VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE,
-		VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, a_PassInfo.initialLayout,
-		a_PassInfo.finalLayout);
-	VkAttachmentReference t_DepthAttachmentRef = VkInit::AttachmentReference(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-	t_Attachments[1] = t_DepthAttachment;
-
-	VkSubpassDescription t_Subpass = VkInit::SubpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 1, &t_ColorAttachmentRef, &t_DepthAttachmentRef);
-	VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(VK_SUBPASS_EXTERNAL, 0,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
-
-	VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
-		1, t_Attachments, 1, &t_Subpass, 1, &t_Dependency);
-
-	VKASSERT(vkCreateRenderPass(a_Backend.device.logicalDevice, &t_RenderPassInfo, nullptr, &t_ReturnPass),
-		"Vulkan: Failed to create renderpass.");
-
-	return t_ReturnPass;
-}
-
-VulkanBackend BB::VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
+VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
 	t_ReturnBackend.object = BBnew<VulkanBackend_o>(a_SysAllocator);
@@ -510,7 +473,7 @@ VulkanBackend BB::VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a
 #pragma region //Debug
 	//For debug, we want to remember the extensions we have.
 	t_ReturnBackend.extensions = BB::BBnewArr<const char*>(a_SysAllocator, a_CreateInfo.extensions.size());
-	t_ReturnBackend.extensionCount = a_CreateInfo.extensions.size();
+	t_ReturnBackend.extensionCount = static_cast<uint32_t>(a_CreateInfo.extensions.size());
 	for (size_t i = 0; i < t_ReturnBackend.extensionCount; i++)
 	{
 		t_ReturnBackend.extensions[i] = a_CreateInfo.extensions[i];
@@ -598,49 +561,98 @@ VulkanBackend BB::VKCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a
 	return t_ReturnBackend;
 }
 
-VulkanFrameBuffer BB::CreateFrameBuffer(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const RenderPassCreateInfo& a_FramebufferCreateInfo)
+VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
 	VulkanFrameBuffer t_ReturnFrameBuffer;
+	{
+		//First do the renderpass
+		VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
+			a_FramebufferCreateInfo.swapchainFormat,
+			VK_SAMPLE_COUNT_1_BIT,
+			a_FramebufferCreateInfo.colorLoadOp,
+			a_FramebufferCreateInfo.colorStoreOp,
+			VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			a_FramebufferCreateInfo.colorInitialLayout,
+			a_FramebufferCreateInfo.colorFinalLayout);
+		VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(
+			0,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-	VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
-		a_FramebufferCreateInfo.swapchainFormat,
-		VK_SAMPLE_COUNT_1_BIT,
-		a_FramebufferCreateInfo.loadOp, 
-		a_FramebufferCreateInfo.storeOp,
-		VK_ATTACHMENT_LOAD_OP_DONT_CARE, 
-		VK_ATTACHMENT_STORE_OP_DONT_CARE, 
-		a_FramebufferCreateInfo.initialLayout,
-		a_FramebufferCreateInfo.finalLayout);
-	VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(
-		0, 
-		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		VkSubpassDescription t_Subpass = VkInit::SubpassDescription(
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			1,
+			&t_ColorAttachmentRef,
+			nullptr);
+		VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(
+			VK_SUBPASS_EXTERNAL,
+			0,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			0,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	VkSubpassDescription t_Subpass = VkInit::SubpassDescription(
-		VK_PIPELINE_BIND_POINT_GRAPHICS, 
-		1, 
-		&t_ColorAttachmentRef, 
-		nullptr);
-	VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(
-		VK_SUBPASS_EXTERNAL, 
-		0,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 
-		0,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-		VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
+			1, &t_ColorAttachment, 1, &t_Subpass, 1, &t_Dependency);
 
-	VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
-		1, &t_ColorAttachment, 1, &t_Subpass, 1, &t_Dependency);
+		VKASSERT(vkCreateRenderPass(a_VulkanBackend.device.logicalDevice,
+			&t_RenderPassInfo,
+			nullptr,
+			&t_ReturnFrameBuffer.renderPass),
+			"Vulkan: Failed to create graphics Pipeline.");
+	}
 
-	VKASSERT(vkCreateRenderPass(a_VulkanBackend.device.logicalDevice,
-		&t_RenderPassInfo,
-		nullptr,
-		&t_ReturnFrameBuffer.renderPass),
-		"Vulkan: Failed to create graphics Pipeline.");
+	{
+		//Now do framebuffer
+
+		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
+		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
+		t_ReturnFrameBuffer.frameBufferCount = a_FramebufferCreateInfo.frameBufferCount;
+		t_ReturnFrameBuffer.framebuffers = BBnewArr<VkFramebuffer>(a_SysAllocator,
+			a_FramebufferCreateInfo.frameBufferCount);
+
+		{
+			//I do not remember why my old code did this, the renderpass was already created?
+			//renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			//renderPassBeginInfo.renderArea.offset = { 0, 0 };
+			//renderPassBeginInfo.renderArea.extent = { width, height };
+		}
+
+		uint32_t t_UsedAttachments = 1;
+		//have enough space for the potentional depth buffer.
+		VkImageView t_AttachmentViews[2];
+		if (a_FramebufferCreateInfo.depthTestView != VK_NULL_HANDLE)
+		{
+			t_UsedAttachments = 2;
+			//last attachment is depth info.
+			t_AttachmentViews[1] = a_FramebufferCreateInfo.depthTestView;
+		}
+
+		for (uint32_t i = 0; i < t_ReturnFrameBuffer.frameBufferCount; i++)
+		{
+			t_AttachmentViews[0] = a_FramebufferCreateInfo.swapChainViews[i];
+
+			VkFramebufferCreateInfo t_FramebufferInfo = VkInit::FramebufferCreateInfo();
+			t_FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			t_FramebufferInfo.renderPass = t_ReturnFrameBuffer.renderPass;
+			t_FramebufferInfo.attachmentCount = t_UsedAttachments;
+			t_FramebufferInfo.pAttachments = t_AttachmentViews;
+			t_FramebufferInfo.width = t_ReturnFrameBuffer.width;
+			t_FramebufferInfo.height = t_ReturnFrameBuffer.height;
+			t_FramebufferInfo.layers = 1;
+
+			VKASSERT(vkCreateFramebuffer(a_VulkanBackend.device.logicalDevice, 
+				&t_FramebufferInfo, 
+				nullptr, 
+				&t_ReturnFrameBuffer.framebuffers[i]),
+				"Vulkan: Failed to create Framebuffer");
+		}
+	}
 
 	return t_ReturnFrameBuffer;
 }
 
-VulkanPipeline BB::CreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanPipelineCreateInfo& a_CreateInfo)
+VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;
 
@@ -739,17 +751,51 @@ VulkanPipeline BB::CreatePipeline(Allocator a_TempAllocator, const VulkanBackend
 	return t_ReturnPipeline;
 }
 
-void BB::VkDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer, const VulkanBackend& a_VulkanBackend)
+VulkanCommandList BB::VulkanCreateCommandList(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend)
 {
-	vkDestroyRenderPass(a_VulkanBackend.device.logicalDevice, a_FrameBuffer.renderPass, nullptr);
+	VulkanCommandList t_ReturnCommandList;
+	uint32_t t_GraphicsBit;
+	QueueFindGraphicsBit(a_TempAllocator, a_VulkanBackend.device.physicalDevice, &t_GraphicsBit);
+	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
+		t_GraphicsBit,
+		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+
+	VKASSERT(vkCreateCommandPool(a_VulkanBackend.device.logicalDevice,
+		&t_CommandPoolInfo,
+		nullptr,
+		&t_ReturnCommandList.pool),
+		"Vulkan: Failed to create commandpool.");
+
+	return t_ReturnCommandList;
 }
 
-void BB::DestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_VulkanBackend)
+
+void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer,const VulkanBackend& a_VulkanBackend)
+{
+	for (uint32_t i = 0; i < a_FrameBuffer.frameBufferCount; i++)
+	{
+		vkDestroyFramebuffer(a_VulkanBackend.device.logicalDevice,
+			a_FrameBuffer.framebuffers[i],
+			nullptr);
+	}
+	BBfree(a_SysAllocator, a_FrameBuffer.framebuffers);
+
+	vkDestroyRenderPass(a_VulkanBackend.device.logicalDevice, 
+		a_FrameBuffer.renderPass, 
+		nullptr);
+}
+
+void BB::VulkanDestroyCommandList(VulkanCommandList& a_CommandList, const VulkanBackend& a_VulkanBackend)
+{
+	vkDestroyCommandPool(a_VulkanBackend.device.logicalDevice, a_CommandList.pool, nullptr);
+}
+
+void BB::VulkanDestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_VulkanBackend)
 {
 	vkDestroyPipeline(a_VulkanBackend.device.logicalDevice, a_Pipeline.pipeline, nullptr);
 }
 
-void BB::VKDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
+void BB::VulkanDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
 {
 	for (auto t_It = a_VulkanBackend.object->pipelineLayouts->begin(); 
 		t_It < a_VulkanBackend.object->pipelineLayouts->end(); t_It++)

@@ -23,7 +23,7 @@ namespace BB
 
 	private:
 		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
-		FreeListAllocator_t m_TempAllocator{ kbSize * 4 };
+		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
 
 		void* APIbackend;
 		RenderAPI currentRenderAPI;

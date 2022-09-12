@@ -41,16 +41,24 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	*vkBackend = VKCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
+	*vkBackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
 
-	RenderPassCreateInfo t_FrameBufferCreateInfo;
+	VulkanFrameBufferCreateInfo t_FrameBufferCreateInfo;
+	//VkRenderpass info
 	t_FrameBufferCreateInfo.swapchainFormat = vkBackend->mainSwapChain.imageFormat;
-	t_FrameBufferCreateInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	t_FrameBufferCreateInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	t_FrameBufferCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	t_FrameBufferCreateInfo.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	t_FrameBufferCreateInfo.colorLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	t_FrameBufferCreateInfo.colorStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+	t_FrameBufferCreateInfo.colorInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	t_FrameBufferCreateInfo.colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	VulkanFrameBuffer t_FrameBuffer = CreateFrameBuffer(m_SystemAllocator,
+	//VkFrameBuffer info
+	t_FrameBufferCreateInfo.width = vkBackend->mainSwapChain.extent.width;
+	t_FrameBufferCreateInfo.height = vkBackend->mainSwapChain.extent.height;
+	t_FrameBufferCreateInfo.swapChainViews = vkBackend->mainSwapChain.imageViews;
+	t_FrameBufferCreateInfo.frameBufferCount = vkBackend->mainSwapChain.imageCount;
+	t_FrameBufferCreateInfo.depthTestView = VK_NULL_HANDLE;
+
+	VulkanFrameBuffer t_FrameBuffer = VulkanCreateFrameBuffer(m_SystemAllocator,
 		m_TempAllocator, *vkBackend, t_FrameBufferCreateInfo);
 
 	ShaderCreateInfo t_ShaderBuffers[2];
@@ -63,11 +71,14 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_PipelineCreateInfo.pVulkanFrameBuffer = &t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 
-	VulkanPipeline t_Pipeline = CreatePipeline(m_TempAllocator, *vkBackend, t_PipelineCreateInfo);
+	VulkanPipeline t_Pipeline = VulkanCreatePipeline(m_TempAllocator, *vkBackend, t_PipelineCreateInfo);
 
-	VkDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
-	DestroyPipeline(t_Pipeline, *vkBackend);
-	VKDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
+	VulkanCommandList t_CommandList = VulkanCreateCommandList(m_TempAllocator, *vkBackend);
+
+	VulkanDestroyCommandList(t_CommandList, *vkBackend);
+	VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
+	VulkanDestroyPipeline(t_Pipeline, *vkBackend);
+	VulkanDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
 	BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);

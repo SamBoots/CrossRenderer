@@ -37,8 +37,14 @@ namespace BB
 		uint32_t height;
 		VkFramebuffer* framebuffers;
 		VkRenderPass renderPass;
-		VkRenderPassBeginInfo renderPassBeginInfo;
 		uint32_t frameBufferCount;
+	};
+
+	struct VulkanCommandList
+	{
+		VkCommandPool pool;
+		VkCommandBuffer* recordedBuffers;
+		uint32_t recordedBufferCount;
 	};
 
 	struct VulkanBackend
@@ -80,25 +86,21 @@ namespace BB
 		VkImageLayout finalLayout;
 	};
 
-	struct RenderPassCreateInfo
-	{
-		VkFormat swapchainFormat;
-		VkAttachmentLoadOp loadOp;
-		VkAttachmentStoreOp storeOp;
-		VkImageLayout initialLayout;
-		VkImageLayout finalLayout;
-
-		VkFormat depthFormat;
-	};
-
 	struct VulkanFrameBufferCreateInfo
 	{
+		VkFormat swapchainFormat;
+		VkAttachmentLoadOp colorLoadOp;
+		VkAttachmentStoreOp colorStoreOp;
+		VkImageLayout colorInitialLayout;
+		VkImageLayout colorFinalLayout;
+
+		VkFormat depthFormat;
+
 		uint32_t width;
 		uint32_t height;
-
-		VkImageView* viewAttachment;
-		uint32_t viewAttachmentCount;
+		VkImageView* swapChainViews;
 		VkImageView depthTestView;
+		uint32_t frameBufferCount;
 	};
 
 	struct VulkanPipelineCreateInfo
@@ -107,25 +109,30 @@ namespace BB
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
 	};
 
-	VulkanBackend VKCreateBackend(Allocator a_TempAllocator,
+	VulkanBackend VulkanCreateBackend(Allocator a_TempAllocator,
 		Allocator a_SysAllocator,
 		const VulkanBackendCreateInfo& a_CreateInfo);
 
 	//UNFINISHED, ONLY DOES RENDERPASS.
-	VulkanFrameBuffer CreateFrameBuffer(Allocator a_SysAllocator, 
+	VulkanFrameBuffer VulkanCreateFrameBuffer(Allocator a_SysAllocator,
 		Allocator a_TempAllocator, 
 		const VulkanBackend& a_VulkanBackend,
-		const RenderPassCreateInfo& a_FramebufferCreateInfo);
+		const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo);
 
-	VulkanPipeline CreatePipeline(Allocator a_TempAllocator,
+	VulkanPipeline VulkanCreatePipeline(Allocator a_TempAllocator,
 		const VulkanBackend& a_VulkanBackend,
 		const VulkanPipelineCreateInfo& a_CreateInfo);
 
-	void VkDestroyFramebuffer(Allocator a_SysAllocator,
+	VulkanCommandList VulkanCreateCommandList(Allocator a_TempAllocator,
+		const VulkanBackend& a_VulkanBackend);
+
+	void VulkanDestroyCommandList(VulkanCommandList& a_CommandList,
+		const VulkanBackend& a_VulkanBackend);
+	void VulkanDestroyFramebuffer(Allocator a_SysAllocator,
 		VulkanFrameBuffer& a_FrameBuffer,
 		const VulkanBackend& a_VulkanBackend);
-	void DestroyPipeline(VulkanPipeline& a_Pipeline,
+	void VulkanDestroyPipeline(VulkanPipeline& a_Pipeline,
 		const VulkanBackend& a_VulkanBackend);
-	void VKDestroyBackend(BB::Allocator a_SysAllocator, 
+	void VulkanDestroyBackend(BB::Allocator a_SysAllocator,
 		VulkanBackend& a_VulkanBackend);
 }
