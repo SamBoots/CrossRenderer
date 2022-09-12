@@ -40,7 +40,7 @@ void* LinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 
 void LinearAllocator::Free(void*)
 {
-	BB_ASSERT(false, "Tried to free a piece of memory in a linear allocator, which is not possible!");
+	BB_WARNING(false, "Tried to free a piece of memory in a linear allocator, warning will be removed when temporary allocators exist!", WarningType::LOW);
 }
 
 void LinearAllocator::Clear()
