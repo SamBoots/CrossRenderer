@@ -28,6 +28,9 @@ namespace BB
 		VkExtent2D extent;
 		VkImage* images;
 		VkImageView* imageViews;
+		VkFence* frameFences;
+		VkSemaphore* presentSems;
+		VkSemaphore* renderSems;
 		uint32_t imageCount;
 	};
 
@@ -55,6 +58,7 @@ namespace BB
 		VkSurfaceKHR surface;
 
 		SwapChain mainSwapChain;
+		uint32_t currentFrame;
 
 		//Debug
 		VkDebugUtilsMessengerEXT debugMessenger;

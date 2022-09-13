@@ -380,6 +380,16 @@ static SwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_T
 	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
+
+	//Create sync structures in the same loop, might be moved to commandlist.
+	VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
+	//first one is already signaled to make sure we can still render.
+	t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
+	t_ReturnSwapchain.frameFences = BBnewArr<VkFence>(a_SysAllocator, t_ImageCount);
+	t_ReturnSwapchain.presentSems = BBnewArr<VkSemaphore>(a_SysAllocator, t_ImageCount);
+	t_ReturnSwapchain.renderSems = BBnewArr<VkSemaphore>(a_SysAllocator, t_ImageCount);
+
 	for (uint32_t i = 0; i < t_ImageCount; i++)
 	{
 		t_ImageViewCreateInfo.image = t_ReturnSwapchain.images[i];
@@ -388,8 +398,26 @@ static SwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_T
 			nullptr,
 			&t_ReturnSwapchain.imageViews[i]), 
 			"Vulkan: Failed to create swapchain image views.");
-	}
 
+		VKASSERT(vkCreateFence(a_Device,
+			&t_FenceCreateInfo,
+			nullptr, 
+			&t_ReturnSwapchain.frameFences[i]),
+			"Vulkan: Failed to create fence.");
+		VKASSERT(vkCreateSemaphore(a_Device,
+			&t_SemCreateInfo,
+			nullptr, 
+			&t_ReturnSwapchain.presentSems[i]),
+			"Vulkan: Failed to create present semaphore.");
+		VKASSERT(vkCreateSemaphore(a_Device,
+			&t_SemCreateInfo,
+			nullptr,
+			&t_ReturnSwapchain.renderSems[i]),
+			"Vulkan: Failed to create render semaphore.");
+
+		//reset the flags to 0 since we won't be making signaled fences again.
+		t_FenceCreateInfo.flags = 0;
+	}
 
 	t_ReturnSwapchain.imageFormat = t_ChosenFormat.format;
 	t_ReturnSwapchain.extent = t_ChosenExtent;
@@ -461,6 +489,27 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 
 void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdList, const VulkanFrameBuffer& a_FrameBuffer, const VulkanPipeline& a_Pipeline, const VulkanBackend& a_Backend)
 {
+	uint32_t t_ImageIndex;
+	VKASSERT(vkAcquireNextImageKHR(a_Backend.device.logicalDevice,
+		a_Backend.mainSwapChain.swapChain,
+		UINT64_MAX,
+		a_Backend.mainSwapChain.presentSems[0],
+		VK_NULL_HANDLE,
+		&t_ImageIndex),
+		"Vulkan: failed to get next image.");
+
+	VKASSERT(vkWaitForFences(a_Backend.device.logicalDevice,
+		1,
+		&a_Backend.mainSwapChain.frameFences[0],
+		VK_TRUE,
+		10000000),
+		"Vulkan: Failed to wait for frences");
+
+	vkResetFences(a_Backend.device.logicalDevice, 
+		1, 
+		&a_Backend.mainSwapChain.frameFences[0]);
+
+	vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
 	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
 	VKASSERT(vkBeginCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree],
 		&t_CmdBeginInfo),
@@ -472,7 +521,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 
 	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
 		a_FrameBuffer.renderPass,
-		a_FrameBuffer.framebuffers[0],
+		a_FrameBuffer.framebuffers[t_ImageIndex],
 		VkInit::Rect2D(0,
 			0,
 			a_Backend.mainSwapChain.extent),
@@ -505,11 +554,46 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	vkCmdEndRenderPass(t_CmdRecording);
 
 	VKASSERT(vkEndCommandBuffer(t_CmdRecording), "Vulkan: Failed to record commandbuffer!");
+
+
+	//submit stage.
+	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	VkSubmitInfo t_SubmitInfo{};
+	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	t_SubmitInfo.waitSemaphoreCount = 1;
+	t_SubmitInfo.pWaitSemaphores = &a_Backend.mainSwapChain.presentSems[0];
+	t_SubmitInfo.pWaitDstStageMask = &t_WaitStagesMask;
+
+	t_SubmitInfo.signalSemaphoreCount = 1;
+	t_SubmitInfo.pSignalSemaphores = &a_Backend.mainSwapChain.renderSems[0];
+
+	t_SubmitInfo.commandBufferCount = 1;
+	t_SubmitInfo.pCommandBuffers = &t_CmdRecording;
+
+	VKASSERT(vkQueueSubmit(a_Backend.device.graphicsQueue,
+		1,
+		&t_SubmitInfo,
+		a_Backend.mainSwapChain.frameFences[0]),
+		"Vulkan: failed to submit to queue.");
+
+	VkPresentInfoKHR t_PresentInfo{};
+	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	t_PresentInfo.waitSemaphoreCount = 1;
+	t_PresentInfo.pWaitSemaphores = &a_Backend.mainSwapChain.renderSems[0];
+	t_PresentInfo.swapchainCount = 1;
+	t_PresentInfo.pSwapchains = &a_Backend.mainSwapChain.swapChain;
+	t_PresentInfo.pImageIndices = &t_ImageIndex;
+	t_PresentInfo.pResults = nullptr;
+
+	VKASSERT(vkQueuePresentKHR(a_Backend.device.presentQueue, &t_PresentInfo),
+		"Vulkan: Failed to queuepresentKHR.");
 }
 
 VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
+	t_ReturnBackend.currentFrame = 0;
 	t_ReturnBackend.object = BBnew<VulkanBackend_o>(a_SysAllocator);
 	t_ReturnBackend.object->pipelineLayouts = 
 		BBnew<OL_HashMap<PipelineLayoutHash, VkPipelineLayout>>(a_SysAllocator, a_SysAllocator);
@@ -875,9 +959,15 @@ void BB::VulkanDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_Bac
 	for (size_t i = 0; i < a_Backend.mainSwapChain.imageCount; i++)
 	{
 		vkDestroyImageView(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.imageViews[i], nullptr);
+		vkDestroyFence(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.frameFences[i], nullptr);
+		vkDestroySemaphore(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.presentSems[i], nullptr);
+		vkDestroySemaphore(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.renderSems[i], nullptr);
 	}
 	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.images);
 	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.imageViews);
+	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.frameFences);
+	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.presentSems);
+	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.renderSems);
 
 	vkDestroySwapchainKHR(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.swapChain, nullptr);
 	vkDestroyDevice(a_Backend.device.logicalDevice, nullptr);
