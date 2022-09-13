@@ -73,9 +73,15 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 	VulkanPipeline t_Pipeline = VulkanCreatePipeline(m_TempAllocator, *vkBackend, t_PipelineCreateInfo);
 
-	VulkanCommandList t_CommandList = VulkanCreateCommandList(m_TempAllocator, *vkBackend);
+	VulkanCommandList t_CommandList = VulkanCreateCommandList(m_SystemAllocator, m_TempAllocator, *vkBackend, 5);
 
-	VulkanDestroyCommandList(t_CommandList, *vkBackend);
+	RenderFrame(m_TempAllocator,
+		t_CommandList,
+		t_FrameBuffer,
+		t_Pipeline,
+		*vkBackend);
+
+	VulkanDestroyCommandList(m_SystemAllocator, t_CommandList, *vkBackend);
 	VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
 	VulkanDestroyPipeline(t_Pipeline, *vkBackend);
 	VulkanDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));

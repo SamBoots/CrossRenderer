@@ -43,8 +43,9 @@ namespace BB
 	struct VulkanCommandList
 	{
 		VkCommandPool pool;
-		VkCommandBuffer* recordedBuffers;
-		uint32_t recordedBufferCount;
+		VkCommandBuffer* buffers;
+		uint32_t bufferCount;
+		uint32_t currentFree;
 	};
 
 	struct VulkanBackend
@@ -109,30 +110,38 @@ namespace BB
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
 	};
 
+	void RenderFrame(Allocator a_TempAllocator,
+		const VulkanCommandList& a_CmdList,
+		const VulkanFrameBuffer& a_FrameBuffer,
+		const VulkanPipeline& a_Pipeline,
+		const VulkanBackend& a_Backend);
+
 	VulkanBackend VulkanCreateBackend(Allocator a_TempAllocator,
 		Allocator a_SysAllocator,
 		const VulkanBackendCreateInfo& a_CreateInfo);
 
-	//UNFINISHED, ONLY DOES RENDERPASS.
 	VulkanFrameBuffer VulkanCreateFrameBuffer(Allocator a_SysAllocator,
 		Allocator a_TempAllocator, 
-		const VulkanBackend& a_VulkanBackend,
+		const VulkanBackend& a_Backend,
 		const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo);
 
 	VulkanPipeline VulkanCreatePipeline(Allocator a_TempAllocator,
-		const VulkanBackend& a_VulkanBackend,
+		const VulkanBackend& a_Backend,
 		const VulkanPipelineCreateInfo& a_CreateInfo);
 
-	VulkanCommandList VulkanCreateCommandList(Allocator a_TempAllocator,
-		const VulkanBackend& a_VulkanBackend);
+	VulkanCommandList VulkanCreateCommandList(Allocator a_SysAllocator, 
+		Allocator a_TempAllocator,
+		const VulkanBackend& a_Backend, 
+		uint32_t a_BufferCount);
 
-	void VulkanDestroyCommandList(VulkanCommandList& a_CommandList,
-		const VulkanBackend& a_VulkanBackend);
+	void VulkanDestroyCommandList(Allocator a_SysAllocator, 
+		VulkanCommandList& a_CommandList,
+		const VulkanBackend& a_Backend);
 	void VulkanDestroyFramebuffer(Allocator a_SysAllocator,
 		VulkanFrameBuffer& a_FrameBuffer,
-		const VulkanBackend& a_VulkanBackend);
+		const VulkanBackend& a_Backend);
 	void VulkanDestroyPipeline(VulkanPipeline& a_Pipeline,
-		const VulkanBackend& a_VulkanBackend);
+		const VulkanBackend& a_Backend);
 	void VulkanDestroyBackend(BB::Allocator a_SysAllocator,
-		VulkanBackend& a_VulkanBackend);
+		VulkanBackend& a_Backend);
 }

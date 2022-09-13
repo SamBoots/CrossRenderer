@@ -459,6 +459,54 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 	return t_NewLayout;
 }
 
+void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdList, const VulkanFrameBuffer& a_FrameBuffer, const VulkanPipeline& a_Pipeline, const VulkanBackend& a_Backend)
+{
+	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
+	VKASSERT(vkBeginCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree],
+		&t_CmdBeginInfo),
+		"Vulkan: Failed to begin commandbuffer");
+
+	VkCommandBuffer t_CmdRecording = a_CmdList.buffers[a_CmdList.currentFree];
+
+	VkClearValue t_ClearValue = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+
+	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
+		a_FrameBuffer.renderPass,
+		a_FrameBuffer.framebuffers[0],
+		VkInit::Rect2D(0,
+			0,
+			a_Backend.mainSwapChain.extent),
+		1,
+		&t_ClearValue);
+
+	vkCmdBeginRenderPass(t_CmdRecording,
+		&t_RenderPassBegin, 
+		VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(t_CmdRecording, 
+		VK_PIPELINE_BIND_POINT_GRAPHICS, 
+		a_Pipeline.pipeline);
+
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
+	t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
+
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent = a_Backend.mainSwapChain.extent;
+	vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
+
+	vkCmdDraw(t_CmdRecording, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(t_CmdRecording);
+
+	VKASSERT(vkEndCommandBuffer(t_CmdRecording), "Vulkan: Failed to record commandbuffer!");
+}
+
 VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
@@ -652,7 +700,7 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 	return t_ReturnFrameBuffer;
 }
 
-VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanPipelineCreateInfo& a_CreateInfo)
+VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;
 
@@ -664,7 +712,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
 	VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
-		a_VulkanBackend.device.logicalDevice,
+		a_Backend.device.logicalDevice,
 		a_CreateInfo.shaderCreateInfos);
 
 	//Set viewport to nullptr and let the commandbuffer handle it via 
@@ -710,7 +758,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	t_PushConstantMatrix.offset = 0;
 
-	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_VulkanBackend, BB::Slice(&t_PushConstantMatrix, 1));
+	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_Backend, BB::Slice(&t_PushConstantMatrix, 1));
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -732,7 +780,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_PipeCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	t_PipeCreateInfo.basePipelineIndex = -1;
 
-	VKASSERT(vkCreateGraphicsPipelines(a_VulkanBackend.device.logicalDevice,
+	VKASSERT(vkCreateGraphicsPipelines(a_Backend.device.logicalDevice,
 		VK_NULL_HANDLE,
 		1,
 		&t_PipeCreateInfo,
@@ -741,87 +789,102 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 		"Vulkan: Failed to create graphics Pipeline.");
 
 
-	vkDestroyShaderModule(a_VulkanBackend.device.logicalDevice,
+	vkDestroyShaderModule(a_Backend.device.logicalDevice,
 		t_ShaderCreateResult.shaderModules[0],
 		nullptr);
-	vkDestroyShaderModule(a_VulkanBackend.device.logicalDevice,
+	vkDestroyShaderModule(a_Backend.device.logicalDevice,
 		t_ShaderCreateResult.shaderModules[1],
 		nullptr);
 	
 	return t_ReturnPipeline;
 }
 
-VulkanCommandList BB::VulkanCreateCommandList(Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend)
+VulkanCommandList BB::VulkanCreateCommandList(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_Backend, uint32_t a_BufferCount)
 {
 	VulkanCommandList t_ReturnCommandList;
 	uint32_t t_GraphicsBit;
-	QueueFindGraphicsBit(a_TempAllocator, a_VulkanBackend.device.physicalDevice, &t_GraphicsBit);
+	QueueFindGraphicsBit(a_TempAllocator, a_Backend.device.physicalDevice, &t_GraphicsBit);
 	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
 		t_GraphicsBit,
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-	VKASSERT(vkCreateCommandPool(a_VulkanBackend.device.logicalDevice,
+	VKASSERT(vkCreateCommandPool(a_Backend.device.logicalDevice,
 		&t_CommandPoolInfo,
 		nullptr,
 		&t_ReturnCommandList.pool),
 		"Vulkan: Failed to create commandpool.");
 
+	VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
+		t_ReturnCommandList.pool,
+		a_BufferCount,
+		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+	t_ReturnCommandList.buffers = BBnewArr<VkCommandBuffer>(a_SysAllocator, a_BufferCount);
+	t_ReturnCommandList.bufferCount = a_BufferCount;
+	t_ReturnCommandList.currentFree = 0;
+
+	VKASSERT(vkAllocateCommandBuffers(a_Backend.device.logicalDevice,
+		&t_AllocInfo,
+		t_ReturnCommandList.buffers),
+		"Vulkan: failed to allocate commandbuffers.");
+
 	return t_ReturnCommandList;
 }
 
 
-void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer,const VulkanBackend& a_VulkanBackend)
+void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer,const VulkanBackend& a_Backend)
 {
 	for (uint32_t i = 0; i < a_FrameBuffer.frameBufferCount; i++)
 	{
-		vkDestroyFramebuffer(a_VulkanBackend.device.logicalDevice,
+		vkDestroyFramebuffer(a_Backend.device.logicalDevice,
 			a_FrameBuffer.framebuffers[i],
 			nullptr);
 	}
 	BBfree(a_SysAllocator, a_FrameBuffer.framebuffers);
 
-	vkDestroyRenderPass(a_VulkanBackend.device.logicalDevice, 
+	vkDestroyRenderPass(a_Backend.device.logicalDevice,
 		a_FrameBuffer.renderPass, 
 		nullptr);
 }
 
-void BB::VulkanDestroyCommandList(VulkanCommandList& a_CommandList, const VulkanBackend& a_VulkanBackend)
+void BB::VulkanDestroyCommandList(Allocator a_SysAllocator, VulkanCommandList& a_CommandList, const VulkanBackend& a_Backend)
 {
-	vkDestroyCommandPool(a_VulkanBackend.device.logicalDevice, a_CommandList.pool, nullptr);
+	vkDestroyCommandPool(a_Backend.device.logicalDevice, a_CommandList.pool, nullptr);
+	BBfreeArr(a_SysAllocator, a_CommandList.buffers);
 }
 
-void BB::VulkanDestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_VulkanBackend)
+void BB::VulkanDestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_Backend)
 {
-	vkDestroyPipeline(a_VulkanBackend.device.logicalDevice, a_Pipeline.pipeline, nullptr);
+	vkDestroyPipeline(a_Backend.device.logicalDevice, a_Pipeline.pipeline, nullptr);
 }
 
-void BB::VulkanDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_VulkanBackend)
+void BB::VulkanDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_Backend)
 {
-	for (auto t_It = a_VulkanBackend.object->pipelineLayouts->begin(); 
-		t_It < a_VulkanBackend.object->pipelineLayouts->end(); t_It++)
+	for (auto t_It = a_Backend.object->pipelineLayouts->begin();
+		t_It < a_Backend.object->pipelineLayouts->end(); t_It++)
 	{
-		vkDestroyPipelineLayout(a_VulkanBackend.device.logicalDevice, 
+		vkDestroyPipelineLayout(a_Backend.device.logicalDevice,
 			*t_It->value,
 			nullptr);
 	}
 
-	BBfree(a_SysAllocator, a_VulkanBackend.object->pipelineLayouts);
-	BBfree(a_SysAllocator, a_VulkanBackend.object);
+	BBfree(a_SysAllocator, a_Backend.object->pipelineLayouts);
+	BBfree(a_SysAllocator, a_Backend.object);
 
-	BBfreeArr(a_SysAllocator, a_VulkanBackend.extensions);
-	for (size_t i = 0; i < a_VulkanBackend.mainSwapChain.imageCount; i++)
+	BBfreeArr(a_SysAllocator, a_Backend.extensions);
+	for (size_t i = 0; i < a_Backend.mainSwapChain.imageCount; i++)
 	{
-		vkDestroyImageView(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.mainSwapChain.imageViews[i], nullptr);
+		vkDestroyImageView(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.imageViews[i], nullptr);
 	}
-	BBfreeArr(a_SysAllocator, a_VulkanBackend.mainSwapChain.images);
-	BBfreeArr(a_SysAllocator, a_VulkanBackend.mainSwapChain.imageViews);
+	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.images);
+	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.imageViews);
 
-	vkDestroySwapchainKHR(a_VulkanBackend.device.logicalDevice, a_VulkanBackend.mainSwapChain.swapChain, nullptr);
-	vkDestroyDevice(a_VulkanBackend.device.logicalDevice, nullptr);
+	vkDestroySwapchainKHR(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.swapChain, nullptr);
+	vkDestroyDevice(a_Backend.device.logicalDevice, nullptr);
 
-	if (a_VulkanBackend.debugMessenger != 0)
-		DestroyVulkanDebug(a_VulkanBackend.instance, a_VulkanBackend.debugMessenger);
+	if (a_Backend.debugMessenger != 0)
+		DestroyVulkanDebug(a_Backend.instance, a_Backend.debugMessenger);
 
-	vkDestroySurfaceKHR(a_VulkanBackend.instance, a_VulkanBackend.surface, nullptr);
-	vkDestroyInstance(a_VulkanBackend.instance, nullptr);
+	vkDestroySurfaceKHR(a_Backend.instance, a_Backend.surface, nullptr);
+	vkDestroyInstance(a_Backend.instance, nullptr);
 }
