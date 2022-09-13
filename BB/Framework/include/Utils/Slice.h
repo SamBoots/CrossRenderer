@@ -44,7 +44,7 @@ namespace BB
 			T* m_Ptr;
 		};
 
-		Slice() {};
+		Slice() : m_Ptr(nullptr), m_Size(0) {};
 		Slice(T* a_Ptr, size_t a_Size) : m_Ptr(a_Ptr), m_Size(a_Size) {};
 		Slice(T* a_Begin, T* a_End) : m_Ptr(a_Begin), m_Size(a_End - a_Begin) {};
 		Slice(Array<T>& a_Array) : m_Ptr(a_Array.data()), m_Size(a_Array.size()) {};

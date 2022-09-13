@@ -833,7 +833,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 		VK_FALSE,
 		VK_POLYGON_MODE_FILL,
 		VK_CULL_MODE_BACK_BIT,
-		VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		VK_FRONT_FACE_CLOCKWISE);
 	VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
 		VK_FALSE,
 		VK_SAMPLE_COUNT_1_BIT);
@@ -854,7 +854,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	t_PushConstantMatrix.offset = 0;
 
-	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_Backend, BB::Slice(&t_PushConstantMatrix, 1));
+	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_Backend, BB::Slice<VkPushConstantRange>());
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
