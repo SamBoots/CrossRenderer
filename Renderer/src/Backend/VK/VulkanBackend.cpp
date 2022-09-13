@@ -493,7 +493,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	VKASSERT(vkAcquireNextImageKHR(a_Backend.device.logicalDevice,
 		a_Backend.mainSwapChain.swapChain,
 		UINT64_MAX,
-		a_Backend.mainSwapChain.presentSems[0],
+		a_Backend.mainSwapChain.renderSems[0],
 		VK_NULL_HANDLE,
 		&t_ImageIndex),
 		"Vulkan: failed to get next image.");
@@ -502,14 +502,14 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 		1,
 		&a_Backend.mainSwapChain.frameFences[0],
 		VK_TRUE,
-		10000000),
+		UINT64_MAX),
 		"Vulkan: Failed to wait for frences");
 
 	vkResetFences(a_Backend.device.logicalDevice, 
 		1, 
 		&a_Backend.mainSwapChain.frameFences[0]);
 
-	vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
+	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
 	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
 	VKASSERT(vkBeginCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree],
 		&t_CmdBeginInfo),
@@ -517,7 +517,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 
 	VkCommandBuffer t_CmdRecording = a_CmdList.buffers[a_CmdList.currentFree];
 
-	VkClearValue t_ClearValue = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
 
 	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
 		a_FrameBuffer.renderPass,
@@ -531,23 +531,24 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	vkCmdBeginRenderPass(t_CmdRecording,
 		&t_RenderPassBegin, 
 		VK_SUBPASS_CONTENTS_INLINE);
+
 	vkCmdBindPipeline(t_CmdRecording, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS, 
 		a_Pipeline.pipeline);
 
-	VkViewport t_Viewport{};
-	t_Viewport.x = 0.0f;
-	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
-	t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
-	t_Viewport.minDepth = 0.0f;
-	t_Viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
+	//VkViewport t_Viewport{};
+	//t_Viewport.x = 0.0f;
+	//t_Viewport.y = 0.0f;
+	//t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
+	//t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
+	//t_Viewport.minDepth = 0.0f;
+	//t_Viewport.maxDepth = 1.0f;
+	//vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
 
-	VkRect2D t_Scissor{};
-	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = a_Backend.mainSwapChain.extent;
-	vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
+	//VkRect2D t_Scissor{};
+	//t_Scissor.offset = { 0, 0 };
+	//t_Scissor.extent = a_Backend.mainSwapChain.extent;
+	//vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
 
 	vkCmdDraw(t_CmdRecording, 3, 1, 0, 0);
 
@@ -562,11 +563,11 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	t_SubmitInfo.waitSemaphoreCount = 1;
-	t_SubmitInfo.pWaitSemaphores = &a_Backend.mainSwapChain.presentSems[0];
+	t_SubmitInfo.pWaitSemaphores = &a_Backend.mainSwapChain.renderSems[0];
 	t_SubmitInfo.pWaitDstStageMask = &t_WaitStagesMask;
 
 	t_SubmitInfo.signalSemaphoreCount = 1;
-	t_SubmitInfo.pSignalSemaphores = &a_Backend.mainSwapChain.renderSems[0];
+	t_SubmitInfo.pSignalSemaphores = &a_Backend.mainSwapChain.presentSems[0];
 
 	t_SubmitInfo.commandBufferCount = 1;
 	t_SubmitInfo.pCommandBuffers = &t_CmdRecording;
@@ -580,7 +581,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &a_Backend.mainSwapChain.renderSems[0];
+	t_PresentInfo.pWaitSemaphores = &a_Backend.mainSwapChain.presentSems[0];
 	t_PresentInfo.swapchainCount = 1;
 	t_PresentInfo.pSwapchains = &a_Backend.mainSwapChain.swapChain;
 	t_PresentInfo.pImageIndices = &t_ImageIndex;
@@ -719,13 +720,13 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 		VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(
 			VK_SUBPASS_EXTERNAL,
 			0,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 			0,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
 		VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
-			1, &t_ColorAttachment, 1, &t_Subpass, 1, &t_Dependency);
+			1, &t_ColorAttachment, 1, &t_Subpass, 0, nullptr);
 
 		VKASSERT(vkCreateRenderPass(a_VulkanBackend.device.logicalDevice,
 			&t_RenderPassInfo,
@@ -787,13 +788,24 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
+	t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent = a_Backend.mainSwapChain.extent;
 
 	//Get dynamic state for the viewport and scissor.
-	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
-	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
-	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
+	//VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	//VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
+	//t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	//t_DynamicPipeCreateInfo.dynamicStateCount = 2;
+	//t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
 	VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
 		a_Backend.device.logicalDevice,
@@ -802,9 +814,9 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	//Set viewport to nullptr and let the commandbuffer handle it via 
 	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
 		1,
-		nullptr,
+		&t_Viewport,
 		1,
-		nullptr
+		&t_Scissor
 	);
 
 	VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
@@ -846,7 +858,7 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
+	//t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 	t_PipeCreateInfo.pViewportState = &t_ViewportState;
 	t_PipeCreateInfo.pVertexInputState = &t_VertexInput;
 	t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
@@ -900,11 +912,11 @@ VulkanCommandList BB::VulkanCreateCommandList(Allocator a_SysAllocator, Allocato
 
 	VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
 		t_ReturnCommandList.pool,
-		a_BufferCount,
+		1,
 		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-	t_ReturnCommandList.buffers = BBnewArr<VkCommandBuffer>(a_SysAllocator, a_BufferCount);
-	t_ReturnCommandList.bufferCount = a_BufferCount;
+	t_ReturnCommandList.buffers = BBnewArr<VkCommandBuffer>(a_SysAllocator, 1);
+	t_ReturnCommandList.bufferCount = 1;
 	t_ReturnCommandList.currentFree = 0;
 
 	VKASSERT(vkAllocateCommandBuffers(a_Backend.device.logicalDevice,

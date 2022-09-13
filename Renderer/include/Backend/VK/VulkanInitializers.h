@@ -10,7 +10,7 @@ namespace VkInit
 		VkDebugUtilsMessengerCreateInfoEXT t_CreateInfo{};
 		t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		t_CreateInfo.messageSeverity =
-			VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+			//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
@@ -263,23 +263,23 @@ namespace VkInit
 		return t_Viewport;
 	}
 
-	inline VkRect2D Rect2D(int32_t a_Width, int32_t a_Height, VkExtent2D a_Extend2D)
+	inline VkRect2D Rect2D(int32_t a_X, int32_t a_Y, VkExtent2D a_Extend2D)
 	{
 		VkRect2D t_Rect2D{};
-		t_Rect2D.offset.x = a_Width;
-		t_Rect2D.offset.y = a_Height;
+		t_Rect2D.offset.x = a_X;
+		t_Rect2D.offset.y = a_Y;
 		t_Rect2D.extent = a_Extend2D;
 
 		return t_Rect2D;
 	}
 
-	inline VkRect2D Rect2D(int32_t a_Width, int32_t a_Height, int32_t a_OffsetX, int32_t a_OffsetY)
+	inline VkRect2D Rect2D(int32_t a_X, int32_t a_Y, int32_t a_ExtendWidth, int32_t a_ExtendHeight)
 	{
 		VkRect2D t_Rect2D{};
-		t_Rect2D.offset.x = a_Width;
-		t_Rect2D.offset.y = a_Height;
-		t_Rect2D.extent.width = a_OffsetX;
-		t_Rect2D.extent.height = a_OffsetY;
+		t_Rect2D.offset.x = a_X;
+		t_Rect2D.offset.y = a_Y;
+		t_Rect2D.extent.width = a_ExtendWidth;
+		t_Rect2D.extent.height = a_ExtendHeight;
 
 		return t_Rect2D;
 	}
