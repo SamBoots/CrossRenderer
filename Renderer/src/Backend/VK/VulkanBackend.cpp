@@ -1,16 +1,35 @@
 #pragma once
 #include "VulkanBackend.h"
 #include "VulkanInitializers.h"
-#include "Hashmap.h"
+#include "Storage/Hashmap.h"
+#include "Storage/Slotmap.h"
+
+#include "VulkanCommon.h"
 
 #include <iostream>
 namespace BB
 {
 	using PipelineLayoutHash = uint64_t;
-	struct VulkanBackend_o
+	struct VulkanBackend_inst
 	{
-		OL_HashMap<PipelineLayoutHash, VkPipelineLayout>* pipelineLayouts;
+		VulkanBackend_inst(Allocator renderSystemAllocator)
+			: pipelines(renderSystemAllocator),
+			frameBuffers(renderSystemAllocator),
+			commandLists(renderSystemAllocator),
+			pipelineLayouts(renderSystemAllocator),
+			renderSystemAllocator(renderSystemAllocator)
+		{}
+		VulkanBackend backend;
+		VulkanDevice device;
+		VulkanSwapChain swapChain;
+
+		Slotmap<VulkanPipeline> pipelines;
+		Slotmap<VulkanFrameBuffer> frameBuffers;
+		Slotmap<VulkanCommandList> commandLists;
+		OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts;
+		Allocator renderSystemAllocator;
 	};
+	static VulkanBackend_inst* s_VkBackendInst = nullptr;
 }
 
 using namespace BB;
@@ -299,9 +318,9 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static SwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
+static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
 {
-	SwapChain t_ReturnSwapchain;
+	VulkanSwapChain t_ReturnSwapchain;
 
 	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
 
@@ -470,61 +489,64 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 	);
 
 	PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
-	VkPipelineLayout* t_FoundLayout = a_VulkanBackend.object->pipelineLayouts->find(t_DescriptorHash);
+	VkPipelineLayout* t_FoundLayout = s_VkBackendInst->pipelineLayouts.find(t_DescriptorHash);
 
 	if (t_FoundLayout != nullptr)
 		return *t_FoundLayout;
 
 	VkPipelineLayout t_NewLayout = VK_NULL_HANDLE;
-	VKASSERT(vkCreatePipelineLayout(a_VulkanBackend.device.logicalDevice,
+	VKASSERT(vkCreatePipelineLayout(s_VkBackendInst->device.logicalDevice,
 		&t_LayoutCreateInfo,
 		nullptr,
 		&t_NewLayout),
 		"Vulkan: Failed to create pipelinelayout.");
 
-	a_VulkanBackend.object->pipelineLayouts->insert(t_DescriptorHash, t_NewLayout);
+	s_VkBackendInst->pipelineLayouts.insert(t_DescriptorHash, t_NewLayout);
 
 	return t_NewLayout;
 }
 
-void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdList, const VulkanFrameBuffer& a_FrameBuffer, const VulkanPipeline& a_Pipeline, const VulkanBackend& a_Backend)
+void BB::RenderFrame(Allocator a_TempAllocator, VkCommandListHandle a_CommandHandle, VkFrameBufferHandle a_FrameBufferHandle, VkPipelineHandle a_PipeHandle)
 {
+	VulkanCommandList& t_Cmdlist = s_VkBackendInst->commandLists[a_CommandHandle.handle];
+	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst->frameBuffers[a_FrameBufferHandle.handle];
+
 	uint32_t t_ImageIndex;
-	VKASSERT(vkAcquireNextImageKHR(a_Backend.device.logicalDevice,
-		a_Backend.mainSwapChain.swapChain,
+	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst->device.logicalDevice,
+		s_VkBackendInst->swapChain.swapChain,
 		UINT64_MAX,
-		a_Backend.mainSwapChain.renderSems[0],
+		s_VkBackendInst->swapChain.renderSems[0],
 		VK_NULL_HANDLE,
 		&t_ImageIndex),
 		"Vulkan: failed to get next image.");
 
-	VKASSERT(vkWaitForFences(a_Backend.device.logicalDevice,
+	VKASSERT(vkWaitForFences(s_VkBackendInst->device.logicalDevice,
 		1,
-		&a_Backend.mainSwapChain.frameFences[0],
+		&s_VkBackendInst->swapChain.frameFences[0],
 		VK_TRUE,
 		UINT64_MAX),
 		"Vulkan: Failed to wait for frences");
 
-	vkResetFences(a_Backend.device.logicalDevice, 
+	vkResetFences(s_VkBackendInst->device.logicalDevice,
 		1, 
-		&a_Backend.mainSwapChain.frameFences[0]);
+		&s_VkBackendInst->swapChain.frameFences[0]);
 
 	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
 	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
-	VKASSERT(vkBeginCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree],
+	VKASSERT(vkBeginCommandBuffer(t_Cmdlist.buffers[t_Cmdlist.currentFree],
 		&t_CmdBeginInfo),
 		"Vulkan: Failed to begin commandbuffer");
 
-	VkCommandBuffer t_CmdRecording = a_CmdList.buffers[a_CmdList.currentFree];
+	VkCommandBuffer t_CmdRecording = t_Cmdlist.buffers[t_Cmdlist.currentFree];
 
 	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
 
 	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
-		a_FrameBuffer.renderPass,
-		a_FrameBuffer.framebuffers[t_ImageIndex],
+		t_FrameBuffer.renderPass,
+		t_FrameBuffer.frameBuffers[t_ImageIndex],
 		VkInit::Rect2D(0,
 			0,
-			a_Backend.mainSwapChain.extent),
+			s_VkBackendInst->swapChain.extent),
 		1,
 		&t_ClearValue);
 
@@ -534,21 +556,21 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 
 	vkCmdBindPipeline(t_CmdRecording, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS, 
-		a_Pipeline.pipeline);
+		s_VkBackendInst->pipelines[a_PipeHandle.handle].pipeline);
 
-	//VkViewport t_Viewport{};
-	//t_Viewport.x = 0.0f;
-	//t_Viewport.y = 0.0f;
-	//t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
-	//t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
-	//t_Viewport.minDepth = 0.0f;
-	//t_Viewport.maxDepth = 1.0f;
-	//vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(s_VkBackendInst->swapChain.extent.width);
+	t_Viewport.height = static_cast<float>(s_VkBackendInst->swapChain.extent.height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
 
-	//VkRect2D t_Scissor{};
-	//t_Scissor.offset = { 0, 0 };
-	//t_Scissor.extent = a_Backend.mainSwapChain.extent;
-	//vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent = s_VkBackendInst->swapChain.extent;
+	vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
 
 	vkCmdDraw(t_CmdRecording, 3, 1, 0, 0);
 
@@ -563,41 +585,47 @@ void BB::RenderFrame(Allocator a_TempAllocator, const VulkanCommandList& a_CmdLi
 	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	t_SubmitInfo.waitSemaphoreCount = 1;
-	t_SubmitInfo.pWaitSemaphores = &a_Backend.mainSwapChain.renderSems[0];
+	t_SubmitInfo.pWaitSemaphores = &s_VkBackendInst->swapChain.renderSems[0];
 	t_SubmitInfo.pWaitDstStageMask = &t_WaitStagesMask;
 
 	t_SubmitInfo.signalSemaphoreCount = 1;
-	t_SubmitInfo.pSignalSemaphores = &a_Backend.mainSwapChain.presentSems[0];
+	t_SubmitInfo.pSignalSemaphores = &s_VkBackendInst->swapChain.presentSems[0];
 
 	t_SubmitInfo.commandBufferCount = 1;
 	t_SubmitInfo.pCommandBuffers = &t_CmdRecording;
 
-	VKASSERT(vkQueueSubmit(a_Backend.device.graphicsQueue,
+	VKASSERT(vkQueueSubmit(s_VkBackendInst->device.graphicsQueue,
 		1,
 		&t_SubmitInfo,
-		a_Backend.mainSwapChain.frameFences[0]),
+		s_VkBackendInst->swapChain.frameFences[0]),
 		"Vulkan: failed to submit to queue.");
 
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &a_Backend.mainSwapChain.presentSems[0];
+	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst->swapChain.presentSems[0];
 	t_PresentInfo.swapchainCount = 1;
-	t_PresentInfo.pSwapchains = &a_Backend.mainSwapChain.swapChain;
+	t_PresentInfo.pSwapchains = &s_VkBackendInst->swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &t_ImageIndex;
 	t_PresentInfo.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(a_Backend.device.presentQueue, &t_PresentInfo),
+	VKASSERT(vkQueuePresentKHR(s_VkBackendInst->device.presentQueue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 }
 
-VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocator a_SysAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
+VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
 	VulkanBackend t_ReturnBackend;
-	t_ReturnBackend.currentFrame = 0;
-	t_ReturnBackend.object = BBnew<VulkanBackend_o>(a_SysAllocator);
-	t_ReturnBackend.object->pipelineLayouts = 
-		BBnew<OL_HashMap<PipelineLayoutHash, VkPipelineLayout>>(a_SysAllocator, a_SysAllocator);
+
+	if (s_VkBackendInst != nullptr)
+	{
+		BB_WARNING(false,
+			"Trying to create a vulkan backend while you already have one!",
+			WarningType::HIGH);
+		return 0;
+	}
+	//Allocate the static vulkan instance and give it the system allocator.
+	s_VkBackendInst = BBnew<VulkanBackend_inst>(a_SysAllocator, a_SysAllocator);
 
 	//Check if the extensions and layers work.
 	BB_ASSERT(CheckExtensionSupport(a_TempAllocator, a_CreateInfo.extensions),
@@ -605,7 +633,7 @@ VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocat
 
 #pragma region //Debug
 	//For debug, we want to remember the extensions we have.
-	t_ReturnBackend.extensions = BB::BBnewArr<const char*>(a_SysAllocator, a_CreateInfo.extensions.size());
+	t_ReturnBackend.extensions = BB::BBnewArr<const char*>(s_VkBackendInst->renderSystemAllocator, a_CreateInfo.extensions.size());
 	t_ReturnBackend.extensionCount = static_cast<uint32_t>(a_CreateInfo.extensions.size());
 	for (size_t i = 0; i < t_ReturnBackend.extensionCount; i++)
 	{
@@ -663,54 +691,60 @@ VulkanBackend BB::VulkanCreateBackend(BB::Allocator a_TempAllocator, BB::Allocat
 	}
 
 	//Get the physical Device
-	t_ReturnBackend.device.physicalDevice = FindPhysicalDevice(a_TempAllocator, 
+	s_VkBackendInst->device.physicalDevice = FindPhysicalDevice(a_TempAllocator,
 		t_ReturnBackend.instance, 
 		t_ReturnBackend.surface);
 	//Get the logical device and the graphics queue.
-	t_ReturnBackend.device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
+	s_VkBackendInst->device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
 		a_CreateInfo.deviceExtensions,
-		t_ReturnBackend.device.physicalDevice,
-		&t_ReturnBackend.device.graphicsQueue);
+		s_VkBackendInst->device.physicalDevice,
+		&s_VkBackendInst->device.graphicsQueue);
 
 	{
 		uint32_t t_PresentIndex;
 		if (QueueHasPresentSupport(a_TempAllocator,
-			t_ReturnBackend.device.physicalDevice,
-			t_ReturnBackend.surface,
+			s_VkBackendInst->device.physicalDevice,
+			s_VkBackendInst->backend.surface,
 			&t_PresentIndex))
 		{
-			vkGetDeviceQueue(t_ReturnBackend.device.logicalDevice, t_PresentIndex, 0, &t_ReturnBackend.device.presentQueue);
+			vkGetDeviceQueue(s_VkBackendInst->device.logicalDevice, 
+				t_PresentIndex, 
+				0, 
+				&s_VkBackendInst->device.presentQueue);
 		}
 	}
 
-	t_ReturnBackend.mainSwapChain = CreateSwapchain(a_SysAllocator,
+	s_VkBackendInst->swapChain = CreateSwapchain(a_SysAllocator,
 		a_TempAllocator,
 		t_ReturnBackend.surface,
-		t_ReturnBackend.device.physicalDevice,
-		t_ReturnBackend.device.logicalDevice,
+		s_VkBackendInst->device.physicalDevice,
+		s_VkBackendInst->device.logicalDevice,
 		a_CreateInfo.windowWidth,
 		a_CreateInfo.windowHeight);
 
-	return t_ReturnBackend;
+
+	//The backend handle is not that important which number it is. But we will make it 1.
+	return VkBackendHandle(1);
 }
 
-VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_VulkanBackend, const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo)
+VkFrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
 	VulkanFrameBuffer t_ReturnFrameBuffer;
 	{
 		//First do the renderpass
 		VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
-			a_FramebufferCreateInfo.swapchainFormat,
+			s_VkBackendInst->swapChain.imageFormat,
 			VK_SAMPLE_COUNT_1_BIT,
-			a_FramebufferCreateInfo.colorLoadOp,
-			a_FramebufferCreateInfo.colorStoreOp,
+			VKConv::LoadOP(a_FramebufferCreateInfo.colorLoadOp),
+			VKConv::StoreOp(a_FramebufferCreateInfo.colorStoreOp),
 			VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			a_FramebufferCreateInfo.colorInitialLayout,
-			a_FramebufferCreateInfo.colorFinalLayout);
+			VKConv::ImageLayout(a_FramebufferCreateInfo.colorInitialLayout),
+			VKConv::ImageLayout(a_FramebufferCreateInfo.colorFinalLayout));
 		VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(
 			0,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		
 
 		VkSubpassDescription t_Subpass = VkInit::SubpassDescription(
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -728,7 +762,7 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 		VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
 			1, &t_ColorAttachment, 1, &t_Subpass, 0, nullptr);
 
-		VKASSERT(vkCreateRenderPass(a_VulkanBackend.device.logicalDevice,
+		VKASSERT(vkCreateRenderPass(s_VkBackendInst->device.logicalDevice,
 			&t_RenderPassInfo,
 			nullptr,
 			&t_ReturnFrameBuffer.renderPass),
@@ -740,30 +774,24 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 
 		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
 		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
-		t_ReturnFrameBuffer.frameBufferCount = a_FramebufferCreateInfo.frameBufferCount;
-		t_ReturnFrameBuffer.framebuffers = BBnewArr<VkFramebuffer>(a_SysAllocator,
-			a_FramebufferCreateInfo.frameBufferCount);
-
-		{
-			//I do not remember why my old code did this, the renderpass was already created?
-			//renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			//renderPassBeginInfo.renderArea.offset = { 0, 0 };
-			//renderPassBeginInfo.renderArea.extent = { width, height };
-		}
+		t_ReturnFrameBuffer.frameBufferCount = s_VkBackendInst->swapChain.imageCount;
+		t_ReturnFrameBuffer.frameBuffers = BBnewArr<VkFramebuffer>(
+			s_VkBackendInst->renderSystemAllocator,
+			t_ReturnFrameBuffer.frameBufferCount);
 
 		uint32_t t_UsedAttachments = 1;
 		//have enough space for the potentional depth buffer.
 		VkImageView t_AttachmentViews[2];
-		if (a_FramebufferCreateInfo.depthTestView != VK_NULL_HANDLE)
-		{
-			t_UsedAttachments = 2;
-			//last attachment is depth info.
-			t_AttachmentViews[1] = a_FramebufferCreateInfo.depthTestView;
-		}
+		//if (a_FramebufferCreateInfo.depthTestView != VK_NULL_HANDLE)
+		//{
+		//	t_UsedAttachments = 2;
+		//	//last attachment is depth info.
+		//	t_AttachmentViews[1] = a_FramebufferCreateInfo.depthTestView;
+		//}
 
 		for (uint32_t i = 0; i < t_ReturnFrameBuffer.frameBufferCount; i++)
 		{
-			t_AttachmentViews[0] = a_FramebufferCreateInfo.swapChainViews[i];
+			t_AttachmentViews[0] = s_VkBackendInst->swapChain.imageViews[i];
 
 			VkFramebufferCreateInfo t_FramebufferInfo = VkInit::FramebufferCreateInfo();
 			t_FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -774,50 +802,38 @@ VulkanFrameBuffer BB::VulkanCreateFrameBuffer(Allocator a_SysAllocator, Allocato
 			t_FramebufferInfo.height = t_ReturnFrameBuffer.height;
 			t_FramebufferInfo.layers = 1;
 
-			VKASSERT(vkCreateFramebuffer(a_VulkanBackend.device.logicalDevice, 
+			VKASSERT(vkCreateFramebuffer(s_VkBackendInst->device.logicalDevice,
 				&t_FramebufferInfo, 
 				nullptr, 
-				&t_ReturnFrameBuffer.framebuffers[i]),
+				&t_ReturnFrameBuffer.frameBuffers[i]),
 				"Vulkan: Failed to create Framebuffer");
 		}
 	}
 
-	return t_ReturnFrameBuffer;
+	return VkFrameBufferHandle(s_VkBackendInst->frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
-VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanBackend& a_Backend, const VulkanPipelineCreateInfo& a_CreateInfo)
+VkPipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;
-	VkViewport t_Viewport{};
-	t_Viewport.x = 0.0f;
-	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(a_Backend.mainSwapChain.extent.width);
-	t_Viewport.height = static_cast<float>(a_Backend.mainSwapChain.extent.height);
-	t_Viewport.minDepth = 0.0f;
-	t_Viewport.maxDepth = 1.0f;
-
-	VkRect2D t_Scissor{};
-	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = a_Backend.mainSwapChain.extent;
 
 	//Get dynamic state for the viewport and scissor.
-	//VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	//VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
-	//t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	//t_DynamicPipeCreateInfo.dynamicStateCount = 2;
-	//t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
+	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
+	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
+	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
 	VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
-		a_Backend.device.logicalDevice,
+		s_VkBackendInst->device.logicalDevice,
 		a_CreateInfo.shaderCreateInfos);
 
 	//Set viewport to nullptr and let the commandbuffer handle it via 
 	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
 		1,
-		&t_Viewport,
+		nullptr,
 		1,
-		&t_Scissor
-	);
+		nullptr);
 
 	VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
 		0,
@@ -854,11 +870,11 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	t_PushConstantMatrix.offset = 0;
 
-	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(a_Backend, BB::Slice<VkPushConstantRange>());
+	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(s_VkBackendInst->backend, BB::Slice<VkPushConstantRange>());
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	//t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
+	t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 	t_PipeCreateInfo.pViewportState = &t_ViewportState;
 	t_PipeCreateInfo.pVertexInputState = &t_VertexInput;
 	t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
@@ -870,13 +886,13 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 	t_PipeCreateInfo.pStages = t_ShaderCreateResult.pipelineShaderStageInfo;
 	t_PipeCreateInfo.stageCount = 2;
 	t_PipeCreateInfo.layout = t_PipeLayout;
-	t_PipeCreateInfo.renderPass = a_CreateInfo.pVulkanFrameBuffer->renderPass;
+	t_PipeCreateInfo.renderPass = s_VkBackendInst->frameBuffers[a_CreateInfo.framebufferHandle.handle].renderPass;
 	t_PipeCreateInfo.subpass = 0;
 	//Optimalization for later.
 	t_PipeCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	t_PipeCreateInfo.basePipelineIndex = -1;
 
-	VKASSERT(vkCreateGraphicsPipelines(a_Backend.device.logicalDevice,
+	VKASSERT(vkCreateGraphicsPipelines(s_VkBackendInst->device.logicalDevice,
 		VK_NULL_HANDLE,
 		1,
 		&t_PipeCreateInfo,
@@ -884,27 +900,26 @@ VulkanPipeline BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanB
 		&t_ReturnPipeline.pipeline),
 		"Vulkan: Failed to create graphics Pipeline.");
 
-
-	vkDestroyShaderModule(a_Backend.device.logicalDevice,
+	vkDestroyShaderModule(s_VkBackendInst->device.logicalDevice,
 		t_ShaderCreateResult.shaderModules[0],
 		nullptr);
-	vkDestroyShaderModule(a_Backend.device.logicalDevice,
+	vkDestroyShaderModule(s_VkBackendInst->device.logicalDevice,
 		t_ShaderCreateResult.shaderModules[1],
 		nullptr);
 	
-	return t_ReturnPipeline;
+	return VkPipelineHandle(s_VkBackendInst->pipelines.emplace(t_ReturnPipeline));
 }
 
-VulkanCommandList BB::VulkanCreateCommandList(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackend& a_Backend, uint32_t a_BufferCount)
+VkCommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
 {
 	VulkanCommandList t_ReturnCommandList;
 	uint32_t t_GraphicsBit;
-	QueueFindGraphicsBit(a_TempAllocator, a_Backend.device.physicalDevice, &t_GraphicsBit);
+	QueueFindGraphicsBit(a_TempAllocator, s_VkBackendInst->device.physicalDevice, &t_GraphicsBit);
 	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
 		t_GraphicsBit,
 		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-	VKASSERT(vkCreateCommandPool(a_Backend.device.logicalDevice,
+	VKASSERT(vkCreateCommandPool(s_VkBackendInst->device.logicalDevice,
 		&t_CommandPoolInfo,
 		nullptr,
 		&t_ReturnCommandList.pool),
@@ -915,78 +930,97 @@ VulkanCommandList BB::VulkanCreateCommandList(Allocator a_SysAllocator, Allocato
 		1,
 		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-	t_ReturnCommandList.buffers = BBnewArr<VkCommandBuffer>(a_SysAllocator, 1);
+	t_ReturnCommandList.buffers = BBnewArr<VkCommandBuffer>(
+		s_VkBackendInst->renderSystemAllocator,
+		1);
 	t_ReturnCommandList.bufferCount = 1;
 	t_ReturnCommandList.currentFree = 0;
 
-	VKASSERT(vkAllocateCommandBuffers(a_Backend.device.logicalDevice,
+	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst->device.logicalDevice,
 		&t_AllocInfo,
 		t_ReturnCommandList.buffers),
 		"Vulkan: failed to allocate commandbuffers.");
 
-	return t_ReturnCommandList;
+	return VkCommandListHandle(s_VkBackendInst->commandLists.emplace(t_ReturnCommandList));
 }
 
-
-void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VulkanFrameBuffer& a_FrameBuffer,const VulkanBackend& a_Backend)
+void BB::VulkanDestroyCommandList(Allocator a_SysAllocator, VkCommandListHandle a_Handle)
 {
-	for (uint32_t i = 0; i < a_FrameBuffer.frameBufferCount; i++)
+	vkDestroyCommandPool(s_VkBackendInst->device.logicalDevice,
+		s_VkBackendInst->commandLists[a_Handle.handle].pool, nullptr);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator,
+		s_VkBackendInst->commandLists[a_Handle.handle].buffers);
+}
+
+void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VkFrameBufferHandle a_Handle)
+{
+	for (uint32_t i = 0; i < s_VkBackendInst->frameBuffers[a_Handle.handle].frameBufferCount; i++)
 	{
-		vkDestroyFramebuffer(a_Backend.device.logicalDevice,
-			a_FrameBuffer.framebuffers[i],
+		vkDestroyFramebuffer(s_VkBackendInst->device.logicalDevice,
+			s_VkBackendInst->frameBuffers[a_Handle.handle].frameBuffers[i],
 			nullptr);
 	}
-	BBfree(a_SysAllocator, a_FrameBuffer.framebuffers);
+	BBfree(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst->frameBuffers[a_Handle.handle].frameBuffers);
 
-	vkDestroyRenderPass(a_Backend.device.logicalDevice,
-		a_FrameBuffer.renderPass, 
+	vkDestroyRenderPass(s_VkBackendInst->device.logicalDevice,
+		s_VkBackendInst->frameBuffers[a_Handle.handle].renderPass,
 		nullptr);
 }
 
-void BB::VulkanDestroyCommandList(Allocator a_SysAllocator, VulkanCommandList& a_CommandList, const VulkanBackend& a_Backend)
+void BB::VulkanDestroyPipeline(VkPipelineHandle a_Handle)
 {
-	vkDestroyCommandPool(a_Backend.device.logicalDevice, a_CommandList.pool, nullptr);
-	BBfreeArr(a_SysAllocator, a_CommandList.buffers);
+	vkDestroyPipeline(s_VkBackendInst->device.logicalDevice, 
+		s_VkBackendInst->pipelines[a_Handle.handle].pipeline,
+		nullptr);
 }
 
-void BB::VulkanDestroyPipeline(VulkanPipeline& a_Pipeline, const VulkanBackend& a_Backend)
+void BB::VulkanDestroyBackend(VkBackendHandle)
 {
-	vkDestroyPipeline(a_Backend.device.logicalDevice, a_Pipeline.pipeline, nullptr);
-}
-
-void BB::VulkanDestroyBackend(BB::Allocator a_SysAllocator, VulkanBackend& a_Backend)
-{
-	for (auto t_It = a_Backend.object->pipelineLayouts->begin();
-		t_It < a_Backend.object->pipelineLayouts->end(); t_It++)
+	for (auto t_It = s_VkBackendInst->pipelineLayouts.begin();
+		t_It < s_VkBackendInst->pipelineLayouts.end(); t_It++)
 	{
-		vkDestroyPipelineLayout(a_Backend.device.logicalDevice,
+		vkDestroyPipelineLayout(s_VkBackendInst->device.logicalDevice,
 			*t_It->value,
 			nullptr);
 	}
 
-	BBfree(a_SysAllocator, a_Backend.object->pipelineLayouts);
-	BBfree(a_SysAllocator, a_Backend.object);
 
-	BBfreeArr(a_SysAllocator, a_Backend.extensions);
-	for (size_t i = 0; i < a_Backend.mainSwapChain.imageCount; i++)
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator,
+		s_VkBackendInst->backend.extensions);
+	for (size_t i = 0; i < s_VkBackendInst->swapChain.imageCount; i++)
 	{
-		vkDestroyImageView(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.imageViews[i], nullptr);
-		vkDestroyFence(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.frameFences[i], nullptr);
-		vkDestroySemaphore(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.presentSems[i], nullptr);
-		vkDestroySemaphore(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.renderSems[i], nullptr);
+		vkDestroyImageView(s_VkBackendInst->device.logicalDevice, 
+			s_VkBackendInst->swapChain.imageViews[i], nullptr);
+		vkDestroyFence(s_VkBackendInst->device.logicalDevice, 
+			s_VkBackendInst->swapChain.frameFences[i], nullptr);
+		vkDestroySemaphore(s_VkBackendInst->device.logicalDevice, 
+			s_VkBackendInst->swapChain.presentSems[i], nullptr);
+		vkDestroySemaphore(s_VkBackendInst->device.logicalDevice, 
+			s_VkBackendInst->swapChain.renderSems[i], nullptr);
 	}
-	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.images);
-	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.imageViews);
-	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.frameFences);
-	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.presentSems);
-	BBfreeArr(a_SysAllocator, a_Backend.mainSwapChain.renderSems);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst->swapChain.images);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst->swapChain.imageViews);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst->swapChain.frameFences);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator,
+		s_VkBackendInst->swapChain.presentSems);
+	BBfreeArr(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst->swapChain.renderSems);
 
-	vkDestroySwapchainKHR(a_Backend.device.logicalDevice, a_Backend.mainSwapChain.swapChain, nullptr);
-	vkDestroyDevice(a_Backend.device.logicalDevice, nullptr);
+	vkDestroySwapchainKHR(s_VkBackendInst->device.logicalDevice, 
+		s_VkBackendInst->swapChain.swapChain, 
+		nullptr);
+	vkDestroyDevice(s_VkBackendInst->device.logicalDevice, nullptr);
 
-	if (a_Backend.debugMessenger != 0)
-		DestroyVulkanDebug(a_Backend.instance, a_Backend.debugMessenger);
+	if (s_VkBackendInst->backend.debugMessenger != 0)
+		DestroyVulkanDebug(s_VkBackendInst->backend.instance, s_VkBackendInst->backend.debugMessenger);
 
-	vkDestroySurfaceKHR(a_Backend.instance, a_Backend.surface, nullptr);
-	vkDestroyInstance(a_Backend.instance, nullptr);
+	vkDestroySurfaceKHR(s_VkBackendInst->backend.instance, s_VkBackendInst->backend.surface, nullptr);
+	vkDestroyInstance(s_VkBackendInst->backend.instance, nullptr);
+
+	BBfree(s_VkBackendInst->renderSystemAllocator, 
+		s_VkBackendInst);
 }

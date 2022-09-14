@@ -45,6 +45,37 @@ namespace BB
 		FRAGMENT
 	};
 
+	enum class RENDER_LOAD_OP : uint32_t
+	{
+		LOAD,
+		CLEAR,
+		DONT_CARE
+	};
+
+	enum class RENDER_STORE_OP : uint32_t
+	{
+		STORE,
+		DONT_CARE
+	};
+
+	enum class RENDER_IMAGE_LAYOUT : uint32_t
+	{
+		UNDEFINED,
+		GENERAL,
+		TRANSFER_SRC,
+		TRANSFER_DST,
+		PRESENT
+	};
+
+	enum class RENDER_EXTENSIONS : uint32_t
+	{
+		STANDARD_VULKAN_INSTANCE,
+		STANDARD_VULKAN_DEVICE, //VK Device Property.
+		DEBUG,
+		PHYSICAL_DEVICE_EXTRA_PROPERTIES, 
+		PIPELINE_EXTENDED_DYNAMIC_STATE //VK Device Property.
+	};
+
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;

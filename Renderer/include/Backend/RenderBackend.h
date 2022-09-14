@@ -25,7 +25,7 @@ namespace BB
 		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
 		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
 
-		void* APIbackend;
+		VkBackendHandle APIbackend;
 		RenderAPI currentRenderAPI;
 	};
 }

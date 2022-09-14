@@ -8,27 +8,24 @@
 
 using namespace BB;
 
-VulkanFrameBuffer t_FrameBuffer;
-VulkanCommandList t_CommandList;
-VulkanPipeline t_Pipeline;
+VkFrameBufferHandle t_FrameBuffer;
+VkCommandListHandle t_CommandList;
+VkPipelineHandle t_Pipeline;
 
 void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
 {
 	currentRenderAPI = a_RenderAPI;
-	APIbackend = BBnew<VulkanBackend>(m_SystemAllocator);
-	VulkanBackend* vkBackend = reinterpret_cast<VulkanBackend*>(APIbackend);
 
-	BB::Array<const char*> t_Extensions{ m_TempAllocator };
-	t_Extensions.emplace_back("VK_KHR_win32_surface");
-	t_Extensions.emplace_back("VK_KHR_surface");
-	t_Extensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
+	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
+	t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES);
 	if (a_Debug)
 	{
-		t_Extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		t_Extensions.emplace_back(RENDER_EXTENSIONS::DEBUG);
 	}
-	BB::Array<const char*> t_DeviceExtensions{ m_TempAllocator };
-	t_DeviceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-	t_DeviceExtensions.emplace_back(VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
+	BB::Array<RENDER_EXTENSIONS> t_DeviceExtensions{ m_TempAllocator };
+	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_DEVICE);
+	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::PIPELINE_EXTENDED_DYNAMIC_STATE);
 
 	int t_WindowWidth;
 	int t_WindowHeight;
@@ -45,25 +42,20 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	*vkBackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
+	APIbackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
 
 	VulkanFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info
-	t_FrameBufferCreateInfo.swapchainFormat = vkBackend->mainSwapChain.imageFormat;
-	t_FrameBufferCreateInfo.colorLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	t_FrameBufferCreateInfo.colorStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-	t_FrameBufferCreateInfo.colorInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	t_FrameBufferCreateInfo.colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::LOAD;
+	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
+	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
 
 	//VkFrameBuffer info
-	t_FrameBufferCreateInfo.width = vkBackend->mainSwapChain.extent.width;
-	t_FrameBufferCreateInfo.height = vkBackend->mainSwapChain.extent.height;
-	t_FrameBufferCreateInfo.swapChainViews = vkBackend->mainSwapChain.imageViews;
-	t_FrameBufferCreateInfo.frameBufferCount = vkBackend->mainSwapChain.imageCount;
-	t_FrameBufferCreateInfo.depthTestView = VK_NULL_HANDLE;
+	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(t_WindowWidth);
+	t_FrameBufferCreateInfo.height = static_cast<uint32_t>(t_WindowHeight);
 
-	t_FrameBuffer = VulkanCreateFrameBuffer(m_SystemAllocator,
-		m_TempAllocator, *vkBackend, t_FrameBufferCreateInfo);
+	t_FrameBuffer = VulkanCreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
 
 	ShaderCreateInfo t_ShaderBuffers[2];
 	t_ShaderBuffers[0].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
@@ -72,12 +64,12 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
 
 	VulkanPipelineCreateInfo t_PipelineCreateInfo;
-	t_PipelineCreateInfo.pVulkanFrameBuffer = &t_FrameBuffer;
+	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 
-	t_Pipeline = VulkanCreatePipeline(m_TempAllocator, *vkBackend, t_PipelineCreateInfo);
+	t_Pipeline = VulkanCreatePipeline(m_TempAllocator, t_PipelineCreateInfo);
 
-	t_CommandList = VulkanCreateCommandList(m_SystemAllocator, m_TempAllocator, *vkBackend, 5);
+	t_CommandList = VulkanCreateCommandList(m_TempAllocator, 5);
 
 	//VulkanDestroyCommandList(m_SystemAllocator, t_CommandList, *vkBackend);
 	//VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
@@ -93,8 +85,10 @@ void RenderBackend::DestroyBackend()
 	switch (currentRenderAPI)
 	{
 	case RenderAPI::VULKAN:
-		//VKDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
-		//BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
+		VulkanDestroyPipeline(t_Pipeline);
+		VulkanDestroyFramebuffer(t_FrameBuffer);
+		VulkanDestroyCommandList(t_CommandList);
+		VulkanDestroyBackend(apibackend);
 		break;
 	default:
 		break;
@@ -106,8 +100,7 @@ void RenderBackend::Update()
 	RenderFrame(m_TempAllocator,
 		t_CommandList,
 		t_FrameBuffer,
-		t_Pipeline,
-		*reinterpret_cast<VulkanBackend*>(APIbackend));
+		t_Pipeline);
 	//m_TempAllocator.Clear();
 }
 
