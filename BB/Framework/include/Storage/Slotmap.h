@@ -10,7 +10,7 @@ namespace BB
 		constexpr const size_t standardSize = 8;
 	}
 
-	using SlotmapID = size_t;
+	using SlotmapID = uint64_t;
 
 	template <typename T>
 	class Slotmap
@@ -61,6 +61,7 @@ namespace BB
 
 		Slotmap<T>& operator=(const Slotmap<T>& a_Rhs);
 		Slotmap<T>& operator=(Slotmap<T>&& a_Rhs) noexcept;
+		T& operator[](const SlotmapID a_Index) const;
 
 		SlotmapID insert(T& a_Obj);
 		template <class... Args>
@@ -206,6 +207,13 @@ namespace BB
 
 		return *this;
 	}
+
+	template<typename T>
+	inline T& BB::Slotmap<T>::operator[](const SlotmapID a_Index) const
+	{
+		find(a_Index)
+	}
+
 
 	template<typename T>
 	inline SlotmapID BB::Slotmap<T>::insert(T& a_Obj)
