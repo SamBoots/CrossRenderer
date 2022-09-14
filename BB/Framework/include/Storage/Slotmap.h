@@ -66,7 +66,7 @@ namespace BB
 		SlotmapID insert(T& a_Obj);
 		template <class... Args>
 		SlotmapID emplace(Args&&... a_Args);
-		T& find(SlotmapID a_ID);
+		T& find(SlotmapID a_ID) const;
 		void erase(SlotmapID a_ID);
 
 		void reserve(size_t a_Capacity);
@@ -211,7 +211,7 @@ namespace BB
 	template<typename T>
 	inline T& BB::Slotmap<T>::operator[](const SlotmapID a_Index) const
 	{
-		find(a_Index)
+		return find(a_Index);
 	}
 
 
@@ -241,7 +241,7 @@ namespace BB
 	}
 
 	template<typename T>
-	inline T& BB::Slotmap<T>::find(SlotmapID a_ID)
+	inline T& BB::Slotmap<T>::find(SlotmapID a_ID) const
 	{
 		return m_ObjArr[a_ID].value;
 	}
