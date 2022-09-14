@@ -155,7 +155,6 @@ namespace BB
 		VkFence* frameFences;
 		VkSemaphore* presentSems;
 		VkSemaphore* renderSems;
-		uint32_t imageCount;
 	};
 
 	struct VulkanPipeline
@@ -198,7 +197,6 @@ namespace BB
 	{
 		VkInstance instance;
 		VkSurfaceKHR surface;
-		uint32_t currentFrame = 0;
 
 #ifdef _DEBUG
 		VkDebugUtilsMessengerEXT debugMessenger;

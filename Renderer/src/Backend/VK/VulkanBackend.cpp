@@ -19,6 +19,9 @@ namespace BB
 			pipelineLayouts(renderSystemAllocator),
 			renderSystemAllocator(renderSystemAllocator)
 		{}
+		uint32_t currentFrame = 0;
+		uint32_t frameCount;
+
 		VulkanBackend backend;
 		VulkanDevice device;
 		VulkanSwapChain swapChain;
@@ -336,18 +339,18 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 		t_SwapchainDetails.capabilities.minImageExtent.height,
 		t_SwapchainDetails.capabilities.maxImageExtent.height);
 
-	//Now create the swapchain.
-	uint32_t t_ImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
-	if (t_SwapchainDetails.capabilities.maxImageCount > 0 && t_ImageCount > 
+	//Now create the swapchain and set the framecount.
+	s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+	if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VkBackendInst->frameCount >
 		t_SwapchainDetails.capabilities.maxImageCount) 
 	{
-		t_ImageCount = t_SwapchainDetails.capabilities.maxImageCount;
+		s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.maxImageCount;
 	}
 
 	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
 	t_SwapCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	t_SwapCreateInfo.surface = a_Surface;
-	t_SwapCreateInfo.minImageCount = t_ImageCount;
+	t_SwapCreateInfo.minImageCount = s_VkBackendInst->frameCount;
 	t_SwapCreateInfo.imageFormat = t_ChosenFormat.format;
 	t_SwapCreateInfo.imageColorSpace = t_ChosenFormat.colorSpace;
 	t_SwapCreateInfo.imageExtent = t_ChosenExtent;
@@ -379,11 +382,10 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 
 	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &t_ReturnSwapchain.swapChain), "Vulkan: Failed to create swapchain.");
 	
-	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &t_ImageCount, nullptr);
-	t_ReturnSwapchain.images = BBnewArr<VkImage>(a_SysAllocator, t_ImageCount);
-	t_ReturnSwapchain.imageViews = BBnewArr<VkImageView>(a_SysAllocator, t_ImageCount);
-	t_ReturnSwapchain.imageCount = t_ImageCount;
-	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &t_ImageCount, t_ReturnSwapchain.images);
+	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &s_VkBackendInst->frameCount, nullptr);
+	t_ReturnSwapchain.images = BBnewArr<VkImage>(a_SysAllocator, s_VkBackendInst->frameCount);
+	t_ReturnSwapchain.imageViews = BBnewArr<VkImageView>(a_SysAllocator, s_VkBackendInst->frameCount);
+	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &s_VkBackendInst->frameCount, t_ReturnSwapchain.images);
 	
 	VkImageViewCreateInfo t_ImageViewCreateInfo{};
 	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -405,11 +407,11 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 	//first one is already signaled to make sure we can still render.
 	t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 	VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
-	t_ReturnSwapchain.frameFences = BBnewArr<VkFence>(a_SysAllocator, t_ImageCount);
-	t_ReturnSwapchain.presentSems = BBnewArr<VkSemaphore>(a_SysAllocator, t_ImageCount);
-	t_ReturnSwapchain.renderSems = BBnewArr<VkSemaphore>(a_SysAllocator, t_ImageCount);
+	t_ReturnSwapchain.frameFences = BBnewArr<VkFence>(a_SysAllocator, s_VkBackendInst->frameCount);
+	t_ReturnSwapchain.presentSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
+	t_ReturnSwapchain.renderSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
 
-	for (uint32_t i = 0; i < t_ImageCount; i++)
+	for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
 	{
 		t_ImageViewCreateInfo.image = t_ReturnSwapchain.images[i];
 		VKASSERT(vkCreateImageView(a_Device,
@@ -505,7 +507,7 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 
 void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
 {
-	uint32_t t_CurrentFrame = s_VkBackendInst->backend.currentFrame;
+	uint32_t t_CurrentFrame = s_VkBackendInst->currentFrame;
 
 	VulkanCommandList::GraphicsCommands& t_Cmdlist = 
 		s_VkBackendInst->commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
@@ -612,7 +614,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	VKASSERT(vkQueuePresentKHR(s_VkBackendInst->device.presentQueue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
-	s_VkBackendInst->backend.currentFrame = (s_VkBackendInst->backend.currentFrame + 1) % s_VkBackendInst->swapChain.imageCount;
+	s_VkBackendInst->currentFrame = (s_VkBackendInst->currentFrame + 1) % s_VkBackendInst->frameCount;
 }
 
 APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
@@ -788,7 +790,7 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const V
 
 		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
 		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
-		t_ReturnFrameBuffer.frameBufferCount = s_VkBackendInst->swapChain.imageCount;
+		t_ReturnFrameBuffer.frameBufferCount = s_VkBackendInst->frameCount;
 		t_ReturnFrameBuffer.frameBuffers = BBnewArr<VkFramebuffer>(
 			s_VkBackendInst->renderSystemAllocator,
 			t_ReturnFrameBuffer.frameBufferCount);
@@ -935,10 +937,10 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 
 	t_ReturnCommandList.graphicCommands = BBnewArr<VulkanCommandList::GraphicsCommands>(
 		s_VkBackendInst->renderSystemAllocator,
-		s_VkBackendInst->swapChain.imageCount);
+		s_VkBackendInst->frameCount);
 
 	//The commandlist has graphiccommands per frame.
-	for (uint32_t i = 0; i < s_VkBackendInst->swapChain.imageCount; i++)
+	for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
 	{
 		VKASSERT(vkCreateCommandPool(s_VkBackendInst->device.logicalDevice,
 			&t_CommandPoolInfo,
@@ -975,7 +977,7 @@ void BB::VulkanDestroyCommandList(CommandListHandle a_Handle)
 {
 	VulkanCommandList& a_List = s_VkBackendInst->commandLists[a_Handle.handle];
 
-	for (uint32_t i = 0; i < s_VkBackendInst->swapChain.imageCount; i++)
+	for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
 	{
 		vkDestroyCommandPool(s_VkBackendInst->device.logicalDevice,
 			a_List.graphicCommands[i].pool, nullptr);
@@ -1022,7 +1024,7 @@ void BB::VulkanDestroyBackend(APIRenderBackend)
 
 	BBfreeArr(s_VkBackendInst->renderSystemAllocator,
 		s_VkBackendInst->backend.extensions);
-	for (size_t i = 0; i < s_VkBackendInst->swapChain.imageCount; i++)
+	for (size_t i = 0; i < s_VkBackendInst->frameCount; i++)
 	{
 		vkDestroyImageView(s_VkBackendInst->device.logicalDevice, 
 			s_VkBackendInst->swapChain.imageViews[i], nullptr);
