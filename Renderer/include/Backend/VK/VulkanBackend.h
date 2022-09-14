@@ -58,6 +58,8 @@ namespace BB
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
 		const uint32_t a_BufferCount);
 
+	void VulkanWaitDeviceReady();
+
 	void VulkanDestroyCommandList(CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(PipelineHandle a_Handle);

@@ -174,10 +174,15 @@ namespace BB
 
 	struct VulkanCommandList
 	{
-		VkCommandPool pool;
-		VkCommandBuffer* buffers;
-		uint32_t bufferCount;
-		uint32_t currentFree;
+		struct GraphicsCommands
+		{
+			VkCommandPool pool;
+			VkCommandBuffer* buffers;
+			uint32_t bufferCount;
+			uint32_t currentFree;
+		};
+
+		GraphicsCommands* graphicCommands;
 	};
 
 	struct VulkanDevice

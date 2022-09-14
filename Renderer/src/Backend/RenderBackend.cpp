@@ -42,7 +42,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	m_APIbackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
+	m_APIbackend = VulkanCreateBackend(m_SystemAllocator, m_TempAllocator, t_BackendCreateInfo);
 
 	VulkanFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info
@@ -85,6 +85,7 @@ void RenderBackend::DestroyBackend()
 	switch (m_CurrentRenderAPI)
 	{
 	case RenderAPI::VULKAN:
+		VulkanWaitDeviceReady();
 		VulkanDestroyPipeline(t_Pipeline);
 		VulkanDestroyFramebuffer(t_FrameBuffer);
 		VulkanDestroyCommandList(t_CommandList);
@@ -101,7 +102,7 @@ void RenderBackend::Update()
 		t_CommandList,
 		t_FrameBuffer,
 		t_Pipeline);
-	//m_TempAllocator.Clear();
+	m_TempAllocator.Clear();
 }
 
 void RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
