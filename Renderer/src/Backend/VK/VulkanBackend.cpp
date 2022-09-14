@@ -506,7 +506,7 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 	return t_NewLayout;
 }
 
-void BB::RenderFrame(Allocator a_TempAllocator, VkCommandListHandle a_CommandHandle, VkFrameBufferHandle a_FrameBufferHandle, VkPipelineHandle a_PipeHandle)
+void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
 {
 	VulkanCommandList& t_Cmdlist = s_VkBackendInst->commandLists[a_CommandHandle.handle];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst->frameBuffers[a_FrameBufferHandle.handle];
@@ -613,33 +613,41 @@ void BB::RenderFrame(Allocator a_TempAllocator, VkCommandListHandle a_CommandHan
 		"Vulkan: Failed to queuepresentKHR.");
 }
 
-VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
+APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
 {
-	VulkanBackend t_ReturnBackend;
-
 	if (s_VkBackendInst != nullptr)
 	{
 		BB_WARNING(false,
 			"Trying to create a vulkan backend while you already have one!",
 			WarningType::HIGH);
-		return 0;
+		return APIRenderBackend(0);
 	}
 	//Allocate the static vulkan instance and give it the system allocator.
 	s_VkBackendInst = BBnew<VulkanBackend_inst>(a_SysAllocator, a_SysAllocator);
 
+	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
+		a_TempAllocator,
+		a_CreateInfo.extensions);
+	VKConv::ExtensionResult t_DeviceExtensions = VKConv::TranslateExtensions(
+		a_TempAllocator,
+		a_CreateInfo.deviceExtensions);
+
 	//Check if the extensions and layers work.
-	BB_ASSERT(CheckExtensionSupport(a_TempAllocator, a_CreateInfo.extensions),
+	BB_ASSERT(CheckExtensionSupport(a_TempAllocator,
+		BB::Slice(t_InstanceExtensions.extensions, t_InstanceExtensions.count)),
 		"Vulkan: extension(s) not supported.");
 
-#pragma region //Debug
+#ifdef _DEBUG
 	//For debug, we want to remember the extensions we have.
-	t_ReturnBackend.extensions = BB::BBnewArr<const char*>(s_VkBackendInst->renderSystemAllocator, a_CreateInfo.extensions.size());
-	t_ReturnBackend.extensionCount = static_cast<uint32_t>(a_CreateInfo.extensions.size());
-	for (size_t i = 0; i < t_ReturnBackend.extensionCount; i++)
+	s_VkBackendInst->backend.extensions = BB::BBnewArr<const char*>(
+		s_VkBackendInst->renderSystemAllocator,
+		t_InstanceExtensions.count);
+	s_VkBackendInst->backend.extensionCount = t_InstanceExtensions.count;
+	for (size_t i = 0; i < s_VkBackendInst->backend.extensionCount; i++)
 	{
-		t_ReturnBackend.extensions[i] = a_CreateInfo.extensions[i];
+		s_VkBackendInst->backend.extensions[i] = t_InstanceExtensions.extensions[i];
 	}
-#pragma endregion //Debug
+#endif //_DEBUG
 	{
 		VkApplicationInfo t_AppInfo{};
 		t_AppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -665,18 +673,20 @@ VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_Te
 			t_InstanceCreateInfo.ppEnabledLayerNames = nullptr;
 			t_InstanceCreateInfo.enabledLayerCount = 0;
 		}
-		t_InstanceCreateInfo.ppEnabledExtensionNames = a_CreateInfo.extensions.data();
-		t_InstanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_CreateInfo.extensions.size());
+		t_InstanceCreateInfo.ppEnabledExtensionNames = t_InstanceExtensions.extensions;
+		t_InstanceCreateInfo.enabledExtensionCount = t_InstanceExtensions.count;
 
-		VKASSERT(vkCreateInstance(&t_InstanceCreateInfo, nullptr, &t_ReturnBackend.instance), "Failed to create Vulkan Instance!");
+		VKASSERT(vkCreateInstance(&t_InstanceCreateInfo, 
+			nullptr, 
+			&s_VkBackendInst->backend.instance), "Failed to create Vulkan Instance!");
 
 		if (a_CreateInfo.validationLayers)
 		{
-			t_ReturnBackend.debugMessenger = CreateVulkanDebugMsgger(t_ReturnBackend.instance);
+			s_VkBackendInst->backend.debugMessenger = CreateVulkanDebugMsgger(s_VkBackendInst->backend.instance);
 		}
 		else
 		{
-			t_ReturnBackend.debugMessenger = 0;
+			s_VkBackendInst->backend.debugMessenger = 0;
 		}
 	}
 
@@ -686,17 +696,19 @@ VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_Te
 		t_SurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		t_SurfaceCreateInfo.hwnd = a_CreateInfo.hwnd;
 		t_SurfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
-		VKASSERT(vkCreateWin32SurfaceKHR(t_ReturnBackend.instance, &t_SurfaceCreateInfo, nullptr, &t_ReturnBackend.surface),
+		VKASSERT(vkCreateWin32SurfaceKHR(s_VkBackendInst->backend.instance, 
+			&t_SurfaceCreateInfo, nullptr,
+			&s_VkBackendInst->backend.surface),
 			"Failed to create Win32 vulkan surface.");
 	}
 
 	//Get the physical Device
 	s_VkBackendInst->device.physicalDevice = FindPhysicalDevice(a_TempAllocator,
-		t_ReturnBackend.instance, 
-		t_ReturnBackend.surface);
+		s_VkBackendInst->backend.instance,
+		s_VkBackendInst->backend.surface);
 	//Get the logical device and the graphics queue.
 	s_VkBackendInst->device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
-		a_CreateInfo.deviceExtensions,
+		BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count),
 		s_VkBackendInst->device.physicalDevice,
 		&s_VkBackendInst->device.graphicsQueue);
 
@@ -716,7 +728,7 @@ VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_Te
 
 	s_VkBackendInst->swapChain = CreateSwapchain(a_SysAllocator,
 		a_TempAllocator,
-		t_ReturnBackend.surface,
+		s_VkBackendInst->backend.surface,
 		s_VkBackendInst->device.physicalDevice,
 		s_VkBackendInst->device.logicalDevice,
 		a_CreateInfo.windowWidth,
@@ -724,10 +736,10 @@ VkBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_Te
 
 
 	//The backend handle is not that important which number it is. But we will make it 1.
-	return VkBackendHandle(1);
+	return APIRenderBackend(1);
 }
 
-VkFrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo)
+FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
 	VulkanFrameBuffer t_ReturnFrameBuffer;
 	{
@@ -810,10 +822,10 @@ VkFrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const
 		}
 	}
 
-	return VkFrameBufferHandle(s_VkBackendInst->frameBuffers.emplace(t_ReturnFrameBuffer));
+	return FrameBufferHandle(s_VkBackendInst->frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
-VkPipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanPipelineCreateInfo& a_CreateInfo)
+PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const VulkanPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;
 
@@ -907,10 +919,10 @@ VkPipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const Vulka
 		t_ShaderCreateResult.shaderModules[1],
 		nullptr);
 	
-	return VkPipelineHandle(s_VkBackendInst->pipelines.emplace(t_ReturnPipeline));
+	return PipelineHandle(s_VkBackendInst->pipelines.emplace(t_ReturnPipeline));
 }
 
-VkCommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
+CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
 {
 	VulkanCommandList t_ReturnCommandList;
 	uint32_t t_GraphicsBit;
@@ -941,10 +953,10 @@ VkCommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const
 		t_ReturnCommandList.buffers),
 		"Vulkan: failed to allocate commandbuffers.");
 
-	return VkCommandListHandle(s_VkBackendInst->commandLists.emplace(t_ReturnCommandList));
+	return CommandListHandle(s_VkBackendInst->commandLists.emplace(t_ReturnCommandList));
 }
 
-void BB::VulkanDestroyCommandList(Allocator a_SysAllocator, VkCommandListHandle a_Handle)
+void BB::VulkanDestroyCommandList(CommandListHandle a_Handle)
 {
 	vkDestroyCommandPool(s_VkBackendInst->device.logicalDevice,
 		s_VkBackendInst->commandLists[a_Handle.handle].pool, nullptr);
@@ -952,7 +964,7 @@ void BB::VulkanDestroyCommandList(Allocator a_SysAllocator, VkCommandListHandle 
 		s_VkBackendInst->commandLists[a_Handle.handle].buffers);
 }
 
-void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VkFrameBufferHandle a_Handle)
+void BB::VulkanDestroyFramebuffer(FrameBufferHandle a_Handle)
 {
 	for (uint32_t i = 0; i < s_VkBackendInst->frameBuffers[a_Handle.handle].frameBufferCount; i++)
 	{
@@ -968,14 +980,14 @@ void BB::VulkanDestroyFramebuffer(Allocator a_SysAllocator, VkFrameBufferHandle 
 		nullptr);
 }
 
-void BB::VulkanDestroyPipeline(VkPipelineHandle a_Handle)
+void BB::VulkanDestroyPipeline(PipelineHandle a_Handle)
 {
 	vkDestroyPipeline(s_VkBackendInst->device.logicalDevice, 
 		s_VkBackendInst->pipelines[a_Handle.handle].pipeline,
 		nullptr);
 }
 
-void BB::VulkanDestroyBackend(VkBackendHandle)
+void BB::VulkanDestroyBackend(APIRenderBackend)
 {
 	for (auto t_It = s_VkBackendInst->pipelineLayouts.begin();
 		t_It < s_VkBackendInst->pipelineLayouts.end(); t_It++)

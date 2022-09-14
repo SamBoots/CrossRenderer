@@ -1,7 +1,9 @@
 #pragma once
 #include "Utils/Logger.h"
+#include "Utils/Slice.h"
+#include "Allocators/AllocTypes.h"
+
 #include "BackendCommands.h"
-#include "utils/Slice.h"
 #include <vulkan/vulkan.h>
 
 namespace BB
@@ -100,36 +102,39 @@ namespace BB
 		};
 
 		//Maxiumum of 32 extensions at the moment.
-		inline ExtensionResult Extensions(const Allocator a_TempAllocator, BB::Slice<RENDER_EXTENSIONS> a_Extensions)
+		inline ExtensionResult TranslateExtensions(const Allocator a_TempAllocator, BB::Slice<RENDER_EXTENSIONS> a_Extensions)
 		{
 			ExtensionResult t_Result;
-			t_Result.extensions = reinterpret_cast<const char*>(BBnewArr(a_TempAllocator, 32));
+			t_Result.extensions = BBnewArr<const char*>(a_TempAllocator, 32);
 			t_Result.count = 0;
 			for (size_t i = 0; i < a_Extensions.size(); i++)
 			{
-				switch (a_Extensions.size())
+				switch (a_Extensions[i])
 				{
 				case BB::RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE:
-					t_Result.extensions[++t_Result.count] = "VK_KHR_surface";
-					t_Result.extensions[++t_Result.count] = "VK_KHR_win32_surface";
+					t_Result.extensions[t_Result.count++] = "VK_KHR_surface";
+					t_Result.extensions[t_Result.count++] = "VK_KHR_win32_surface";
 					break;
 				case BB::RENDER_EXTENSIONS::STANDARD_VULKAN_DEVICE:
-					t_Result.extensions[++t_Result.count] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 					break;
 				case BB::RENDER_EXTENSIONS::DEBUG:
-					t_Result.extensions[++t_Result.count] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 					break;
 				case BB::RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES:
-					t_Result.extensions[++t_Result.count] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
 					break;
 				case BB::RENDER_EXTENSIONS::PIPELINE_EXTENDED_DYNAMIC_STATE:
-					t_Result.extensions[++t_Result.count] = VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME;
 					break;
 				default:
+					BB_WARNING(false,
+						"Vulkan: Tried to get an extensions that vulkan does not have.",
+						WarningType::HIGH);
 					break;
 				}
 			}
-
+			return t_Result;
 		}
 	}
 
@@ -190,9 +195,10 @@ namespace BB
 		VkSurfaceKHR surface;
 		uint32_t currentFrame = 0;
 
-		//Debug
+#ifdef _DEBUG
 		VkDebugUtilsMessengerEXT debugMessenger;
 		const char** extensions;
 		uint32_t extensionCount;
+#endif //_DEBUG
 	};
 }

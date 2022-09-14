@@ -4,6 +4,12 @@
 
 namespace BB
 {
+	using APIRenderBackend = FrameworkHandle<struct APIRenderBackendTag>;
+	//Common handles
+	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
+	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
+	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
+
 	using GBufferHandle = FrameworkHandle<struct GBufferHandleTag>;
 	using GImageHandle = FrameworkHandle<struct GImageHandleTag>;
 	using GShaderHandle = FrameworkHandle<struct GShaderHandleTag>;

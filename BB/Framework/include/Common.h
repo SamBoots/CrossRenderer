@@ -6,8 +6,12 @@ namespace BB
 	template<typename Tag>
 	union FrameworkHandle
 	{
-		FrameworkHandle();
-		FrameworkHandle(uint32_t a_Index, uint32_t a_ExtraIndex = 0)
+		FrameworkHandle() {};
+		FrameworkHandle(uint64_t a_Handle)
+		{
+			handle = a_Handle;
+		};
+		FrameworkHandle(uint32_t a_Index, uint32_t a_ExtraIndex)
 		{
 			index = a_Index;
 			extraIndex = a_ExtraIndex;

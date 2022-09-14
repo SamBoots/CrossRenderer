@@ -8,13 +8,13 @@
 
 using namespace BB;
 
-VkFrameBufferHandle t_FrameBuffer;
-VkCommandListHandle t_CommandList;
-VkPipelineHandle t_Pipeline;
+FrameBufferHandle t_FrameBuffer;
+CommandListHandle t_CommandList;
+PipelineHandle t_Pipeline;
 
 void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
 {
-	currentRenderAPI = a_RenderAPI;
+	m_CurrentRenderAPI = a_RenderAPI;
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
@@ -42,11 +42,11 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	APIbackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
+	m_APIbackend = VulkanCreateBackend(m_TempAllocator, m_SystemAllocator, t_BackendCreateInfo);
 
 	VulkanFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info
-	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::LOAD;
+	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
 	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
 	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
@@ -82,13 +82,13 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 void RenderBackend::DestroyBackend()
 {
-	switch (currentRenderAPI)
+	switch (m_CurrentRenderAPI)
 	{
 	case RenderAPI::VULKAN:
 		VulkanDestroyPipeline(t_Pipeline);
 		VulkanDestroyFramebuffer(t_FrameBuffer);
 		VulkanDestroyCommandList(t_CommandList);
-		VulkanDestroyBackend(apibackend);
+		VulkanDestroyBackend(m_APIbackend);
 		break;
 	default:
 		break;

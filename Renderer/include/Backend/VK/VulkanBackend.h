@@ -7,12 +7,6 @@
 
 namespace BB
 {
-	//Common handles
-	using VkBackendHandle = FrameworkHandle<struct VkBackendHandleTag>;
-	using VkFrameBufferHandle = FrameworkHandle<struct VkFrameBufferHandleTag>;
-	using VkPipelineHandle = FrameworkHandle<struct VkPipelineHandleTag>;
-	using VkCommandListHandle = FrameworkHandle<struct VkCommandListHandleTag>;
-
 	struct Allocator;
 
 	struct VulkanBackendCreateInfo
@@ -42,32 +36,30 @@ namespace BB
 
 	struct VulkanPipelineCreateInfo
 	{
-		VkFrameBufferHandle framebufferHandle;
+		FrameBufferHandle framebufferHandle;
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
 	};
 
 	void RenderFrame(Allocator a_TempAllocator,
-		VkCommandListHandle a_CommandHandle,
-		VkFrameBufferHandle a_FrameBufferHandle,
-		VkPipelineHandle a_PipeHandle);
+		CommandListHandle a_CommandHandle,
+		FrameBufferHandle a_FrameBufferHandle,
+		PipelineHandle a_PipeHandle);
 
-	VkBackendHandle VulkanCreateBackend(Allocator a_SysAllocator, 
+	APIRenderBackend VulkanCreateBackend(Allocator a_SysAllocator,
 		Allocator a_TempAllocator,
 		const VulkanBackendCreateInfo& a_CreateInfo);
 
-	VkFrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, 
+	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, 
 		const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo);
 
-	VkPipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator,
+	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator,
 		const VulkanPipelineCreateInfo& a_CreateInfo);
 
-	VkCommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
+	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
 		const uint32_t a_BufferCount);
 
-	void VulkanDestroyCommandList(Allocator a_SysAllocator, 
-		VkCommandListHandle a_Handle);
-	void VulkanDestroyFramebuffer(Allocator a_SysAllocator,
-		VkFrameBufferHandle a_Handle);
-	void VulkanDestroyPipeline(VkPipelineHandle a_Handle);
-	void VulkanDestroyBackend(VkBackendHandle a_Handle);
+	void VulkanDestroyCommandList(CommandListHandle a_Handle);
+	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
+	void VulkanDestroyPipeline(PipelineHandle a_Handle);
+	void VulkanDestroyBackend(APIRenderBackend a_Handle);
 }

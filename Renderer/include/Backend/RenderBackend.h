@@ -1,6 +1,6 @@
 #pragma once
 #include "AllocTypes.h"
-#include "Common.h"
+#include "backendCommands.h"
 
 namespace BB
 {
@@ -25,7 +25,7 @@ namespace BB
 		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
 		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
 
-		VkBackendHandle APIbackend;
-		RenderAPI currentRenderAPI;
+		APIRenderBackend m_APIbackend;
+		RenderAPI m_CurrentRenderAPI;
 	};
 }
