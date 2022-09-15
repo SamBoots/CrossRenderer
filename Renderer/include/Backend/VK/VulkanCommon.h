@@ -205,30 +205,4 @@ namespace BB
 		uint32_t extensionCount;
 #endif //_DEBUG
 	};
-
-	//Functions
-	APIRenderBackend VulkanCreateBackend(Allocator a_SysAllocator,
-		Allocator a_TempAllocator,
-		const RenderBackendCreateInfo& a_CreateInfo);
-
-	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator,
-		const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-
-	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator,
-		const RenderPipelineCreateInfo& a_CreateInfo);
-
-	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
-		const uint32_t a_BufferCount);
-
-	void RenderFrame(Allocator a_TempAllocator,
-		CommandListHandle a_CommandHandle,
-		FrameBufferHandle a_FrameBufferHandle,
-		PipelineHandle a_PipeHandle);
-
-	void VulkanWaitDeviceReady();
-
-	void VulkanDestroyCommandList(CommandListHandle a_Handle);
-	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
-	void VulkanDestroyPipeline(PipelineHandle a_Handle);
-	void VulkanDestroyBackend(APIRenderBackend a_Handle);
 }
