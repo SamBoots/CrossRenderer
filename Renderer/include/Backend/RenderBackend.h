@@ -8,7 +8,8 @@ namespace BB
 
 	enum class RenderAPI
 	{
-		VULKAN
+		VULKAN,
+		DX12
 	};
 
 	class RenderBackend
@@ -28,8 +29,8 @@ namespace BB
 		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
 
 		APIRenderBackend m_APIbackend;
-		RenderAPI m_CurrentRenderAPI;
 
+		//Functions
 		PFN_RenderAPICreateBackend pfn_CreateBackend;
 		PFN_RenderAPICreateFrameBuffer pfn_CreateFrameBuffer;
 		PFN_RenderAPICreatePipeline pfn_CreatePipelineFunc;

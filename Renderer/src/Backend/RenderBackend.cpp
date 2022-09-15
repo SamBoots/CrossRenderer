@@ -14,7 +14,6 @@ PipelineHandle t_Pipeline;
 
 void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
 {
-	m_CurrentRenderAPI = a_RenderAPI;
 	SetFunctions(a_RenderAPI);
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
@@ -83,18 +82,12 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 void RenderBackend::DestroyBackend()
 {
-	switch (m_CurrentRenderAPI)
-	{
-	case RenderAPI::VULKAN:
-		pfn_WaitDeviceReady();
-		pfn_DestroyPipeline(t_Pipeline);
-		pfn_DestroyFrameBuffer(t_FrameBuffer);
-		pfn_DestroyCommandList(t_CommandList);
-		pfn_DestroyBackend(m_APIbackend);
-		break;
-	default:
-		break;
-	}
+
+	pfn_WaitDeviceReady();
+	pfn_DestroyPipeline(t_Pipeline);
+	pfn_DestroyFrameBuffer(t_FrameBuffer);
+	pfn_DestroyCommandList(t_CommandList);
+	pfn_DestroyBackend(m_APIbackend);
 }
 
 void RenderBackend::Update()
@@ -127,5 +120,16 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 	t_Functions.destroyPipeline = &pfn_DestroyPipeline;
 	t_Functions.destroyCommandList = &pfn_DestroyCommandList;
 
-	GetVulkanAPIFunctions(t_Functions);
+	switch (a_RenderAPI)
+	{
+	case RenderAPI::VULKAN:
+		GetVulkanAPIFunctions(t_Functions);
+		break;
+	case RenderAPI::DX12:
+		//GetDX12APIFunctions(t_Functions);
+		break;
+	default:
+		BB_ASSERT(false, "Trying to get functions from an API you don't support.");
+		break;
+	}
 }
