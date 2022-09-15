@@ -89,21 +89,6 @@ namespace BB
 		PIPELINE_EXTENDED_DYNAMIC_STATE //VK Device Property.
 	};
 
-	struct RenderBackendCreateInfo
-	{
-		Slice<RENDER_EXTENSIONS> extensions;
-		Slice<RENDER_EXTENSIONS> deviceExtensions;
-#ifdef _WIN32
-		HWND hwnd;
-#endif //_WIN32
-		const char* appName;
-		const char* engineName;
-		uint32_t windowWidth;
-		uint32_t windowHeight;
-		int version;
-		bool validationLayers;
-	};
-
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
@@ -164,4 +149,84 @@ namespace BB
 		t_Info.shaderStage = a_Shaderstage;
 		return t_Info;
 	}
+
+	struct RenderBackendCreateInfo
+	{
+		Slice<RENDER_EXTENSIONS> extensions;
+		Slice<RENDER_EXTENSIONS> deviceExtensions;
+#ifdef _WIN32
+		HWND hwnd;
+#endif //_WIN32
+		const char* appName;
+		const char* engineName;
+		uint32_t windowWidth;
+		uint32_t windowHeight;
+		int version;
+		bool validationLayers;
+	};
+
+	struct RenderPipelineCreateInfo
+	{
+		FrameBufferHandle framebufferHandle;
+		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
+	};
+
+	struct RenderFrameBufferCreateInfo
+	{
+		RENDER_LOAD_OP colorLoadOp;
+		RENDER_STORE_OP colorStoreOp;
+		RENDER_IMAGE_LAYOUT colorInitialLayout;
+		RENDER_IMAGE_LAYOUT colorFinalLayout;
+		uint32_t width;
+		uint32_t height;
+	};
+
+
+	//construction
+	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(
+		Allocator a_SysAllocator,
+		Allocator a_TempAllocator,
+		const RenderBackendCreateInfo& a_CreateInfo);
+
+	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(
+		Allocator a_TempAllocator,
+		const RenderPipelineCreateInfo& a_CreateInfo);
+
+	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(
+		Allocator a_TempAllocator,
+		const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+
+	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(
+		Allocator a_TempAllocator,
+		const uint32_t a_BufferCount);
+
+	//Utility
+	typedef void (*PFN_RenderAPIRenderFrame)(
+		Allocator a_TempAllocator,
+		CommandListHandle a_CommandHandle,
+		FrameBufferHandle a_FrameBufferHandle,
+		PipelineHandle a_PipeHandle);
+	typedef void (*PFN_RenderAPIWaitDeviceReady)();
+
+	//Deletion
+	typedef void (*PFN_RenderAPIDestroyBackend)(APIRenderBackend a_Handle);
+	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(FrameBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyPipeline)(PipelineHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyCommandList)(CommandListHandle a_Handle);
+
+	struct APIBackendFunctionPointersCreateInfo
+	{
+		PFN_RenderAPICreateBackend* createBackend;
+		PFN_RenderAPICreatePipeline* createPipeline;
+		PFN_RenderAPICreateFrameBuffer* createFrameBuffer;
+		PFN_RenderAPICreateCommandList* createCommandList;
+
+		PFN_RenderAPIRenderFrame* renderFrame;
+		PFN_RenderAPIWaitDeviceReady* waitDevice;
+
+		PFN_RenderAPIDestroyBackend* destroyBackend;
+		PFN_RenderAPIDestroyFrameBuffer* destroyFrameBuffer;
+		PFN_RenderAPIDestroyPipeline* destroyPipeline;
+		PFN_RenderAPIDestroyCommandList* destroyCommandList;
+	};
 }

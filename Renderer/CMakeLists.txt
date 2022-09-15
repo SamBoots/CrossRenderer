@@ -26,6 +26,7 @@ add_executable (Renderer
 
 "src/Backend/RenderBackend.cpp"
 "src/Backend/VK/VulkanBackend.cpp"
+"src/Backend/VK/VulkanCommon.cpp"
 "src/Backend/DX12/DX12Backend.cpp"
 "src/main.cpp")
 
