@@ -15,6 +15,7 @@ PipelineHandle t_Pipeline;
 void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug)
 {
 	m_CurrentRenderAPI = a_RenderAPI;
+	SetFunctions(a_RenderAPI);
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
@@ -42,9 +43,9 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	m_APIbackend = VulkanCreateBackend(m_SystemAllocator, m_TempAllocator, t_BackendCreateInfo);
+	m_APIbackend = pfn_CreateBackend(m_SystemAllocator, m_TempAllocator, t_BackendCreateInfo);
 
-	VulkanFrameBufferCreateInfo t_FrameBufferCreateInfo;
+	RenderFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info
 	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
@@ -55,7 +56,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(t_WindowWidth);
 	t_FrameBufferCreateInfo.height = static_cast<uint32_t>(t_WindowHeight);
 
-	t_FrameBuffer = VulkanCreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
+	t_FrameBuffer = pfn_CreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
 
 	ShaderCreateInfo t_ShaderBuffers[2];
 	t_ShaderBuffers[0].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
@@ -63,13 +64,13 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_ShaderBuffers[1].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
 
-	VulkanPipelineCreateInfo t_PipelineCreateInfo;
+	RenderPipelineCreateInfo t_PipelineCreateInfo;
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 
-	t_Pipeline = VulkanCreatePipeline(m_TempAllocator, t_PipelineCreateInfo);
+	t_Pipeline = pfn_CreatePipelineFunc(m_TempAllocator, t_PipelineCreateInfo);
 
-	t_CommandList = VulkanCreateCommandList(m_TempAllocator, 5);
+	t_CommandList = pfn_CreateCommandList(m_TempAllocator, 5);
 
 	//VulkanDestroyCommandList(m_SystemAllocator, t_CommandList, *vkBackend);
 	//VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
@@ -85,11 +86,11 @@ void RenderBackend::DestroyBackend()
 	switch (m_CurrentRenderAPI)
 	{
 	case RenderAPI::VULKAN:
-		VulkanWaitDeviceReady();
-		VulkanDestroyPipeline(t_Pipeline);
-		VulkanDestroyFramebuffer(t_FrameBuffer);
-		VulkanDestroyCommandList(t_CommandList);
-		VulkanDestroyBackend(m_APIbackend);
+		pfn_WaitDeviceReady();
+		pfn_DestroyPipeline(t_Pipeline);
+		pfn_DestroyFrameBuffer(t_FrameBuffer);
+		pfn_DestroyCommandList(t_CommandList);
+		pfn_DestroyBackend(m_APIbackend);
 		break;
 	default:
 		break;
@@ -98,7 +99,7 @@ void RenderBackend::DestroyBackend()
 
 void RenderBackend::Update()
 {
-	RenderFrame(m_TempAllocator,
+	pfn_RenderFrame(m_TempAllocator,
 		t_CommandList,
 		t_FrameBuffer,
 		t_Pipeline);
@@ -108,4 +109,23 @@ void RenderBackend::Update()
 void RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
 {
 
+}
+
+void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
+{
+	APIBackendFunctionPointersCreateInfo t_Functions;
+	t_Functions.createBackend = &pfn_CreateBackend;
+	t_Functions.createFrameBuffer = &pfn_CreateFrameBuffer;
+	t_Functions.createPipeline = &pfn_CreatePipelineFunc;
+	t_Functions.createCommandList = &pfn_CreateCommandList;
+
+	t_Functions.renderFrame = &pfn_RenderFrame;
+	t_Functions.waitDevice = &pfn_WaitDeviceReady;
+
+	t_Functions.destroyBackend = &pfn_DestroyBackend;
+	t_Functions.destroyFrameBuffer = &pfn_DestroyFrameBuffer;
+	t_Functions.destroyPipeline = &pfn_DestroyPipeline;
+	t_Functions.destroyCommandList = &pfn_DestroyCommandList;
+
+	GetVulkanAPIFunctions(t_Functions);
 }
