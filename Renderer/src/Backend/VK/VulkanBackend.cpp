@@ -617,7 +617,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	s_VkBackendInst->currentFrame = (s_VkBackendInst->currentFrame + 1) % s_VkBackendInst->frameCount;
 }
 
-APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const VulkanBackendCreateInfo& a_CreateInfo)
+APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	if (s_VkBackendInst != nullptr)
 	{
@@ -1059,4 +1059,6 @@ void BB::VulkanDestroyBackend(APIRenderBackend)
 
 	BBfree(s_VkBackendInst->renderSystemAllocator, 
 		s_VkBackendInst);
+	//set to nullptr so that it may be remade again.
+	s_VkBackendInst = nullptr;
 }

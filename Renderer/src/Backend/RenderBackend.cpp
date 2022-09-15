@@ -31,7 +31,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	int t_WindowHeight;
 	AppOSDevice().GetWindowSize(a_WindowHandle,t_WindowWidth,t_WindowHeight);
 
-	VulkanBackendCreateInfo t_BackendCreateInfo;
+	RenderBackendCreateInfo t_BackendCreateInfo;
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(AppOSDevice().GetOSWindowHandle(a_WindowHandle));

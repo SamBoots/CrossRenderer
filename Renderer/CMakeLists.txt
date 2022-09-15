@@ -21,9 +21,12 @@ add_executable (Renderer
 "include/Backend/VK/VulkanBackend.h"
 "include/Backend/VK/VulkanInitializers.h"
 "include/Backend/VK/VulkanCommon.h"
+"include/Backend/DX12/DX12Common.h"
+"include/Backend/DX12/DX12Backend.h"
 
 "src/Backend/RenderBackend.cpp"
 "src/Backend/VK/VulkanBackend.cpp"
+"src/Backend/DX12/DX12Backend.cpp"
 "src/main.cpp")
 
 find_package(Vulkan REQUIRED)
@@ -42,7 +45,13 @@ ${Vulkan_INCLUDE_DIRS}
 "include"
 "include/Backend"
 "include/Backend/VK"
+"include/Backend/DX12"
 "include/Frontend"
 )
 
-target_link_libraries(Renderer BBFramework ${VULKAN_LIB_LIST})
+target_link_libraries(Renderer 
+    BBFramework 
+    ${VULKAN_LIB_LIST} 
+    d3d12.lib
+    dxgi.lib
+    dxguid.lib)

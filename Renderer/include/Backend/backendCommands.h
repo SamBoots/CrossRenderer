@@ -1,6 +1,12 @@
 #pragma once
 #include <cstdint>
 #include "Common.h"
+#include "Utils/Slice.h"
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#endif //_WIN32
 
 namespace BB
 {
@@ -77,9 +83,25 @@ namespace BB
 	{
 		STANDARD_VULKAN_INSTANCE,
 		STANDARD_VULKAN_DEVICE, //VK Device Property.
+		STANDARD_DX12,
 		DEBUG,
 		PHYSICAL_DEVICE_EXTRA_PROPERTIES, 
 		PIPELINE_EXTENDED_DYNAMIC_STATE //VK Device Property.
+	};
+
+	struct RenderBackendCreateInfo
+	{
+		Slice<RENDER_EXTENSIONS> extensions;
+		Slice<RENDER_EXTENSIONS> deviceExtensions;
+#ifdef _WIN32
+		HWND hwnd;
+#endif //_WIN32
+		const char* appName;
+		const char* engineName;
+		uint32_t windowWidth;
+		uint32_t windowHeight;
+		int version;
+		bool validationLayers;
 	};
 
 	struct RenderBufferCreateInfo

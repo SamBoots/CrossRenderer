@@ -152,6 +152,7 @@ namespace BB
 		VkExtent2D extent;
 		VkImage* images;
 		VkImageView* imageViews;
+
 		VkFence* frameFences;
 		VkSemaphore* presentSems;
 		VkSemaphore* renderSems;

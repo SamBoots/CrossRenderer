@@ -1,28 +1,9 @@
 #pragma once
 #include "BackendCommands.h"
-#include "Utils/Slice.h"
-
-#include <Windows.h>
-
 
 namespace BB
 {
 	struct Allocator;
-
-	struct VulkanBackendCreateInfo
-	{
-		Slice<RENDER_EXTENSIONS> extensions;
-		Slice<RENDER_EXTENSIONS> deviceExtensions;
-#ifdef _WIN32
-		HWND hwnd;
-#endif //_WIN32
-		const char* appName;
-		const char* engineName;
-		uint32_t windowWidth;
-		uint32_t windowHeight;
-		int version;
-		bool validationLayers;
-	};
 
 	struct VulkanFrameBufferCreateInfo
 	{
@@ -47,7 +28,7 @@ namespace BB
 
 	APIRenderBackend VulkanCreateBackend(Allocator a_SysAllocator,
 		Allocator a_TempAllocator,
-		const VulkanBackendCreateInfo& a_CreateInfo);
+		const RenderBackendCreateInfo& a_CreateInfo);
 
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, 
 		const VulkanFrameBufferCreateInfo& a_FramebufferCreateInfo);
