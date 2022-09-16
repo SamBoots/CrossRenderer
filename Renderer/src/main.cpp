@@ -11,10 +11,10 @@ int main()
 	APIRenderBackendHandle t_RenderBackend;
 	t_RenderBackend = t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, true);
 
-	while (BB::AppOSDevice().ProcessMessages())
-	{
+	//while (BB::AppOSDevice().ProcessMessages())
+	//{
 		t_Backend.Update();
-	}
+	//}
 	t_Backend.DestroyBackend(t_RenderBackend);
 	return 0;
 }

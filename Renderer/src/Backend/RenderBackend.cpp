@@ -135,10 +135,11 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 void RenderBackend::DestroyBackend(APIRenderBackendHandle a_Handle)
 {
 	pfn_WaitDeviceReady();
+	DestroyCommandList(t_CommandList);
 	DestroyPipeline(t_Pipeline);
 	DestroyFrameBuffer(t_FrameBuffer);
-	DestroyCommandList(t_CommandList);
-	DestroyBackend(a_Handle);
+
+	pfn_DestroyBackend(a_Handle);
 }
 
 void RenderBackend::DestroyFrameBuffer(FrameBufferHandle a_Handle) 
