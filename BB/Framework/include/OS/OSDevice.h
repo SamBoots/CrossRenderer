@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "Common.h"
 #include "AllocTypes.h"
+#include "Utils/Slice.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -19,6 +20,29 @@ namespace BB
 		CHILD //This window does not have a menu bar.
 	};
 
+	enum class OS_OPERATION_TYPE
+	{
+		CLOSE_WINDOW,
+		RESIZE_WINDOW
+	};
+
+	struct OSOperation
+	{
+		OS_OPERATION_TYPE operation;
+		void* next = nullptr; //next is used to store extra information, such as a hwnd or a struct of floats to resize a window.
+
+		struct CloseWindow
+		{
+			void* windowHandle;
+		};
+
+		struct ResizeWindow
+		{
+			void* windowHandle;
+			float x;
+			float y;
+		};
+	};
 
 	class OSDevice
 	{
@@ -49,6 +73,11 @@ namespace BB
 		void* GetOSWindowHandle(WindowHandle a_Handle);
 		void GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y);
 		void DestroyOSWindow(WindowHandle a_Handle);
+
+		//Add an OS operation that will be done during the user defined event queue of the engine.
+		void AddOSOperation(OSOperation t_Operation);
+		const BB::Slice<OSOperation> GetOSOperations() const;
+		void ClearOSOperations();
 
 		//Exits the application.
 		void ExitApp() const;

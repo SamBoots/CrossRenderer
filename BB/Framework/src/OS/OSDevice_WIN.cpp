@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <fstream>
 #include "Storage/Slotmap.h"
+#include "Storage/Array.h"
 
 using namespace BB;
 
@@ -18,13 +19,19 @@ static OSDevice osDevice;
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
 {
+	OSOperation windowQuit;
 	switch (a_Msg)
 	{
-	case WM_CLOSE:
-		DestroyWindow(a_Hwnd);
+	case WM_QUIT:
+		windowQuit.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
+		windowQuit.next = a_Hwnd;
+		//CloseWindow(a_Hwnd);
 		break;
 	case WM_DESTROY:
-		PostQuitMessage(0);
+		windowQuit.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
+		windowQuit.next = a_Hwnd;
+
+		//PostQuitMessage(0);
 		break;
 	}
 
@@ -107,13 +114,13 @@ private:
 	HINSTANCE m_HInstance = nullptr;
 };
 
-
 struct BB::OSDevice_o
 {
 	//Special array for all the windows. Stored seperately 
 	Slotmap<OSWindow> OSWindows{ OSAllocator, 8 };
+	//Array operations will very likely never exceed 8.
+	Array<OSOperation> OSOperations{ OSAllocator , 8 };
 };
-
 
 OSDevice& BB::AppOSDevice()
 {
@@ -184,9 +191,24 @@ void OSDevice::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 	a_Y = t_Rect.bottom;
 }
 
-void BB::OSDevice::DestroyOSWindow(WindowHandle a_Handle)
+void OSDevice::DestroyOSWindow(WindowHandle a_Handle)
 {
 	m_OSDevice->OSWindows.erase(a_Handle.index);
+}
+
+void OSDevice::AddOSOperation(OSOperation t_Operation)
+{
+	m_OSDevice->OSOperations.emplace_back(t_Operation);
+}
+
+const BB::Slice<OSOperation> OSDevice::GetOSOperations() const
+{
+	return m_OSDevice->OSOperations;
+}
+
+void OSDevice::ClearOSOperations()
+{
+	m_OSDevice->OSOperations.clear();
 }
 
 void OSDevice::ExitApp() const
@@ -200,27 +222,11 @@ bool BB::OSDevice::ProcessMessages() const
 
 	while (PeekMessage(&t_Msg, NULL, 0u, 0u, PM_REMOVE))
 	{
-		if (t_Msg.message == WM_QUIT)
-		{
-			for (auto t_It = m_OSDevice->OSWindows.begin(); t_It < m_OSDevice->OSWindows.end(); t_It++)
-			{
-				if (t_Msg.hwnd == t_It->value.hwnd)
-				{
-					m_OSDevice->OSWindows.erase(t_It->id);
-					//if there are now windows just close the application.
-					if (m_OSDevice->OSWindows.size() == 0)
-					{
-						return false;
-					}
-				}
-			}
-		}
-
 		TranslateMessage(&t_Msg);
 		DispatchMessage(&t_Msg);
 	}
 
-
+	m_OSDevice->OSOperations.clear();
 	return true;
 }
 

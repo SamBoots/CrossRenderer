@@ -23,7 +23,7 @@ namespace BB
 	//Calculate the load factor.
 	static size_t LFCalculation(size_t a_Size, float a_LoadFactor)
 	{
-		return static_cast<size_t>(static_cast<float>(a_Size) * (1.f / a_LoadFactor + 1));
+		return static_cast<size_t>(static_cast<float>(a_Size) * (1.f / a_LoadFactor + 1.f));
 	}
 
 #pragma region Unordered_Map
