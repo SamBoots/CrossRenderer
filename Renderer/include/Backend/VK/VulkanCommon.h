@@ -207,7 +207,7 @@ namespace BB
 	};
 
 	//Functions
-	APIRenderBackend VulkanCreateBackend(Allocator a_SysAllocator,
+	APIRenderBackendHandle VulkanCreateBackend(Allocator a_SysAllocator,
 		Allocator a_TempAllocator,
 		const RenderBackendCreateInfo& a_CreateInfo);
 
@@ -230,5 +230,5 @@ namespace BB
 	void VulkanDestroyCommandList(CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(PipelineHandle a_Handle);
-	void VulkanDestroyBackend(APIRenderBackend a_Handle);
+	void VulkanDestroyBackend(APIRenderBackendHandle a_Handle);
 }

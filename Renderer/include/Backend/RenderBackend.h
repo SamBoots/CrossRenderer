@@ -14,21 +14,27 @@ namespace BB
 	class RenderBackend
 	{
 	public:
-		void InitBackend(WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug);
-		void DestroyBackend();
+		APIRenderBackendHandle InitBackend(WindowHandle a_WindowHandle, RenderAPI a_RenderAPI, bool a_Debug);
+		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_Info);
+		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_Info);
+		CommandListHandle CreateCommandlist();
+
 
 		void Update();
 
 		void CreateShader(const ShaderCreateInfo& t_ShaderInfo);
+
+
+		void DestroyBackend(APIRenderBackendHandle a_Handle);
+		void DestroyFrameBuffer(FrameBufferHandle a_Handle);
+		void DestroyPipeline(PipelineHandle a_Handle);
+		void DestroyCommandList(CommandListHandle a_Handle);
 
 	private:
 		void SetFunctions(RenderAPI a_RenderAPI);
 
 		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
 		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
-
-		APIRenderBackend m_APIbackend;
-		RenderAPI m_CurrentRenderAPI;
 
 		PFN_RenderAPICreateBackend pfn_CreateBackend;
 		PFN_RenderAPICreateFrameBuffer pfn_CreateFrameBuffer;

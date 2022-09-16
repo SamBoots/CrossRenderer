@@ -10,11 +10,13 @@
 
 namespace BB
 {
-	using APIRenderBackend = FrameworkHandle<struct APIRenderBackendTag>;
+	//Unique handle to represent the backend.
+	using APIRenderBackendHandle = FrameworkHandle<struct APIRenderBackendTag>;
 	//Common handles
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
+
 
 	using GBufferHandle = FrameworkHandle<struct GBufferHandleTag>;
 	using GImageHandle = FrameworkHandle<struct GImageHandleTag>;
@@ -183,7 +185,7 @@ namespace BB
 
 
 	//construction
-	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(
+	typedef APIRenderBackendHandle (*PFN_RenderAPICreateBackend)(
 		Allocator a_SysAllocator,
 		Allocator a_TempAllocator,
 		const RenderBackendCreateInfo& a_CreateInfo);
@@ -209,7 +211,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
-	typedef void (*PFN_RenderAPIDestroyBackend)(APIRenderBackend a_Handle);
+	typedef void (*PFN_RenderAPIDestroyBackend)(APIRenderBackendHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(CommandListHandle a_Handle);

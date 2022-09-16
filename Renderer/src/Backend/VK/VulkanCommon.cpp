@@ -615,14 +615,14 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	s_VkBackendInst->currentFrame = (s_VkBackendInst->currentFrame + 1) % s_VkBackendInst->frameCount;
 }
 
-APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+APIRenderBackendHandle BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	if (s_VkBackendInst != nullptr)
 	{
 		BB_WARNING(false,
 			"Trying to create a vulkan backend while you already have one!",
 			WarningType::HIGH);
-		return APIRenderBackend(0);
+		return APIRenderBackendHandle(0);
 	}
 	//Allocate the static vulkan instance and give it the system allocator.
 	s_VkBackendInst = BBnew<VulkanBackend_inst>(a_SysAllocator, a_SysAllocator);
@@ -737,7 +737,7 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_T
 		a_CreateInfo.windowHeight);
 
 	//The backend handle is not that important which number it is. But we will make it 1.
-	return APIRenderBackend(1);
+	return APIRenderBackendHandle(1);
 }
 
 FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
@@ -1008,7 +1008,7 @@ void BB::VulkanDestroyPipeline(PipelineHandle a_Handle)
 		nullptr);
 }
 
-void BB::VulkanDestroyBackend(APIRenderBackend)
+void BB::VulkanDestroyBackend(APIRenderBackendHandle)
 {
 	for (auto t_It = s_VkBackendInst->pipelineLayouts.begin();
 		t_It < s_VkBackendInst->pipelineLayouts.end(); t_It++)

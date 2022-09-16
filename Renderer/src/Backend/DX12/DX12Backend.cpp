@@ -98,14 +98,14 @@ static DX12SwapChain CreateSwapchain(uint32_t a_Width, uint32_t a_Height)
 	return t_SwapChain;
 }
 
-APIRenderBackend BB::DX12CreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+APIRenderBackendHandle BB::DX12CreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	if (s_DXBackendInst != nullptr)
 	{
 		BB_WARNING(false,
 			"Trying to create a DX12 backend while you already have one!",
 			WarningType::HIGH);
-		return APIRenderBackend(0);
+		return APIRenderBackendHandle(0);
 	}
 	//Allocate the static vulkan instance and give it the system allocator.
 	s_DXBackendInst = BBnew<DX12Backend_inst>(a_SysAllocator, a_SysAllocator);
@@ -132,5 +132,5 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_SysAllocator, Allocator a_Tem
 	
 
 	//The handle doesn't matter, we only have one backend anyway. But it's nice for API clarity.
-	return APIRenderBackend(1);
+	return APIRenderBackendHandle(1);
 }
