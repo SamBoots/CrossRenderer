@@ -14,7 +14,6 @@ endif ()
 #Add source to this project's executable.
 add_library (BBFramework 
 "include/Common.h"
-"include/Framework.h"
 "include/Allocators/BackingAllocator/BackingAllocator.h" 
 "include/Allocators/Allocators.h" 
 "include/Allocators/AllocTypes.h" 
@@ -30,7 +29,6 @@ add_library (BBFramework
 "include/Utils/Slice.h"
 "include/Utils/Logger.h"
 
-"src/Framework.cpp"
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/MemoryArena.cpp" 
 "src/Allocators/BackingAllocator/BackingAllocator${PLATFORM_NAME}.cpp" 
