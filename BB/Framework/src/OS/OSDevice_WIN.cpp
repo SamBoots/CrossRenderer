@@ -1,12 +1,22 @@
 #include "Utils/Logger.h"
 #include "OSDevice.h"
 
+#include <cstdint>
 #include <Windows.h>
 #include <fstream>
-#include "Storage/Slotmap.h"
+#include "Storage/Hashmap.h"
 #include "Storage/Array.h"
 
+//The OS window for Windows.
+struct OSWindow
+{
+	HWND hwnd = nullptr;
+	const char* windowName = nullptr;
+	HINSTANCE hInstance = nullptr;
+};
+
 using namespace BB;
+using namespace BB::OS;
 
 typedef FreeListAllocator_t OSAllocator_t;
 typedef LinearAllocator_t OSTempAllocator_t;
@@ -14,149 +24,76 @@ typedef LinearAllocator_t OSTempAllocator_t;
 OSAllocator_t OSAllocator{ mbSize * 8 };
 OSTempAllocator_t OSTempAllocator{ mbSize * 4 };
 
-static OSDevice osDevice;
+struct OSDevice
+{
+	//Special array for all the windows. Stored seperately 
+	OL_HashMap<HWND, OSWindow> OSWindows{ OSAllocator, 8 };
+	//Array operations will very likely never exceed 8.
+	Array<OSOperation> OSOperations{ OSAllocator, 8 };
+};
+
+static OSDevice s_OSDevice{};
 
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
 {
-	OSOperation windowQuit;
+	OSOperation windowMsg;
 	switch (a_Msg)
 	{
 	case WM_QUIT:
-		windowQuit.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
-		windowQuit.next = a_Hwnd;
-		//CloseWindow(a_Hwnd);
+	{
+		windowMsg.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
+		windowMsg.window = a_Hwnd;
+		s_OSDevice.OSOperations.emplace_back(windowMsg);
+		return 0;
+	}
 		break;
 	case WM_DESTROY:
-		windowQuit.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
-		windowQuit.next = a_Hwnd;
-
-		//PostQuitMessage(0);
+	{
+		windowMsg.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
+		windowMsg.window = a_Hwnd;
+		s_OSDevice.OSOperations.emplace_back(windowMsg);
+		return 0;
 		break;
+	}
 	}
 
 	return DefWindowProc(a_Hwnd, a_Msg, a_WParam, a_LParam);
 }
 
-//The OS window for Windows.
-class OSWindow
-{
-public:
-	OSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
-	{
-		m_WindowName = a_WindowName;
 
-		WNDCLASS t_WndClass = {};
-		t_WndClass.lpszClassName = m_WindowName;
-		t_WndClass.hInstance = m_HInstance;
-		t_WndClass.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-		t_WndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-		t_WndClass.lpfnWndProc = WindowProc;
-
-		RegisterClass(&t_WndClass);
-		//DWORD t_Style = WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
-
-		DWORD t_Style;
-		switch (a_Style)
-		{
-		case BB::OS_WINDOW_STYLE::MAIN:
-			t_Style = WS_OVERLAPPEDWINDOW;
-			break;
-		case BB::OS_WINDOW_STYLE::CHILD:
-			t_Style = WS_OVERLAPPED | WS_THICKFRAME;
-			break;
-		default:
-			t_Style = 0;
-			BB_ASSERT(false, "Tried to create a window with a OS_WINDOW_STYLE it does not accept.");
-			break;
-		}
-
-		RECT t_Rect{};
-		t_Rect.left = a_X;
-		t_Rect.top = a_Y;
-		t_Rect.right = t_Rect.left + a_Width;
-		t_Rect.bottom = t_Rect.top + a_Height;
-
-		AdjustWindowRect(&t_Rect, t_Style, false);
-
-		hwnd = CreateWindowEx(
-			0,
-			m_WindowName,
-			"Memory Studies",
-			t_Style,
-			t_Rect.left,
-			t_Rect.top,
-			t_Rect.right - t_Rect.left,
-			t_Rect.bottom - t_Rect.top,
-			NULL,
-			NULL,
-			m_HInstance,
-			NULL
-		);
-
-		ShowWindow(hwnd, SW_SHOW);
-	}
-
-	~OSWindow()
-	{
-		//Delete the window before you unregister the class.
-		if (!DestroyWindow(hwnd))
-			osDevice.LatestOSError();
-
-		if (!UnregisterClassA(m_WindowName, m_HInstance))
-			osDevice.LatestOSError();
-	}
-
-	HWND hwnd = nullptr;
-
-private:
-	const char* m_WindowName = nullptr;
-	HINSTANCE m_HInstance = nullptr;
-};
-
-struct BB::OSDevice_o
-{
-	//Special array for all the windows. Stored seperately 
-	Slotmap<OSWindow> OSWindows{ OSAllocator, 8 };
-	//Array operations will very likely never exceed 8.
-	Array<OSOperation> OSOperations{ OSAllocator , 8 };
-};
-
-OSDevice& BB::AppOSDevice()
-{
-	return osDevice;
-}
-
-OSDevice::OSDevice()
-{
-	m_OSDevice = BBnew<OSDevice_o>(OSAllocator);
-}
-
-OSDevice::~OSDevice()
-{
-	BBfree(OSAllocator, m_OSDevice);
-}
-
-const size_t BB::OSDevice::VirtualMemoryPageSize() const
+const size_t BB::OS::VirtualMemoryPageSize()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwPageSize;
 }
 
-const size_t BB::OSDevice::VirtualMemoryMinimumAllocation() const
+const size_t BB::OS::VirtualMemoryMinimumAllocation()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwAllocationGranularity;
 }
 
-const uint32_t OSDevice::LatestOSError() const
+const uint32_t BB::OS::LatestOSError()
 {
-	return static_cast<uint32_t>(GetLastError());
+	DWORD t_ErrorMsg = GetLastError();
+	if (t_ErrorMsg == 0)
+		return 0;
+	LPSTR t_Message = nullptr;
+
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&t_Message, 0, NULL);
+
+	LocalFree(t_Message);
+
+	BB_WARNING(false, t_Message, WarningType::HIGH);
+
+	return static_cast<uint32_t>(t_ErrorMsg);
 }
 
-Buffer OSDevice::ReadFile(Allocator a_SysAllocator, const char* a_Path)
+Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 {
 	std::ifstream t_File(a_Path, std::ios::ate | std::ios::binary);
 
@@ -172,51 +109,136 @@ Buffer OSDevice::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 	return t_FileBuffer;
 }
 
-WindowHandle OSDevice::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
+WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
 {
-	return WindowHandle(static_cast<uint32_t>(m_OSDevice->OSWindows.emplace(a_Style, a_X, a_Y, a_Width, a_Height, a_WindowName)));
+	OSWindow t_ReturnWindow;
+	t_ReturnWindow.windowName = a_WindowName;
+
+	WNDCLASS t_WndClass = {};
+	t_WndClass.lpszClassName = t_ReturnWindow.windowName;
+	t_WndClass.hInstance = t_ReturnWindow.hInstance;
+	t_WndClass.hIcon = LoadIcon(NULL, IDI_WINLOGO);
+	t_WndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	t_WndClass.lpfnWndProc = WindowProc;
+
+	RegisterClass(&t_WndClass);
+	//DWORD t_Style = WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
+
+	DWORD t_Style;
+	switch (a_Style)
+	{
+	case OS_WINDOW_STYLE::MAIN:
+		t_Style = WS_OVERLAPPEDWINDOW;
+		break;
+	case OS_WINDOW_STYLE::CHILD:
+		t_Style = WS_OVERLAPPED | WS_THICKFRAME;
+		break;
+	default:
+		t_Style = 0;
+		BB_ASSERT(false, "Tried to create a window with a OS_WINDOW_STYLE it does not accept.");
+		break;
+	}
+
+	RECT t_Rect{};
+	t_Rect.left = a_X;
+	t_Rect.top = a_Y;
+	t_Rect.right = t_Rect.left + a_Width;
+	t_Rect.bottom = t_Rect.top + a_Height;
+
+	AdjustWindowRect(&t_Rect, t_Style, false);
+
+	t_ReturnWindow.hwnd = CreateWindowEx(
+		0,
+		t_ReturnWindow.windowName,
+		"Memory Studies",
+		t_Style,
+		t_Rect.left,
+		t_Rect.top,
+		t_Rect.right - t_Rect.left,
+		t_Rect.bottom - t_Rect.top,
+		NULL,
+		NULL,
+		t_ReturnWindow.hInstance,
+		NULL);
+	ShowWindow(t_ReturnWindow.hwnd, SW_SHOW);
+
+	s_OSDevice.OSWindows.emplace(t_ReturnWindow.hwnd, t_ReturnWindow);
+
+	return WindowHandle(t_ReturnWindow.hwnd);
 }
 
-void* OSDevice::GetOSWindowHandle(WindowHandle a_Handle)
+void* BB::OS::GetOSWindowHandle(WindowHandle a_Handle)
 {
-	return m_OSDevice->OSWindows.find(a_Handle.index).hwnd;
+	return reinterpret_cast<HWND>(a_Handle.handle);
 }
 
-void OSDevice::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
+void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 {
 	RECT t_Rect;
-	GetClientRect(m_OSDevice->OSWindows.find(a_Handle.index).hwnd, &t_Rect);
+	GetClientRect(reinterpret_cast<HWND>(a_Handle.handle), &t_Rect);
 
 	a_X = t_Rect.right;
 	a_Y = t_Rect.bottom;
 }
 
-void OSDevice::DestroyOSWindow(WindowHandle a_Handle)
+void BB::OS::DestroyOSWindow(WindowHandle a_Handle)
 {
-	m_OSDevice->OSWindows.erase(a_Handle.index);
+	OSOperation t_Operation;
+	t_Operation.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
+	t_Operation.window = reinterpret_cast<HWND>(a_Handle.handle);
+	s_OSDevice.OSOperations.emplace_back(t_Operation);
 }
 
-void OSDevice::AddOSOperation(OSOperation t_Operation)
+void BB::OS::AddOSOperation(OSOperation t_Operation)
 {
-	m_OSDevice->OSOperations.emplace_back(t_Operation);
+	s_OSDevice.OSOperations.emplace_back(t_Operation);
 }
 
-const BB::Slice<OSOperation> OSDevice::GetOSOperations() const
+bool BB::OS::PeekOSOperations(OSOperation& t_Operation)
 {
-	return m_OSDevice->OSOperations;
+	if (s_OSDevice.OSOperations.size() == 0)
+		return false;
+	
+	t_Operation = s_OSDevice.OSOperations[s_OSDevice.OSOperations.size() - 1];
+	s_OSDevice.OSOperations.pop();
+	return true;
 }
 
-void OSDevice::ClearOSOperations()
+void BB::OS::ProcessOSOperation(const OSOperation& t_Operation)
 {
-	m_OSDevice->OSOperations.clear();
+	switch (t_Operation.operation)
+	{
+	case BB::OS::OS_OPERATION_TYPE::CLOSE_WINDOW:
+	{
+		OSWindow* t_OSWindow = s_OSDevice.OSWindows.find(static_cast<HWND>(t_Operation.window));
+		if (!DestroyWindow(t_OSWindow->hwnd))
+			OS::LatestOSError();
+		
+		if (!UnregisterClassA(t_OSWindow->windowName, t_OSWindow->hInstance));
+			OS::LatestOSError();
+		s_OSDevice.OSWindows.erase(static_cast<HWND>(t_Operation.window));
+	}
+		break;
+	case BB::OS::OS_OPERATION_TYPE::RESIZE_WINDOW:
+		break;
+	default:
+		BB_ASSERT(false, "Sending an invalid OS operation.");
+		break;
+	}
 }
 
-void OSDevice::ExitApp() const
+
+void BB::OS::ClearOSOperations()
+{
+	s_OSDevice.OSOperations.clear();
+}
+
+void BB::OS::ExitApp()
 {
 	exit(EXIT_FAILURE);
 }
 
-bool BB::OSDevice::ProcessMessages() const
+bool BB::OS::ProcessMessages()
 {
 	MSG t_Msg{};
 
@@ -226,11 +248,10 @@ bool BB::OSDevice::ProcessMessages() const
 		DispatchMessage(&t_Msg);
 	}
 
-	m_OSDevice->OSOperations.clear();
 	return true;
 }
 
-char* BB::OSDevice::GetExePath(Allocator a_SysAllocator) const
+char* BB::OS::GetExePath(Allocator a_SysAllocator)
 {
 	//Can force to use the return value to get the size but I decide for 256 for ease of use.
 	char* a_Buffer = reinterpret_cast<char*>(BBalloc(a_SysAllocator, 256));

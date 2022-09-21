@@ -12,21 +12,24 @@
 
 #include "OS/OSDevice.h"
 
+using namespace BB;
 int main()
 {
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
-	BB::WindowHandle mainWindow = BB::AppOSDevice().CreateOSWindow(BB::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");
+	WindowHandle mainWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");
 
-	BB::WindowHandle childWindow = BB::AppOSDevice().CreateOSWindow(BB::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
+	WindowHandle childWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
 
-	BB::WindowHandle deletedWindow = BB::AppOSDevice().CreateOSWindow(BB::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test deleted window");
+	WindowHandle childWindow2 = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
 
-	BB::AppOSDevice().DestroyOSWindow(deletedWindow);
-
-	while (BB::AppOSDevice().ProcessMessages())
+	OS::OSOperation t_Operation{};
+	while (OS::ProcessMessages())
 	{
-
+		while (OS::PeekOSOperations(t_Operation))
+		{
+			OS::ProcessOSOperation(t_Operation);
+		}
 	}
 
 	return 0;

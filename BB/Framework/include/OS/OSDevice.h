@@ -11,59 +11,34 @@
 
 namespace BB
 {
-	struct OSDevice_o;
-
-
-	enum class OS_WINDOW_STYLE
+	namespace OS
 	{
-		MAIN, //This window has a menu bar.
-		CHILD //This window does not have a menu bar.
-	};
-
-	enum class OS_OPERATION_TYPE
-	{
-		CLOSE_WINDOW,
-		RESIZE_WINDOW
-	};
-
-	struct OSOperation
-	{
-		OS_OPERATION_TYPE operation;
-		void* next = nullptr; //next is used to store extra information, such as a hwnd or a struct of floats to resize a window.
-
-		struct CloseWindow
+		enum class OS_WINDOW_STYLE
 		{
-			void* windowHandle;
+			MAIN, //This window has a menu bar.
+			CHILD //This window does not have a menu bar.
 		};
 
-		struct ResizeWindow
+		enum class OS_OPERATION_TYPE
 		{
-			void* windowHandle;
-			float x;
-			float y;
+			CLOSE_WINDOW,
+			RESIZE_WINDOW
 		};
-	};
 
-	class OSDevice
-	{
-	public:
-		OSDevice();
-		~OSDevice();
-
-		//just delete these for safety, copies might cause errors.
-		OSDevice(const OSDevice&) = delete;
-		OSDevice(const OSDevice&&) = delete;
-		OSDevice& operator =(const OSDevice&) = delete;
-		OSDevice& operator =(OSDevice&&) = delete;
+		struct OSOperation
+		{
+			OS_OPERATION_TYPE operation;
+			void* window;
+		};
 
 		//The size of a virtual memory page on the OS.
-		const size_t VirtualMemoryPageSize() const;
+		const size_t VirtualMemoryPageSize();
 		//The minimum virtual allocation size you can do. 
 		//TODO: Get the linux variant of this.
-		const size_t VirtualMemoryMinimumAllocation() const;
+		const size_t VirtualMemoryMinimumAllocation();
 
 		//Prints the latest OS error and returns the error code, if it has no error code it returns 0.
-		const uint32_t LatestOSError() const;
+		const uint32_t LatestOSError();
 
 		//Reads an external file from path.
 		Buffer ReadFile(Allocator a_SysAllocator, const char* a_Path);
@@ -76,21 +51,16 @@ namespace BB
 
 		//Add an OS operation that will be done during the user defined event queue of the engine.
 		void AddOSOperation(OSOperation t_Operation);
-		const BB::Slice<OSOperation> GetOSOperations() const;
+		bool PeekOSOperations(OSOperation& t_Operation);
+		void ProcessOSOperation(const OSOperation& t_Operation);
 		void ClearOSOperations();
 
 		//Exits the application.
-		void ExitApp() const;
+		void ExitApp();
 
-		bool ProcessMessages() const;
+		bool ProcessMessages();
 
 		//Get the path where the project's exe file is located.
-		char* GetExePath(Allocator a_SysAllocator) const;
-
-	private:
-		OSDevice_o* m_OSDevice;
-	};
-
-
-	OSDevice& AppOSDevice();
+		char* GetExePath(Allocator a_SysAllocator);
+	}
 }
