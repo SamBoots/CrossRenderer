@@ -41,21 +41,9 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	switch (a_Msg)
 	{
 	case WM_QUIT:
-	{
-		windowMsg.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
-		windowMsg.window = a_Hwnd;
-		s_OSDevice.OSOperations.emplace_back(windowMsg);
-		return 0;
-	}
 		break;
 	case WM_DESTROY:
-	{
-		windowMsg.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
-		windowMsg.window = a_Hwnd;
-		s_OSDevice.OSOperations.emplace_back(windowMsg);
-		return 0;
 		break;
-	}
 	}
 
 	return DefWindowProc(a_Hwnd, a_Msg, a_WParam, a_LParam);
@@ -181,7 +169,7 @@ void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 	a_Y = t_Rect.bottom;
 }
 
-void BB::OS::DestroyOSWindow(WindowHandle a_Handle)
+void BB::OS::MarkDestroyOSWindow(WindowHandle a_Handle)
 {
 	OSOperation t_Operation;
 	t_Operation.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
@@ -214,7 +202,7 @@ void BB::OS::ProcessOSOperation(const OSOperation& t_Operation)
 		if (!DestroyWindow(t_OSWindow->hwnd))
 			OS::LatestOSError();
 		
-		if (!UnregisterClassA(t_OSWindow->windowName, t_OSWindow->hInstance));
+		if (!UnregisterClassA(t_OSWindow->windowName, t_OSWindow->hInstance))
 			OS::LatestOSError();
 		s_OSDevice.OSWindows.erase(static_cast<HWND>(t_Operation.window));
 	}

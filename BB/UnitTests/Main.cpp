@@ -21,15 +21,18 @@ int main()
 
 	WindowHandle childWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
 
-	WindowHandle childWindow2 = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
+	WindowHandle destroyWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
+	OS::MarkDestroyOSWindow(destroyWindow);
 
 	OS::OSOperation t_Operation{};
-	while (OS::ProcessMessages())
+	bool hasWindows = true;
+	while (hasWindows)
 	{
 		while (OS::PeekOSOperations(t_Operation))
 		{
 			OS::ProcessOSOperation(t_Operation);
 		}
+		hasWindows = OS::ProcessMessages();
 	}
 
 	return 0;

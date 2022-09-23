@@ -47,7 +47,7 @@ namespace BB
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void*.
 		void* GetOSWindowHandle(WindowHandle a_Handle);
 		void GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y);
-		void DestroyOSWindow(WindowHandle a_Handle);
+		void MarkDestroyOSWindow(WindowHandle a_Handle);
 
 		//Add an OS operation that will be done during the user defined event queue of the engine.
 		void AddOSOperation(OSOperation t_Operation);
