@@ -48,6 +48,48 @@ void LinearAllocator::Clear()
 	m_Buffer = m_Start;
 }
 
+FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size)
+{
+	BB_ASSERT(a_Size != 0, "Fixed linear allocator is created with a size of 0!");
+	size_t t_Size = a_Size;
+	m_Start = mallocVirtual(nullptr, t_Size, BB::virtual_reserve_extra::none);
+	m_Buffer = m_Start;
+#ifdef _DEBUG
+	m_End = reinterpret_cast<uintptr_t>(m_Start) + t_Size;
+#endif //_DEBUG
+}
+
+FixedLinearAllocator::~FixedLinearAllocator()
+{
+	freeVirtual(reinterpret_cast<void*>(m_Start));
+}
+
+void* FixedLinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+{
+	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_Buffer, a_Alignment);
+
+	uintptr_t t_Address = reinterpret_cast<uintptr_t>(Pointer::Add(m_Buffer, t_Adjustment));
+	m_Buffer = reinterpret_cast<void*>(t_Address + a_Size);
+
+#ifdef _DEBUG
+	if (t_Address + a_Size > m_End)
+	{
+		BB_ASSERT(false, "Failed to allocate more memory from a fixed linear allocator")
+	}
+#endif //_DEBUG
+	return reinterpret_cast<void*>(t_Address);
+}
+
+void FixedLinearAllocator::Free(void*)
+{
+	BB_WARNING(false, "Tried to free a piece of memory in a linear allocator, warning will be removed when temporary allocators exist!", WarningType::LOW);
+}
+
+void FixedLinearAllocator::Clear()
+{
+	m_Buffer = m_Start;
+}
+
 
 FreelistAllocator::FreelistAllocator(const size_t a_Size)
 {

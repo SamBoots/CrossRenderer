@@ -8,17 +8,44 @@
 
 namespace BB
 {
-	namespace Memory
+	namespace Memory	
 	{
+
+		inline static void MemCpy(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size)
+		{
+			//Get the registry size for most optimal memcpy.
+			uint8_t* __restrict  t_Dest = reinterpret_cast<uint8_t*>(a_Destination);
+			const uint8_t* __restrict  t_Src = reinterpret_cast<const uint8_t*>(a_Source);
+
+			//How many can we copy of 8 byte sized chunks?
+			size_t t_Loopsize = (a_Size / sizeof(size_t));
+			for (size_t i = 0; i < t_Loopsize; i++)
+			{
+				*reinterpret_cast<size_t*>(t_Dest) =
+					*reinterpret_cast<const size_t*>(t_Src);
+
+				t_Dest += sizeof(size_t);
+				t_Src += sizeof(size_t);
+			}
+
+			//Again but then go by byte.
+			t_Loopsize = (a_Size % sizeof(size_t));
+			for (size_t i = a_Size - t_Loopsize; i < a_Size; i++)
+			{
+				*t_Dest = *t_Src;
+				++t_Dest;
+				++t_Src;
+			}
+		}
 		/// <summary>
 		/// Memcpy abstraction that will call the constructor if needed.
 		/// </summary>
 		template<typename T>
-		inline static void* Copy(T* a_Destination, const T* a_Source, const size_t a_ElementCount)
+		inline static void Copy(T* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
 		{
 			if constexpr (std::is_trivially_constructible_v<T>)
 			{
-				return memcpy(a_Destination, a_Source, a_ElementCount * sizeof(T));
+				memcpy(a_Destination, a_Source, a_ElementCount * sizeof(T));
 			}
 			else
 			{
@@ -26,7 +53,6 @@ namespace BB
 				{
 					new (&a_Destination[i]) T(a_Source[i]);
 				}
-				return a_Destination;
 			}
 		}
 
@@ -35,7 +61,7 @@ namespace BB
 		/// Unsafe version: It will call memcpy instead of memmove
 		/// </summary>
 		template<typename T>
-		inline static void* Move(T* a_Destination, const T* a_Source, const size_t a_ElementCount)
+		inline static void* Move(T* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
 		{
 			constexpr bool trivalConstruction = std::is_trivially_constructible_v<T>;
 			constexpr bool trivalDestructible = std::is_trivially_destructible_v<T>;
@@ -68,7 +94,7 @@ namespace BB
 		/// Safe version: It will call memmove instead of memcpy
 		/// </summary>
 		template<typename T>
-		inline static void* sMove(T* a_Destination, const T* a_Source, const size_t a_ElementCount)
+		inline static void* sMove(T* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
 		{
 			constexpr bool trivalConstruction = std::is_trivially_constructible_v<T>;
 			constexpr bool trivalDestructible = std::is_trivially_destructible_v<T>;
@@ -100,7 +126,7 @@ namespace BB
 		/// memset abstraction that will use the sizeof operator for type T.
 		/// </summary>
 		template<typename T>
-		inline static void* Set(T* a_Destination, const int a_Value, const size_t a_ElementCount)
+		inline static void* Set(T* __restrict a_Destination, const int a_Value, const size_t a_ElementCount)
 		{
 			return memset(a_Destination, a_Value, a_ElementCount * sizeof(T));
 		}
@@ -109,7 +135,7 @@ namespace BB
 		/// memcmp abstraction that will use the sizeof operator for type T.
 		/// </summary>
 		template<typename T>
-		inline static int Compare(T* a_Destination, const void* a_Source, const size_t a_ElementCount)
+		inline static int Compare(T* __restrict a_Destination, const void* __restrict a_Source, const size_t a_ElementCount)
 		{
 			return memcmp(a_Destination, a_Source, a_ElementCount * sizeof(T));
 		}

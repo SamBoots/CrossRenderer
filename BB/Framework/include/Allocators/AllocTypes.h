@@ -12,11 +12,13 @@ namespace BB
 #ifdef _DEBUG
 	//Default types
 	using LinearAllocator_t = BB::MemoryArena<BB::allocators::LinearAllocator, BB::ThreadPolicy::Single_Thread, true>;
+	using FixedLinearAllocator_t = BB::MemoryArena<BB::allocators::FixedLinearAllocator, BB::ThreadPolicy::Single_Thread, true>;
 	using FreeListAllocator_t = BB::MemoryArena<BB::allocators::FreelistAllocator, BB::ThreadPolicy::Single_Thread, true>;
 	using POW_FreeListAllocator_t = BB::MemoryArena<BB::allocators::POW_FreelistAllocator, BB::ThreadPolicy::Single_Thread, true>;
 #else
 	//Default types
 	using LinearAllocator_t = BB::MemoryArena<BB::allocators::LinearAllocator, BB::ThreadPolicy::Single_Thread, false>;
+	using FixedLinearAllocator_t = BB::MemoryArena<BB::allocators::FixedLinearAllocator, BB::ThreadPolicy::Single_Thread, false>;
 	using FreeListAllocator_t = BB::MemoryArena<BB::allocators::FreelistAllocator, BB::ThreadPolicy::Single_Thread, false>;
 	using POW_FreeListAllocator_t = BB::MemoryArena<BB::allocators::POW_FreelistAllocator, BB::ThreadPolicy::Single_Thread, false>;
 #endif

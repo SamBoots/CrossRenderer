@@ -6,6 +6,7 @@
 #include "Framework/Pool_UTEST.h"
 #include "Framework/Hashmap_UTEST.h"
 #include "Framework/MemoryArena_UTEST.h"
+#include "Framework/MemoryOperations_UTEST.h"
 #include "Framework/Slice_UTEST.h"
 #include "Framework/Slotmap_UTEST.h"
 #include "Framework/String_UTEST.h"
@@ -22,16 +23,10 @@ int main()
 	WindowHandle childWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
 
 	WindowHandle destroyWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
-	OS::MarkDestroyOSWindow(destroyWindow);
 
-	OS::OSOperation t_Operation{};
 	bool hasWindows = true;
 	while (hasWindows)
 	{
-		while (OS::PeekOSOperations(t_Operation))
-		{
-			OS::ProcessOSOperation(t_Operation);
-		}
 		hasWindows = OS::ProcessMessages();
 	}
 

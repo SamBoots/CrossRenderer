@@ -27,6 +27,29 @@ namespace BB
 			uintptr_t m_End;
 		};
 
+		struct FixedLinearAllocator
+		{
+			FixedLinearAllocator(const size_t a_Size);
+			~FixedLinearAllocator();
+
+			//just delete these for safety, copies might cause errors.
+			FixedLinearAllocator(const FixedLinearAllocator&) = delete;
+			FixedLinearAllocator(const FixedLinearAllocator&&) = delete;
+			FixedLinearAllocator& operator =(const FixedLinearAllocator&) = delete;
+			FixedLinearAllocator& operator =(FixedLinearAllocator&&) = delete;
+
+			void* Alloc(size_t a_Size, size_t a_Alignment);
+			void Free(void*);
+			void Clear();
+
+		private:
+			void* m_Start;
+			void* m_Buffer;
+#ifdef _DEBUG
+			uintptr_t m_End;
+#endif //_DEBUG
+		};
+
 		struct FreelistAllocator
 		{
 			FreelistAllocator(const size_t a_Size);
