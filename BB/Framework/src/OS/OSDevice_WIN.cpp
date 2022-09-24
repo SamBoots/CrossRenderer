@@ -7,14 +7,6 @@
 #include "Storage/Hashmap.h"
 #include "Storage/Array.h"
 
-//The OS window for Windows.
-struct OSWindow
-{
-	HWND hwnd = nullptr;
-	const char* windowName = nullptr;
-	HINSTANCE hInstance = nullptr;
-};
-
 using namespace BB;
 using namespace BB::OS;
 
@@ -24,26 +16,49 @@ typedef LinearAllocator_t OSTempAllocator_t;
 OSAllocator_t OSAllocator{ mbSize * 8 };
 OSTempAllocator_t OSTempAllocator{ mbSize * 4 };
 
+void DefaultClose(WindowHandle a_WindowHandle) {}
+void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y){}
+
+static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
+static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
+
+//The OS window for Windows.
+struct OSWindow
+{
+	HWND hwnd = nullptr;
+	const char* windowName = nullptr;
+	HINSTANCE hInstance = nullptr;
+	bool resizing = false;
+};
+
+
 struct OSDevice
 {
 	//Special array for all the windows. Stored seperately 
 	OL_HashMap<HWND, OSWindow> OSWindows{ OSAllocator, 8 };
-	//Array operations will very likely never exceed 8.
-	Array<OSOperation> OSOperations{ OSAllocator, 8 };
 };
 
 static OSDevice s_OSDevice{};
 
+
+
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
 {
-	OSOperation windowMsg;
 	switch (a_Msg)
 	{
 	case WM_QUIT:
 		break;
 	case WM_DESTROY:
+		sPFN_CloseEvent(a_Hwnd);
 		break;
+	case WM_SIZE:
+	{
+		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
+		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
+		sPFN_ResizeEvent(a_Hwnd, t_X, t_Y);
+	}
+	break;
 	}
 
 	return DefWindowProc(a_Hwnd, a_Msg, a_WParam, a_LParam);
@@ -83,10 +98,18 @@ const uint32_t BB::OS::LatestOSError()
 
 Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 {
+	Buffer t_FileBuffer;
+
 	std::ifstream t_File(a_Path, std::ios::ate | std::ios::binary);
 
-	BB_WARNING(t_File.is_open(), "Failed to readfile!", WarningType::HIGH);
-	Buffer t_FileBuffer;
+	if (!t_File.is_open())
+	{
+		BB_WARNING(false, "Failed to readfile!", WarningType::HIGH);
+		t_FileBuffer.size = 0;
+		t_FileBuffer.data = nullptr;
+		return t_FileBuffer;
+	}
+
 	t_FileBuffer.size = static_cast<uint64_t>(t_File.tellg());
 	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
 
@@ -169,56 +192,14 @@ void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 	a_Y = t_Rect.bottom;
 }
 
-void BB::OS::MarkDestroyOSWindow(WindowHandle a_Handle)
+void BB::OS::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
 {
-	OSOperation t_Operation;
-	t_Operation.operation = OS_OPERATION_TYPE::CLOSE_WINDOW;
-	t_Operation.window = reinterpret_cast<HWND>(a_Handle.handle);
-	s_OSDevice.OSOperations.emplace_back(t_Operation);
+	sPFN_CloseEvent = a_Func;
 }
 
-void BB::OS::AddOSOperation(OSOperation t_Operation)
+void BB::OS::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
 {
-	s_OSDevice.OSOperations.emplace_back(t_Operation);
-}
-
-bool BB::OS::PeekOSOperations(OSOperation& t_Operation)
-{
-	if (s_OSDevice.OSOperations.size() == 0)
-		return false;
-	
-	t_Operation = s_OSDevice.OSOperations[s_OSDevice.OSOperations.size() - 1];
-	s_OSDevice.OSOperations.pop();
-	return true;
-}
-
-void BB::OS::ProcessOSOperation(const OSOperation& t_Operation)
-{
-	switch (t_Operation.operation)
-	{
-	case BB::OS::OS_OPERATION_TYPE::CLOSE_WINDOW:
-	{
-		OSWindow* t_OSWindow = s_OSDevice.OSWindows.find(static_cast<HWND>(t_Operation.window));
-		if (!DestroyWindow(t_OSWindow->hwnd))
-			OS::LatestOSError();
-		
-		if (!UnregisterClassA(t_OSWindow->windowName, t_OSWindow->hInstance))
-			OS::LatestOSError();
-		s_OSDevice.OSWindows.erase(static_cast<HWND>(t_Operation.window));
-	}
-		break;
-	case BB::OS::OS_OPERATION_TYPE::RESIZE_WINDOW:
-		break;
-	default:
-		BB_ASSERT(false, "Sending an invalid OS operation.");
-		break;
-	}
-}
-
-
-void BB::OS::ClearOSOperations()
-{
-	s_OSDevice.OSOperations.clear();
+	sPFN_ResizeEvent = a_Func;
 }
 
 void BB::OS::ExitApp()

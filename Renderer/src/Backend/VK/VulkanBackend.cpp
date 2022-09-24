@@ -11,6 +11,7 @@ void BB::GetVulkanAPIFunctions(APIBackendFunctionPointersCreateInfo& a_FuncCreat
 	*a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	*a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 
+	*a_FuncCreateInfo.resizeWindow = ResizeWindow;
 	*a_FuncCreateInfo.renderFrame = RenderFrame;
 	*a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 

@@ -19,6 +19,7 @@ namespace BB
 		void DestroyBackend();
 
 		void Update();
+		void ResizeWindow(uint32_t a_X, uint32_t a_Y);
 
 		void CreateShader(const ShaderCreateInfo& t_ShaderInfo);
 
@@ -36,6 +37,7 @@ namespace BB
 		PFN_RenderAPICreatePipeline pfn_CreatePipelineFunc;
 		PFN_RenderAPICreateCommandList pfn_CreateCommandList;
 
+		PFN_RenderAPIResizeWindow pfn_ResizeWindow;
 		PFN_RenderAPIRenderFrame pfn_RenderFrame;
 		PFN_RenderAPIWaitDeviceReady pfn_WaitDeviceReady;
 

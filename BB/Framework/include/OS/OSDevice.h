@@ -13,22 +13,13 @@ namespace BB
 {
 	namespace OS
 	{
+		typedef void (*PFN_WindowResizeEvent)(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y);
+		typedef void (*PFN_WindowCloseEvent)(WindowHandle a_WindowHandle);
+
 		enum class OS_WINDOW_STYLE
 		{
 			MAIN, //This window has a menu bar.
 			CHILD //This window does not have a menu bar.
-		};
-
-		enum class OS_OPERATION_TYPE
-		{
-			CLOSE_WINDOW,
-			RESIZE_WINDOW
-		};
-
-		struct OSOperation
-		{
-			OS_OPERATION_TYPE operation;
-			void* window;
 		};
 
 		//The size of a virtual memory page on the OS.
@@ -49,11 +40,9 @@ namespace BB
 		void GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y);
 		void MarkDestroyOSWindow(WindowHandle a_Handle);
 
-		//Add an OS operation that will be done during the user defined event queue of the engine.
-		void AddOSOperation(OSOperation t_Operation);
-		bool PeekOSOperations(OSOperation& t_Operation);
-		void ProcessOSOperation(const OSOperation& t_Operation);
-		void ClearOSOperations();
+		//Function pointer setup.
+		void SetCloseWindowPtr(PFN_WindowCloseEvent a_Func);
+		void SetResizeEventPtr(PFN_WindowResizeEvent a_Func);
 
 		//Exits the application.
 		void ExitApp();

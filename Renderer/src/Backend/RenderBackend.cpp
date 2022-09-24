@@ -29,12 +29,12 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 	int t_WindowWidth;
 	int t_WindowHeight;
-	AppOSDevice().GetWindowSize(a_WindowHandle,t_WindowWidth,t_WindowHeight);
+	OS::GetWindowSize(a_WindowHandle,t_WindowWidth,t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
-	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(AppOSDevice().GetOSWindowHandle(a_WindowHandle));
+	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(OS::GetOSWindowHandle(a_WindowHandle));
 	t_BackendCreateInfo.version = 0;
 	t_BackendCreateInfo.validationLayers = true;
 	t_BackendCreateInfo.appName = "TestName";
@@ -58,9 +58,9 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_FrameBuffer = pfn_CreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
 
 	ShaderCreateInfo t_ShaderBuffers[2];
-	t_ShaderBuffers[0].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
+	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-	t_ShaderBuffers[1].buffer = AppOSDevice().ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
+	t_ShaderBuffers[1].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
 
 	RenderPipelineCreateInfo t_PipelineCreateInfo;
@@ -104,6 +104,11 @@ void RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
 
 }
 
+void RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
+{
+	pfn_ResizeWindow(m_TempAllocator, m_APIbackend, a_X, a_Y);
+}
+
 void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 {
 	APIBackendFunctionPointersCreateInfo t_Functions;
@@ -112,6 +117,7 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 	t_Functions.createPipeline = &pfn_CreatePipelineFunc;
 	t_Functions.createCommandList = &pfn_CreateCommandList;
 
+	t_Functions.resizeWindow = &pfn_ResizeWindow;
 	t_Functions.renderFrame = &pfn_RenderFrame;
 	t_Functions.waitDevice = &pfn_WaitDeviceReady;
 

@@ -201,6 +201,11 @@ namespace BB
 		const uint32_t a_BufferCount);
 
 	//Utility
+	typedef void (*PFN_RenderAPIResizeWindow)(
+		Allocator a_TempAllocator,
+		APIRenderBackend,
+		uint32_t a_X,
+		uint32_t a_Y);
 	typedef void (*PFN_RenderAPIRenderFrame)(
 		Allocator a_TempAllocator,
 		CommandListHandle a_CommandHandle,
@@ -221,6 +226,7 @@ namespace BB
 		PFN_RenderAPICreateFrameBuffer* createFrameBuffer;
 		PFN_RenderAPICreateCommandList* createCommandList;
 
+		PFN_RenderAPIResizeWindow* resizeWindow;
 		PFN_RenderAPIRenderFrame* renderFrame;
 		PFN_RenderAPIWaitDeviceReady* waitDevice;
 

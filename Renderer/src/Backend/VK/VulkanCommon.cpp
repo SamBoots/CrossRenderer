@@ -319,16 +319,39 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight)
+static void CreateImageViews(VkImageView* a_pView, const VkImage* a_Images, VkDevice a_Device, VkFormat a_Format, uint32_t a_ImageViewCount)
 {
-	VulkanSwapChain t_ReturnSwapchain;
+	VkImageViewCreateInfo t_ImageViewCreateInfo{};
+	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	t_ImageViewCreateInfo.format = a_Format;
+	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	t_ImageViewCreateInfo.subresourceRange.levelCount = 1;
+	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
+	for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
+	{
+		t_ImageViewCreateInfo.image = a_Images[i];
+		VKASSERT(vkCreateImageView(a_Device,
+			&t_ImageViewCreateInfo,
+			nullptr,
+			&a_pView[i]),
+			"Vulkan: Failed to create swapchain image views.");
+	}
+}
+
+static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_SysAllocator, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight, bool a_Recreate = false)
+{
 	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
 
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
 	VkPresentModeKHR t_ChosenPresentMode = ChoosePresentMode(t_SwapchainDetails.presentModes, t_SwapchainDetails.presentModeCount);
-
-
 	VkExtent2D t_ChosenExtent;
 	t_ChosenExtent.width = Math::clamp(t_SurfaceWidth,
 		t_SwapchainDetails.capabilities.minImageExtent.width,
@@ -336,19 +359,16 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 	t_ChosenExtent.height = Math::clamp(t_SurfaceHeight,
 		t_SwapchainDetails.capabilities.minImageExtent.height,
 		t_SwapchainDetails.capabilities.maxImageExtent.height);
+	a_SwapChain.extent = t_ChosenExtent;
 
-	//Now create the swapchain and set the framecount.
-	s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
-	if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VkBackendInst->frameCount >
-		t_SwapchainDetails.capabilities.maxImageCount)
-	{
-		s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.maxImageCount;
-	}
+	uint32_t t_GraphicFamily, t_PresentFamily;
+	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_GraphicFamily);
+	QueueHasPresentSupport(a_TempAllocator, a_PhysicalDevice, a_Surface, &t_PresentFamily);
+	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
 	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
 	t_SwapCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	t_SwapCreateInfo.surface = a_Surface;
-	t_SwapCreateInfo.minImageCount = s_VkBackendInst->frameCount;
 	t_SwapCreateInfo.imageFormat = t_ChosenFormat.format;
 	t_SwapCreateInfo.imageColorSpace = t_ChosenFormat.colorSpace;
 	t_SwapCreateInfo.imageExtent = t_ChosenExtent;
@@ -358,12 +378,6 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 	t_SwapCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	t_SwapCreateInfo.presentMode = t_ChosenPresentMode;
 	t_SwapCreateInfo.clipped = VK_TRUE;
-	t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-
-	uint32_t t_GraphicFamily, t_PresentFamily;
-	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_GraphicFamily);
-	QueueHasPresentSupport(a_TempAllocator, a_PhysicalDevice, a_Surface, &t_PresentFamily);
-	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
 	if (t_GraphicFamily != t_PresentFamily)
 	{
@@ -378,67 +392,78 @@ static VulkanSwapChain CreateSwapchain(BB::Allocator a_SysAllocator, BB::Allocat
 		t_SwapCreateInfo.pQueueFamilyIndices = nullptr;
 	}
 
-	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &t_ReturnSwapchain.swapChain), "Vulkan: Failed to create swapchain.");
+	if (!a_Recreate)
+	{ 
+		a_SwapChain.imageFormat = t_ChosenFormat.format;
+		//Don't recreate so we have no old swapchain.
+		t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &s_VkBackendInst->frameCount, nullptr);
-	t_ReturnSwapchain.images = BBnewArr<VkImage>(a_SysAllocator, s_VkBackendInst->frameCount);
-	t_ReturnSwapchain.imageViews = BBnewArr<VkImageView>(a_SysAllocator, s_VkBackendInst->frameCount);
-	vkGetSwapchainImagesKHR(a_Device, t_ReturnSwapchain.swapChain, &s_VkBackendInst->frameCount, t_ReturnSwapchain.images);
+		//Now create the swapchain and set the framecount.
+		s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+		t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+		if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VkBackendInst->frameCount >
+			t_SwapchainDetails.capabilities.maxImageCount)
+		{
+			s_VkBackendInst->frameCount = t_SwapchainDetails.capabilities.maxImageCount;
+			t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.maxImageCount;
+		}
 
-	VkImageViewCreateInfo t_ImageViewCreateInfo{};
-	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	t_ImageViewCreateInfo.format = t_ChosenFormat.format;
-	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	t_ImageViewCreateInfo.subresourceRange.levelCount = 1;
-	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
+		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
 
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst->frameCount, nullptr);
+		a_SwapChain.images = BBnewArr<VkImage>(a_SysAllocator, s_VkBackendInst->frameCount);
+		a_SwapChain.imageViews = BBnewArr<VkImageView>(a_SysAllocator, s_VkBackendInst->frameCount);
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst->frameCount, a_SwapChain.images);
 
-	//Create sync structures in the same loop, might be moved to commandlist.
-	VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
-	//first one is already signaled to make sure we can still render.
-	t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-	VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
-	t_ReturnSwapchain.frameFences = BBnewArr<VkFence>(a_SysAllocator, s_VkBackendInst->frameCount);
-	t_ReturnSwapchain.presentSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
-	t_ReturnSwapchain.renderSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
+		//Create sync structures in the same loop, might be moved to commandlist.
+		VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
+		//first one is already signaled to make sure we can still render.
+		t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
+		a_SwapChain.frameFences = BBnewArr<VkFence>(a_SysAllocator, s_VkBackendInst->frameCount);
+		a_SwapChain.presentSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
+		a_SwapChain.renderSems = BBnewArr<VkSemaphore>(a_SysAllocator, s_VkBackendInst->frameCount);
 
-	for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
-	{
-		t_ImageViewCreateInfo.image = t_ReturnSwapchain.images[i];
-		VKASSERT(vkCreateImageView(a_Device,
-			&t_ImageViewCreateInfo,
-			nullptr,
-			&t_ReturnSwapchain.imageViews[i]),
-			"Vulkan: Failed to create swapchain image views.");
+		CreateImageViews(a_SwapChain.imageViews,
+			a_SwapChain.images,
+			s_VkBackendInst->device.logicalDevice,
+			a_SwapChain.imageFormat,
+			s_VkBackendInst->frameCount);
 
-		VKASSERT(vkCreateFence(a_Device,
-			&t_FenceCreateInfo,
-			nullptr,
-			&t_ReturnSwapchain.frameFences[i]),
-			"Vulkan: Failed to create fence.");
-		VKASSERT(vkCreateSemaphore(a_Device,
-			&t_SemCreateInfo,
-			nullptr,
-			&t_ReturnSwapchain.presentSems[i]),
-			"Vulkan: Failed to create present semaphore.");
-		VKASSERT(vkCreateSemaphore(a_Device,
-			&t_SemCreateInfo,
-			nullptr,
-			&t_ReturnSwapchain.renderSems[i]),
-			"Vulkan: Failed to create render semaphore.");
+		for (uint32_t i = 0; i < s_VkBackendInst->frameCount; i++)
+		{
+			VKASSERT(vkCreateFence(a_Device,
+				&t_FenceCreateInfo,
+				nullptr,
+				&a_SwapChain.frameFences[i]),
+				"Vulkan: Failed to create fence.");
+			VKASSERT(vkCreateSemaphore(a_Device,
+				&t_SemCreateInfo,
+				nullptr,
+				&a_SwapChain.presentSems[i]),
+				"Vulkan: Failed to create present semaphore.");
+			VKASSERT(vkCreateSemaphore(a_Device,
+				&t_SemCreateInfo,
+				nullptr,
+				&a_SwapChain.renderSems[i]),
+				"Vulkan: Failed to create render semaphore.");
+		}
 	}
+	else //Or recreate the swapchain.
+	{
+		t_SwapCreateInfo.oldSwapchain = a_SwapChain.swapChain;
+		t_SwapCreateInfo.imageExtent = a_SwapChain.extent;
+		t_SwapCreateInfo.minImageCount = s_VkBackendInst->frameCount;
 
-	t_ReturnSwapchain.imageFormat = t_ChosenFormat.format;
-	t_ReturnSwapchain.extent = t_ChosenExtent;
+		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst->frameCount, a_SwapChain.images);
 
-	return t_ReturnSwapchain;
+		CreateImageViews(a_SwapChain.imageViews,
+			a_SwapChain.images,
+			s_VkBackendInst->device.logicalDevice,
+			a_SwapChain.imageFormat,
+			s_VkBackendInst->frameCount);
+	}
 }
 
 struct VulkanShaderResult
@@ -501,6 +526,33 @@ static VkPipelineLayout CreatePipelineLayout(const VulkanBackend& a_VulkanBacken
 	s_VkBackendInst->pipelineLayouts.insert(t_DescriptorHash, t_NewLayout);
 
 	return t_NewLayout;
+}
+
+static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_RenderPass, uint32_t a_Width, uint32_t a_Height, uint32_t a_FramebufferCount)
+{
+	uint32_t t_UsedAttachments = 1;
+	//have enough space for the potentional depth buffer.
+	VkImageView t_AttachmentViews[2];
+
+	for (uint32_t i = 0; i < a_FramebufferCount; i++)
+	{
+		t_AttachmentViews[0] = s_VkBackendInst->swapChain.imageViews[i];
+
+		VkFramebufferCreateInfo t_FramebufferInfo = VkInit::FramebufferCreateInfo();
+		t_FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		t_FramebufferInfo.renderPass = a_RenderPass;
+		t_FramebufferInfo.attachmentCount = t_UsedAttachments;
+		t_FramebufferInfo.pAttachments = t_AttachmentViews;
+		t_FramebufferInfo.width = a_Width;
+		t_FramebufferInfo.height = a_Height;
+		t_FramebufferInfo.layers = 1;
+
+		VKASSERT(vkCreateFramebuffer(s_VkBackendInst->device.logicalDevice,
+			&t_FramebufferInfo,
+			nullptr,
+			&a_FrameBuffers[i]),
+			"Vulkan: Failed to create Framebuffer");
+	}
 }
 
 void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
@@ -622,7 +674,7 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_T
 		BB_WARNING(false,
 			"Trying to create a vulkan backend while you already have one!",
 			WarningType::HIGH);
-		return APIRenderBackend(0);
+		return APIRenderBackend(1);
 	}
 	//Allocate the static vulkan instance and give it the system allocator.
 	s_VkBackendInst = BBnew<VulkanBackend_inst>(a_SysAllocator, a_SysAllocator);
@@ -727,8 +779,8 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_SysAllocator, Allocator a_T
 				&s_VkBackendInst->device.presentQueue);
 		}
 	}
-
-	s_VkBackendInst->swapChain = CreateSwapchain(a_SysAllocator,
+	CreateSwapchain(s_VkBackendInst->swapChain, 
+		a_SysAllocator,
 		a_TempAllocator,
 		s_VkBackendInst->backend.surface,
 		s_VkBackendInst->device.physicalDevice,
@@ -783,44 +835,19 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	}
 
 	{
-		//Now do framebuffer
-
 		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
 		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
 		t_ReturnFrameBuffer.frameBufferCount = s_VkBackendInst->frameCount;
 		t_ReturnFrameBuffer.frameBuffers = BBnewArr<VkFramebuffer>(
 			s_VkBackendInst->renderSystemAllocator,
 			t_ReturnFrameBuffer.frameBufferCount);
-
-		uint32_t t_UsedAttachments = 1;
-		//have enough space for the potentional depth buffer.
-		VkImageView t_AttachmentViews[2];
-		//if (a_FramebufferCreateInfo.depthTestView != VK_NULL_HANDLE)
-		//{
-		//	t_UsedAttachments = 2;
-		//	//last attachment is depth info.
-		//	t_AttachmentViews[1] = a_FramebufferCreateInfo.depthTestView;
-		//}
-
-		for (uint32_t i = 0; i < t_ReturnFrameBuffer.frameBufferCount; i++)
-		{
-			t_AttachmentViews[0] = s_VkBackendInst->swapChain.imageViews[i];
-
-			VkFramebufferCreateInfo t_FramebufferInfo = VkInit::FramebufferCreateInfo();
-			t_FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			t_FramebufferInfo.renderPass = t_ReturnFrameBuffer.renderPass;
-			t_FramebufferInfo.attachmentCount = t_UsedAttachments;
-			t_FramebufferInfo.pAttachments = t_AttachmentViews;
-			t_FramebufferInfo.width = t_ReturnFrameBuffer.width;
-			t_FramebufferInfo.height = t_ReturnFrameBuffer.height;
-			t_FramebufferInfo.layers = 1;
-
-			VKASSERT(vkCreateFramebuffer(s_VkBackendInst->device.logicalDevice,
-				&t_FramebufferInfo,
-				nullptr,
-				&t_ReturnFrameBuffer.frameBuffers[i]),
-				"Vulkan: Failed to create Framebuffer");
-		}
+		CreateFrameBuffers(
+			t_ReturnFrameBuffer.frameBuffers,
+			t_ReturnFrameBuffer.renderPass,
+			t_ReturnFrameBuffer.width,
+			t_ReturnFrameBuffer.height,
+			t_ReturnFrameBuffer.frameBufferCount
+			);
 	}
 
 	return FrameBufferHandle(s_VkBackendInst->frameBuffers.emplace(t_ReturnFrameBuffer));
@@ -963,6 +990,57 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 	}
 
 	return CommandListHandle(s_VkBackendInst->commandLists.emplace(t_ReturnCommandList));
+}
+
+void BB::ResizeWindow(Allocator a_TempAllocator, APIRenderBackend, uint32_t a_X, uint32_t a_Y)
+{
+	VulkanWaitDeviceReady();
+
+	//Recreate framebuffers.
+	for (auto t_It = s_VkBackendInst->frameBuffers.begin();
+		t_It < s_VkBackendInst->frameBuffers.end(); t_It++)
+	{
+		VulkanFrameBuffer& t_FrameBuffer = t_It->value;
+		t_FrameBuffer.width = a_X;
+		t_FrameBuffer.height = a_Y;
+
+		for (size_t i = 0; i < t_FrameBuffer.frameBufferCount; i++)
+		{
+			vkDestroyFramebuffer(s_VkBackendInst->device.logicalDevice,
+				t_FrameBuffer.frameBuffers[i],
+				nullptr);
+		}
+	}
+
+	for (size_t i = 0; i < s_VkBackendInst->frameCount; i++)
+	{
+		vkDestroyImageView(s_VkBackendInst->device.logicalDevice,
+			s_VkBackendInst->swapChain.imageViews[i],
+			nullptr);
+	}
+
+	//Creates the swapchain with the image views.
+	CreateSwapchain(s_VkBackendInst->swapChain,
+		s_VkBackendInst->renderSystemAllocator,
+		a_TempAllocator,
+		s_VkBackendInst->backend.surface,
+		s_VkBackendInst->device.physicalDevice,
+		s_VkBackendInst->device.logicalDevice,
+		a_X,
+		a_Y,
+		true);
+
+	//Recreate framebuffers.
+	for (auto t_It = s_VkBackendInst->frameBuffers.begin();
+		t_It < s_VkBackendInst->frameBuffers.end(); t_It++)
+	{
+		VulkanFrameBuffer& t_FrameBuffer = t_It->value;
+		CreateFrameBuffers(t_FrameBuffer.frameBuffers,
+			t_FrameBuffer.renderPass,
+			a_X,
+			a_Y,
+			t_FrameBuffer.frameBufferCount);
+	}
 }
 
 void BB::VulkanWaitDeviceReady()

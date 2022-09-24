@@ -220,6 +220,11 @@ namespace BB
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
 		const uint32_t a_BufferCount);
 
+	void ResizeWindow(Allocator a_TempAllocator,
+		APIRenderBackend a_Handle, 
+		uint32_t a_X, 
+		uint32_t a_Y);
+
 	void RenderFrame(Allocator a_TempAllocator,
 		CommandListHandle a_CommandHandle,
 		FrameBufferHandle a_FrameBufferHandle,
