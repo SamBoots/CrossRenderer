@@ -34,7 +34,7 @@ add_library (BBFramework
 "src/Allocators/BackingAllocator/BackingAllocator${PLATFORM_NAME}.cpp" 
 "src/OS/OSDevice${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
-)
+ "src/Utils/Utils.cpp")
 
 #Include library
 target_include_directories(BBFramework PUBLIC

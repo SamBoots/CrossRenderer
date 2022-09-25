@@ -7,6 +7,18 @@ constexpr const size_t kbSize = 1024;
 constexpr const size_t mbSize = kbSize * 1024;
 constexpr const size_t gbSize = mbSize * 1024;
 
+static void FillBuffer(uint8_t* a_Value, size_t a_Size)
+{
+	const size_t t_Sequences = a_Size / 8;
+	a_Value[0] = 0;
+	a_Value[1] = 1;
+
+	for (size_t i = 2; i < t_Sequences; i++)
+	{
+		a_Value[i] = a_Value[i - 1] + a_Value[i - 2];
+	}
+}
+
 
 TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 {
@@ -22,10 +34,16 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 		BigCopySize * 2);
 
 	uint8_t* smallBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, SmallCopySize);
+	FillBuffer(smallBuffer, SmallCopySize);
 	uint8_t* mediumBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, MediumCopySize);
+	FillBuffer(mediumBuffer, MediumCopySize);
 	uint8_t* bigBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	FillBuffer(bigBuffer, BigCopySize);
 
 	uint8_t* copyBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	FillBuffer(copyBuffer, BigCopySize);
+
+
 
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
