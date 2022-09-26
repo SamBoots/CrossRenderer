@@ -302,13 +302,16 @@ TEST(Hashmap_Datastructure, Hashmap_Speedtest)
 	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;
 #ifdef _64BIT
 	constexpr const size_t samples = 8192;
+
+	const size_t allocatorSize = BB::mbSize * 32;
 #endif //_64BIT
 #ifdef _32BIT
-	constexpr const size_t samples = 4096;
+	constexpr const size_t samples = 2048;
+
+	const size_t allocatorSize = BB::mbSize * 8;
 #endif //_32BIT
 
-	//32 MB alloactor.
-	const size_t allocatorSize = BB::mbSize * 128;
+
 	BB::FreeListAllocator_t t_Allocator(allocatorSize);
 
 	//all the maps

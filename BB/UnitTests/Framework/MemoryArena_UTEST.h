@@ -2,34 +2,10 @@
 #include "../TestValues.h"
 #include "Allocators/AllocTypes.h"
 
-TEST(GlobalDebugAllocator, Macro_Test)
-{
-	size2593bytesObj* t_TestObj = BB::BBglobalnew<size2593bytesObj>();
-	t_TestObj->value = 2;
-	
-	EXPECT_EQ(t_TestObj->value, 2) << "BBglobalalloc didn't allocate correctly.";
-	BB::BBglobalfree<size2593bytesObj>(t_TestObj);
-
-	constexpr const size_t ArraySamples = 165;
-	size2593bytesObj* t_TestObjArr = BB::BBglobalnewArr<size2593bytesObj>(ArraySamples);
-
-	for (size_t i = 0; i < ArraySamples; i++)
-	{
-		t_TestObjArr[i].value = i * 2;
-	}
-
-	for (size_t i = 0; i < ArraySamples; i++)
-	{
-		EXPECT_EQ(t_TestObjArr[i].value, i * 2) << "BBglobalallocarray didn't allocate correctly.";
-	}
-
-	BB::BBglobalfreeArr<size2593bytesObj>(t_TestObjArr);
-}
-
 TEST(MemoryAllocator_MemoryArena, COUNT_MEMORYTRACKER)
 {
 	//We use a freelist for the test since it allows for easy allocations and deallocations.
-	constexpr const size_t ALLOCATORSIZE = 41943040;
+	constexpr const size_t ALLOCATORSIZE = BB::mbSize * 8;
 
 	constexpr const size_t TRACKAMOUNT = 512;
 	constexpr const size_t MAX_RANDOM_VALUE = 4096; //4 KB.
