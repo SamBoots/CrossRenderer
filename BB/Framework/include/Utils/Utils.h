@@ -12,9 +12,12 @@ namespace BB
 	{
 
 		void MemCpy(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
-
 		void MemCpySIMD128(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
 		void MemCpySIMD256(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
+		
+		void MemSet(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
+		void MemSetSIMD128(void* __restrict a_Destination, const int32_t a_Value, size_t a_Size);
+		void MemSetSIMD256(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
 
 		/// <summary>
 		/// Memcpy abstraction that will call the constructor if needed.
@@ -24,7 +27,7 @@ namespace BB
 		{
 			if constexpr (std::is_trivially_constructible_v<T>)
 			{
-				MemCpySIMD128(a_Destination, a_Source, a_ElementCount * sizeof(T));
+				MemCpySIMD256(a_Destination, a_Source, a_ElementCount * sizeof(T));
 			}
 			else
 			{

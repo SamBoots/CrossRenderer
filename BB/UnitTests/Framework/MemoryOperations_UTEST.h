@@ -146,3 +146,130 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 
 	t_FixedAllocator.Clear();
 }
+
+TEST(MemoryOperation_Speed_Comparison, Memset_Aligned)
+{
+	typedef std::chrono::duration<float, std::milli> ms;
+	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;
+
+	constexpr const int32_t TESTVALUE = 5215;
+
+	constexpr size_t SmallCopySize = 256;
+	constexpr size_t MediumCopySize = mbSize;
+	constexpr size_t BigCopySize = gbSize / 2;
+
+	BB::FixedLinearAllocator_t t_FixedAllocator(SmallCopySize +
+		MediumCopySize +
+		BigCopySize * 2);
+
+	uint8_t* smallBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, SmallCopySize);
+	uint8_t* mediumBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, MediumCopySize);
+	uint8_t* bigBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+
+#pragma region SmallBuff
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSet(smallBuffer, TESTVALUE, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 256 bytes memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD128(smallBuffer, TESTVALUE, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 256 bytes memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD256(smallBuffer, TESTVALUE, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 256 bytes memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		memset(smallBuffer, TESTVALUE, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 256 bytes memset Speed in MS:" << t_Speed << "\n";
+	}
+#pragma endregion //SmallBuff
+
+#pragma region MediumBuff
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSet(mediumBuffer, TESTVALUE, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 1MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD128(mediumBuffer, TESTVALUE, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 1MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD256(mediumBuffer, TESTVALUE, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 1MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		memset(mediumBuffer, TESTVALUE, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 1MB memset Speed in MS:" << t_Speed << "\n";
+	}
+#pragma endregion //MediumBuff
+
+#pragma region BigBuff
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSet(bigBuffer, TESTVALUE, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 512MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD128(bigBuffer, TESTVALUE, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 512MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemSetSIMD256(bigBuffer, TESTVALUE, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 512MB memset Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		memset(bigBuffer, TESTVALUE, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 512MB memset Speed in MS:" << t_Speed << "\n";
+	}
+#pragma endregion //BigBuff
+
+	t_FixedAllocator.Clear();
+}
