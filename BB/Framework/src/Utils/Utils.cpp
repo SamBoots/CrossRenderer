@@ -145,4 +145,24 @@ namespace BB
 			*t_DestChar++ = reinterpret_cast<char*>(a_Value)[i];
 		}
 	}
+
+	void BB::Memory::MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	{
+
+	}
+
+	void BB::Memory::MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	{
+
+	}
+
+	void BB::Memory::MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	{
+		//Get the registry size for most optimal memcpy.
+		const __m256i* __restrict  t_Dest = reinterpret_cast<const __m256i*>(a_Left);
+
+
+
+	}
+
 }
