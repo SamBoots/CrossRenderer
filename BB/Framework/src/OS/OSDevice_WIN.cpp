@@ -13,8 +13,8 @@ using namespace BB::OS;
 typedef FreeListAllocator_t OSAllocator_t;
 typedef LinearAllocator_t OSTempAllocator_t;
 
-OSAllocator_t OSAllocator{ mbSize * 8 };
-OSTempAllocator_t OSTempAllocator{ mbSize * 4 };
+OSAllocator_t OSAllocator{ kbSize * 2 };
+OSTempAllocator_t OSTempAllocator{ kbSize * 1 };
 
 void DefaultClose(WindowHandle a_WindowHandle) {}
 void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y){}
