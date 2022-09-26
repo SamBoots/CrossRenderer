@@ -56,6 +56,22 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 
+		BB::Memory::MemCpySIMD128(copyBuffer, smallBuffer, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 256 bytes Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemCpySIMD256(copyBuffer, smallBuffer, SmallCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 256 bytes Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
 		memcpy(copyBuffer, smallBuffer, SmallCopySize);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
@@ -73,6 +89,22 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 
+		BB::Memory::MemCpySIMD128(copyBuffer, mediumBuffer, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 1MB bytes Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemCpySIMD256(copyBuffer, mediumBuffer, MediumCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 1MB bytes Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
 		memcpy(copyBuffer, mediumBuffer, MediumCopySize);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
@@ -86,6 +118,22 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
 		std::cout << "BB 512MB Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemCpySIMD128(copyBuffer, bigBuffer, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 512MB bytes Memcpy Speed in MS:" << t_Speed << "\n";
+	}
+	{
+		auto t_Timer = std::chrono::high_resolution_clock::now();
+
+		BB::Memory::MemCpySIMD256(copyBuffer, bigBuffer, BigCopySize);
+
+		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 512MB bytes Memcpy Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
