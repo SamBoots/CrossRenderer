@@ -146,23 +146,82 @@ namespace BB
 		}
 	}
 
-	void BB::Memory::MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
-	{
-
-	}
-
-	void BB::Memory::MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
-	{
-
-	}
-
-	void BB::Memory::MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	bool BB::Memory::MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
 	{
 		//Get the registry size for most optimal memcpy.
-		const __m256i* __restrict  t_Dest = reinterpret_cast<const __m256i*>(a_Left);
+		const size_t* __restrict  t_Left = reinterpret_cast<const size_t*>(a_Right);
+		const size_t* __restrict  t_Right = reinterpret_cast<const size_t*>(a_Left);
 
+		while (a_Size > sizeof(size_t))
+		{
+			if (t_Left != t_Right)
+				return false;
+			a_Size -= sizeof(size_t);
+		}
 
+		const char* __restrict  t_CharLeft = reinterpret_cast<const char*>(t_Right);
+		const char* __restrict  t_CharRight = reinterpret_cast<const char*>(t_Left);
 
+		while (a_Size--)
+		{
+			if (t_CharLeft != t_CharRight)
+				return false;
+		}
+
+		return true;
 	}
 
+	bool BB::Memory::MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	{
+		//Get the registry size for most optimal memcpy.
+		const __m128* __restrict  t_Left = reinterpret_cast<const __m128*>(a_Right);
+		const __m128* __restrict  t_Right = reinterpret_cast<const __m128*>(a_Left);
+
+		while (a_Size > sizeof(__m128i))
+		{
+			__m128 t_Cmp = _mm_cmpneq_ps(*t_Left++, *t_Right++);
+			int32_t t_Test = _mm_movemask_ps(t_Cmp);
+			if (t_Test != 0)
+				return false;
+			a_Size -= sizeof(__m256i);
+		}
+
+		const char* __restrict  t_CharLeft = reinterpret_cast<const char*>(t_Right);
+		const char* __restrict  t_CharRight = reinterpret_cast<const char*>(t_Left);
+
+		while (a_Size--)
+		{
+			if (t_CharLeft != t_CharRight)
+				return false;
+		}
+
+		return true;
+	}
+
+	bool BB::Memory::MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
+	{
+		//Get the registry size for most optimal memcpy.
+		const __m256* __restrict  t_Left = reinterpret_cast<const __m256*>(a_Right);
+		const __m256* __restrict  t_Right = reinterpret_cast<const __m256*>(a_Left);
+
+		while (a_Size > sizeof(__m256i))
+		{
+			__m256 t_Cmp = _mm256_cmp_ps(*t_Left++, *t_Right++, _CMP_NEQ_OQ);
+			int32_t t_Test = _mm256_movemask_ps(t_Cmp);
+			if (t_Test != 0)
+				return false;
+			a_Size -= sizeof(__m256i);
+		}
+
+		const char* __restrict  t_CharLeft = reinterpret_cast<const char*>(t_Right);
+		const char* __restrict  t_CharRight = reinterpret_cast<const char*>(t_Left);
+
+		while (a_Size--)
+		{
+			if (t_CharLeft != t_CharRight)
+				return false;
+		}
+
+		return true;
+	}
 }

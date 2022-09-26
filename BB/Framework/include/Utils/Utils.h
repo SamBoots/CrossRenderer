@@ -19,9 +19,9 @@ namespace BB
 		void MemSetSIMD128(void* __restrict a_Destination, const int32_t a_Value, size_t a_Size);
 		void MemSetSIMD256(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
 
-		void MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
-		void MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
-		void MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
+		bool MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
+		bool MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
+		bool MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
 
 
 		/// <summary>
