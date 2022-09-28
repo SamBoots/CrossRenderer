@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "Common.h"
 #include "Utils/Slice.h"
+#include "Storage/FixedArray.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -179,6 +180,12 @@ namespace BB
 		RENDER_IMAGE_LAYOUT colorFinalLayout;
 		uint32_t width;
 		uint32_t height;
+	};
+
+	struct Vertex
+	{
+		float pos[2];
+		float color[3];
 	};
 
 

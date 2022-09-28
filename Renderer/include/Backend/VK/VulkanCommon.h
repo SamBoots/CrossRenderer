@@ -236,4 +236,34 @@ namespace BB
 	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(PipelineHandle a_Handle);
 	void VulkanDestroyBackend(APIRenderBackend a_Handle);
+
+
+#pragma region BufferData
+	static VkVertexInputBindingDescription VertexBindingDescription()
+	{
+		VkVertexInputBindingDescription t_BindingDescription{};
+		t_BindingDescription.binding = 0;
+		t_BindingDescription.stride = sizeof(Vertex);
+		t_BindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return t_BindingDescription;
+	}
+
+	static FixedArray<VkVertexInputAttributeDescription, 2> VertexAttributeDescriptions()
+	{
+		FixedArray<VkVertexInputAttributeDescription, 2> t_AttributeDescriptions;
+		t_AttributeDescriptions[0].binding = 0;
+		t_AttributeDescriptions[0].location = 0;
+		t_AttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		t_AttributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+		t_AttributeDescriptions[1].binding = 0;
+		t_AttributeDescriptions[1].location = 1;
+		t_AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		t_AttributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		return t_AttributeDescriptions;
+	}
+#pragma endregion
+
 }
