@@ -16,9 +16,9 @@ namespace BB
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 
-	using GBufferHandle = FrameworkHandle<struct GBufferHandleTag>;
-	using GImageHandle = FrameworkHandle<struct GImageHandleTag>;
-	using GShaderHandle = FrameworkHandle<struct GShaderHandleTag>;
+	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
+	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
+	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
 
 	enum class RENDER_BUFFER_USAGE : uint32_t
 	{
@@ -27,6 +27,12 @@ namespace BB
 		UNIFORM,
 		STORAGE,
 		STAGING
+	};
+
+	enum class RENDER_MEMORY_PROPERTIES : uint32_t
+	{
+		DEVICE_LOCAL,
+		HOST_VISIBLE
 	};
 
 	enum class RENDER_IMAGE_TYPE : uint32_t
@@ -93,6 +99,7 @@ namespace BB
 	{
 		uint64_t size = 0;
 		RENDER_BUFFER_USAGE usage;
+		RENDER_MEMORY_PROPERTIES memProperties;
 	};
 
 	struct RenderImageCreateInfo
@@ -117,11 +124,12 @@ namespace BB
 		RENDER_SHADER_STAGE shaderStage;
 	};
 
-	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, RENDER_BUFFER_USAGE a_Usage)
+	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, RENDER_BUFFER_USAGE a_Usage, RENDER_MEMORY_PROPERTIES a_MemProperties)
 	{
 		RenderBufferCreateInfo t_Info;
 		t_Info.size = a_Size;
 		t_Info.usage = a_Usage;
+		t_Info.memProperties = a_MemProperties;
 		return t_Info;
 	}
 
@@ -183,34 +191,14 @@ namespace BB
 
 
 	//construction
-	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(
-		Allocator a_SysAllocator,
-		Allocator a_TempAllocator,
-		const RenderBackendCreateInfo& a_CreateInfo);
-
-	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(
-		Allocator a_TempAllocator,
-		const RenderPipelineCreateInfo& a_CreateInfo);
-
-	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(
-		Allocator a_TempAllocator,
-		const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-
-	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(
-		Allocator a_TempAllocator,
-		const uint32_t a_BufferCount);
+	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const uint32_t a_BufferCount);
 
 	//Utility
-	typedef void (*PFN_RenderAPIResizeWindow)(
-		Allocator a_TempAllocator,
-		APIRenderBackend,
-		uint32_t a_X,
-		uint32_t a_Y);
-	typedef void (*PFN_RenderAPIRenderFrame)(
-		Allocator a_TempAllocator,
-		CommandListHandle a_CommandHandle,
-		FrameBufferHandle a_FrameBufferHandle,
-		PipelineHandle a_PipeHandle);
+	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, APIRenderBackend, uint32_t a_X, uint32_t a_Y);
+	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator,	CommandListHandle a_CommandHandle,FrameBufferHandle a_FrameBufferHandle,	PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion

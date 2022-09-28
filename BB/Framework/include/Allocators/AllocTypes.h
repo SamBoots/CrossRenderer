@@ -120,6 +120,4 @@ namespace BB
 		}
 	}
 #pragma endregion // AllocationFunctions
-
-#pragma region Debug
 }
