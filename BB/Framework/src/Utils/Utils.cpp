@@ -73,12 +73,12 @@ namespace BB
 	void BB::Memory::MemSet(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size)
 	{
 		//Get the registry size for most optimal memcpy.
-		int32_t* __restrict  t_Dest = reinterpret_cast<int32_t*>(a_Destination);
+		size_t* __restrict  t_Dest = reinterpret_cast<size_t*>(a_Destination);
 
-		while (a_Size >= sizeof(int32_t))
+		while (a_Size >= sizeof(size_t))
 		{
 			*t_Dest++ = a_Value;
-			a_Size -= sizeof(int32_t);
+			a_Size -= sizeof(size_t);
 		}
 
 		char* __restrict t_DestChar = reinterpret_cast<char*>(t_Dest);
@@ -101,12 +101,12 @@ namespace BB
 			a_Size -= sizeof(__m128i);
 		}
 
-		int32_t* __restrict  t_intDest = reinterpret_cast<int32_t*>(t_Dest);
+		size_t* __restrict  t_intDest = reinterpret_cast<size_t*>(t_Dest);
 
-		while (a_Size >= sizeof(int32_t))
+		while (a_Size >= sizeof(size_t))
 		{
 			*t_intDest++ = a_Value;
-			a_Size -= sizeof(int32_t);
+			a_Size -= sizeof(size_t);
 		}
 
 		char* __restrict t_DestChar = reinterpret_cast<char*>(t_intDest);
@@ -128,13 +128,13 @@ namespace BB
 			*t_Dest++ = _mm256_set1_epi32(a_Value);
 			a_Size -= sizeof(__m256i);
 		}
+		
+		size_t* __restrict  t_intDest = reinterpret_cast<size_t*>(t_Dest);
 
-		int32_t* __restrict  t_intDest = reinterpret_cast<int32_t*>(t_Dest);
-
-		while (a_Size >= sizeof(int32_t))
+		while (a_Size >= sizeof(size_t))
 		{
 			*t_intDest++ = a_Value;
-			a_Size -= sizeof(int32_t);
+			a_Size -= sizeof(size_t);
 		}
 
 		char* __restrict t_DestChar = reinterpret_cast<char*>(t_intDest);
