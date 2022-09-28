@@ -42,7 +42,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	m_APIbackend = pfn_CreateBackend(m_SystemAllocator, m_TempAllocator, t_BackendCreateInfo);
+	m_APIbackend = pfn_CreateBackend(m_TempAllocator, t_BackendCreateInfo);
 
 	RenderFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info

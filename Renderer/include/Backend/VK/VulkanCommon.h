@@ -15,6 +15,47 @@ namespace BB
 	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX; 
 	namespace VKConv
 	{
+		inline VkBufferUsageFlags RenderBufferUsage(RENDER_BUFFER_USAGE a_Usage)
+		{
+			switch (a_Usage)
+			{
+			case RENDER_BUFFER_USAGE::VERTEX:
+				return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+				break;
+			case RENDER_BUFFER_USAGE::INDEX:
+				return VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+				break;
+			case RENDER_BUFFER_USAGE::UNIFORM:
+				return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+				break;
+			case RENDER_BUFFER_USAGE::STORAGE:
+				return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+				break;
+			case RENDER_BUFFER_USAGE::STAGING:
+				return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+				break;
+			default:
+				BB_ASSERT(false, "this buffer usage is not supported by the vulkan backend!");
+				break;
+			}
+		}
+
+		inline VkMemoryPropertyFlags MemoryPropertyFlags(RENDER_MEMORY_PROPERTIES a_Properties)
+		{
+			switch (a_Properties)
+			{
+			case BB::RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL:
+				return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+				break;
+			case BB::RENDER_MEMORY_PROPERTIES::HOST_VISIBLE:
+				return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;;
+				break;
+			default:
+				BB_ASSERT(false, "this memory property is not supported by the vulkan backend!");
+				break;
+			}
+		}
+
 		inline VkShaderStageFlagBits ShaderStageBits(RENDER_SHADER_STAGE a_Stage)
 		{
 			switch (a_Stage)
@@ -206,29 +247,32 @@ namespace BB
 #endif //_DEBUG
 	};
 
+	struct VulkanBuffer
+	{
+		VkBuffer buffer;
+		VkDeviceMemory memory;
+	};
+
+	struct RDeviceBufferView
+	{
+		uint64_t size;
+		uint64_t offset;
+	};
+
+
+	RBufferHandle RBuffer_Init(const RenderBufferCreateInfo& a_Info);
+	void RBuffer_Destroy(RBufferHandle a_Handle);
+	void RBuffer_CpyData(RBufferHandle a_Handle, const void* a_Data);
+	void RBuffer_CpyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+
 	//Functions
-	APIRenderBackend VulkanCreateBackend(Allocator a_SysAllocator,
-		Allocator a_TempAllocator,
-		const RenderBackendCreateInfo& a_CreateInfo);
+	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
+	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
 
-	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator,
-		const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-
-	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator,
-		const RenderPipelineCreateInfo& a_CreateInfo);
-
-	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator,
-		const uint32_t a_BufferCount);
-
-	void ResizeWindow(Allocator a_TempAllocator,
-		APIRenderBackend a_Handle, 
-		uint32_t a_X, 
-		uint32_t a_Y);
-
-	void RenderFrame(Allocator a_TempAllocator,
-		CommandListHandle a_CommandHandle,
-		FrameBufferHandle a_FrameBufferHandle,
-		PipelineHandle a_PipeHandle);
+	void ResizeWindow(Allocator a_TempAllocator, APIRenderBackend a_Handle, uint32_t a_X, uint32_t a_Y);
+	void RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();
 

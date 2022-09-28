@@ -7,8 +7,8 @@ using namespace BB;
 
 struct DX12Backend_inst
 {
-	DX12Backend_inst(Allocator renderSystemAllocator)
-		:	renderSystemAllocator(renderSystemAllocator)
+	DX12Backend_inst(Allocator s_VulkanAllocator)
+		:	s_VulkanAllocator(s_VulkanAllocator)
 	{}
 	uint32_t currentFrame = 0;
 	uint32_t frameCount = 3; //for now hardcode 3 backbuffers.
@@ -16,7 +16,7 @@ struct DX12Backend_inst
 	DX12Backend backend;
 	DX12Device device;
 
-	Allocator renderSystemAllocator;
+	Allocator s_VulkanAllocator;
 };
 static DX12Backend_inst* s_DXBackendInst = nullptr;
 
