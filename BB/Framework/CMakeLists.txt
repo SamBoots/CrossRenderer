@@ -18,6 +18,7 @@ add_library (BBFramework
 "include/Allocators/Allocators.h" 
 "include/Allocators/AllocTypes.h" 
 "include/Allocators/MemoryArena.h" 
+"include/Allocators/TemporaryAllocator.h"
 "include/Storage/Array.h" 
 "include/Storage/Pool.h" 
 "include/Storage/Hashmap.h"
@@ -32,9 +33,10 @@ add_library (BBFramework
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/MemoryArena.cpp" 
 "src/Allocators/BackingAllocator/BackingAllocator${PLATFORM_NAME}.cpp" 
+"src/Allocators/TemporaryAllocator.cpp"
 "src/OS/OSDevice${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
- "src/Utils/Utils.cpp")
+"src/Utils/Utils.cpp")
 
 #Include library
 target_include_directories(BBFramework PUBLIC

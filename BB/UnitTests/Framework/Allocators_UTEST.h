@@ -1,6 +1,7 @@
 #pragma once
 #include "../TestValues.h"
 #include "Allocators/AllocTypes.h"
+#include "Allocators/TemporaryAllocator.h"
 
 //Bytes samples with different sizes.
 constexpr const size_t sample_32_bytes = 10000;
@@ -458,3 +459,60 @@ TEST(MemoryAllocators, POOL_SINGLE_ALLOCATIONS_RESIZE)
 }
 
 #pragma endregion
+
+#pragma region TEMPORARY_ALLOCATOR
+TEST(MemoryAllocators, TEMPORARY_ALLOCATOR)
+{
+	constexpr const size_t allocatorSize =
+		sizeof(size32Bytes) * sample_32_bytes +
+		sizeof(size256Bytes) * sample_256_bytes +
+		sizeof(size2593bytes) * sample_2593_bytes;
+
+	//Get some random values to test.
+	size_t randomValues[samples]{};
+	for (size_t i = 0; i < samples; i++)
+	{
+		randomValues[i] = static_cast<size_t>(BB::Random::Random());
+	}
+
+	BB::FreeListAllocator_t t_Backing(allocatorSize * 2);
+	BB::TemporaryAllocator t_TempAlloc(t_Backing);
+
+	for (size_t i = 0; i < sample_32_bytes; i++)
+	{
+		size32Bytes* sample = BB::BBnew<size32Bytes>(t_TempAlloc);
+		sample->value = randomValues[i];
+	}
+	for (size_t i = 0; i < sample_256_bytes; i++)
+	{
+		size256Bytes* sample = BB::BBnew<size256Bytes>(t_TempAlloc);
+		sample->value = randomValues[sample_32_bytes + i];
+	}
+	for (size_t i = 0; i < sample_2593_bytes; i++)
+	{
+		size2593bytes* sample = BB::BBnew<size2593bytes>(t_TempAlloc);
+		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
+	}
+
+	////Test is depricated because of Boundrychecking.
+	//Test all the values inside the allocations
+	//void* t_AllocData = t_LinearAllocator.begin();
+	//for (size_t i = 0; i < sample_32_bytes; i++)
+	//{
+	//	size32Bytes* data = reinterpret_cast<size32Bytes*>(t_AllocData);
+	//	ASSERT_EQ(data->value, randomValues[i]) << "32 bytes, Value is different in the linear allocator.";
+	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size32Bytes));
+	//}
+	//for (size_t i = sample_32_bytes; i < sample_32_bytes + sample_256_bytes; i++)
+	//{
+	//	ASSERT_EQ(reinterpret_cast<size256Bytes*>(t_AllocData)->value, randomValues[i]) << "256 bytes, Value is different in the linear allocator.";
+	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size256Bytes));
+	//}
+	//for (size_t i = sample_32_bytes + sample_256_bytes; i < sample_32_bytes + sample_256_bytes + sample_2593_bytes; i++)
+	//{
+	//	ASSERT_EQ(reinterpret_cast<size2593bytes*>(t_AllocData)->value, randomValues[i]) << "2593 bytes, Value is different in the linear allocator.";
+	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size2593bytes));
+	//}
+}
+
+#pragma endregion //TEMPORARY_ALLOCATOR
