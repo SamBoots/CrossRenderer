@@ -1,8 +1,7 @@
 #pragma once
-#include "Allocators/AllocTypes.h"
 #include "Utils/Hash.h"
 #include "Utils/Utils.h"
-
+#include "BBMemory.h"
 namespace BB
 {
 	namespace Hashmap_Specs

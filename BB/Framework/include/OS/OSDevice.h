@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include "Common.h"
-#include "AllocTypes.h"
+#include "BBMemory.h"
 #include "Utils/Slice.h"
 
 #ifdef _WIN32

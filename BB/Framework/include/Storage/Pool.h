@@ -1,6 +1,6 @@
 #pragma once
 #include "Utils/Logger.h"
-#include "Allocators/AllocTypes.h"
+#include "BBMemory.h"
 
 namespace BB
 {

@@ -9,7 +9,7 @@ TEST(ArrayDataStructure, push_reserve)
 
 	//32 MB alloactor.
 	const size_t allocatorSize = BB::mbSize * 32;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator);
 	EXPECT_EQ(t_Array.capacity(), BB::Array_Specs::multipleValue);
@@ -100,7 +100,7 @@ TEST(ArrayDataStructure, Array_push)
 	struct size2593bytes { union { char data[2593]; size_t value; }; };
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator, initialSize);
 
@@ -171,7 +171,7 @@ TEST(ArrayDataStructure, Array_emplace_back)
 
 	//32 MB alloactor.
 	const size_t allocatorSize = BB::mbSize * 32;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator);
 	EXPECT_EQ(t_Array.capacity(), BB::Array_Specs::multipleValue);
@@ -204,7 +204,7 @@ TEST(ArrayDataStructure, Array_insert_single)
 	struct size2593bytes { union { char data[2593]; size_t value; }; };
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator, initialSize);
 
@@ -286,7 +286,7 @@ TEST(ArrayDataStructure, Array_Object_Test)
 	};
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Array<size2593bytesObj> t_Array(t_Allocator, initialSize);
 
@@ -344,7 +344,7 @@ TEST(ArrayDataStructure, Array_Copy)
 	struct size2593bytes { union { char data[2593]; size_t value; }; };
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator, testSize);
 
@@ -388,7 +388,7 @@ TEST(ArrayDataStructure, Array_Assignment)
 	struct size2593bytes { union { char data[2593]; size_t value; }; };
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Array<size2593bytes> t_Array(t_Allocator, testSize);
 

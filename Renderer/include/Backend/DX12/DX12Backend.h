@@ -1,5 +1,4 @@
-#pragma once
-#include "AllocTypes.h"
+#include "BBMemory.h"
 #include "RenderBackendCommon.h"
 
 namespace BB

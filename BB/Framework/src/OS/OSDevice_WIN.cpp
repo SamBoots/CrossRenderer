@@ -10,7 +10,7 @@
 using namespace BB;
 using namespace BB::OS;
 
-typedef FreeListAllocator_t OSAllocator_t;
+typedef FreelistAllocator_t OSAllocator_t;
 typedef LinearAllocator_t OSTempAllocator_t;
 
 OSAllocator_t OSAllocator{ kbSize * 2 };

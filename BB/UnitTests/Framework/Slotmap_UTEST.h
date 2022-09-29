@@ -8,7 +8,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 
 	//32 MB alloactor.
 	const size_t allocatorSize = BB::mbSize * 32;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator, samples);
 
@@ -71,7 +71,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 
 	//32 MB alloactor.
 	const size_t allocatorSize = BB::mbSize * 32;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator, samples);
 
@@ -144,7 +144,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 
 	//32 MB alloactor.
 	const size_t allocatorSize = BB::mbSize * 32;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator);
 	t_Map.reserve(initialMapSize);

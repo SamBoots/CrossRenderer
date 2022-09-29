@@ -1,7 +1,7 @@
 #pragma once
 #include "Utils/Logger.h"
 #include "Utils/Slice.h"
-#include "Allocators/AllocTypes.h"
+#include "BBMemory.h"
 
 #include "RenderBackendCommon.h"
 #include <vulkan/vulkan.h>

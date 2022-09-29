@@ -1,5 +1,5 @@
 #pragma once
-#include "AllocTypes.h"
+#include "TemporaryAllocator.h"
 #include "RenderBackendCommon.h"
 
 namespace BB
@@ -27,7 +27,7 @@ namespace BB
 		void SetFunctions(RenderAPI a_RenderAPI);
 
 		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
-		LinearAllocator_t m_TempAllocator{ kbSize * 4 };
+		TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
 		APIRenderBackend m_APIbackend;
 

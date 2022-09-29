@@ -9,7 +9,7 @@ TEST(PoolDataStructure, Pool_Create_Get_Free)
 	struct size2593bytes { union { char data[2593]; size_t value; }; };
 
 	//2 MB alloactor.
-	BB::FreeListAllocator_t t_Allocator(1024 * 1024 * 2);
+	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
 	BB::Pool<size2593bytes> t_Pool(t_Allocator, samples);
 

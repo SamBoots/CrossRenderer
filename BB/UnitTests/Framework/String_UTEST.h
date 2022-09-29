@@ -9,7 +9,7 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 	constexpr const char* TestString = "First Unit test of the string is now being done.";
 
 	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::String t_String(t_Allocator);
 
@@ -139,7 +139,7 @@ TEST(String_DataStructure, reserve_shrink)
 	constexpr size_t StringReserve = 128;
 
 	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::String t_String(t_Allocator);
 
@@ -168,7 +168,7 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 	constexpr const wchar_t* TestString = L"First Unit test of the string is now being done.";
 
 	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::WString t_String(t_Allocator);
 
@@ -298,7 +298,7 @@ TEST(WideString_DataStructure, reserve_shrink)
 	constexpr size_t StringReserve = 128;
 
 	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreeListAllocator_t t_Allocator(allocatorSize);
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
 
 	BB::String t_String(t_Allocator);
 

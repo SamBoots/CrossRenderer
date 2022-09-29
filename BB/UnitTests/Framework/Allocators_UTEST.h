@@ -1,6 +1,6 @@
 #pragma once
 #include "../TestValues.h"
-#include "Allocators/AllocTypes.h"
+#include "BBMemory.h"
 #include "Allocators/TemporaryAllocator.h"
 
 //Bytes samples with different sizes.
@@ -151,7 +151,7 @@ TEST(MemoryAllocators, FREELIST_SINGLE_ALLOCATIONS)
 		randomValues[i] = static_cast<size_t>(BB::Random::Random());
 	}
 
-	BB::FreeListAllocator_t t_FreelistAllocator(allocatorSize);
+	BB::FreelistAllocator_t t_FreelistAllocator(allocatorSize);
 
 	{
 		//This address should always be used since it's a free block.
@@ -222,7 +222,7 @@ TEST(MemoryAllocators, FREELIST_ARRAY_ALLOCATIONS)
 		randomValues[i] = static_cast<size_t>(BB::Random::Random());
 	}
 
-	BB::FreeListAllocator_t t_FreeList(allocatorSize);
+	BB::FreelistAllocator_t t_FreeList(allocatorSize);
 
 	size32Bytes* size32Array = BB::BBnewArr<size32Bytes>(t_FreeList, sample_32_bytes);
 	size256Bytes* size256Array = BB::BBnewArr<size256Bytes>(t_FreeList, sample_256_bytes);
@@ -285,7 +285,7 @@ TEST(MemoryAllocators, POW_FREELIST_SINGLE_ALLOCATIONS)
 		randomValues[i] = static_cast<size_t>(BB::Random::Random());
 	}
 
-	BB::POW_FreeListAllocator_t t_POW_FreelistAllocator(allocatorSize);
+	BB::POW_FreelistAllocator_t t_POW_FreelistAllocator(allocatorSize);
 
 	{
 		////This address should always be used since it's a free block.
@@ -475,7 +475,7 @@ TEST(MemoryAllocators, TEMPORARY_ALLOCATOR)
 		randomValues[i] = static_cast<size_t>(BB::Random::Random());
 	}
 
-	BB::FreeListAllocator_t t_Backing(allocatorSize * 2);
+	BB::FreelistAllocator_t t_Backing(allocatorSize * 2);
 	BB::TemporaryAllocator t_TempAlloc(t_Backing);
 
 	for (size_t i = 0; i < sample_32_bytes; i++)

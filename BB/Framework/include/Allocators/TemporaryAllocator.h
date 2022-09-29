@@ -1,5 +1,5 @@
 #pragma once
-#include "AllocTypes.h"
+#include "BBMemory.h"
 namespace BB
 {
 	//A linear allocator abstraction that doesn't use virtual alloc but another allocator for memory.
