@@ -7,7 +7,7 @@
 #include <iostream>
 namespace BB
 {
-	static FreeListAllocator_t s_VulkanAllocator{ mbSize * 2 };
+	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
 
 	using PipelineLayoutHash = uint64_t;
 	struct VulkanBackend_inst
@@ -77,6 +77,21 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	return VK_FALSE;
 }
 
+static uint32_t FindMemoryType(uint32_t a_TypeFilter, VkMemoryPropertyFlags a_Properties)
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(s_VkBackendInst.device.physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if ((a_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & a_Properties) == a_Properties) {
+			return i;
+		}
+	}
+
+	BB_ASSERT(false, "Vulkan: Failed to find correct memory type!");
+	return 0;
+}
+
 static VkDebugUtilsMessengerEXT CreateVulkanDebugMsgger(VkInstance a_Instance)
 {
 
@@ -88,8 +103,10 @@ static VkDebugUtilsMessengerEXT CreateVulkanDebugMsgger(VkInstance a_Instance)
 		BB_WARNING(false, "Failed to get the vkCreateDebugUtilsMessengerEXT function pointer.", WarningType::HIGH);
 		return 0;
 	}
+	auto t_DebugMessenger = VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback);
 	VkDebugUtilsMessengerEXT t_ReturnDebug;
-	VKASSERT(t_CreateDebugFunc(a_Instance, &VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback), nullptr, &t_ReturnDebug), "Vulkan: Failed to create debug messenger.");
+
+	VKASSERT(t_CreateDebugFunc(a_Instance, &t_DebugMessenger, nullptr, &t_ReturnDebug), "Vulkan: Failed to create debug messenger.");
 	return t_ReturnDebug;
 }
 
@@ -550,9 +567,10 @@ static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_Ren
 	}
 }
 
-RBufferHandle BB::RBuffer_Init(const RenderBufferCreateInfo& a_Info)
+RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	VulkanBuffer t_Buffer;
+	t_Buffer.memSize = a_Info.size;
 	
 	VkBufferUsageFlags t_Usage = VKConv::RenderBufferUsage(a_Info.usage);
 	VkMemoryPropertyFlags t_MemoryProperties = VKConv::MemoryPropertyFlags(a_Info.memProperties);
@@ -563,7 +581,7 @@ RBufferHandle BB::RBuffer_Init(const RenderBufferCreateInfo& a_Info)
 	t_BufferInfo.usage = t_Usage;
 	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	VKASSERT(vkCreateBuffer(s_VkBackendInst.device.logicalDevice, &t_BufferInfo, nullptr, &t_Buffer.buffer),
-		"Failed to create render buffer.");
+		"Vulkan: Failed to create render buffer.");
 
 	VkMemoryRequirements t_MemRequirements;
 	vkGetBufferMemoryRequirements(s_VkBackendInst.device.logicalDevice, t_Buffer.buffer, &t_MemRequirements);
@@ -571,14 +589,51 @@ RBufferHandle BB::RBuffer_Init(const RenderBufferCreateInfo& a_Info)
 	VkMemoryAllocateInfo t_AllocInfo{};
 	t_AllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	t_AllocInfo.allocationSize = t_MemRequirements.size;
-	//t_AllocInfo.memoryTypeIndex = FindMemoryType(t_MemRequirements.memoryTypeBits, t_MemoryProperties);
+	t_AllocInfo.memoryTypeIndex = FindMemoryType(t_MemRequirements.memoryTypeBits, t_MemoryProperties);
 
 	VKASSERT(vkAllocateMemory(s_VkBackendInst.device.logicalDevice, &t_AllocInfo, nullptr, &t_Buffer.memory),
-		"Failed to allocate memory.");
+		"Vulkan: Failed to allocate memory.");
 
+	VKASSERT(vkBindBufferMemory(s_VkBackendInst.device.logicalDevice, 
+		t_Buffer.buffer,
+		t_Buffer.memory,
+		0),
+		"Vulkan: Failed to bind buffer to memory region.");
 
 	return RBufferHandle(s_VkBackendInst.renderBuffers.insert(t_Buffer));
 }
+
+void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
+{
+	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
+	vkDestroyBuffer(s_VkBackendInst.device.logicalDevice, t_Buffer.buffer, nullptr);
+	vkFreeMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory, nullptr);
+	s_VkBackendInst.renderBuffers.erase(a_Handle.handle);
+}
+
+void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data)
+{
+	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
+	void* t_MapData;
+	VKASSERT(vkMapMemory(s_VkBackendInst.device.logicalDevice,
+		t_Buffer.memory, 0,
+		t_Buffer.memSize, 0, &t_MapData),
+		"Vulkan: Failed to map memory");
+	memcpy(t_MapData, a_Data, t_Buffer.memSize);
+	vkUnmapMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory);
+}
+
+void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View)
+{
+	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
+	void* t_MapData;
+	VKASSERT(vkMapMemory(s_VkBackendInst.device.logicalDevice, 
+		t_Buffer.memory, 0, a_View.size, 0, &t_MapData),
+		"Vulkan: Failed to map memory");
+	memcpy(t_MapData, a_Data, a_View.size);
+	vkUnmapMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory);
+}
+
 
 void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
 {
@@ -648,6 +703,11 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	t_Scissor.offset = { 0, 0 };
 	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
 	vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
+
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(t_CmdRecording, 0, 1,
+		&s_VkBackendInst.renderBuffers.find(0).buffer,
+		offsets);
 
 	vkCmdDraw(t_CmdRecording, 3, 1, 0, 0);
 
@@ -729,13 +789,16 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 		VkInstanceCreateInfo t_InstanceCreateInfo{};
 		t_InstanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		t_InstanceCreateInfo.pApplicationInfo = &t_AppInfo;
+
+		VkDebugUtilsMessengerCreateInfoEXT t_DebugCreateInfo;
 		if (a_CreateInfo.validationLayers)
 		{
 			const char* validationLayer = "VK_LAYER_KHRONOS_validation";
 			BB_WARNING(CheckValidationLayerSupport(a_TempAllocator, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
+			t_DebugCreateInfo = VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback);
 			t_InstanceCreateInfo.ppEnabledLayerNames = &validationLayer;
 			t_InstanceCreateInfo.enabledLayerCount = 1;
-			t_InstanceCreateInfo.pNext = &VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback);
+			t_InstanceCreateInfo.pNext = &t_DebugCreateInfo;
 		}
 		else
 		{
@@ -887,11 +950,13 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 		1,
 		nullptr);
 
+	auto t_BindingDescription = VertexBindingDescription();
+	auto t_AttributeDescription = VertexAttributeDescriptions();
 	VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
-		0,
-		nullptr,
-		0,
-		nullptr);
+		1,
+		&t_BindingDescription,
+		static_cast<uint32_t>(t_AttributeDescription.size()),
+		t_AttributeDescription.data());
 	VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
 		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
 		VK_FALSE);

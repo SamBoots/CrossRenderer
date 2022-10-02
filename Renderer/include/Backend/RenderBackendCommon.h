@@ -103,6 +103,12 @@ namespace BB
 		RENDER_MEMORY_PROPERTIES memProperties;
 	};
 
+	struct RDeviceBufferView
+	{
+		uint64_t size;
+		uint64_t offset;
+	};
+
 	struct RenderImageCreateInfo
 	{
 		// The width in texels.
@@ -196,6 +202,11 @@ namespace BB
 		float color[3];
 	};
 
+	//buffer
+	typedef RBufferHandle(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
+	typedef void (*PFN_RenderAPIDestroyBuffer)(RBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIBuffer_CopyData)(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+
 
 	//construction
 	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
@@ -220,11 +231,15 @@ namespace BB
 		PFN_RenderAPICreatePipeline* createPipeline;
 		PFN_RenderAPICreateFrameBuffer* createFrameBuffer;
 		PFN_RenderAPICreateCommandList* createCommandList;
+		PFN_RenderAPICreateBuffer* createBuffer;
+
+		PFN_RenderAPIBuffer_CopyData* bufferCopyData;
 
 		PFN_RenderAPIResizeWindow* resizeWindow;
 		PFN_RenderAPIRenderFrame* renderFrame;
 		PFN_RenderAPIWaitDeviceReady* waitDevice;
 
+		PFN_RenderAPIDestroyBuffer* destroyBuffer;
 		PFN_RenderAPIDestroyBackend* destroyBackend;
 		PFN_RenderAPIDestroyFrameBuffer* destroyFrameBuffer;
 		PFN_RenderAPIDestroyPipeline* destroyPipeline;

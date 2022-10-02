@@ -48,7 +48,7 @@ namespace BB
 				return VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 				break;
 			case BB::RENDER_MEMORY_PROPERTIES::HOST_VISIBLE:
-				return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;;
+				return VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 				break;
 			default:
 				BB_ASSERT(false, "this memory property is not supported by the vulkan backend!");
@@ -243,7 +243,7 @@ namespace BB
 #ifdef _DEBUG
 		VkDebugUtilsMessengerEXT debugMessenger;
 		const char** extensions;
-		uint32_t extensionCount;
+		size_t extensionCount;
 #endif //_DEBUG
 	};
 
@@ -251,19 +251,14 @@ namespace BB
 	{
 		VkBuffer buffer;
 		VkDeviceMemory memory;
-	};
-
-	struct RDeviceBufferView
-	{
-		uint64_t size;
-		uint64_t offset;
+		uint64_t memSize;
 	};
 
 
-	RBufferHandle RBuffer_Init(const RenderBufferCreateInfo& a_Info);
-	void RBuffer_Destroy(RBufferHandle a_Handle);
-	void RBuffer_CpyData(RBufferHandle a_Handle, const void* a_Data);
-	void RBuffer_CpyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+	void VulkanDestroyBuffer(RBufferHandle a_Handle);
+	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
+	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
 
 	//Functions
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
@@ -276,6 +271,7 @@ namespace BB
 
 	void VulkanWaitDeviceReady();
 
+	void VulkanDestroyBuffer(RBufferHandle a_Handle);
 	void VulkanDestroyCommandList(CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(PipelineHandle a_Handle);

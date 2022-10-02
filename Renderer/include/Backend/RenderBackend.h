@@ -26,12 +26,16 @@ namespace BB
 	private:
 		void SetFunctions(RenderAPI a_RenderAPI);
 
-		FreeListAllocator_t m_SystemAllocator{ mbSize * 4 };
+		FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
 		TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
 		APIRenderBackend m_APIbackend;
 
 		//Functions
+		PFN_RenderAPICreateBuffer pfn_CreateBuffer;
+		PFN_RenderAPIDestroyBuffer pfn_DestroyBuffer;
+		PFN_RenderAPIBuffer_CopyData pfn_BufferCopyData;
+
 		PFN_RenderAPICreateBackend pfn_CreateBackend;
 		PFN_RenderAPICreateFrameBuffer pfn_CreateFrameBuffer;
 		PFN_RenderAPICreatePipeline pfn_CreatePipelineFunc;

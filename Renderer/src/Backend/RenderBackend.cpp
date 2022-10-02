@@ -71,6 +71,23 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 	t_CommandList = pfn_CreateCommandList(m_TempAllocator, 5);
 
+	Vertex t_Vertex[3];
+	t_Vertex[0] = { {0.0f, -0.5f}, {1.0f, 1.0f, 1.0f} };
+	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
+	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
+
+	RenderBufferCreateInfo t_RenderBuffer;
+	t_RenderBuffer.size = sizeof(t_Vertex);
+	t_RenderBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
+	t_RenderBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	RBufferHandle buffer = pfn_CreateBuffer(t_RenderBuffer);
+
+	RDeviceBufferView t_View;
+	t_View.offset = 0;
+	t_View.size = sizeof(t_Vertex);
+
+	pfn_BufferCopyData(buffer, &t_Vertex, t_View);
+
 	//VulkanDestroyCommandList(m_SystemAllocator, t_CommandList, *vkBackend);
 	//VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
 	//VulkanDestroyPipeline(t_Pipeline, *vkBackend);
@@ -82,7 +99,6 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 void RenderBackend::DestroyBackend()
 {
-
 	pfn_WaitDeviceReady();
 	pfn_DestroyPipeline(t_Pipeline);
 	pfn_DestroyFrameBuffer(t_FrameBuffer);
@@ -116,6 +132,9 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 	t_Functions.createFrameBuffer = &pfn_CreateFrameBuffer;
 	t_Functions.createPipeline = &pfn_CreatePipelineFunc;
 	t_Functions.createCommandList = &pfn_CreateCommandList;
+	t_Functions.createBuffer = &pfn_CreateBuffer;
+
+	t_Functions.bufferCopyData = &pfn_BufferCopyData;
 
 	t_Functions.resizeWindow = &pfn_ResizeWindow;
 	t_Functions.renderFrame = &pfn_RenderFrame;
@@ -125,6 +144,7 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 	t_Functions.destroyFrameBuffer = &pfn_DestroyFrameBuffer;
 	t_Functions.destroyPipeline = &pfn_DestroyPipeline;
 	t_Functions.destroyCommandList = &pfn_DestroyCommandList;
+	t_Functions.destroyBuffer = &pfn_DestroyBuffer;
 
 	switch (a_RenderAPI)
 	{

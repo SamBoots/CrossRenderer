@@ -10,6 +10,9 @@ void BB::GetVulkanAPIFunctions(APIBackendFunctionPointersCreateInfo& a_FuncCreat
 	*a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	*a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	*a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
+	*a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
+
+	*a_FuncCreateInfo.bufferCopyData = VulkanBufferCopyData;
 
 	*a_FuncCreateInfo.resizeWindow = ResizeWindow;
 	*a_FuncCreateInfo.renderFrame = RenderFrame;
@@ -19,4 +22,5 @@ void BB::GetVulkanAPIFunctions(APIBackendFunctionPointersCreateInfo& a_FuncCreat
 	*a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	*a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	*a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
+	*a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
 }
