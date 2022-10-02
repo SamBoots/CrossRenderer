@@ -55,8 +55,6 @@ namespace BB
 
 		struct Iterator
 		{
-			using iterator_category = std::forward_iterator_tag;
-			using difference_type = std::ptrdiff_t;
 			using value_type = HashEntry;
 			using pointer = HashEntry*;
 			using reference = HashEntry&;
@@ -455,7 +453,7 @@ namespace BB
 		size_t t_ModifiedCapacity = m_Capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Array_Specs::multipleValue);
+			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
 
 		reallocate(t_ModifiedCapacity);
 	}
@@ -523,8 +521,6 @@ namespace BB
 				Value* value{};
 			};
 
-			using iterator_category = std::forward_iterator_tag;
-			using difference_type = std::ptrdiff_t;
 			using value_type = Pair;
 			using pointer = Pair*;
 			using reference = Pair&;
@@ -944,7 +940,7 @@ namespace BB
 		size_t t_ModifiedCapacity = m_Capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Array_Specs::multipleValue);
+			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
 
 		reallocate(t_ModifiedCapacity);
 	}

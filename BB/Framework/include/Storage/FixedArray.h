@@ -8,7 +8,7 @@ namespace BB
 		T& operator[](const size_t a_Index);
 
 		constexpr size_t size() const { return arrSize; };
-		T* data() const { return m_Arr; };
+		T* data() { return m_Arr; };
 
 		T m_Arr[arrSize]{};
 	};

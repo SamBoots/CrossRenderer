@@ -4,18 +4,25 @@
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
 
+#include <iostream>
+
 namespace BB
 {
+	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
+	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
+
 	constexpr const size_t kbSize = 1024;
 	constexpr const size_t mbSize = kbSize * 1024;
 	constexpr const size_t gbSize = mbSize * 1024;
 
-	void CreateMemoryDebugArena(const void* a_AllocatorAddress);
-	void DestroyMemoryDebugArena(const void* a_AllocatorAddress);
-	void ClearMemoryDebugArena(const void* a_AllocatorAddress);
-	void AllocMemoryDebugAdjustBoundrySize(size_t& a_Size);
-	void* AllocMemoryDebug(const void* a_AllocatorAddress, void* a_AllocatedPtr, const size_t a_Size, const size_t a_Alignment);
-	void* FreeMemoryDebug(const void* a_AllocatorAddress, const void* a_AllocPtr);
+	struct AllocationLog
+	{
+		AllocationLog* next;
+		AllocationLog* prev;
+		void* front;
+		void* back;
+		size_t allocSize;
+	};
 
 	typedef void* (*AllocateFunc)(void* a_AllocatorData, size_t a_Size, size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
@@ -24,86 +31,112 @@ namespace BB
 		void* allocator;
 	};
 
+	void* Memory_AddBoundries(void* a_Front, size_t a_AllocSize);
+	//Checks the memory boundries, 
+	void Memory_CheckBoundries(void* a_Front, void* a_Back);
 
-	template<typename Allocator, bool debug>
+	template<typename Allocator_t>
 	void* StandardRealloc(void* a_Allocator, size_t a_Size, size_t a_Alignment, void* a_Ptr)
 	{
 		if (a_Size > 0)
 		{
-			if constexpr (debug)
-			{
-				AllocMemoryDebugAdjustBoundrySize(a_Size);
-			}
+#ifdef _DEBUG
+			a_Size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(AllocationLog);
+#endif //_DEBUG
+			void* t_AllocatedPtr = reinterpret_cast<Allocator_t*>(a_Allocator)->Alloc(a_Size, a_Alignment);
+#ifdef _DEBUG
+			//Get the space for the allocation log, but keep enough space for the boundry check.
+			AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
+				Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT));
 
-			void* t_AllocatedPtr = reinterpret_cast<Allocator*>(a_Allocator)->Alloc(a_Size, a_Alignment);
+			t_AllocLog->next = nullptr;
+			t_AllocLog->prev = reinterpret_cast<Allocator_t*>(a_Allocator)->lastAlloc;
+			t_AllocLog->front = t_AllocatedPtr;
+			t_AllocLog->back = Memory_AddBoundries(t_AllocatedPtr, a_Size);
+			t_AllocLog->allocSize = a_Size;
+			if (t_AllocLog->prev != nullptr)
+				t_AllocLog->prev->next = t_AllocLog;
+			reinterpret_cast<Allocator_t*>(a_Allocator)->lastAlloc = t_AllocLog;
+			t_AllocatedPtr = Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
+#endif //_DEBUG
 
-			if constexpr (debug)
-			{
-				t_AllocatedPtr = AllocMemoryDebug(a_Allocator,
-					t_AllocatedPtr,
-					a_Size,
-					a_Alignment);
-			}
 			return t_AllocatedPtr;
 		}
 		else
 		{
-			if constexpr (debug)
+#ifdef _DEBUG
+			AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
+				Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));
+
+			Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+			a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
+			if (t_AllocLog->next != nullptr)
 			{
-				a_Ptr = FreeMemoryDebug(a_Allocator, a_Ptr);
+				t_AllocLog->next = t_AllocLog->prev;
 			}
-			reinterpret_cast<Allocator*>(a_Allocator)->Free(a_Ptr);
+#endif //_DEBUG
+			reinterpret_cast<Allocator_t*>(a_Allocator)->Free(a_Ptr);
 			return nullptr;
 		}
 	}
 
-	template<typename AllocatorType, bool debug>
+	template<typename AllocatorType>
 	struct AllocatorTemplate
 	{
 		operator Allocator()
 		{
 			Allocator t_AllocatorInterface;
 			t_AllocatorInterface.allocator = this;
-			t_AllocatorInterface.func = StandardRealloc<AllocatorType, debug>;
+			t_AllocatorInterface.func = StandardRealloc<AllocatorTemplate<AllocatorType>>;
 			return t_AllocatorInterface;
 		}
 
 		AllocatorTemplate(size_t a_AllocatorSize)
-			: allocator(a_AllocatorSize) 
-		{
-			if constexpr (debug)
-			{
-				CreateMemoryDebugArena(this);
-			}
-		}
+			: allocator(a_AllocatorSize) {};
 
 		~AllocatorTemplate()
 		{
-			if constexpr (debug)
+			AllocationLog* t_LastAlloc = lastAlloc;
+			while (t_LastAlloc != nullptr)
 			{
-				DestroyMemoryDebugArena(this);
+				std::cout << "Address: " << t_LastAlloc->front <<
+					" Leak size: " << t_LastAlloc->allocSize << "\n";
+				t_LastAlloc = t_LastAlloc->prev;
 			}
+			Clear();
+		}
+
+		void* Alloc(size_t a_Size, size_t a_Alignment)
+		{
+			return allocator.Alloc(a_Size, a_Alignment);
+		}
+
+		void Free(void* a_Ptr)
+		{
+			allocator.Free(a_Ptr);
 		}
 
 		void Clear()
 		{
+			while (lastAlloc != nullptr)
+			{
+				Memory_CheckBoundries(lastAlloc->front, lastAlloc->back);
+				lastAlloc = lastAlloc->prev;
+			}
 			allocator.Clear();
-			ClearMemoryDebugArena(this);
 		}
 
 		AllocatorType allocator;
-	};
 #ifdef _DEBUG
-	using LinearAllocator_t = AllocatorTemplate<allocators::LinearAllocator, true>;
-	using FixedLinearAllocator_t = AllocatorTemplate<allocators::FixedLinearAllocator, true>;
-	using FreelistAllocator_t = AllocatorTemplate<allocators::FreelistAllocator, true>;
-	using POW_FreelistAllocator_t = AllocatorTemplate<allocators::POW_FreelistAllocator, true>;
-#else
-	using LinearAllocator_t = AllocatorTemplate<allocators::LinearAllocator, false>;
-	using FixedLinearAllocator_t = AllocatorTemplate<allocators::FixedLinearAllocator, false>;
-	using FreelistAllocator_t = AllocatorTemplate<allocators::FreeListAllocator, false>;
-	using POW_FreelistAllocator_t = AllocatorTemplate<allocators::POW_FreeListAllocator, false>;
+		AllocationLog* lastAlloc = nullptr;
 #endif //_DEBUG
+	};
+
+	using LinearAllocator_t = AllocatorTemplate<allocators::LinearAllocator>;
+	using FixedLinearAllocator_t = AllocatorTemplate<allocators::FixedLinearAllocator>;
+	using FreelistAllocator_t = AllocatorTemplate<allocators::FreelistAllocator>;
+	using POW_FreelistAllocator_t = AllocatorTemplate<allocators::POW_FreelistAllocator>;
+
 
 
 #pragma region AllocationFunctions
