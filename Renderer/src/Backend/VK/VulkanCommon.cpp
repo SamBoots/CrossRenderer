@@ -8,6 +8,23 @@
 namespace BB
 {
 	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
+	constexpr uintptr_t VULKAN_MEMORY_BLOCK_FREE = 0xDEADBEEFDEADBEEF;
+
+	struct VulkanMemory
+	{
+		VkDeviceMemory memoryRegion;
+		VkDeviceSize size;
+		uint32_t memoryIndex;
+
+		struct Block
+		{
+			VkDeviceMemory memoryRegion;
+			VkDeviceSize offset;
+			VkDeviceSize size;
+			void* ptr; //If it's not device local, or check if it's free. 
+		};
+		BB::Array<Block> memBlocks{ s_VulkanAllocator };
+	};
 
 	using PipelineLayoutHash = uint64_t;
 	struct VulkanBackend_inst
