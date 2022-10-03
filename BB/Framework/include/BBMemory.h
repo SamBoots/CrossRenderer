@@ -17,12 +17,28 @@ namespace BB
 
 	struct AllocationLog
 	{
-		AllocationLog* next;
 		AllocationLog* prev;
 		void* front;
 		void* back;
 		size_t allocSize;
 	};
+
+	struct AllocationLogger
+	{
+		AllocationLog* front;
+	};
+
+	static AllocationLog* DeleteEntry(AllocationLog* a_Front, const AllocationLog* a_DeletedEntry)
+	{
+		AllocationLog* t_Entry = a_Front;
+		while (t_Entry->prev != a_DeletedEntry)
+		{
+			t_Entry = t_Entry->prev;
+		}
+		t_Entry->prev = a_DeletedEntry->prev;
+
+		return a_Front;
+	}
 
 	typedef void* (*AllocateFunc)(void* a_AllocatorData, size_t a_Size, size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
@@ -49,14 +65,11 @@ namespace BB
 			AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
 				Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT));
 
-			t_AllocLog->next = nullptr;
-			t_AllocLog->prev = reinterpret_cast<Allocator_t*>(a_Allocator)->lastAlloc;
+			t_AllocLog->prev = reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog;
 			t_AllocLog->front = t_AllocatedPtr;
 			t_AllocLog->back = Memory_AddBoundries(t_AllocatedPtr, a_Size);
 			t_AllocLog->allocSize = a_Size;
-			if (t_AllocLog->prev != nullptr)
-				t_AllocLog->prev->next = t_AllocLog;
-			reinterpret_cast<Allocator_t*>(a_Allocator)->lastAlloc = t_AllocLog;
+			reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog = t_AllocLog;
 			t_AllocatedPtr = Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
 #endif //_DEBUG
 
@@ -70,10 +83,13 @@ namespace BB
 
 			Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
 			a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
-			if (t_AllocLog->next != nullptr)
-			{
-				t_AllocLog->next = t_AllocLog->prev;
-			}
+
+			AllocationLog* t_FrontLog = reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog;
+
+			if (t_AllocLog != reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog)
+				DeleteEntry(t_FrontLog, t_AllocLog);
+			else
+				reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog = t_FrontLog->prev;
 #endif //_DEBUG
 			reinterpret_cast<Allocator_t*>(a_Allocator)->Free(a_Ptr);
 			return nullptr;
@@ -96,12 +112,12 @@ namespace BB
 
 		~AllocatorTemplate()
 		{
-			AllocationLog* t_LastAlloc = lastAlloc;
-			while (t_LastAlloc != nullptr)
+			AllocationLog* t_FrontLog = frontLog;
+			while (t_FrontLog != nullptr)
 			{
-				std::cout << "Address: " << t_LastAlloc->front <<
-					" Leak size: " << t_LastAlloc->allocSize << "\n";
-				t_LastAlloc = t_LastAlloc->prev;
+				std::cout << "Address: " << t_FrontLog->front <<
+					" Leak size: " << t_FrontLog->allocSize << "\n";
+				t_FrontLog = t_FrontLog->prev;
 			}
 			Clear();
 		}
@@ -118,17 +134,17 @@ namespace BB
 
 		void Clear()
 		{
-			while (lastAlloc != nullptr)
+			while (frontLog != nullptr)
 			{
-				Memory_CheckBoundries(lastAlloc->front, lastAlloc->back);
-				lastAlloc = lastAlloc->prev;
+				Memory_CheckBoundries(frontLog->front, frontLog->back);
+				frontLog = frontLog->prev;
 			}
 			allocator.Clear();
 		}
 
 		AllocatorType allocator;
 #ifdef _DEBUG
-		AllocationLog* lastAlloc = nullptr;
+		AllocationLog* frontLog = nullptr;
 #endif //_DEBUG
 	};
 
