@@ -247,13 +247,6 @@ namespace BB
 #endif //_DEBUG
 	};
 
-	struct VulkanBuffer
-	{
-		VkBuffer buffer;
-		VkDeviceMemory memory;
-		uint64_t memSize;
-	};
-
 
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	void VulkanDestroyBuffer(RBufferHandle a_Handle);

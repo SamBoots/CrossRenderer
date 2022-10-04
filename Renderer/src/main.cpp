@@ -5,6 +5,14 @@ using namespace BB;
 
 
 RenderBackend t_Backend;
+bool t_Quit = false;
+
+void WindowQuit(WindowHandle a_Handle)
+{
+	t_Quit = true;
+
+	t_Backend.DestroyBackend();
+}
 
 void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 {
@@ -21,18 +29,16 @@ int main()
 		800, 
 		"Unit Test Main Window");
 
+	OS::SetCloseWindowPtr(WindowQuit);
 	OS::SetResizeEventPtr(WindowResize);
 
 	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, true);
 
-	bool hasWindows = true;
-	while (hasWindows)
+	while (!t_Quit)
 	{
 		t_Backend.Update();
-
-		hasWindows = OS::ProcessMessages();
+		OS::ProcessMessages();
 	}
 
-	t_Backend.DestroyBackend();
 	return 0;
 }

@@ -11,6 +11,13 @@
 #include "VulkanCommon.h"
 
 #include <iostream>
+
+struct VulkanBuffer
+{
+	VkBuffer buffer;
+	VmaAllocation allocation;
+};
+
 namespace BB
 {
 	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
@@ -577,7 +584,6 @@ static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_Ren
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	VulkanBuffer t_Buffer;
-	t_Buffer.memSize = a_Info.size;
 	
 	VkBufferUsageFlags t_Usage = VKConv::RenderBufferUsage(a_Info.usage);
 	VkMemoryPropertyFlags t_MemoryProperties = VKConv::MemoryPropertyFlags(a_Info.memProperties);
@@ -587,25 +593,14 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 	t_BufferInfo.size = a_Info.size;
 	t_BufferInfo.usage = t_Usage;
 	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	VKASSERT(vkCreateBuffer(s_VkBackendInst.device.logicalDevice, &t_BufferInfo, nullptr, &t_Buffer.buffer),
-		"Vulkan: Failed to create render buffer.");
 
-	VkMemoryRequirements t_MemRequirements;
-	vkGetBufferMemoryRequirements(s_VkBackendInst.device.logicalDevice, t_Buffer.buffer, &t_MemRequirements);
+	VmaAllocationCreateInfo t_VmaAlloc{};
+	t_VmaAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-	VkMemoryAllocateInfo t_AllocInfo{};
-	t_AllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	t_AllocInfo.allocationSize = t_MemRequirements.size;
-	t_AllocInfo.memoryTypeIndex = FindMemoryType(t_MemRequirements.memoryTypeBits, t_MemoryProperties);
-
-	VKASSERT(vkAllocateMemory(s_VkBackendInst.device.logicalDevice, &t_AllocInfo, nullptr, &t_Buffer.memory),
-		"Vulkan: Failed to allocate memory.");
-
-	VKASSERT(vkBindBufferMemory(s_VkBackendInst.device.logicalDevice, 
-		t_Buffer.buffer,
-		t_Buffer.memory,
-		0),
-		"Vulkan: Failed to bind buffer to memory region.");
+	VKASSERT(vmaCreateBuffer(s_VkBackendInst.vma, 
+		&t_BufferInfo, &t_VmaAlloc,
+		&t_Buffer.buffer, &t_Buffer.allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
 	return RBufferHandle(s_VkBackendInst.renderBuffers.insert(t_Buffer));
 }
@@ -613,8 +608,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 {
 	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
-	vkDestroyBuffer(s_VkBackendInst.device.logicalDevice, t_Buffer.buffer, nullptr);
-	vkFreeMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory, nullptr);
+	vmaDestroyBuffer(s_VkBackendInst.vma, t_Buffer.buffer, t_Buffer.allocation);
 	s_VkBackendInst.renderBuffers.erase(a_Handle.handle);
 }
 
@@ -622,23 +616,24 @@ void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data)
 {
 	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
 	void* t_MapData;
-	VKASSERT(vkMapMemory(s_VkBackendInst.device.logicalDevice,
-		t_Buffer.memory, 0,
-		t_Buffer.memSize, 0, &t_MapData),
+	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+		t_Buffer.allocation,
+		&t_MapData),
 		"Vulkan: Failed to map memory");
-	memcpy(t_MapData, a_Data, t_Buffer.memSize);
-	vkUnmapMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory);
+	memcpy(t_MapData, a_Data, t_Buffer.allocation->GetSize());
+	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
 }
 
 void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View)
 {
 	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
 	void* t_MapData;
-	VKASSERT(vkMapMemory(s_VkBackendInst.device.logicalDevice, 
-		t_Buffer.memory, 0, a_View.size, 0, &t_MapData),
+	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+		t_Buffer.allocation,
+		&t_MapData),
 		"Vulkan: Failed to map memory");
-	memcpy(t_MapData, a_Data, a_View.size);
-	vkUnmapMemory(s_VkBackendInst.device.logicalDevice, t_Buffer.memory);
+	memcpy(t_MapData, a_Data, t_Buffer.allocation->GetSize());
+	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
 }
 
 
@@ -1204,6 +1199,7 @@ void BB::VulkanDestroyBackend(APIRenderBackend)
 	vkDestroySwapchainKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
 		nullptr);
+	vmaDestroyAllocator(s_VkBackendInst.vma);
 	vkDestroyDevice(s_VkBackendInst.device.logicalDevice, nullptr);
 
 	if (s_VkBackendInst.backend.debugMessenger != 0)
