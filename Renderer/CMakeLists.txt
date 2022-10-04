@@ -37,7 +37,7 @@ else()
 message(STATUS "Vulkan found")
 message(STATUS ${Vulkan_INCLUDE_DIRS})
 endif()
-target_link_libraries(Renderer Vulkan::Vulkan)
+target_link_libraries(Renderer Vulkan::Vulkan VMA)
 
 #Include library
 target_include_directories(Renderer PUBLIC

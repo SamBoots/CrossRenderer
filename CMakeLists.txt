@@ -32,4 +32,5 @@ link_libraries(X11)
 endif()
 
 add_subdirectory ("BB")
+add_subdirectory ("Libs")
 add_subdirectory ("Renderer")

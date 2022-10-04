@@ -35,7 +35,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(OS::GetOSWindowHandle(a_WindowHandle));
-	t_BackendCreateInfo.version = 0;
+	t_BackendCreateInfo.version = 1;
 	t_BackendCreateInfo.validationLayers = true;
 	t_BackendCreateInfo.appName = "TestName";
 	t_BackendCreateInfo.engineName = "TestEngine";

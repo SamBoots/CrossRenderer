@@ -1,3 +1,9 @@
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#define VMA_VULKAN_VERSION 1001000 // Vulkan 1.1
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 #include "VulkanInitializers.h"
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
@@ -35,6 +41,7 @@ namespace BB
 		VulkanBackend backend{};
 		VulkanDevice device{};
 		VulkanSwapChain swapChain{};
+		VmaAllocator vma{};
 		Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
 		Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
 		Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
@@ -881,6 +888,20 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 		s_VkBackendInst.device.logicalDevice,
 		a_CreateInfo.windowWidth,
 		a_CreateInfo.windowHeight);
+
+	//Setup the Vulkan Memory Allocator
+	VmaVulkanFunctions t_VkFunctions{};
+	t_VkFunctions.vkGetInstanceProcAddr = &vkGetInstanceProcAddr;
+	t_VkFunctions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
+
+	VmaAllocatorCreateInfo t_AllocatorCreateInfo = {};
+	t_AllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+	t_AllocatorCreateInfo.physicalDevice = s_VkBackendInst.device.physicalDevice;
+	t_AllocatorCreateInfo.device = s_VkBackendInst.device.logicalDevice;
+	t_AllocatorCreateInfo.instance = s_VkBackendInst.backend.instance;
+	t_AllocatorCreateInfo.pVulkanFunctions = &t_VkFunctions;
+
+	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VkBackendInst.vma);
 
 	//The backend handle is not that important which number it is. But we will make it 1.
 	return APIRenderBackend(1);
