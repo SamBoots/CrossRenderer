@@ -1,6 +1,6 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1001000 // Vulkan 1.1
+#define VMA_VULKAN_VERSION 1002000 // Vulkan 1.2
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
@@ -14,23 +14,6 @@
 namespace BB
 {
 	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
-	constexpr uintptr_t VULKAN_MEMORY_BLOCK_FREE = 0xDEADBEEFDEADBEEF;
-
-	struct VulkanMemory
-	{
-		VkDeviceMemory memoryRegion;
-		VkDeviceSize size;
-		uint32_t memoryIndex;
-
-		struct Block
-		{
-			VkDeviceMemory memoryRegion;
-			VkDeviceSize offset;
-			VkDeviceSize size;
-			void* ptr; //If it's not device local, or check if it's free. 
-		};
-		BB::Array<Block> memBlocks{ s_VulkanAllocator };
-	};
 
 	using PipelineLayoutHash = uint64_t;
 	struct VulkanBackend_inst
@@ -895,7 +878,7 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 	t_VkFunctions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
 
 	VmaAllocatorCreateInfo t_AllocatorCreateInfo = {};
-	t_AllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+	t_AllocatorCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, a_CreateInfo.version, 0);
 	t_AllocatorCreateInfo.physicalDevice = s_VkBackendInst.device.physicalDevice;
 	t_AllocatorCreateInfo.device = s_VkBackendInst.device.logicalDevice;
 	t_AllocatorCreateInfo.instance = s_VkBackendInst.backend.instance;
