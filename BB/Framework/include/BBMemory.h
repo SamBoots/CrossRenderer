@@ -112,6 +112,7 @@ namespace BB
 
 		~AllocatorTemplate()
 		{
+#ifdef _DEBUG
 			AllocationLog* t_FrontLog = frontLog;
 			while (t_FrontLog != nullptr)
 			{
@@ -119,6 +120,7 @@ namespace BB
 					" Leak size: " << t_FrontLog->allocSize << "\n";
 				t_FrontLog = t_FrontLog->prev;
 			}
+#endif //_DEBUG
 			Clear();
 		}
 
@@ -134,11 +136,13 @@ namespace BB
 
 		void Clear()
 		{
+#ifdef _DEBUG
 			while (frontLog != nullptr)
 			{
 				Memory_CheckBoundries(frontLog->front, frontLog->back);
 				frontLog = frontLog->prev;
 			}
+#endif //_DEBUG
 			allocator.Clear();
 		}
 
