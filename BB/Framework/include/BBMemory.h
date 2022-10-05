@@ -72,7 +72,6 @@ namespace BB
 			reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog = t_AllocLog;
 			t_AllocatedPtr = Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
 #endif //_DEBUG
-
 			return t_AllocatedPtr;
 		}
 		else
@@ -157,30 +156,15 @@ namespace BB
 	using FreelistAllocator_t = AllocatorTemplate<allocators::FreelistAllocator>;
 	using POW_FreelistAllocator_t = AllocatorTemplate<allocators::POW_FreelistAllocator>;
 
+#define BBalloc(a_Allocator, a_Size) BBalloc_f(a_Allocator, a_Size, 1)
+#define BBnew(a_Allocator, a_Type) new (BBalloc_f(a_Allocator, sizeof(a_Type), __alignof(a_Type))) a_Type
 
+#define BBfree(a_Allocator, a_Ptr) BBfree_f(a_Allocator, a_Ptr)
 
 #pragma region AllocationFunctions
-	inline void* BBalloc(Allocator a_Allocator, const size_t a_Size)
+	inline void* BBalloc_f(Allocator a_Allocator, const size_t a_Size, const size_t a_Alignment)
 	{
-		return a_Allocator.func(a_Allocator.allocator, a_Size, 1, nullptr);
-	}
-
-	template <typename T>
-	inline T* BBnew(Allocator a_Allocator)
-	{
-		return new (reinterpret_cast<T*>(a_Allocator.func(a_Allocator.allocator, sizeof(T), __alignof(T), nullptr))) T();
-	}
-
-	template <typename T>
-	inline T* BBnew(Allocator a_Allocator, const T& a_T)
-	{
-		return new (reinterpret_cast<T*>(a_Allocator.func(a_Allocator.allocator, sizeof(T), __alignof(T), nullptr))) T(a_T);
-	}
-
-	template <typename T, typename... Args>
-	inline T* BBnew(Allocator a_Allocator, Args&&... a_Args)
-	{
-		return new (reinterpret_cast<T*>(a_Allocator.func(a_Allocator.allocator, sizeof(T), __alignof(T), nullptr))) T(std::forward<Args>(a_Args)...);
+		return a_Allocator.func(a_Allocator.allocator, a_Size, a_Alignment, nullptr);
 	}
 
 	template <typename T>
@@ -219,7 +203,7 @@ namespace BB
 	}
 
 	template <typename T>
-	inline void BBfree(Allocator a_Allocator, T* a_Ptr)
+	inline void BBfree_f(Allocator a_Allocator, T* a_Ptr)
 	{
 		BB_ASSERT(a_Ptr != nullptr, "Trying to free a nullptr");
 		if constexpr (!std::is_trivially_destructible_v<T>)

@@ -188,7 +188,7 @@ namespace BB
 				while (t_Entry->next_Entry != nullptr)
 				{
 					t_PreviousEntry = t_Entry;
-					t_Entry = reinterpret_cast<HashEntry*>(BBnew<HashEntry>(m_Allocator, *t_Entry->next_Entry));
+					t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(* t_Entry->next_Entry));
 					t_PreviousEntry->next_Entry = t_Entry;
 				}
 			}
@@ -250,7 +250,7 @@ namespace BB
 				while (t_Entry->next_Entry != nullptr)
 				{
 					t_PreviousEntry = t_Entry;
-					t_Entry = reinterpret_cast<HashEntry*>(BBnew<HashEntry>(m_Allocator, *t_Entry->next_Entry));
+					t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(* t_Entry->next_Entry));
 					t_PreviousEntry->next_Entry = t_Entry;
 				}
 			}
@@ -313,7 +313,7 @@ namespace BB
 		{
 			if (t_Entry->next_Entry == nullptr)
 			{
-				HashEntry* t_NewEntry = BBnew<HashEntry>(m_Allocator);
+				HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry);
 				t_NewEntry->key = a_Key;
 				new (&t_NewEntry->value) Value(std::forward<Args>(a_ValueArgs)...);
 				t_NewEntry->next_Entry = nullptr;
@@ -488,7 +488,7 @@ namespace BB
 				{
 					if (t_Entry->next_Entry == nullptr)
 					{
-						HashEntry* t_NewEntry = BBnew<HashEntry>(m_Allocator, m_Entries[i]);
+						HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry)(m_Entries[i]);
 					}
 					t_Entry = t_Entry->next_Entry;
 				}

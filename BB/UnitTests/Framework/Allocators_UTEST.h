@@ -35,17 +35,17 @@ TEST(MemoryAllocators, LINEAR_SINGLE_ALLOCATIONS)
 	
 	for (size_t i = 0; i < sample_32_bytes; i++)
 	{
-		size32Bytes* sample = BB::BBnew<size32Bytes>(t_LinearAllocator);
+		size32Bytes* sample = BBnew(t_LinearAllocator, size32Bytes);
 		sample->value = randomValues[i];
 	}
 	for (size_t i = 0; i < sample_256_bytes; i++)
 	{
-		size256Bytes* sample = BB::BBnew<size256Bytes>(t_LinearAllocator);
+		size256Bytes* sample = BBnew(t_LinearAllocator, size256Bytes);
 		sample->value = randomValues[sample_32_bytes + i];
 	}
 	for (size_t i = 0; i < sample_2593_bytes; i++)
 	{
-		size2593bytes* sample = BB::BBnew<size2593bytes>(t_LinearAllocator);
+		size2593bytes* sample = BBnew(t_LinearAllocator, size2593bytes);
 		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
 	}
 
@@ -155,12 +155,12 @@ TEST(MemoryAllocators, FREELIST_SINGLE_ALLOCATIONS)
 
 	{
 		//This address should always be used since it's a free block.
-		void* repeatAddress32 = BB::BBnew<size32Bytes>(t_FreelistAllocator);
+		void* repeatAddress32 = BBnew(t_FreelistAllocator, size32Bytes);
 		BB::BBfree(t_FreelistAllocator, repeatAddress32);
 
 		for (size_t i = 0; i < sample_32_bytes; i++)
 		{
-			size32Bytes* sample = BB::BBnew<size32Bytes>(t_FreelistAllocator);
+			size32Bytes* sample = BBnew(t_FreelistAllocator, size32Bytes);
 			sample->value = randomValues[i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[i]) << "32 bytes, Value is different in the freelist allocator.";
@@ -171,12 +171,12 @@ TEST(MemoryAllocators, FREELIST_SINGLE_ALLOCATIONS)
 	}
 	{
 		//This address should always be used since it's a free block.
-		void* repeatAddress256 = BB::BBnew<size256Bytes>(t_FreelistAllocator);
+		void* repeatAddress256 = BBnew(t_FreelistAllocator, size256Bytes);
 		BB::BBfree(t_FreelistAllocator, repeatAddress256);
 
 		for (size_t i = 0; i < sample_256_bytes; i++)
 		{
-			size256Bytes* sample = BB::BBnew<size256Bytes>(t_FreelistAllocator);
+			size256Bytes* sample = BBnew(t_FreelistAllocator, size256Bytes);
 			sample->value = randomValues[sample_32_bytes + i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[sample_32_bytes + i]) << "256 bytes, Value is different in the freelist allocator.";
@@ -187,12 +187,12 @@ TEST(MemoryAllocators, FREELIST_SINGLE_ALLOCATIONS)
 	}
 	{
 		//This address should always be used since it's a free block.
-		void* repeatAddress2593 = BB::BBnew<size2593bytes>(t_FreelistAllocator);
+		void* repeatAddress2593 = BBnew(t_FreelistAllocator, size2593bytes);
 		BB::BBfree(t_FreelistAllocator, repeatAddress2593);
 
 		for (size_t i = 0; i < sample_2593_bytes; i++)
 		{
-			size2593bytes* sample = BB::BBnew<size2593bytes>(t_FreelistAllocator);
+			size2593bytes* sample = BBnew(t_FreelistAllocator, size2593bytes);
 			sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[sample_32_bytes + sample_256_bytes + i]) << "2593 bytes, Value is different in the freelist allocator.";
@@ -289,12 +289,12 @@ TEST(MemoryAllocators, POW_FREELIST_SINGLE_ALLOCATIONS)
 
 	{
 		////This address should always be used since it's a free block.
-		void* repeatAddress32 = BB::BBnew<size32Bytes>(t_POW_FreelistAllocator);
+		void* repeatAddress32 = BBnew(t_POW_FreelistAllocator, size32Bytes);
 		BB::BBfree(t_POW_FreelistAllocator, repeatAddress32);
 
 		for (size_t i = 0; i < sample_32_bytes; i++)
 		{
-			size32Bytes* sample = BB::BBnew<size32Bytes>(t_POW_FreelistAllocator);
+			size32Bytes* sample = BBnew(t_POW_FreelistAllocator, size32Bytes);
 			sample->value = randomValues[i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[i]) << "32 bytes, Value is different in the freelist allocator.";
@@ -305,12 +305,12 @@ TEST(MemoryAllocators, POW_FREELIST_SINGLE_ALLOCATIONS)
 	}
 	{
 		////This address should always be used since it's a free block.
-		void* repeatAddress256 = BB::BBnew<size256Bytes>(t_POW_FreelistAllocator);
+		void* repeatAddress256 = BBnew(t_POW_FreelistAllocator, size256Bytes);
 		BB::BBfree(t_POW_FreelistAllocator, repeatAddress256);
 
 		for (size_t i = 0; i < sample_256_bytes; i++)
 		{
-			size256Bytes* sample = BB::BBnew<size256Bytes>(t_POW_FreelistAllocator);
+			size256Bytes* sample = BBnew(t_POW_FreelistAllocator, size256Bytes);
 			sample->value = randomValues[sample_32_bytes + i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[sample_32_bytes + i]) << "256 bytes, Value is different in the freelist allocator.";
@@ -322,12 +322,12 @@ TEST(MemoryAllocators, POW_FREELIST_SINGLE_ALLOCATIONS)
 
 	{
 		//This address should always be used since it's a free block.
-		void* repeatAddress2593 = BB::BBnew<size2593bytes>(t_POW_FreelistAllocator);
+		void* repeatAddress2593 = BBnew(t_POW_FreelistAllocator, size2593bytes);
 		BB::BBfree(t_POW_FreelistAllocator, repeatAddress2593);
 
 		for (size_t i = 0; i < sample_2593_bytes; i++)
 		{
-			size2593bytes* sample = BB::BBnew<size2593bytes>(t_POW_FreelistAllocator);
+			size2593bytes* sample = BBnew(t_POW_FreelistAllocator, size2593bytes);
 			sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
 			//Compare the values.
 			ASSERT_EQ(sample->value, randomValues[sample_32_bytes + sample_256_bytes + i]) << "2593 bytes, Value is different in the freelist allocator.";
@@ -480,17 +480,17 @@ TEST(MemoryAllocators, TEMPORARY_ALLOCATOR)
 
 	for (size_t i = 0; i < sample_32_bytes; i++)
 	{
-		size32Bytes* sample = BB::BBnew<size32Bytes>(t_TempAlloc);
+		size32Bytes* sample = BBnew(t_TempAlloc, size32Bytes);
 		sample->value = randomValues[i];
 	}
 	for (size_t i = 0; i < sample_256_bytes; i++)
 	{
-		size256Bytes* sample = BB::BBnew<size256Bytes>(t_TempAlloc);
+		size256Bytes* sample = BBnew(t_TempAlloc, size256Bytes);
 		sample->value = randomValues[sample_32_bytes + i];
 	}
 	for (size_t i = 0; i < sample_2593_bytes; i++)
 	{
-		size2593bytes* sample = BB::BBnew<size2593bytes>(t_TempAlloc);
+		size2593bytes* sample = BBnew(t_TempAlloc, size2593bytes);
 		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
 	}
 
