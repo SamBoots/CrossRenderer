@@ -8,6 +8,18 @@
 
 namespace BB
 {
+#ifdef _DEBUG
+#define BB_MEMORY_DEBUG const char* a_File, size_t a_Line,
+#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
+#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
+#define BB_MEMORY_DEBUG_FREE nullptr, 0,
+#else
+#define BB_MEMORY_DEBUG 
+#define BB_MEMORY_DEBUG_ARG
+#define BB_MEMORY_DEBUG_SEND
+#define BB_MEMORY_DEBUG_FREE
+#endif //_DEBUG
+
 	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
 	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
 
@@ -21,6 +33,8 @@ namespace BB
 		void* front;
 		void* back;
 		size_t allocSize;
+		const char* file;
+		size_t line;
 	};
 
 	struct AllocationLogger
@@ -40,7 +54,7 @@ namespace BB
 		return a_Front;
 	}
 
-	typedef void* (*AllocateFunc)(void* a_AllocatorData, size_t a_Size, size_t a_Alignment, void* a_OldPtr);
+	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_AllocatorData, size_t a_Size, size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
 	{
 		AllocateFunc func;
@@ -52,7 +66,7 @@ namespace BB
 	void Memory_CheckBoundries(void* a_Front, void* a_Back);
 
 	template<typename Allocator_t>
-	void* StandardRealloc(void* a_Allocator, size_t a_Size, size_t a_Alignment, void* a_Ptr)
+	void* StandardRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, size_t a_Alignment, void* a_Ptr)
 	{
 		if (a_Size > 0)
 		{
@@ -69,6 +83,8 @@ namespace BB
 			t_AllocLog->front = t_AllocatedPtr;
 			t_AllocLog->back = Memory_AddBoundries(t_AllocatedPtr, a_Size);
 			t_AllocLog->allocSize = a_Size;
+			t_AllocLog->file = a_File;
+			t_AllocLog->line = a_Line;
 			reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog = t_AllocLog;
 			t_AllocatedPtr = Pointer::Add(t_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
 #endif //_DEBUG
@@ -115,8 +131,8 @@ namespace BB
 			AllocationLog* t_FrontLog = frontLog;
 			while (t_FrontLog != nullptr)
 			{
-				std::cout << "Address: " << t_FrontLog->front <<
-					" Leak size: " << t_FrontLog->allocSize << "\n";
+				std::cout << "Memory leak accured in file: " << t_FrontLog->file << "\n on line: " 
+					<< t_FrontLog->line << "\n leak size: " << t_FrontLog->allocSize << "\n";
 				t_FrontLog = t_FrontLog->prev;
 			}
 #endif //_DEBUG
@@ -156,15 +172,17 @@ namespace BB
 	using FreelistAllocator_t = AllocatorTemplate<allocators::FreelistAllocator>;
 	using POW_FreelistAllocator_t = AllocatorTemplate<allocators::POW_FreelistAllocator>;
 
-#define BBalloc(a_Allocator, a_Size) BBalloc_f(a_Allocator, a_Size, 1)
-#define BBnew(a_Allocator, a_Type) new (BBalloc_f(a_Allocator, sizeof(a_Type), __alignof(a_Type))) a_Type
+#define BBalloc(a_Allocator, a_Size) BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, a_Size, 1)
+#define BBnew(a_Allocator, a_Type) new (BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, sizeof(a_Type), __alignof(a_Type))) a_Type
 
 #define BBfree(a_Allocator, a_Ptr) BBfree_f(a_Allocator, a_Ptr)
+#define BBfreeArr(a_Allocator, a_Ptr) BBfreeArr_f(a_Allocator, a_Ptr)
 
 #pragma region AllocationFunctions
-	inline void* BBalloc_f(Allocator a_Allocator, const size_t a_Size, const size_t a_Alignment)
+	//Use the BBnew or BBalloc function instead of this.
+	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_Allocator, const size_t a_Size, const size_t a_Alignment)
 	{
-		return a_Allocator.func(a_Allocator.allocator, a_Size, a_Alignment, nullptr);
+		return a_Allocator.func(BB_MEMORY_DEBUG_SEND a_Allocator.allocator, a_Size, a_Alignment, nullptr);
 	}
 
 	template <typename T>
@@ -174,7 +192,7 @@ namespace BB
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			return reinterpret_cast<T*>(a_Allocator.func(a_Allocator.allocator, sizeof(T) * a_Length, __alignof(T), nullptr));
+			return reinterpret_cast<T*>(a_Allocator.func(nullptr, 0, a_Allocator.allocator, sizeof(T) * a_Length, __alignof(T), nullptr));
 		}
 		else
 		{
@@ -186,7 +204,7 @@ namespace BB
 				t_HeaderSize = sizeof(size_t) / sizeof(T);
 
 			//Allocate the array, but shift it by sizeof(size_t) bytes forward to allow the size of the header to be put in as well.
-			T* ptr = (reinterpret_cast<T*>(a_Allocator.func(a_Allocator.allocator, sizeof(T) * (a_Length + t_HeaderSize), __alignof(T), nullptr))) + t_HeaderSize;
+			T* ptr = (reinterpret_cast<T*>(a_Allocator.func(nullptr, 0, a_Allocator.allocator, sizeof(T) * (a_Length + t_HeaderSize), __alignof(T), nullptr))) + t_HeaderSize;
 
 			//Store the size of the array inside the first element of the pointer.
 			*(reinterpret_cast<size_t*>(ptr) - 1) = a_Length;
@@ -210,17 +228,17 @@ namespace BB
 		{
 			a_Ptr->~T();
 		}
-		a_Allocator.func(a_Allocator.allocator, 0, 0, a_Ptr);
+		a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr);
 	}
 
 	template <typename T>
-	inline void BBfreeArr(Allocator a_Allocator, T* a_Ptr)
+	inline void BBfreeArr_f(Allocator a_Allocator, T* a_Ptr)
 	{
 		BB_ASSERT(a_Ptr != nullptr, "Trying to freeArray a nullptr");
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			a_Allocator.func(a_Allocator.allocator, 0, 0, a_Ptr);
+			a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr);
 		}
 		else
 		{
@@ -236,7 +254,7 @@ namespace BB
 			else
 				t_HeaderSize = sizeof(size_t) / sizeof(T);
 
-			a_Allocator.func(a_Allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
+			a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
 		}
 	}
 }

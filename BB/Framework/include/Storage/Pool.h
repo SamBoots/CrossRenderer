@@ -49,7 +49,7 @@ namespace BB
 	template<typename T>
 	inline Pool<T>::~Pool()
 	{
-		BBfreeArr<T>(m_Allocator, m_Start);
+		BBfreeArr(m_Allocator, m_Start);
 	}
 
 	template<class T>

@@ -2,7 +2,7 @@
 
 namespace BB
 {
-	void* ReallocTemp(void* a_Allocator, size_t a_Size, size_t a_Alignment, void*)
+	void* ReallocTemp(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, size_t a_Alignment, void*)
 	{
 		if (a_Size == 0)
 			return nullptr;
