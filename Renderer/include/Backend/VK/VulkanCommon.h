@@ -146,7 +146,7 @@ namespace BB
 		inline ExtensionResult TranslateExtensions(const Allocator a_TempAllocator, BB::Slice<RENDER_EXTENSIONS> a_Extensions)
 		{
 			ExtensionResult t_Result;
-			t_Result.extensions = BBnewArr<const char*>(a_TempAllocator, 32);
+			t_Result.extensions = BBnewArr(a_TempAllocator, 32, const char*);
 			t_Result.count = 0;
 			for (size_t i = 0; i < a_Extensions.size(); i++)
 			{
@@ -234,17 +234,11 @@ namespace BB
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 	};
-
-	struct VulkanBackend
+	struct VulkanDebug
 	{
-		VkInstance instance;
-		VkSurfaceKHR surface;
-
-#ifdef _DEBUG
 		VkDebugUtilsMessengerEXT debugMessenger;
 		const char** extensions;
 		size_t extensionCount;
-#endif //_DEBUG
 	};
 
 

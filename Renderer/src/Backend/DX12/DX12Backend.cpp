@@ -108,7 +108,7 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_SysAllocator, Allocator a_Tem
 		return APIRenderBackend(1);
 	}
 	//Allocate the static vulkan instance and give it the system allocator.
-	s_DXBackendInst = BBnew<DX12Backend_inst>(a_SysAllocator, a_SysAllocator);
+	s_DXBackendInst = BBnew(a_SysAllocator, DX12Backend_inst)(a_SysAllocator);
 
 	DX12Backend t_Backend{};
 
