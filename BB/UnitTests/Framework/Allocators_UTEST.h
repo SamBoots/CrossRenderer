@@ -94,9 +94,9 @@ TEST(MemoryAllocators, LINEAR_ARRAY_ALLOCATIONS)
 
 	BB::LinearAllocator_t t_LinearAllocator(allocatorSize);
 
-	size32Bytes* size32Array = BB::BBnewArr<size32Bytes>(t_LinearAllocator, sample_32_bytes);
-	size256Bytes* size256Array = BB::BBnewArr<size256Bytes>(t_LinearAllocator, sample_256_bytes);
-	size2593bytes* size2593Array = BB::BBnewArr<size2593bytes>(t_LinearAllocator, sample_2593_bytes);
+	size32Bytes* size32Array = BBnewArr(t_LinearAllocator, sample_32_bytes, size32Bytes);
+	size256Bytes* size256Array = BBnewArr(t_LinearAllocator, sample_256_bytes, size256Bytes);
+	size2593bytes* size2593Array = BBnewArr(t_LinearAllocator, sample_2593_bytes, size2593bytes);
 	
 	//Checking the arrays
 	for (size_t i = 0; i < sample_32_bytes; i++)
@@ -224,9 +224,9 @@ TEST(MemoryAllocators, FREELIST_ARRAY_ALLOCATIONS)
 
 	BB::FreelistAllocator_t t_FreeList(allocatorSize);
 
-	size32Bytes* size32Array = BB::BBnewArr<size32Bytes>(t_FreeList, sample_32_bytes);
-	size256Bytes* size256Array = BB::BBnewArr<size256Bytes>(t_FreeList, sample_256_bytes);
-	size2593bytes* size2593Array = BB::BBnewArr<size2593bytes>(t_FreeList, sample_2593_bytes);
+	size32Bytes* size32Array = BBnewArr(t_FreeList, sample_32_bytes, size32Bytes);
+	size256Bytes* size256Array = BBnewArr(t_FreeList, sample_256_bytes, size256Bytes);
+	size2593bytes* size2593Array = BBnewArr(t_FreeList, sample_2593_bytes, size2593bytes);
 
 	//Checking the arrays
 	for (size_t i = 0; i < sample_32_bytes; i++)

@@ -3,9 +3,7 @@
 #include "Allocators_UTEST.h"
 #include <chrono>
 
-constexpr const size_t kbSize = 1024;
-constexpr const size_t mbSize = kbSize * 1024;
-constexpr const size_t gbSize = mbSize * 1024;
+using namespace BB;
 
 static void FillBuffer(uint8_t* a_Value, size_t a_Size)
 {
@@ -33,14 +31,14 @@ TEST(MemoryOperation_Speed_Comparison, Memcpy_Aligned)
 		MediumCopySize +
 		BigCopySize * 2);
 
-	uint8_t* smallBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, SmallCopySize);
+	uint8_t* smallBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
 	FillBuffer(smallBuffer, SmallCopySize);
-	uint8_t* mediumBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, MediumCopySize);
+	uint8_t* mediumBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
 	FillBuffer(mediumBuffer, MediumCopySize);
-	uint8_t* bigBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	uint8_t* bigBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	FillBuffer(bigBuffer, BigCopySize);
 
-	uint8_t* copyBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	uint8_t* copyBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	FillBuffer(copyBuffer, BigCopySize);
 
 
@@ -162,11 +160,11 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		MediumCopySize +
 		BigCopySize * 2);
 
-	uint8_t* smallBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, SmallCopySize);
+	uint8_t* smallBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
 	FillBuffer(smallBuffer, SmallCopySize);
-	uint8_t* mediumBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, MediumCopySize);
+	uint8_t* mediumBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
 	FillBuffer(mediumBuffer, MediumCopySize);
-	uint8_t* bigBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	uint8_t* bigBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	FillBuffer(bigBuffer, BigCopySize);
 
 #pragma region SmallBuff
@@ -292,9 +290,9 @@ TEST(MemoryOperation_Speed_Comparison, MemSet_Aligend)
 		MediumCopySize +
 		BigCopySize * 2);
 
-	uint8_t* smallBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, SmallCopySize);
-	uint8_t* mediumBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, MediumCopySize);
-	uint8_t* bigBuffer = BB::BBnewArr<uint8_t>(t_FixedAllocator, BigCopySize);
+	uint8_t* smallBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
+	uint8_t* mediumBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
+	uint8_t* bigBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 
 #pragma region SmallBuff
 	{

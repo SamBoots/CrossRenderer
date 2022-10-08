@@ -33,7 +33,7 @@ namespace BB
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
 		BB_ASSERT(a_Size != 0, "Pool is created with an object size of 0!");
 
-		m_Start = BBnewArr<T>(m_Allocator, m_Size);
+		m_Start = BBnewArr(m_Allocator, m_Size, T);
 		m_Pool = reinterpret_cast<T**>(m_Start);
 
 		T** t_Pool = m_Pool;

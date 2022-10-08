@@ -3,8 +3,6 @@
 
 using namespace BB;
 
-#pragma region MemoryArena_Debugging
-
 constexpr const uintptr_t MEMORY_BOUNDRY_CHECK_VALUE = 0xDEADBEEFDEADBEEF;
 
 void* BB::Memory_AddBoundries(void* a_Front, size_t a_AllocSize)
@@ -26,5 +24,3 @@ void BB::Memory_CheckBoundries(void* a_Front, void* a_Back)
 	BB_ASSERT(*reinterpret_cast<size_t*>(a_Back) == MEMORY_BOUNDRY_CHECK_VALUE, 
 		"Memory boundrycheck failed! Buffer overwritten at the back.");
 }
-
-#pragma endregion MemoryArena_Debugging
