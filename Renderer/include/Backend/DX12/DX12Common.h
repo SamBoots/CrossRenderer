@@ -9,20 +9,18 @@
 
 #include "RenderBackendCommon.h"
 
-namespace BB
-{
+#ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
 	if (a_HRESULT != S_OK)\
 		BB_ASSERT(false, a_Msg);\
 
-	struct DX12Backend
-	{
-		IDXGIFactory4* factory;
-#ifdef _DEBUG
-		ID3D12Debug1* debugController;
-#endif //_DEBUG
-	};
+#else
+#define DXASSERT(a_HRESULT, a_Msg) a_HRESULT
 
+#endif //_DEBUG
+
+namespace BB
+{
 	struct DX12Device
 	{
 		IDXGIAdapter1* adapter;
@@ -41,10 +39,6 @@ namespace BB
 
 	struct DX12SwapChain
 	{
-		uint32_t width;
-		uint32_t height;
-		IDXGISwapChain3* swapchain;
 
-		ID3D12Fence* fence;
 	};
 }

@@ -74,7 +74,7 @@ void* FixedLinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 #ifdef _DEBUG
 	if (t_Address + a_Size > m_End)
 	{
-		BB_ASSERT(false, "Failed to allocate more memory from a fixed linear allocator")
+		BB_ASSERT(false, "Failed to allocate more memory from a fixed linear allocator");
 	}
 #endif //_DEBUG
 	return reinterpret_cast<void*>(t_Address);

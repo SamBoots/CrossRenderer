@@ -5,20 +5,24 @@
 
 using namespace BB;
 
+static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
+
 struct DX12Backend_inst
 {
-	DX12Backend_inst(Allocator s_VulkanAllocator)
-		:	s_VulkanAllocator(s_VulkanAllocator)
-	{}
 	uint32_t currentFrame = 0;
 	uint32_t frameCount = 3; //for now hardcode 3 backbuffers.
 
-	DX12Backend backend;
-	DX12Device device;
+	uint32_t swapchainWidth;
+	uint32_t swapchainHeight;
 
-	Allocator s_VulkanAllocator;
+	IDXGIFactory4* factory;
+	ID3D12Debug1* debugController;
+	IDXGISwapChain3* swapchain;
+	ID3D12Fence* fence;
+
+	DX12Device device;
 };
-static DX12Backend_inst* s_DXBackendInst = nullptr;
+static DX12Backend_inst s_DXBackendInst;
 
 static DX12Device CreateDevice(IDXGIFactory4* a_Factory)
 {
@@ -100,34 +104,24 @@ static DX12SwapChain CreateSwapchain(uint32_t a_Width, uint32_t a_Height)
 
 APIRenderBackend BB::DX12CreateBackend(Allocator a_SysAllocator, Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
-	if (s_DXBackendInst != nullptr)
-	{
-		BB_WARNING(false,
-			"Trying to create a DX12 backend while you already have one!",
-			WarningType::HIGH);
-		return APIRenderBackend(1);
-	}
-	//Allocate the static vulkan instance and give it the system allocator.
-	s_DXBackendInst = BBnew(a_SysAllocator, DX12Backend_inst)(a_SysAllocator);
-
-	DX12Backend t_Backend{};
-
 	UINT t_FactoryFlags = 0;
-#ifdef _DEBUG
-	ID3D12Debug* t_DebugController;
-	DXASSERT(D3D12GetDebugInterface(IID_PPV_ARGS(&t_DebugController)),
-		"DX12: failed to create debuginterface.");
-	DXASSERT(t_DebugController->QueryInterface(IID_PPV_ARGS(&t_Backend.debugController)),
-		"DX12: failed to create debuginterface.");
-	t_Backend.debugController->EnableDebugLayer();
-	t_Backend.debugController->SetEnableGPUBasedValidation(true);
 
-	t_FactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+	if (a_CreateInfo.validationLayers)
+	{
+		ID3D12Debug* t_DebugController;
+		DXASSERT(D3D12GetDebugInterface(IID_PPV_ARGS(&t_DebugController)),
+			"DX12: failed to create debuginterface.");
+		DXASSERT(t_DebugController->QueryInterface(IID_PPV_ARGS(&s_DXBackendInst.debugController)),
+			"DX12: failed to create debuginterface.");
+		s_DXBackendInst.debugController->EnableDebugLayer();
+		s_DXBackendInst.debugController->SetEnableGPUBasedValidation(true);
 
-	t_DebugController->Release();
-#endif //_DEBUG
+		t_FactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 
-	DXASSERT(CreateDXGIFactory2(t_FactoryFlags, IID_PPV_ARGS(&t_Backend.factory)),
+		t_DebugController->Release();
+	}
+
+	DXASSERT(CreateDXGIFactory2(t_FactoryFlags, IID_PPV_ARGS(&s_DXBackendInst.factory)),
 		"DX12: failed to create DXGIFactory2.");
 	
 

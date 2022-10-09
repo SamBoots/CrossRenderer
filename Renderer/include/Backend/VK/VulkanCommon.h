@@ -8,9 +8,17 @@
 
 namespace BB
 {
+
+
+#ifdef _DEBUG
 #define VKASSERT(a_VKResult, a_Msg)\
 	if (a_VKResult != VK_SUCCESS)\
 		BB_ASSERT(false, a_Msg);\
+
+#else
+#define VKASSERT(a_VKResult, a_Msg) a_VKResult
+
+#endif //_DEBUG
 
 	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX; 
 	namespace VKConv

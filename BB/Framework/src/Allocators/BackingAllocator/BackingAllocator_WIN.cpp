@@ -39,7 +39,7 @@ void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const virtual_reserve_ext
 			return t_NewCommitRange;
 		}
 
-		BB_ASSERT(false, "Going over reserved memory! Make sure to reserve more memory")
+		BB_ASSERT(false, "Going over reserved memory! Make sure to reserve more memory");
 	}
 
 	//When making a new header reserve a lot more then that is requested to support later resizes better.

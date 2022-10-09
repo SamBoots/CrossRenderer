@@ -19,11 +19,13 @@ namespace BB
 		void Log_Error(const char* a_FileName, int a_Line, const char* a_Message);
 	}
 }
+
+#ifdef _DEBUG
 		/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.
 			@param a_Msg, The message that will be printed. */
 #define BB_STATIC_ASSERT(a_Check, a_Msg)\
-				static_assert(a_Check, a_Msg);\
+				static_assert(a_Check, a_Msg)\
 
 			/*  Check for unintented behaviour at runetime, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.
@@ -65,3 +67,22 @@ namespace BB
 				break;\
          }; TYPE; \
 			}
+#else
+/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
+	@param a_Check, If false the program will print the message and assert.
+	@param a_Msg, The message that will be printed. */
+#define BB_STATIC_ASSERT(a_Check, a_Msg) a_Check
+/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
+@param a_Check, If false the program will print the message and assert.
+@param a_Msg, The message that will be printed. */
+#define BB_ASSERT(a_Check, a_Msg) a_Check
+/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
+@param a_Check, If false the program will print the message and assert.
+@param a_Msg, The message that will be printed. */
+#define BB_EXCEPTION(a_Check, a_Msg) a_Check
+/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
+@param a_Check, If false the program will print the message and assert.
+@param a_Msg, The message that will be printed.
+@param a_WarningType, The warning level, enum found at WarningType. */
+#define BB_WARNING(a_Check, a_Msg, a_WarningType) a_Check
+#endif //_DEBUG
