@@ -1,5 +1,6 @@
 #include "DX12Backend.h"
 #include "DX12Common.h"
+#include "D3D12MemAlloc.h"
 
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
@@ -22,6 +23,8 @@ struct DX12Backend_inst
 
 	DX12Device device{};
 	DX12Swapchain swapchain{};
+
+	D3D12MA::Allocator* DXMA;
 };
 static DX12Backend_inst s_DX12BackendInst;
 
@@ -185,6 +188,13 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 	}
 #pragma endregion //DEVICE_CREATION
 
+	D3D12MA::ALLOCATOR_DESC t_AllocatorDesc = {};
+	t_AllocatorDesc.pDevice = s_DX12BackendInst.device.logicalDevice;
+	t_AllocatorDesc.pAdapter = s_DX12BackendInst.device.adapter;
+
+	DXASSERT(D3D12MA::CreateAllocator(&t_AllocatorDesc, &s_DX12BackendInst.DXMA),
+		"DX12: Failed to create DX12 memory allocator.");
+
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -220,6 +230,7 @@ void BB::DX12DestroyBackend(APIRenderBackend)
 	s_DX12BackendInst.directQueue->Release();
 	s_DX12BackendInst.fence->Release();
 
+	s_DX12BackendInst.DXMA->Release();
 	if (s_DX12BackendInst.device.debugDevice)
 		s_DX12BackendInst.device.debugDevice->Release();
 	s_DX12BackendInst.device.logicalDevice->Release();
