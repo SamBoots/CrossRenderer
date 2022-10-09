@@ -2,11 +2,19 @@
 #include "DX12Common.h"
 #include "D3D12MemAlloc.h"
 
+#include "Slotmap.h"
+
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
 using namespace BB;
 
 static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
+
+struct DXMAResource
+{
+	D3D12MA::Allocation* allocation;
+	ID3D12Resource* resource;
+};
 
 struct DX12Backend_inst
 {
@@ -25,9 +33,122 @@ struct DX12Backend_inst
 	DX12Swapchain swapchain{};
 
 	D3D12MA::Allocator* DXMA;
+
+	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 };
 static DX12Backend_inst s_DX12BackendInst;
 
+static DXMAResource CreateResource()
+{
+	DXMAResource t_Resource;
+
+	D3D12_RESOURCE_DESC t_ResourceDesc = {}; 
+	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	t_ResourceDesc.Alignment = 0;
+	t_ResourceDesc.Width = s_DX12BackendInst.swapchain.width;
+	t_ResourceDesc.Height = s_DX12BackendInst.swapchain.height;
+	t_ResourceDesc.DepthOrArraySize = 1;
+	t_ResourceDesc.MipLevels = 1;
+	t_ResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	t_ResourceDesc.SampleDesc.Count = 1;
+	t_ResourceDesc.SampleDesc.Quality = 0;
+	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
+	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+
+	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
+		&t_AllocationDesc,
+		&t_ResourceDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		NULL,
+		&t_Resource.allocation,
+		IID_PPV_ARGS(&t_Resource.resource)),
+		"DX12: Failed to create resource using D3D12 Memory Allocator");
+
+	return t_Resource;
+}
+
+static void SetResource(DXMAResource a_Resource, BB::Buffer a_Buffer)
+{
+	void* t_MapPtr;
+
+	DXASSERT(a_Resource.resource->Map(0, NULL, &t_MapPtr),
+		"DX12: Failed to map resource.");
+
+	memcpy(t_MapPtr, a_Buffer.data, a_Buffer.size);
+
+	a_Resource.resource->Unmap(0, NULL);
+}
+
+static void DestroyResource(DXMAResource a_Resource)
+{
+	a_Resource.resource->Release();
+	a_Resource.allocation->Release();
+}
+
+static ID3D12RootSignature* CreateRootSignature()
+{
+	ID3D12RootSignature* t_RootSignature = nullptr;
+
+	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
+	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+	if (FAILED(s_DX12BackendInst.device.logicalDevice->CheckFeatureSupport(
+		D3D12_FEATURE_ROOT_SIGNATURE,
+		&t_FeatureData, sizeof(t_FeatureData))))
+	{
+		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+	}
+
+	//Individual GPU Resources
+	D3D12_DESCRIPTOR_RANGE1 t_Ranges[1];
+	t_Ranges[0].BaseShaderRegister = 0;
+	t_Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	t_Ranges[0].NumDescriptors = 1;
+	t_Ranges[0].RegisterSpace = 0;
+	t_Ranges[0].OffsetInDescriptorsFromTableStart = 0;
+	t_Ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+
+	//Groups of GPU Resources
+	D3D12_ROOT_PARAMETER1 t_RootParameters[1];
+	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_Ranges;
+
+	//Overall Layout
+	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc;
+	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+	t_RootSignatureDesc.Desc_1_1.Flags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	t_RootSignatureDesc.Desc_1_1.NumParameters = 1;
+	t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
+	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
+	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
+
+	ID3DBlob* t_Signature;
+	ID3DBlob* t_Error;
+
+	DXASSERT(D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
+		&t_Signature, &t_Error),
+		"DX12: Failed to serialize root signature.");
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0, 
+		t_Signature->GetBufferPointer(),
+		t_Signature->GetBufferSize(),
+		IID_PPV_ARGS(&t_RootSignature)),
+		"DX12: Failed to create root signature.");
+
+	t_RootSignature->SetName(L"Hello Triangle Root Signature");
+
+	t_Signature->Release();
+	t_Error->Release();
+
+	return t_RootSignature;
+}
 
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
 {
@@ -214,6 +335,27 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 
 	//The handle doesn't matter, we only have one backend anyway. But it's nice for API clarity.
 	return APIRenderBackend(1);
+}
+
+PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
+{
+	ID3D12PipelineState* t_PipelineState;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC t_PsoDesc = {};
+
+	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
+
+	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
+
+	t_PsoDesc.pRootSignature = CreateRootSignature();
+
+	//All the vertex stuff
+
+	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
 }
 
 void BB::DX12DestroyBackend(APIRenderBackend)
