@@ -44,6 +44,7 @@ namespace BB
 				break;
 			default:
 				BB_ASSERT(false, "this buffer usage is not supported by the vulkan backend!");
+				return 0;
 				break;
 			}
 		}
@@ -60,6 +61,7 @@ namespace BB
 				break;
 			default:
 				BB_ASSERT(false, "this memory property is not supported by the vulkan backend!");
+				return 0;
 				break;
 			}
 		}
@@ -250,16 +252,15 @@ namespace BB
 	};
 
 
-	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
-	void VulkanDestroyBuffer(RBufferHandle a_Handle);
-	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
-	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
-
 	//Functions
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
+	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+
+	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
+	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
 
 	void ResizeWindow(Allocator a_TempAllocator, APIRenderBackend a_Handle, uint32_t a_X, uint32_t a_Y);
 	void RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);

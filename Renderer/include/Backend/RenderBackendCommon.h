@@ -105,8 +105,8 @@ namespace BB
 
 	struct RDeviceBufferView
 	{
-		uint64_t size;
-		uint64_t offset;
+		uint64_t size{};
+		uint64_t offset{};
 	};
 
 	struct RenderImageCreateInfo
@@ -127,8 +127,8 @@ namespace BB
 
 	struct ShaderCreateInfo
 	{
-		Buffer buffer;
-		RENDER_SHADER_STAGE shaderStage;
+		Buffer buffer{};
+		RENDER_SHADER_STAGE shaderStage{};
 	};
 
 	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, RENDER_BUFFER_USAGE a_Usage, RENDER_MEMORY_PROPERTIES a_MemProperties)
@@ -167,39 +167,39 @@ namespace BB
 
 	struct RenderBackendCreateInfo
 	{
-		Slice<RENDER_EXTENSIONS> extensions;
-		Slice<RENDER_EXTENSIONS> deviceExtensions;
+		Slice<RENDER_EXTENSIONS> extensions{};
+		Slice<RENDER_EXTENSIONS> deviceExtensions{};
 #ifdef _WIN32
-		HWND hwnd;
+		HWND hwnd{};
 #endif //_WIN32
-		const char* appName;
-		const char* engineName;
-		uint32_t windowWidth;
-		uint32_t windowHeight;
-		int version;
-		bool validationLayers;
+		const char* appName{};
+		const char* engineName{};
+		uint32_t windowWidth{};
+		uint32_t windowHeight{};
+		int version{};
+		bool validationLayers{};
 	};
 
 	struct RenderPipelineCreateInfo
 	{
-		FrameBufferHandle framebufferHandle;
-		Slice<BB::ShaderCreateInfo> shaderCreateInfos;
+		FrameBufferHandle framebufferHandle{};
+		Slice<BB::ShaderCreateInfo> shaderCreateInfos{};
 	};
 
 	struct RenderFrameBufferCreateInfo
 	{
-		RENDER_LOAD_OP colorLoadOp;
-		RENDER_STORE_OP colorStoreOp;
-		RENDER_IMAGE_LAYOUT colorInitialLayout;
-		RENDER_IMAGE_LAYOUT colorFinalLayout;
-		uint32_t width;
-		uint32_t height;
+		RENDER_LOAD_OP colorLoadOp{};
+		RENDER_STORE_OP colorStoreOp{};
+		RENDER_IMAGE_LAYOUT colorInitialLayout{};
+		RENDER_IMAGE_LAYOUT colorFinalLayout{};
+		uint32_t width{};
+		uint32_t height{};
 	};
 
 	struct Vertex
 	{
-		float pos[2];
-		float color[3];
+		float pos[2]{};
+		float color[3]{};
 	};
 
 	//buffer

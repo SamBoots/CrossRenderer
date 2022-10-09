@@ -1,4 +1,3 @@
-#pragma once
 #include "VulkanBackend.h"
 #include "VulkanCommon.h"
 
