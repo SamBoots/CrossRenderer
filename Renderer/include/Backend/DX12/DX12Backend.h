@@ -3,7 +3,6 @@
 
 namespace BB
 {
-	APIRenderBackend DX12CreateBackend(Allocator a_SysAllocator,
-		Allocator a_TempAllocator,
-		const RenderBackendCreateInfo& a_CreateInfo);
+	//Get the functions needed to run the Vulkan Renderer.
+	void GetDX12APIFunctions(APIBackendFunctionPointersCreateInfo& a_FuncCreateInfo);
 }

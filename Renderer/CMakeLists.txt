@@ -28,7 +28,8 @@ add_executable (Renderer
 "src/Backend/VK/VulkanBackend.cpp"
 "src/Backend/VK/VulkanCommon.cpp"
 "src/Backend/DX12/DX12Backend.cpp"
-"src/main.cpp")
+"src/Backend/DX12/DX12Common.cpp"
+"src/main.cpp" )
 
 find_package(Vulkan REQUIRED)
 if (NOT Vulkan_FOUND)

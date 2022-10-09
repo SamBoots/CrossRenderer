@@ -24,21 +24,45 @@ namespace BB
 	struct DX12Device
 	{
 		IDXGIAdapter1* adapter;
-		ID3D12Device* device;
-#ifdef _DEBUG
+		ID3D12Device* logicalDevice;
+
 		ID3D12DebugDevice* debugDevice;
-#endif //_DEBUG
+	};
+
+	struct DX12Swapchain
+	{
+		UINT width;
+		UINT height;
+		IDXGISwapChain3* swapchain;
+
+		ID3D12DescriptorHeap* rtvHeap;
+		ID3D12Resource** renderTargets; //dyn alloc
 	};
 
 	struct DX12CommandList
 	{
-		ID3D12CommandQueue* commandQueue;
-		ID3D12CommandAllocator* commandAllocator;
 		ID3D12GraphicsCommandList* commandList;
 	};
 
-	struct DX12SwapChain
-	{
 
-	};
+	//Functions
+	APIRenderBackend DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	PipelineHandle DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+	CommandListHandle DX12CreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
+	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
+	
+	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data);
+	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+
+	void DX12ResizeWindow(Allocator a_TempAllocator, APIRenderBackend a_Handle, uint32_t a_X, uint32_t a_Y);
+	void DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
+
+	void DX12WaitDeviceReady();
+
+	void DX12DestroyBuffer(RBufferHandle a_Handle);
+	void DX12DestroyCommandList(CommandListHandle a_Handle);
+	void DX12DestroyFramebuffer(FrameBufferHandle a_Handle);
+	void DX12DestroyPipeline(PipelineHandle a_Handle);
+	void DX12DestroyBackend(APIRenderBackend a_Handle);
 }
