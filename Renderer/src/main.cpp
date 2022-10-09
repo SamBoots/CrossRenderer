@@ -32,7 +32,11 @@ int main()
 	OS::SetCloseWindowPtr(WindowQuit);
 	OS::SetResizeEventPtr(WindowResize);
 
+#ifdef _DEBUG
 	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, true);
+#else
+	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, false);
+#endif //_DEBUG
 
 	while (!t_Quit)
 	{
