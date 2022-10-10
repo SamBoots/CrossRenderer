@@ -99,6 +99,7 @@ namespace BB
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
+		void* data = nullptr;
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
 	};
@@ -131,10 +132,11 @@ namespace BB
 		RENDER_SHADER_STAGE shaderStage{};
 	};
 
-	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, RENDER_BUFFER_USAGE a_Usage, RENDER_MEMORY_PROPERTIES a_MemProperties)
+	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, void* a_Data, RENDER_BUFFER_USAGE a_Usage, RENDER_MEMORY_PROPERTIES a_MemProperties)
 	{
 		RenderBufferCreateInfo t_Info;
 		t_Info.size = a_Size;
+		t_Info.data = a_Data;
 		t_Info.usage = a_Usage;
 		t_Info.memProperties = a_MemProperties;
 		return t_Info;

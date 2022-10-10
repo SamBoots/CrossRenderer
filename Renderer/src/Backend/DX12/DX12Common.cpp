@@ -47,53 +47,6 @@ static DXMAResource CreateBuffer()
 
 }
 
-static DXMAResource CreateResource(BB::Buffer a_Data = BB::Buffer())
-{
-	DXMAResource t_Resource;
-
-	D3D12_RESOURCE_DESC t_ResourceDesc = {}; 
-	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	t_ResourceDesc.Alignment = 0;
-	t_ResourceDesc.Width = a_Data->size();
-	t_ResourceDesc.Height = 1;
-	t_ResourceDesc.DepthOrArraySize = 1;
-	t_ResourceDesc.MipLevels = 1;
-	t_ResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	t_ResourceDesc.SampleDesc.Count = 1;
-	t_ResourceDesc.SampleDesc.Quality = 0;
-	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
-	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
-
-	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
-		&t_AllocationDesc,
-		&t_ResourceDesc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		NULL,
-		&t_Resource.allocation,
-		IID_PPV_ARGS(&t_Resource.resource)),
-		"DX12: Failed to create resource using D3D12 Memory Allocator");
-
-	if (a_Data.size != 0)
-		SetResource(t_Resource, a_Data);
-
-	return t_Resource;
-}
-
-static void SetResource(DXMAResource a_Resource, BB::Buffer a_Data)
-{
-	void* t_MapPtr;
-
-	DXASSERT(a_Resource.resource->Map(0, NULL, &t_MapPtr),
-		"DX12: Failed to map resource.");
-
-	memcpy(t_MapPtr, a_Data.data, a_Data..size);
-
-	a_Resource.resource->Unmap(0, NULL);
-}
-
 static void DestroyResource(DXMAResource a_Resource)
 {
 	a_Resource.resource->Release();
@@ -368,6 +321,90 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	//All the vertex stuff
 
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
+}
+
+RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
+{
+	DXMAResource t_Resource;
+	DX12BufferView t_BufferView{};
+
+	D3D12_RESOURCE_DESC t_ResourceDesc = {};
+	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	t_ResourceDesc.Alignment = 0;
+	t_ResourceDesc.Width = a_Info.size;
+	t_ResourceDesc.Height = 1;
+	t_ResourceDesc.DepthOrArraySize = 1;
+	t_ResourceDesc.MipLevels = 1;
+	t_ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	t_ResourceDesc.SampleDesc.Count = 1;
+	t_ResourceDesc.SampleDesc.Quality = 0;
+	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
+	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+
+	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
+		&t_AllocationDesc,
+		&t_ResourceDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		NULL,
+		&t_Resource.allocation,
+		IID_PPV_ARGS(&t_Resource.resource)),
+		"DX12: Failed to create resource using D3D12 Memory Allocator");
+
+	void* t_MappedPtr;
+	D3D12_RANGE t_ReadRange;
+	t_ReadRange.Begin = 0;
+	t_ReadRange.End = 0;
+
+	DXASSERT(t_Resource.resource->Map(0, &t_ReadRange, &t_MappedPtr),
+		"DX12: failed to map memory to resource.");
+	memcpy(t_MappedPtr, a_Info.data, a_Info.size);
+	t_Resource.resource->Unmap(0, nullptr);
+
+	switch (a_Info.usage)
+	{
+	case RENDER_BUFFER_USAGE::VERTEX:
+		t_BufferView.vertexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
+		t_BufferView.vertexView.StrideInBytes = sizeof(Vertex);
+		t_BufferView.vertexView.SizeInBytes = a_Info.size;
+		break;
+	case RENDER_BUFFER_USAGE::INDEX:
+		t_BufferView.indexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
+		t_BufferView.indexView.Format = DXGI_FORMAT_R32_UINT;
+		t_BufferView.indexView.SizeInBytes = a_Info.size;
+		break;
+	case RENDER_BUFFER_USAGE::UNIFORM:
+		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
+		break;
+	default:
+		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
+		break;
+	}
+
+	return RBufferHandle(s_DX12BackendInst.renderResources.insert(t_Resource));
+}
+
+void BB::DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View)
+{
+	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	void* t_MapPtr;
+
+	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapPtr),
+		"DX12: Failed to map resource.");
+
+	memcpy(t_MapPtr, a_Data, a_View.size);
+
+	t_Resource.resource->Unmap(0, NULL);
+}
+
+void BB::DX12DestroyBuffer(RBufferHandle a_Handle)
+{
+	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	t_Resource.resource->Release();
+	t_Resource.allocation->Release();
+	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
 }
 
 void BB::DX12DestroyBackend(APIRenderBackend)

@@ -21,6 +21,17 @@
 
 namespace BB
 {
+	union DX12BufferView
+	{
+		D3D12_VERTEX_BUFFER_VIEW vertexView;
+		D3D12_INDEX_BUFFER_VIEW indexView;
+	};
+
+	namespace VKConv
+	{
+
+	}
+
 	struct DX12Device
 	{
 		IDXGIAdapter1* adapter;
