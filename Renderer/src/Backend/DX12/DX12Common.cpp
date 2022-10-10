@@ -34,19 +34,28 @@ struct DX12Backend_inst
 
 	D3D12MA::Allocator* DXMA;
 
+	Slotmap<DXMAResource> renderResources{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 };
 static DX12Backend_inst s_DX12BackendInst;
 
-static DXMAResource CreateResource()
+static DXMAResource CreateBuffer()
+{
+	DXMAResource vertexBuffer;
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
+
+}
+
+static DXMAResource CreateResource(BB::Buffer a_Data = BB::Buffer())
 {
 	DXMAResource t_Resource;
 
 	D3D12_RESOURCE_DESC t_ResourceDesc = {}; 
 	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	t_ResourceDesc.Alignment = 0;
-	t_ResourceDesc.Width = s_DX12BackendInst.swapchain.width;
-	t_ResourceDesc.Height = s_DX12BackendInst.swapchain.height;
+	t_ResourceDesc.Width = a_Data->size();
+	t_ResourceDesc.Height = 1;
 	t_ResourceDesc.DepthOrArraySize = 1;
 	t_ResourceDesc.MipLevels = 1;
 	t_ResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -67,17 +76,20 @@ static DXMAResource CreateResource()
 		IID_PPV_ARGS(&t_Resource.resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
 
+	if (a_Data.size != 0)
+		SetResource(t_Resource, a_Data);
+
 	return t_Resource;
 }
 
-static void SetResource(DXMAResource a_Resource, BB::Buffer a_Buffer)
+static void SetResource(DXMAResource a_Resource, BB::Buffer a_Data)
 {
 	void* t_MapPtr;
 
 	DXASSERT(a_Resource.resource->Map(0, NULL, &t_MapPtr),
 		"DX12: Failed to map resource.");
 
-	memcpy(t_MapPtr, a_Buffer.data, a_Buffer.size);
+	memcpy(t_MapPtr, a_Data.data, a_Data..size);
 
 	a_Resource.resource->Unmap(0, NULL);
 }

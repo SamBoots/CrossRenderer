@@ -27,7 +27,7 @@ namespace BB
 	{
 		uint32_t currentFrame = 0;
 		uint32_t frameCount = 0;
-
+		
 		VkInstance instance;
 		VkSurfaceKHR surface;
 
