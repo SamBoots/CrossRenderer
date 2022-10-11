@@ -36,6 +36,7 @@ struct DX12Backend_inst
 
 	Slotmap<DXMAResource> renderResources{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
+	Slotmap<ID3D12GraphicsCommandList*> commandLists{ s_DX12Allocator };
 };
 static DX12Backend_inst s_DX12BackendInst;
 
@@ -279,14 +280,14 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 	t_AllocatorDesc.pAdapter = s_DX12BackendInst.device.adapter;
 
 	DXASSERT(D3D12MA::CreateAllocator(&t_AllocatorDesc, &s_DX12BackendInst.DXMA),
-		"DX12: Failed to create DX12 memory allocator.");
+		"DX12: Failed to create DX12 memory allocator");
 
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&s_DX12BackendInst.directQueue)),
-		"DX12: Failed to create direct command queue.");
+		"DX12: Failed to create direct command queue");
 
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(&s_DX12BackendInst.commandAllocator)),
@@ -294,7 +295,7 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&s_DX12BackendInst.fence)),
-		"DX12: failed to create fence.");
+		"DX12: Failed to create fence");
 
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
 
@@ -321,6 +322,21 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	//All the vertex stuff
 
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
+}
+
+CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
+{
+	ID3D12GraphicsCommandList* a_CommandList;
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(0,
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		s_DX12BackendInst.commandAllocator,
+		nullptr,
+		IID_PPV_ARGS(&a_CommandList)),
+		"DX12: Failed to create commandlist");
+
+
+	return CommandListHandle(s_DX12BackendInst.commandLists.insert(a_CommandList));
 }
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
@@ -405,6 +421,12 @@ void BB::DX12DestroyBuffer(RBufferHandle a_Handle)
 	t_Resource.resource->Release();
 	t_Resource.allocation->Release();
 	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
+}
+
+void BB::DX12DestroyCommandList(CommandListHandle a_Handle)
+{
+	s_DX12BackendInst.commandLists.find(a_Handle.handle)->Release();
+	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
 }
 
 void BB::DX12DestroyBackend(APIRenderBackend)
