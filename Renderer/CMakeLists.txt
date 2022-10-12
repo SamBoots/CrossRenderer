@@ -38,7 +38,7 @@ else()
 message(STATUS "Vulkan found")
 message(STATUS ${Vulkan_INCLUDE_DIRS})
 endif()
-target_link_libraries(Renderer Vulkan::Vulkan VMA DX12MA)
+target_link_libraries(Renderer Vulkan::Vulkan VMA DX12MA DX12_ShaderCompiler)
 
 #Include library
 target_include_directories(Renderer PUBLIC
@@ -56,4 +56,10 @@ target_link_libraries(Renderer
     ${VULKAN_LIB_LIST} 
     d3d12.lib
     dxgi.lib
-    dxguid.lib)
+    dxguid.lib
+    ${DXCOMPILER_LIB})
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/dxcompiler.dll"
+        $<TARGET_FILE_DIR:Renderer>)

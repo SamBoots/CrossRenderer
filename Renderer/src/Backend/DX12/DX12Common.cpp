@@ -1,8 +1,10 @@
 #include "DX12Backend.h"
 #include "DX12Common.h"
 #include "D3D12MemAlloc.h"
+#include "dxc/dxcapi.h"
 
 #include "Slotmap.h"
+#include "BBString.h"
 
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
@@ -14,6 +16,13 @@ struct DXMAResource
 {
 	D3D12MA::Allocation* allocation;
 	ID3D12Resource* resource;
+};
+
+struct ShaderCompiler
+{
+	IDxcUtils* utils;
+	IDxcCompiler2* compiler;
+	IDxcLibrary* library;
 };
 
 struct DX12Backend_inst
@@ -37,21 +46,57 @@ struct DX12Backend_inst
 	Slotmap<DXMAResource> renderResources{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<ID3D12GraphicsCommandList*> commandLists{ s_DX12Allocator };
+
+	ShaderCompiler shaderCompiler
 };
 static DX12Backend_inst s_DX12BackendInst;
 
-static DXMAResource CreateBuffer()
+static void SetupShaderCompiler()
 {
-	DXMAResource vertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
-
-
+	DXASSERT(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&s_DX12BackendInst.shaderCompiler.utils)), 
+		"DX12: Failed to create Shader Compile Instance");
+	DXASSERT(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&s_DX12BackendInst.shaderCompiler.compiler)),
+		"DX12: Failed to create Shader Compile Compiler");
+	DXASSERT(DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(& s_DX12BackendInst.shaderCompiler.library)),
+		"DX12: Failed to create Shader Compile include_header");
 }
 
-static void DestroyResource(DXMAResource a_Resource)
+static IDxcBlob* CompileShader(Allocator a_TempAllocator, BB::WString a_FullPath)
 {
-	a_Resource.resource->Release();
-	a_Resource.allocation->Release();
+	IDxcBlobEncoding* t_SourceBlob;
+	DXASSERT(s_DX12BackendInst.shaderCompiler.library->CreateBlobFromFile(a_FullPath.c_str(), nullptr, &t_SourceBlob),
+		"DX12: Failed to load file before compiling it.");
+
+	BB::WString(a_TempAllocator, L"-Emain-Tps_6_0-Zi-Fd-pdbPath");
+	IDxcOperationResult* t_Result;
+	HRESULT t_HR;
+	t_HR = s_DX12BackendInst.shaderCompiler.compiler->Compile(t_SourceBlob,
+		a_FullPath.c_str(),
+		L"main",
+		L"PS_6_0",
+		NULL, 0,
+		NULL, 0,
+		NULL,
+		&t_Result);
+
+	if (FAILED(t_HR))
+	{
+		IDxcBlobEncoding* t_ErrorBlob;
+		DXASSERT(t_Result->GetErrorBuffer(&t_ErrorBlob),
+			"DX12: Failed to get errors after shader load failure.");
+		wprintf(L"Compilation failed with errors:\n%hs\n",
+			(const char*)t_ErrorBlob->GetBufferPointer());
+
+		BB_ASSERT(false, "DX12: Failed to load shader.");
+	}
+
+	IDxcBlob* t_ShaderCode;
+	t_Result->GetResult(&t_ShaderCode);
+
+	t_SourceBlob->Release();
+	t_Result->Release();
+
+	return t_ShaderCode;
 }
 
 static ID3D12RootSignature* CreateRootSignature()
