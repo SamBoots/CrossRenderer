@@ -84,8 +84,9 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
 	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
 
-	RenderBufferCreateInfo t_RenderBuffer;
+	RenderBufferCreateInfo t_RenderBuffer{};
 	t_RenderBuffer.size = sizeof(t_Vertex);
+	t_RenderBuffer.data = nullptr; //We will upload with pfn_BufferCopyData.
 	t_RenderBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
 	t_RenderBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
 	RBufferHandle buffer = pfn_CreateBuffer(t_RenderBuffer);
@@ -96,11 +97,6 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 
 	pfn_BufferCopyData(buffer, &t_Vertex, t_View);
 
-	//VulkanDestroyCommandList(m_SystemAllocator, t_CommandList, *vkBackend);
-	//VulkanDestroyFramebuffer(m_SystemAllocator, t_FrameBuffer, *vkBackend);
-	//VulkanDestroyPipeline(t_Pipeline, *vkBackend);
-	//VulkanDestroyBackend(m_SystemAllocator, *reinterpret_cast<VulkanBackend*>(APIbackend));
-	//BBfree<VulkanBackend>(m_SystemAllocator, reinterpret_cast<VulkanBackend*>(APIbackend));
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
 }
