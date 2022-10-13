@@ -3,14 +3,16 @@ namespace BB
 {
 	enum class WarningType
 	{
-		OPTIMALIZATION,
-		LOW,
-		MEDIUM,
-		HIGH
+		INFO, //No warning, just a message.
+		OPTIMALIZATION, //Indicates a possible issue that might cause problems with performance.
+		LOW, //Low chance of breaking the application or causing undefined behaviour.
+		MEDIUM, //Medium chance of breaking the application or causing undefined behaviour.
+		HIGH //High chance of breaking the application or causing undefined behaviour.
 	};
 
 	namespace Logger
 	{
+		void Log_Message(const char* a_FileName, int a_Line, const char* a_Message);
 		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Message);
 		void Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Message);
 		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Message);
@@ -20,12 +22,13 @@ namespace BB
 	}
 }
 
+#define BB_LOG(a_Msg) BB::Logger::Log_Message(__FILE__, __LINE__, a_Msg) \
+
 #ifdef _DEBUG
 		/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.
 			@param a_Msg, The message that will be printed. */
-#define BB_STATIC_ASSERT(a_Check, a_Msg)\
-				static_assert(a_Check, a_Msg)\
+#define BB_STATIC_ASSERT(a_Check, a_Msg) static_assert(a_Check, a_Msg)\
 
 			/*  Check for unintented behaviour at runetime, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.

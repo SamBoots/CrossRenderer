@@ -57,9 +57,14 @@ target_link_libraries(Renderer
     d3d12.lib
     dxgi.lib
     dxguid.lib
-    ${DXCOMPILER_LIB})
+    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib")
 
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/dxcompiler.dll"
+        "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxcompiler.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
+        add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxl.dll"
         $<TARGET_FILE_DIR:Renderer>)

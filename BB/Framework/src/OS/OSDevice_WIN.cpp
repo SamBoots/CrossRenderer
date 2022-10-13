@@ -89,9 +89,9 @@ const uint32_t BB::OS::LatestOSError()
 	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&t_Message, 0, NULL);
 
-	LocalFree(t_Message);
-
 	BB_WARNING(false, t_Message, WarningType::HIGH);
+
+	LocalFree(t_Message);
 
 	return static_cast<uint32_t>(t_ErrorMsg);
 }

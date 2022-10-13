@@ -1,5 +1,6 @@
 #include "RenderBackend.h"
 #include "VulkanBackend.h"
+#include "DX12Backend.h"
 
 #include "Utils/Slice.h"
 #include "BBString.h"
@@ -55,7 +56,7 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(t_WindowWidth);
 	t_FrameBufferCreateInfo.height = static_cast<uint32_t>(t_WindowHeight);
 
-	t_FrameBuffer = pfn_CreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
+	//t_FrameBuffer = pfn_CreateFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
 
 	ShaderCreateInfo t_ShaderBuffers[2];
 	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
@@ -63,9 +64,16 @@ void RenderBackend::InitBackend(BB::WindowHandle a_WindowHandle, RenderAPI a_Ren
 	t_ShaderBuffers[1].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
 
+
+	const wchar_t* t_DX12ShaderPaths[2];
+	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
+	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+
 	RenderPipelineCreateInfo t_PipelineCreateInfo;
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
+	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
+	t_PipelineCreateInfo.shaderPathCount = 2;
 
 	t_Pipeline = pfn_CreatePipelineFunc(m_TempAllocator, t_PipelineCreateInfo);
 
@@ -152,7 +160,7 @@ void RenderBackend::SetFunctions(RenderAPI a_RenderAPI)
 		GetVulkanAPIFunctions(t_Functions);
 		break;
 	case RenderAPI::DX12:
-		//GetDX12APIFunctions(t_Functions);
+		GetDX12APIFunctions(t_Functions);
 		break;
 	default:
 		BB_ASSERT(false, "Trying to get functions from an API you don't support.");

@@ -33,7 +33,7 @@ int main()
 	OS::SetResizeEventPtr(WindowResize);
 
 #ifdef _DEBUG
-	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, true);
+	t_Backend.InitBackend(t_MainWindow, RenderAPI::DX12, true);
 #else
 	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, false);
 #endif //_DEBUG

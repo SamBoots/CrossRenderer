@@ -12,6 +12,11 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 		" The Message:" << "\n" << a_Message << "\n \n";
 }
 
+void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Message)
+{
+	Log_to_Console(a_FileName, a_Line, a_Message, "Info: ");
+}
+
 void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Message)
 {
 	Log_to_Console(a_FileName, a_Line, a_Message, "Optimalization Warning: ");

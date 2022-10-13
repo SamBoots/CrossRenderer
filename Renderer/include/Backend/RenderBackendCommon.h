@@ -185,7 +185,12 @@ namespace BB
 	struct RenderPipelineCreateInfo
 	{
 		FrameBufferHandle framebufferHandle{};
+		//Required for Vulkan
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos{};
+
+		//Required for DX12
+		const wchar_t** shaderPaths;
+		size_t shaderPathCount;
 	};
 
 	struct RenderFrameBufferCreateInfo

@@ -47,7 +47,7 @@ struct DX12Backend_inst
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<ID3D12GraphicsCommandList*> commandLists{ s_DX12Allocator };
 
-	ShaderCompiler shaderCompiler
+	ShaderCompiler shaderCompiler;
 };
 static DX12Backend_inst s_DX12BackendInst;
 
@@ -61,20 +61,21 @@ static void SetupShaderCompiler()
 		"DX12: Failed to create Shader Compile include_header");
 }
 
-static IDxcBlob* CompileShader(Allocator a_TempAllocator, BB::WString a_FullPath)
+static IDxcBlob* CompileShader(Allocator a_TempAllocator, const wchar_t* a_FullPath)
 {
 	IDxcBlobEncoding* t_SourceBlob;
-	DXASSERT(s_DX12BackendInst.shaderCompiler.library->CreateBlobFromFile(a_FullPath.c_str(), nullptr, &t_SourceBlob),
+	DXASSERT(s_DX12BackendInst.shaderCompiler.library->CreateBlobFromFile(a_FullPath, nullptr, &t_SourceBlob),
 		"DX12: Failed to load file before compiling it.");
 
-	BB::WString(a_TempAllocator, L"-Emain-Tps_6_0-Zi-Fd-pdbPath");
+	const wchar_t* a_CompileArgs = L"-Zi";
+
 	IDxcOperationResult* t_Result;
 	HRESULT t_HR;
 	t_HR = s_DX12BackendInst.shaderCompiler.compiler->Compile(t_SourceBlob,
-		a_FullPath.c_str(),
+		a_FullPath,
 		L"main",
 		L"PS_6_0",
-		NULL, 0,
+		&a_CompileArgs, 1,
 		NULL, 0,
 		NULL,
 		&t_Result);
@@ -91,7 +92,7 @@ static IDxcBlob* CompileShader(Allocator a_TempAllocator, BB::WString a_FullPath
 	}
 
 	IDxcBlob* t_ShaderCode;
-	t_Result->GetResult(&t_ShaderCode);
+	DXASSERT(t_Result->GetResult(&t_ShaderCode), "DX12: failed to get shared result.");
 
 	t_SourceBlob->Release();
 	t_Result->Release();
@@ -147,7 +148,7 @@ static ID3D12RootSignature* CreateRootSignature()
 		&t_Signature, &t_Error),
 		"DX12: Failed to serialize root signature.");
 
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0, 
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0,
 		t_Signature->GetBufferPointer(),
 		t_Signature->GetBufferSize(),
 		IID_PPV_ARGS(&t_RootSignature)),
@@ -155,8 +156,15 @@ static ID3D12RootSignature* CreateRootSignature()
 
 	t_RootSignature->SetName(L"Hello Triangle Root Signature");
 
-	t_Signature->Release();
-	t_Error->Release();
+	if (t_Error != nullptr)
+	{
+		BB_LOG((const char*)t_Error->GetBufferPointer());
+		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
+		t_Error->Release();
+	}
+
+	if (t_Signature != nullptr)
+		t_Signature->Release();
 
 	return t_RootSignature;
 }
@@ -201,7 +209,6 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	t_SwapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	t_SwapchainDesc.SampleDesc.Count = 1;
 
-
 	IDXGISwapChain1* t_NewSwapchain;
 	DXASSERT(s_DX12BackendInst.factory->CreateSwapChainForHwnd(
 		s_DX12BackendInst.directQueue,
@@ -216,7 +223,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		DXGI_MWA_NO_ALT_ENTER),
 		"DX12: Failed to add DXGI_MWA_NO_ALT_ENTER to window.");
 
-	DXASSERT(s_DX12BackendInst.swapchain.swapchain->QueryInterface(
+	DXASSERT(t_NewSwapchain->QueryInterface(
 		__uuidof(IDXGISwapChain3), (void**)&t_NewSwapchain),
 		"DX12: Failed to get support for a IDXGISwapchain3.");
 
@@ -238,6 +245,8 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = 
 		s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	s_DX12BackendInst.swapchain.renderTargets = BBnewArr(s_DX12Allocator, s_DX12BackendInst.backBufferCount, ID3D12Resource*);
 
 	// Create a RTV for each frame.
 	for (UINT i = 0; i < s_DX12BackendInst.backBufferCount; i++)
@@ -337,12 +346,15 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
 		IID_PPV_ARGS(&s_DX12BackendInst.commandAllocator)),
 		"DX12: Failed to create command allocator");
-
+	 
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&s_DX12BackendInst.fence)),
 		"DX12: Failed to create fence");
 
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
+
+	//Create the shader compiler.
+	SetupShaderCompiler();
 
 	//The handle doesn't matter, we only have one backend anyway. But it's nice for API clarity.
 	return APIRenderBackend(1);
@@ -363,8 +375,67 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
 	t_PsoDesc.pRootSignature = CreateRootSignature();
+	IDxcBlob* t_ShaderCode[2]; // 0 vertex, 1 frag.
+	t_ShaderCode[0] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[0]);
+	t_ShaderCode[1] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[1]);
 
-	//All the vertex stuff
+	//All the vertex shader stuff
+	D3D12_SHADER_BYTECODE t_VertexShader;
+	t_VertexShader.BytecodeLength = t_ShaderCode[0]->GetBufferSize();
+	t_VertexShader.pShaderBytecode = t_ShaderCode[0]->GetBufferPointer();
+	t_PsoDesc.VS = t_VertexShader;
+
+	//All the pixel shader stuff
+	D3D12_SHADER_BYTECODE t_PixelShader;
+	t_PixelShader.BytecodeLength = t_ShaderCode[1]->GetBufferSize();
+	t_PixelShader.pShaderBytecode = t_ShaderCode[1]->GetBufferPointer();
+	t_PsoDesc.PS = t_PixelShader;
+
+	D3D12_RASTERIZER_DESC t_RasterDesc;
+	t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+	t_RasterDesc.FrontCounterClockwise = FALSE;
+	t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+	t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+	t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+	t_RasterDesc.DepthClipEnable = TRUE;
+	t_RasterDesc.MultisampleEnable = FALSE;
+	t_RasterDesc.AntialiasedLineEnable = FALSE;
+	t_RasterDesc.ForcedSampleCount = 0;
+	t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	t_PsoDesc.RasterizerState = t_RasterDesc;
+	t_PsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+	D3D12_BLEND_DESC t_BlendDesc;
+	t_BlendDesc.AlphaToCoverageEnable = FALSE;
+	t_BlendDesc.IndependentBlendEnable = FALSE;
+	const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
+		FALSE,
+		FALSE,
+		D3D12_BLEND_ONE,
+		D3D12_BLEND_ZERO,
+		D3D12_BLEND_OP_ADD,
+		D3D12_BLEND_ONE,
+		D3D12_BLEND_ZERO,
+		D3D12_BLEND_OP_ADD,
+		D3D12_LOGIC_OP_NOOP,
+		D3D12_COLOR_WRITE_ENABLE_ALL,
+	};
+	for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+		t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+	t_PsoDesc.BlendState = t_BlendDesc;
+
+	t_PsoDesc.DepthStencilState.DepthEnable = FALSE;
+	t_PsoDesc.DepthStencilState.StencilEnable = FALSE;
+	t_PsoDesc.SampleMask = UINT_MAX;
+
+	t_PsoDesc.NumRenderTargets = 1;
+	t_PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	t_PsoDesc.SampleDesc.Count = 1;
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateGraphicsPipelineState(
+		&t_PsoDesc, IID_PPV_ARGS(&t_PipelineState)),
+		"DX12: Failed to create graphics pipeline");
 
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
 }
@@ -472,6 +543,12 @@ void BB::DX12DestroyCommandList(CommandListHandle a_Handle)
 {
 	s_DX12BackendInst.commandLists.find(a_Handle.handle)->Release();
 	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
+}
+
+void BB::DX12DestroyPipeline(PipelineHandle a_Handle)
+{
+	s_DX12BackendInst.pipelines.find(a_Handle.handle)->Release();
+	s_DX12BackendInst.pipelines.erase(a_Handle.handle);
 }
 
 void BB::DX12DestroyBackend(APIRenderBackend)

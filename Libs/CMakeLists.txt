@@ -11,8 +11,5 @@ add_library(DX12MA
 target_include_directories(DX12MA INTERFACE DX12MA)
 
 add_library(DX12_ShaderCompiler INTERFACE
-"DXC/include/dxc/dxcapi.h")
+"DXC/inc/dxcapi.h")
 target_include_directories(DX12_ShaderCompiler INTERFACE DX12_ShaderCompiler)
-
-set(DXCOMPILER_DLL "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/dxcompiler.dll")
-set(DXCOMPILER_LIB "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/dxcompiler.lib")
