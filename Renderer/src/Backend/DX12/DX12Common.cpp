@@ -18,6 +18,7 @@ struct DXMAResource
 {
 	D3D12MA::Allocation* allocation;
 	ID3D12Resource* resource;
+	DX12BufferView view;
 };
 
 struct ShaderCompiler
@@ -244,6 +245,9 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	t_SurfaceRect.right = static_cast<LONG>(a_Width);
 	t_SurfaceRect.bottom = static_cast<LONG>(a_Height);
 
+	s_DX12BackendInst.swapchain.viewport = t_Viewport;
+	s_DX12BackendInst.swapchain.surfaceRect = t_SurfaceRect;
+
 	DXGI_SWAP_CHAIN_DESC1 t_SwapchainDesc = {};
 	t_SwapchainDesc.BufferCount = s_DX12BackendInst.backBufferCount;
 	t_SwapchainDesc.Width = a_Width;
@@ -284,7 +288,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		"DX12: Failed to create descriptor heap for swapchain.");
 
 
-	UINT rtvDescriptorSize =
+	s_DX12BackendInst.swapchain.rtvDescriptorSize =
 		s_DX12BackendInst.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = 
@@ -303,7 +307,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 			s_DX12BackendInst.swapchain.renderTargets[i], 
 			nullptr, 
 			rtvHandle);
-		rtvHandle.ptr += (1 * rtvDescriptorSize);
+		rtvHandle.ptr += (1 * s_DX12BackendInst.swapchain.rtvDescriptorSize);
 	}
 }
 
@@ -502,7 +506,6 @@ CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const uin
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	DXMAResource t_Resource;
-	DX12BufferView t_BufferView{};
 
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
 	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -532,14 +535,14 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	switch (a_Info.usage)
 	{
 	case RENDER_BUFFER_USAGE::VERTEX:
-		t_BufferView.vertexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
-		t_BufferView.vertexView.StrideInBytes = sizeof(Vertex);
-		t_BufferView.vertexView.SizeInBytes = a_Info.size;
+		t_Resource.view.vertexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
+		t_Resource.view.vertexView.StrideInBytes = sizeof(Vertex);
+		t_Resource.view.vertexView.SizeInBytes = a_Info.size;
 		break;
 	case RENDER_BUFFER_USAGE::INDEX:
-		t_BufferView.indexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
-		t_BufferView.indexView.Format = DXGI_FORMAT_R32_UINT;
-		t_BufferView.indexView.SizeInBytes = a_Info.size;
+		t_Resource.view.indexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
+		t_Resource.view.indexView.Format = DXGI_FORMAT_R32_UINT;
+		t_Resource.view.indexView.SizeInBytes = a_Info.size;
 		break;
 	case RENDER_BUFFER_USAGE::UNIFORM:
 		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
@@ -578,12 +581,59 @@ void BB::DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceB
 	t_Resource.resource->Unmap(0, NULL);
 }
 
+void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+{
+	ID3D12GraphicsCommandList* t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.handle);
+	DXASSERT(t_CommandList->Reset(s_DX12BackendInst.commandAllocator,
+		s_DX12BackendInst.pipelines.find(a_PipeHandle.handle)),
+		"DX12: Failed to reset commandlist.");
+
+	t_CommandList->SetGraphicsRootSignature(CreateRootSignature());
+
+	D3D12_RESOURCE_BARRIER renderTargetBarrier;
+	renderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	renderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	renderTargetBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
+	renderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	renderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	renderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	t_CommandList->ResourceBarrier(1, &renderTargetBarrier);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE
+		rtvHandle(s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart());
+	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * s_DX12BackendInst.swapchain.rtvDescriptorSize);
+	t_CommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
+	t_CommandList->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
+	t_CommandList->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
+	t_CommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	t_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	t_CommandList->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
+
+	t_CommandList->DrawInstanced(3, 1, 0, 0);
+
+
+	// Indicate that the back buffer will now be used to present.
+	D3D12_RESOURCE_BARRIER presentBarrier;
+	presentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	presentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	presentBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
+	presentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+	t_CommandList->ResourceBarrier(1, &presentBarrier);
+}
+
 void BB::DX12DestroyBuffer(RBufferHandle a_Handle)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
 	t_Resource.resource->Release();
 	t_Resource.allocation->Release();
 	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
+
+
 }
 
 void BB::DX12DestroyCommandList(CommandListHandle a_Handle)

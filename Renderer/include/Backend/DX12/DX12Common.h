@@ -27,7 +27,7 @@ namespace BB
 		D3D12_INDEX_BUFFER_VIEW indexView;
 	};
 
-	namespace VKConv
+	namespace DX12Conv
 	{
 
 	}
@@ -48,13 +48,11 @@ namespace BB
 
 		ID3D12DescriptorHeap* rtvHeap;
 		ID3D12Resource** renderTargets; //dyn alloc
-	};
 
-	struct DX12CommandList
-	{
-		ID3D12GraphicsCommandList* commandList;
+		D3D12_VIEWPORT viewport;
+		D3D12_RECT surfaceRect;
+		UINT rtvDescriptorSize;
 	};
-
 
 	//Functions
 	APIRenderBackend DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
