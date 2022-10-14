@@ -39,6 +39,8 @@ struct DX12Backend_inst
 	ID3D12CommandQueue* directQueue{};
 	ID3D12CommandAllocator* commandAllocator{};
 
+	UINT64 fenceValue = 0;
+	HANDLE fenceEvent{};
 	ID3D12Fence* fence{};
 
 	DX12Device device{};
@@ -492,12 +494,16 @@ CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const uin
 {
 	ID3D12GraphicsCommandList* a_CommandList;
 
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(0,
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
+		0,
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
 		s_DX12BackendInst.commandAllocator,
-		nullptr,
+		s_DX12BackendInst.pipelines.find(0),
 		IID_PPV_ARGS(&a_CommandList)),
 		"DX12: Failed to create commandlist");
+
+	//Close it for now
+	a_CommandList->Close();
 
 
 	return CommandListHandle(s_DX12BackendInst.commandLists.insert(a_CommandList));
@@ -583,6 +589,8 @@ void BB::DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceB
 
 void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
 {
+	DXASSERT(s_DX12BackendInst.commandAllocator->Reset(), "DX12: Failed to reset allocator.");
+
 	ID3D12GraphicsCommandList* t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.handle);
 	DXASSERT(t_CommandList->Reset(s_DX12BackendInst.commandAllocator,
 		s_DX12BackendInst.pipelines.find(a_PipeHandle.handle)),
@@ -624,6 +632,26 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandH
 	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 	t_CommandList->ResourceBarrier(1, &presentBarrier);
+
+	DXASSERT(t_CommandList->Close(), "DX12: Failed to close commandlist.");
+
+	ID3D12CommandList* t_CommandListSend[] = { t_CommandList };
+	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_CommandListSend);
+
+	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
+
+	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
+	s_DX12BackendInst.directQueue->Signal(s_DX12BackendInst.fence, fenceV);
+	++s_DX12BackendInst.fenceValue;
+
+	if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
+	{
+		DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),
+			"DX12: Failed to wait for event complection on fence.");
+		WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
+	}
+
+	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
 }
 
 void BB::DX12DestroyBuffer(RBufferHandle a_Handle)

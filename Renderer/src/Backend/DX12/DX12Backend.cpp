@@ -14,7 +14,7 @@ void BB::GetDX12APIFunctions(APIBackendFunctionPointersCreateInfo& a_FuncCreateI
 	*a_FuncCreateInfo.bufferCopyData = DX12BufferCopyData;
 
 	//*a_FuncCreateInfo.resizeWindow = DX12ResizeWindow;
-	//*a_FuncCreateInfo.renderFrame = DX12RenderFrame;
+	*a_FuncCreateInfo.renderFrame = DX12RenderFrame;
 	//*a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
 
 	*a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;
