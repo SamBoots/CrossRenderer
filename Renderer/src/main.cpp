@@ -1,22 +1,19 @@
 #include "OS/OSDevice.h"
-#include "Backend/RenderBackend.h"
+#include "Frontend/RenderFrontend.h"
 
 using namespace BB;
-
-
-RenderBackend t_Backend;
 bool t_Quit = false;
 
 void WindowQuit(WindowHandle a_Handle)
 {
 	t_Quit = true;
 
-	t_Backend.DestroyBackend();
+	Render::DestroyRenderer();
 }
 
 void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 {
-	t_Backend.ResizeWindow(a_X, a_Y);
+	Render::ResizeWindow(a_X, a_Y);
 }
 
 int main()
@@ -33,14 +30,14 @@ int main()
 	OS::SetResizeEventPtr(WindowResize);
 
 #ifdef _DEBUG
-	t_Backend.InitBackend(t_MainWindow, RenderAPI::DX12, true);
+	Render::InitRenderer(t_MainWindow, RenderAPI::VULKAN, true);
 #else
-	t_Backend.InitBackend(t_MainWindow, RenderAPI::VULKAN, false);
+	Render::InitRenderer(t_MainWindow, RenderAPI::VULKAN, false);
 #endif //_DEBUG
 
 	while (!t_Quit)
 	{
-		t_Backend.Update();
+		Render::Update();
 		OS::ProcessMessages();
 	}
 

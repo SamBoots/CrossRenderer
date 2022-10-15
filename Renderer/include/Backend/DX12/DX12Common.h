@@ -64,7 +64,7 @@ namespace BB
 	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data);
 	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
 
-	void DX12ResizeWindow(Allocator a_TempAllocator, APIRenderBackend a_Handle, uint32_t a_X, uint32_t a_Y);
+	void DX12ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
 	void DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
 
 	void DX12WaitDeviceReady();
@@ -73,5 +73,5 @@ namespace BB
 	void DX12DestroyCommandList(CommandListHandle a_Handle);
 	void DX12DestroyFramebuffer(FrameBufferHandle a_Handle);
 	void DX12DestroyPipeline(PipelineHandle a_Handle);
-	void DX12DestroyBackend(APIRenderBackend a_Handle);
+	void DX12DestroyBackend();
 }

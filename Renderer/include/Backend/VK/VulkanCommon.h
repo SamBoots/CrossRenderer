@@ -262,7 +262,7 @@ namespace BB
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
 
-	void ResizeWindow(Allocator a_TempAllocator, APIRenderBackend a_Handle, uint32_t a_X, uint32_t a_Y);
+	void ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
 	void RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();
@@ -271,7 +271,7 @@ namespace BB
 	void VulkanDestroyCommandList(CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(PipelineHandle a_Handle);
-	void VulkanDestroyBackend(APIRenderBackend a_Handle);
+	void VulkanDestroyBackend();
 
 
 #pragma region BufferData

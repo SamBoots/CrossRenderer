@@ -1082,7 +1082,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));
 }
 
-void BB::ResizeWindow(Allocator a_TempAllocator, APIRenderBackend, uint32_t a_X, uint32_t a_Y)
+void BB::ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y)
 {
 	VulkanWaitDeviceReady();
 
@@ -1175,7 +1175,7 @@ void BB::VulkanDestroyPipeline(PipelineHandle a_Handle)
 		nullptr);
 }
 
-void BB::VulkanDestroyBackend(APIRenderBackend)
+void BB::VulkanDestroyBackend()
 {
 	for (auto t_It = s_VkBackendInst.pipelineLayouts.begin();
 		t_It < s_VkBackendInst.pipelineLayouts.end(); t_It++)

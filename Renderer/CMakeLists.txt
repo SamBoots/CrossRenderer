@@ -16,6 +16,7 @@ endif ()
 
 #Add source to this project's executable.
 add_executable (Renderer 
+#Backend .h
 "include/Backend/RenderBackend.h"
 "include/Backend/RenderBackendCommon.h"
 "include/Backend/VK/VulkanBackend.h"
@@ -23,12 +24,18 @@ add_executable (Renderer
 "include/Backend/VK/VulkanCommon.h"
 "include/Backend/DX12/DX12Common.h"
 "include/Backend/DX12/DX12Backend.h"
-
+#Frontend .h
+"include/Frontend/RenderFrontendCommon.h"
+"include/Frontend/RenderFrontend.h"
+#Backend .cpp
 "src/Backend/RenderBackend.cpp"
 "src/Backend/VK/VulkanBackend.cpp"
 "src/Backend/VK/VulkanCommon.cpp"
 "src/Backend/DX12/DX12Backend.cpp"
 "src/Backend/DX12/DX12Common.cpp"
+#Frontend .cpp
+"src/Frontend/RenderFrontend.cpp"
+#temporary to test
 "src/main.cpp" )
 
 find_package(Vulkan REQUIRED)

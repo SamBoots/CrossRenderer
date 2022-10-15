@@ -21,6 +21,12 @@ namespace BB
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
 
+	enum class RenderAPI
+	{
+		VULKAN,
+		DX12
+	};
+
 	enum class RENDER_BUFFER_USAGE : uint32_t
 	{
 		VERTEX,
@@ -169,6 +175,7 @@ namespace BB
 
 	struct RenderBackendCreateInfo
 	{
+		RenderAPI api;
 		Slice<RENDER_EXTENSIONS> extensions{};
 		Slice<RENDER_EXTENSIONS> deviceExtensions{};
 #ifdef _WIN32
@@ -222,12 +229,12 @@ namespace BB
 	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const uint32_t a_BufferCount);
 
 	//Utility
-	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, APIRenderBackend, uint32_t a_X, uint32_t a_Y);
+	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
 	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator,	CommandListHandle a_CommandHandle,FrameBufferHandle a_FrameBufferHandle,	PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
-	typedef void (*PFN_RenderAPIDestroyBackend)(APIRenderBackend a_Handle);
+	typedef void (*PFN_RenderAPIDestroyBackend)();
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(CommandListHandle a_Handle);

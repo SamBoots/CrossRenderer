@@ -676,7 +676,7 @@ void BB::DX12DestroyPipeline(PipelineHandle a_Handle)
 	s_DX12BackendInst.pipelines.erase(a_Handle.handle);
 }
 
-void BB::DX12DestroyBackend(APIRenderBackend)
+void BB::DX12DestroyBackend()
 {
 	for (size_t i = 0; i < s_DX12BackendInst.backBufferCount; i++)
 	{
