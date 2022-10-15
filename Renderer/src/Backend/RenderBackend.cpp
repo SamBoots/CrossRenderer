@@ -76,6 +76,7 @@ static RenderBackend_inst s_Backend;
 FrameBufferHandle t_FrameBuffer;
 CommandListHandle t_CommandList;
 PipelineHandle t_Pipeline;
+RBufferHandle t_Buffer;
 
 void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
@@ -127,13 +128,13 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	t_RenderBuffer.data = nullptr; //We will upload with pfn_BufferCopyData.
 	t_RenderBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
 	t_RenderBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	RBufferHandle buffer = s_Backend.pfn_CreateBuffer(t_RenderBuffer);
+	t_Buffer = s_Backend.pfn_CreateBuffer(t_RenderBuffer);
 
 	RDeviceBufferView t_View;
 	t_View.offset = 0;
 	t_View.size = sizeof(t_Vertex);
 
-	s_Backend.pfn_BufferCopyData(buffer, &t_Vertex, t_View);
+	s_Backend.pfn_BufferCopyData(t_Buffer, &t_Vertex, t_View);
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
@@ -142,6 +143,7 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 void BB::RenderBackend::DestroyBackend()
 {
 	s_Backend.pfn_WaitDeviceReady();
+	s_Backend.pfn_DestroyBuffer(t_Buffer);
 	s_Backend.pfn_DestroyPipeline(t_Pipeline);
 	s_Backend.pfn_DestroyFrameBuffer(t_FrameBuffer);
 	s_Backend.pfn_DestroyCommandList(t_CommandList);

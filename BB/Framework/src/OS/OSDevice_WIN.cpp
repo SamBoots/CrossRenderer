@@ -28,14 +28,12 @@ struct OSWindow
 	HWND hwnd = nullptr;
 	const char* windowName = nullptr;
 	HINSTANCE hInstance = nullptr;
-	bool resizing = false;
 };
 
 
 struct OSDevice
 {
 	//Special array for all the windows. Stored seperately 
-	OL_HashMap<HWND, OSWindow> OSWindows{ OSAllocator, 8 };
 };
 
 static OSDevice s_OSDevice{};
@@ -173,8 +171,6 @@ WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, i
 		NULL);
 	ShowWindow(t_ReturnWindow.hwnd, SW_SHOW);
 
-	s_OSDevice.OSWindows.emplace(t_ReturnWindow.hwnd, t_ReturnWindow);
-
 	return WindowHandle(t_ReturnWindow.hwnd);
 }
 
@@ -190,6 +186,11 @@ void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 
 	a_X = t_Rect.right;
 	a_Y = t_Rect.bottom;
+}
+
+void BB::OS::DirectDestroyOSWindow(WindowHandle a_Handle)
+{
+	DestroyWindow(reinterpret_cast<HWND>(a_Handle.ptrHandle));
 }
 
 void BB::OS::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)

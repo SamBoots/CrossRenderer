@@ -1184,6 +1184,7 @@ void BB::VulkanDestroyBackend()
 			*t_It->value,
 			nullptr);
 	}
+	s_VkBackendInst.pipelineLayouts.clear();
 
 	for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
@@ -1210,5 +1211,5 @@ void BB::VulkanDestroyBackend()
 	vkDestroyInstance(s_VkBackendInst.instance, nullptr);
 
 	//clear all the vulkan memory.
-	s_VulkanAllocator.Clear();
+	//s_VulkanAllocator.Clear();
 }

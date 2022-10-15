@@ -38,7 +38,7 @@ namespace BB
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void*.
 		void* GetOSWindowHandle(WindowHandle a_Handle);
 		void GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y);
-		void MarkDestroyOSWindow(WindowHandle a_Handle);
+		void DirectDestroyOSWindow(WindowHandle a_Handle);
 
 		//Function pointer setup.
 		void SetCloseWindowPtr(PFN_WindowCloseEvent a_Func);

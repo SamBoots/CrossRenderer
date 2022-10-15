@@ -654,6 +654,17 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandH
 	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
 }
 
+void BB::DX12WaitDeviceReady()
+{
+	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
+	//if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
+	//{
+	//	DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),
+	//		"DX12: Failed to wait for event complection on fence.");
+	//	WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
+	//}
+}
+
 void BB::DX12DestroyBuffer(RBufferHandle a_Handle)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
@@ -684,7 +695,9 @@ void BB::DX12DestroyBackend()
 	}
 	BBfreeArr(s_DX12Allocator, s_DX12BackendInst.swapchain.renderTargets);
 	s_DX12BackendInst.swapchain.rtvHeap->Release();
+	s_DX12BackendInst.swapchain.swapchain->SetFullscreenState(false, NULL);
 	s_DX12BackendInst.swapchain.swapchain->Release();
+	s_DX12BackendInst.swapchain.swapchain = nullptr;
 
 	s_DX12BackendInst.commandAllocator->Release();
 	s_DX12BackendInst.directQueue->Release();
@@ -693,6 +706,7 @@ void BB::DX12DestroyBackend()
 	s_DX12BackendInst.DXMA->Release();
 	if (s_DX12BackendInst.device.debugDevice)
 		s_DX12BackendInst.device.debugDevice->Release();
+	
 	s_DX12BackendInst.device.logicalDevice->Release();
 	s_DX12BackendInst.device.adapter->Release();
 	if (s_DX12BackendInst.debugController)

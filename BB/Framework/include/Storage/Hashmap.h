@@ -890,6 +890,7 @@ namespace BB
 					m_Values[i].~Value();
 				if constexpr (!trivalDestructableKey)
 					m_Keys[i].~Key();
+				m_Keys[i] = 0;
 			}
 		}
 		m_Size = 0;

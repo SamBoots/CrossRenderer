@@ -24,16 +24,19 @@ int main()
 		200, 
 		1200, 
 		800, 
-		"Unit Test Main Window");
+		"CrossRenderer");
 
 	OS::SetCloseWindowPtr(WindowQuit);
 	OS::SetResizeEventPtr(WindowResize);
 
 #ifdef _DEBUG
-	Render::InitRenderer(t_MainWindow, RenderAPI::VULKAN, true);
+	bool debugRenderer = true;
 #else
-	Render::InitRenderer(t_MainWindow, RenderAPI::VULKAN, false);
+	bool debugRenderer = false;
 #endif //_DEBUG
+
+	RenderAPI api = RenderAPI::VULKAN;
+	Render::InitRenderer(t_MainWindow, api, debugRenderer);
 
 	while (!t_Quit)
 	{
