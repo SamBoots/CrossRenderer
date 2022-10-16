@@ -228,9 +228,13 @@ namespace BB
 	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const uint32_t a_BufferCount);
 
+	//Commandlist handling
+	typedef void (*PFN_RenderAPIStartCommandList)(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
+	typedef void (*PFN_RenderAPIEndCommandList)(CommandListHandle a_CmdHandle);
+
 	//Utility
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
-	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator,	CommandListHandle a_CommandHandle,FrameBufferHandle a_FrameBufferHandle,	PipelineHandle a_PipeHandle);
+	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator,	CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
@@ -239,24 +243,27 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyPipeline)(PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(CommandListHandle a_Handle);
 
-	struct APIBackendFunctionPointersCreateInfo
+	struct RenderAPIFunctions
 	{
-		PFN_RenderAPICreateBackend* createBackend;
-		PFN_RenderAPICreatePipeline* createPipeline;
-		PFN_RenderAPICreateFrameBuffer* createFrameBuffer;
-		PFN_RenderAPICreateCommandList* createCommandList;
-		PFN_RenderAPICreateBuffer* createBuffer;
+		PFN_RenderAPICreateBackend createBackend;
+		PFN_RenderAPICreatePipeline createPipeline;
+		PFN_RenderAPICreateFrameBuffer createFrameBuffer;
+		PFN_RenderAPICreateCommandList createCommandList;
+		PFN_RenderAPICreateBuffer createBuffer;
 
-		PFN_RenderAPIBuffer_CopyData* bufferCopyData;
+		PFN_RenderAPIStartCommandList startCommandList;
+		PFN_RenderAPIEndCommandList endCommandList;
 
-		PFN_RenderAPIResizeWindow* resizeWindow;
-		PFN_RenderAPIRenderFrame* renderFrame;
-		PFN_RenderAPIWaitDeviceReady* waitDevice;
+		PFN_RenderAPIBuffer_CopyData bufferCopyData;
 
-		PFN_RenderAPIDestroyBuffer* destroyBuffer;
-		PFN_RenderAPIDestroyBackend* destroyBackend;
-		PFN_RenderAPIDestroyFrameBuffer* destroyFrameBuffer;
-		PFN_RenderAPIDestroyPipeline* destroyPipeline;
-		PFN_RenderAPIDestroyCommandList* destroyCommandList;
+		PFN_RenderAPIResizeWindow resizeWindow;
+		PFN_RenderAPIRenderFrame renderFrame;
+		PFN_RenderAPIWaitDeviceReady waitDevice;
+
+		PFN_RenderAPIDestroyBuffer destroyBuffer;
+		PFN_RenderAPIDestroyBackend destroyBackend;
+		PFN_RenderAPIDestroyFrameBuffer destroyFrameBuffer;
+		PFN_RenderAPIDestroyPipeline destroyPipeline;
+		PFN_RenderAPIDestroyCommandList destroyCommandList;
 	};
 }

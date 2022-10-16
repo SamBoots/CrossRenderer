@@ -6,8 +6,10 @@ namespace BB
 	namespace Render
 	{
 		void InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI a_RenderAPI, const bool a_Debug);
-		void ChangeRenderAPI(const WindowHandle a_WindowHandle, const RenderAPI a_RenderAPI, const bool a_Debug);
 		void DestroyRenderer();
+
+		void StartRecordCmds();
+		void EndRecordCmds();
 
 		void Update();
 

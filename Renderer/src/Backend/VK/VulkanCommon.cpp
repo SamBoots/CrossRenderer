@@ -28,8 +28,8 @@ namespace BB
 		uint32_t currentFrame = 0;
 		uint32_t frameCount = 0;
 		
-		VkInstance instance;
-		VkSurfaceKHR surface;
+		VkInstance instance{};
+		VkSurfaceKHR surface{};
 
 		VulkanDevice device{};
 		VulkanSwapChain swapChain{};
@@ -1080,6 +1080,54 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 	}
 
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));
+}
+
+void BB::VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer)
+{
+	VulkanCommandList::GraphicsCommands& t_Cmdlist =
+		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
+	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
+
+	BB_ASSERT(t_Cmdlist.currentRecording != VK_NULL_HANDLE,
+		"Vulkan: Trying to start a commandbuffer while one is already recording (This will change later, this is a bad way of handling commandbuffers!)");
+
+	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
+	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
+	VKASSERT(vkBeginCommandBuffer(t_Cmdlist.buffers[t_Cmdlist.currentFree],
+		&t_CmdBeginInfo),
+		"Vulkan: Failed to begin commandbuffer");
+
+	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
+
+	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
+		t_FrameBuffer.renderPass,
+		t_FrameBuffer.frameBuffers[s_VkBackendInst.currentFrame],
+		VkInit::Rect2D(0,
+			0,
+			s_VkBackendInst.swapChain.extent),
+		1,
+		&t_ClearValue);
+
+	vkCmdBeginRenderPass(t_Cmdlist.buffers[t_Cmdlist.currentFree],
+		&t_RenderPassBegin,
+		VK_SUBPASS_CONTENTS_INLINE);
+
+	t_Cmdlist.currentRecording = t_Cmdlist.buffers[t_Cmdlist.currentFree];
+	++t_Cmdlist.currentFree;
+}
+
+void BB::VulkanEndCommandList(CommandListHandle a_CmdHandle)
+{
+	VulkanCommandList::GraphicsCommands& t_Cmdlist =
+		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
+
+	BB_ASSERT(t_Cmdlist.currentRecording != VK_NULL_HANDLE,
+		"Vulkan: Trying to end a commandbuffer that is not recording!");
+
+	vkCmdEndRenderPass(t_Cmdlist.currentRecording);
+
+	VKASSERT(vkEndCommandBuffer(t_Cmdlist.currentRecording),
+		"Vulkan: Trying to end a commandbuffer that is not recording!");
 }
 
 void BB::ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y)

@@ -20,7 +20,7 @@ namespace BB
 
 #endif //_DEBUG
 
-	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX; 
+	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX;
 	namespace VKConv
 	{
 		inline VkBufferUsageFlags RenderBufferUsage(RENDER_BUFFER_USAGE a_Usage)
@@ -231,6 +231,7 @@ namespace BB
 			VkCommandBuffer* buffers;
 			uint32_t bufferCount;
 			uint32_t currentFree;
+			VkCommandBuffer currentRecording = VK_NULL_HANDLE;
 		};
 
 		GraphicsCommands* graphicCommands;
@@ -258,6 +259,9 @@ namespace BB
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+
+	void VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
+	void VulkanEndCommandList(CommandListHandle a_CmdHandle);
 
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
