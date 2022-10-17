@@ -34,8 +34,12 @@ int main()
 #else
 	bool debugRenderer = false;
 #endif //_DEBUG
-
+#ifdef USE_VULKAN
 	RenderAPI api = RenderAPI::VULKAN;
+#elif USE_DIRECTX12
+	RenderAPI api = RenderAPI::DX12;
+#endif //choose graphicsAPI.
+
 	Render::InitRenderer(t_MainWindow, api, debugRenderer);
 
 	while (!t_Quit)

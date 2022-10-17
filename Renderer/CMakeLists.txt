@@ -14,6 +14,14 @@ set(PLATFORM_NAME "_LINUX")
 add_compile_definitions(PUBLIC VK_USE_PLATFORM_XLIB_KHR)
 endif ()
 
+if ("${GRAPHICS_API}" STREQUAL "Vulkan")
+add_compile_definitions(PUBLIC USE_VULKAN)
+elseif("${GRAPHICS_API}" STREQUAL "DirectX12")
+add_compile_definitions(PUBLIC USE_DIRECTX12)
+else()
+message(FATAL_ERROR "Not chosen a valid graphicsAPI, the one chosen is: ${GraphicsAPI}")
+endif()
+
 #Add source to this project's executable.
 add_executable (Renderer 
 #Backend .h
