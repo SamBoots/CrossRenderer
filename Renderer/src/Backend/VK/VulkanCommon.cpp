@@ -644,10 +644,6 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	VulkanCommandList::GraphicsCommands& t_Cmdlist =
-		s_VkBackendInst.commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
-	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
-
 	uint32_t t_ImageIndex;
 	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
@@ -668,57 +664,10 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 		1,
 		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
 
-	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
-	VkCommandBufferBeginInfo t_CmdBeginInfo = VkInit::CommandBufferBeginInfo(nullptr);
-	VKASSERT(vkBeginCommandBuffer(t_Cmdlist.buffers[t_Cmdlist.currentFree],
-		&t_CmdBeginInfo),
-		"Vulkan: Failed to begin commandbuffer");
 
-	VkCommandBuffer t_CmdRecording = t_Cmdlist.buffers[t_Cmdlist.currentFree];
-
-	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
-
-	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
-		t_FrameBuffer.renderPass,
-		t_FrameBuffer.frameBuffers[t_ImageIndex],
-		VkInit::Rect2D(0,
-			0,
-			s_VkBackendInst.swapChain.extent),
-		1,
-		&t_ClearValue);
-
-	vkCmdBeginRenderPass(t_CmdRecording,
-		&t_RenderPassBegin,
-		VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(t_CmdRecording,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		s_VkBackendInst.pipelines[a_PipeHandle.handle].pipeline);
-
-	VkViewport t_Viewport{};
-	t_Viewport.x = 0.0f;
-	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(s_VkBackendInst.swapChain.extent.width);
-	t_Viewport.height = static_cast<float>(s_VkBackendInst.swapChain.extent.height);
-	t_Viewport.minDepth = 0.0f;
-	t_Viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(t_CmdRecording, 0, 1, &t_Viewport);
-
-	VkRect2D t_Scissor{};
-	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
-	vkCmdSetScissor(t_CmdRecording, 0, 1, &t_Scissor);
-
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(t_CmdRecording, 0, 1,
-		&s_VkBackendInst.renderBuffers.find(0).buffer,
-		offsets);
-
-	vkCmdDraw(t_CmdRecording, 3, 1, 0, 0);
-
-	vkCmdEndRenderPass(t_CmdRecording);
-
-	VKASSERT(vkEndCommandBuffer(t_CmdRecording), "Vulkan: Failed to record commandbuffer!");
+	VulkanCommandList::GraphicsCommands& t_Cmdlist =
+		s_VkBackendInst.commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
+	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
 
 
 	//submit stage.
@@ -733,8 +682,8 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	t_SubmitInfo.signalSemaphoreCount = 1;
 	t_SubmitInfo.pSignalSemaphores = &s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
 
-	t_SubmitInfo.commandBufferCount = 1;
-	t_SubmitInfo.pCommandBuffers = &t_CmdRecording;
+	t_SubmitInfo.commandBufferCount = t_Cmdlist.currentFree;
+	t_SubmitInfo.pCommandBuffers = t_Cmdlist.buffers;
 
 	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue,
 		1,
@@ -754,6 +703,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
+	t_Cmdlist.currentFree = 0;
 	s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
 }
 
@@ -1046,7 +996,7 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 
 CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
-	VulkanCommandList t_ReturnCommandList;
+	VulkanCommandList t_ReturnCommandList{};
 	uint32_t t_GraphicsBit;
 	QueueFindGraphicsBit(a_TempAllocator, s_VkBackendInst.device.physicalDevice, &t_GraphicsBit);
 	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
@@ -1088,7 +1038,7 @@ RecordingCommandListHandle BB::VulkanStartCommandList(CommandListHandle a_CmdHan
 		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
 
-	BB_ASSERT(t_Cmdlist.currentRecording != VK_NULL_HANDLE,
+	BB_ASSERT(t_Cmdlist.currentRecording == VK_NULL_HANDLE,
 		"Vulkan: Trying to start a commandbuffer while one is already recording (This will change later, this is a bad way of handling commandbuffers!)");
 
 	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
@@ -1129,11 +1079,45 @@ void BB::VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle)
 
 	VKASSERT(vkEndCommandBuffer(t_Cmdlist->currentRecording),
 		"Vulkan: Error when trying to end commandbuffer!");
+
+	t_Cmdlist->currentRecording = VK_NULL_HANDLE;
+}
+
+void BB::VulkanSetPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+{
+	VulkanCommandList::GraphicsCommands* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
+
+	vkCmdBindPipeline(t_Cmdlist->currentRecording,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		s_VkBackendInst.pipelines[a_Pipeline.handle].pipeline);
+
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(s_VkBackendInst.swapChain.extent.width);
+	t_Viewport.height = static_cast<float>(s_VkBackendInst.swapChain.extent.height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(t_Cmdlist->currentRecording, 0, 1, &t_Viewport);
+
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
+	vkCmdSetScissor(t_Cmdlist->currentRecording, 0, 1, &t_Scissor);
 }
 
 void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
 {
+	VulkanCommandList::GraphicsCommands* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
 
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 0, 1,
+		&s_VkBackendInst.renderBuffers.find(0).buffer,
+		offsets);
+
+	vkCmdDraw(t_Cmdlist->currentRecording, 3, 1, 0, 0);
 }
 
 void BB::ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y)

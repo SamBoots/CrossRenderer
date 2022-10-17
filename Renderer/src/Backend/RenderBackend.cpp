@@ -151,6 +151,11 @@ void BB::RenderBackend::DrawBuffers(const RecordingCommandListHandle a_Recording
 
 void BB::RenderBackend::Update()
 {
+	auto t_Recording = StartCommandList(t_CommandList);
+	VulkanSetPipeline(t_Recording, t_Pipeline);
+	VulkanDrawBuffers(t_Recording, &t_Buffer, 1);
+	EndCommandList(t_Recording);
+
 	s_ApiFunc.renderFrame(m_TempAllocator,
 		t_CommandList,
 		t_FrameBuffer,

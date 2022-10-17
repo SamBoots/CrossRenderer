@@ -657,6 +657,7 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandH
 void BB::DX12WaitDeviceReady()
 {
 	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
+	BB_WARNING(false, "DX12: DX12WaitDeviceReady function is unfinished, using it is dangerous.", WarningType::MEDIUM);
 	//if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
 	//{
 	//	DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),

@@ -260,6 +260,7 @@ namespace BB
 
 	RecordingCommandListHandle VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
 	void VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle);
+	void VulkanSetPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
 
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
