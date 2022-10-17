@@ -58,7 +58,7 @@ namespace BB
 	APIRenderBackend DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	PipelineHandle DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
-	CommandListHandle DX12CreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
+	CommandListHandle DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
 	
 	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data);

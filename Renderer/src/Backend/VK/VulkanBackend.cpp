@@ -11,8 +11,8 @@ void BB::GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
 
-	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
-	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
+	//a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
+	//a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
 
 	a_FuncCreateInfo.bufferCopyData = VulkanBufferCopyData;
 

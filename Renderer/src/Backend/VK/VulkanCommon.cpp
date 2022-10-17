@@ -1044,7 +1044,7 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline));
 }
 
-CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
+CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	VulkanCommandList t_ReturnCommandList;
 	uint32_t t_GraphicsBit;
@@ -1066,7 +1066,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 
 		VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
 			t_ReturnCommandList.graphicCommands[i].pool,
-			1,
+			a_CreateInfo.bufferCount,
 			VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
 		t_ReturnCommandList.graphicCommands[i].buffers = BBnewArr(s_VulkanAllocator, 1, VkCommandBuffer);
@@ -1082,7 +1082,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const u
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));
 }
 
-void BB::VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer)
+RecordingCommandListHandle BB::VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer)
 {
 	VulkanCommandList::GraphicsCommands& t_Cmdlist =
 		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
@@ -1114,20 +1114,26 @@ void BB::VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle
 
 	t_Cmdlist.currentRecording = t_Cmdlist.buffers[t_Cmdlist.currentFree];
 	++t_Cmdlist.currentFree;
+
+	return RecordingCommandListHandle(&t_Cmdlist);
 }
 
-void BB::VulkanEndCommandList(CommandListHandle a_CmdHandle)
+void BB::VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle)
 {
-	VulkanCommandList::GraphicsCommands& t_Cmdlist =
-		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
-
-	BB_ASSERT(t_Cmdlist.currentRecording != VK_NULL_HANDLE,
+	VulkanCommandList::GraphicsCommands* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
+	BB_ASSERT(t_Cmdlist->currentRecording != VK_NULL_HANDLE,
 		"Vulkan: Trying to end a commandbuffer that is not recording!");
 
-	vkCmdEndRenderPass(t_Cmdlist.currentRecording);
+	vkCmdEndRenderPass(t_Cmdlist->currentRecording);
 
-	VKASSERT(vkEndCommandBuffer(t_Cmdlist.currentRecording),
-		"Vulkan: Trying to end a commandbuffer that is not recording!");
+	VKASSERT(vkEndCommandBuffer(t_Cmdlist->currentRecording),
+		"Vulkan: Error when trying to end commandbuffer!");
+}
+
+void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
+{
+
 }
 
 void BB::ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y)

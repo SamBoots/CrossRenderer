@@ -8,8 +8,12 @@ namespace BB
 		void InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI a_RenderAPI, const bool a_Debug);
 		void DestroyRenderer();
 
+		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
+
+
 		void StartRecordCmds();
 		void EndRecordCmds();
+		void DrawModel(const RModelHandle a_ModelHandle);
 
 		void Update();
 

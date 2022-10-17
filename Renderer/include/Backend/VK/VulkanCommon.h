@@ -8,8 +8,6 @@
 
 namespace BB
 {
-
-
 #ifdef _DEBUG
 #define VKASSERT(a_VKResult, a_Msg)\
 	if (a_VKResult != VK_SUCCESS)\
@@ -257,11 +255,12 @@ namespace BB
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
-	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount);
+	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 
-	void VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
-	void VulkanEndCommandList(CommandListHandle a_CmdHandle);
+	RecordingCommandListHandle VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
+	void VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle);
+	void VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
 
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
 	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);

@@ -16,6 +16,7 @@ namespace BB
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
+	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
@@ -23,6 +24,7 @@ namespace BB
 
 	enum class RenderAPI
 	{
+		NONE, //None means that the renderer is destroyed or not initialized.
 		VULKAN,
 		DX12
 	};
@@ -210,6 +212,11 @@ namespace BB
 		uint32_t height{};
 	};
 
+	struct RenderCommandListCreateInfo
+	{
+		uint32_t bufferCount;
+	};
+
 	struct Vertex
 	{
 		float pos[2]{};
@@ -226,7 +233,7 @@ namespace BB
 	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const uint32_t a_BufferCount);
+	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 
 	//Commandlist handling
 	typedef void (*PFN_RenderAPIStartCommandList)(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);

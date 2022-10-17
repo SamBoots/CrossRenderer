@@ -490,7 +490,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
 }
 
-CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const uint32_t a_BufferCount)
+CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	ID3D12GraphicsCommandList* a_CommandList;
 

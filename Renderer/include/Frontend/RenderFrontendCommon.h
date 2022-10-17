@@ -40,5 +40,9 @@ namespace BB
 		uint32_t linearNodeCount;
 	};
 
-	RModelHandle LoadRawVertices(Vertex* a_Vertices, uint32_t a_VertexCount, uint32_t* a_Indices, uint32_t a_IndexCount);
+	struct CreateRawModelInfo
+	{
+		BB::Slice<Vertex> vertices;
+		BB::Slice<uint32_t> indices;
+	};
 }

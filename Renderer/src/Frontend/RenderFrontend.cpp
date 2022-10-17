@@ -1,6 +1,7 @@
 #include "RenderFrontend.h"
 #include "RenderBackend.h"
 
+#include "Storage/Slotmap.h"
 #include "OS/OSDevice.h"
 
 using namespace BB;
@@ -12,11 +13,16 @@ static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 struct RendererInfo
 {
 	RenderAPI currentAPI;
-
 	bool debug;
 };
 
+struct RendererInst
+{
+	Slotmap<Model> models{ m_SystemAllocator };
+};
+
 static RendererInfo s_RendererInfo;
+static RendererInst s_RendererInst;
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI a_RenderAPI, const bool a_Debug)
 {
@@ -56,6 +62,41 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI
 void BB::Render::DestroyRenderer()
 {
 	RenderBackend::DestroyBackend();
+	s_RendererInfo.currentAPI = RenderAPI::NONE;
+	s_RendererInfo.debug = false;
+}
+
+RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
+{
+	Model t_Model;
+
+	RenderBufferCreateInfo t_BufferInfo;
+	t_BufferInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
+	t_BufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_BufferInfo.size = a_CreateInfo.vertices.sizeInBytes();
+	t_BufferInfo.data = a_CreateInfo.vertices.data();
+
+	t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_BufferInfo);
+	t_Model.vertexBufferView;
+
+	//t_BufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
+	//t_BufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	//t_BufferInfo.size = a_CreateInfo.vertices.sizeInBytes();
+	//t_BufferInfo.data = a_CreateInfo.vertices.data();
+	
+	//t_Model.indexBuffer = RenderBackend::CreateBuffer(t_BufferInfo);
+	t_Model.indexBufferView;
+	
+	Model::Node* t_BaseNode = BBnew(m_SystemAllocator, Model::Node);
+	t_BaseNode->mesh = BBnew(m_SystemAllocator, Model::Mesh);
+	t_BaseNode->mesh->primitiveCount = 1;
+	t_BaseNode->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
+	t_BaseNode->mesh->primitives->indexStart = 0;
+	t_BaseNode->mesh->primitives->indexCount = t_BufferInfo.size;
+	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
+	t_Model.nodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
+
+	return RModelHandle(s_RendererInst.models.insert(t_Model));
 }
 
 void BB::Render::StartRecordCmds()
@@ -66,6 +107,13 @@ void BB::Render::StartRecordCmds()
 void BB::Render::EndRecordCmds()
 {
 
+}
+
+void BB::Render::DrawModel(const RModelHandle a_ModelHandle)
+{
+	const Model& t_Model = s_RendererInst.models.find(a_ModelHandle.handle);
+	
+	//RenderBackend::DrawBuffers(t_Model.vertexBuffer, 1);
 }
 
 void BB::Render::Update()

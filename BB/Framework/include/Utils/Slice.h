@@ -71,6 +71,7 @@ namespace BB
 
 		T* data() const { return m_Ptr; };
 		size_t size() const { return m_Size; }
+		size_t sizeInBytes() const { return m_Size * sizeof(T); }
 
 	private:
 		T* m_Ptr;
