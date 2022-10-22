@@ -258,23 +258,22 @@ namespace BB
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 
-	RecordingCommandListHandle VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
-	void VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle);
-	void VulkanSetPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
+	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
+	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
 
-	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data);
-	void VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
 
-	void ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
-	void RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
+	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	void RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();
 
-	void VulkanDestroyBuffer(RBufferHandle a_Handle);
-	void VulkanDestroyCommandList(CommandListHandle a_Handle);
-	void VulkanDestroyFramebuffer(FrameBufferHandle a_Handle);
-	void VulkanDestroyPipeline(PipelineHandle a_Handle);
+	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
+	void VulkanDestroyCommandList(const CommandListHandle a_Handle);
+	void VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle);
+	void VulkanDestroyPipeline(const PipelineHandle a_Handle);
 	void VulkanDestroyBackend();
 
 

@@ -574,20 +574,20 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	return RBufferHandle(s_DX12BackendInst.renderResources.insert(t_Resource));
 }
 
-void BB::DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View)
+void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
-	void* t_MapPtr;
+	void* t_MapData;
 
-	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapPtr),
+	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapData),
 		"DX12: Failed to map resource.");
 
-	memcpy(t_MapPtr, a_Data, a_View.size);
+	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
 
 	t_Resource.resource->Unmap(0, NULL);
 }
 
-void BB::DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
 {
 	DXASSERT(s_DX12BackendInst.commandAllocator->Reset(), "DX12: Failed to reset allocator.");
 
@@ -666,23 +666,21 @@ void BB::DX12WaitDeviceReady()
 	//}
 }
 
-void BB::DX12DestroyBuffer(RBufferHandle a_Handle)
+void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
 	t_Resource.resource->Release();
 	t_Resource.allocation->Release();
 	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
-
-
 }
 
-void BB::DX12DestroyCommandList(CommandListHandle a_Handle)
+void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 {
 	s_DX12BackendInst.commandLists.find(a_Handle.handle)->Release();
 	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
 }
 
-void BB::DX12DestroyPipeline(PipelineHandle a_Handle)
+void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 {
 	s_DX12BackendInst.pipelines.find(a_Handle.handle)->Release();
 	s_DX12BackendInst.pipelines.erase(a_Handle.handle);

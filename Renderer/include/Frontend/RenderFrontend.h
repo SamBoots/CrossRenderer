@@ -11,9 +11,9 @@ namespace BB
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 
 
-		void StartRecordCmds();
-		void EndRecordCmds();
-		void DrawModel(const RModelHandle a_ModelHandle);
+		RecordingCommandListHandle StartRecordCmds();
+		void EndRecordCmds(const RecordingCommandListHandle a_Handle);
+		void DrawModel(const RecordingCommandListHandle a_Handle, const RModelHandle a_ModelHandle);
 
 		void Update();
 

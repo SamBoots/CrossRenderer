@@ -61,17 +61,16 @@ namespace BB
 	CommandListHandle DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
 	
-	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data);
-	void DX12BufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
+	void DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 
-	void DX12ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
-	void DX12RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
+	void DX12ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	void DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 	void DX12WaitDeviceReady();
 
-	void DX12DestroyBuffer(RBufferHandle a_Handle);
-	void DX12DestroyCommandList(CommandListHandle a_Handle);
-	void DX12DestroyFramebuffer(FrameBufferHandle a_Handle);
-	void DX12DestroyPipeline(PipelineHandle a_Handle);
+	void DX12DestroyBuffer(const RBufferHandle a_Handle);
+	void DX12DestroyCommandList(const CommandListHandle a_Handle);
+	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
+	void DX12DestroyPipeline(const PipelineHandle a_Handle);
 	void DX12DestroyBackend();
 }

@@ -32,84 +32,11 @@ void SetAPIFunctions(RenderAPI a_RenderAPI)
 	}
 }
 
-
-FrameBufferHandle t_FrameBuffer;
-CommandListHandle t_CommandList;
-PipelineHandle t_Pipeline;
-RBufferHandle t_Buffer;
-
 void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	SetAPIFunctions(a_CreateInfo.api);
 
 	s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
-
-	RenderFrameBufferCreateInfo t_FrameBufferCreateInfo;
-	//VkRenderpass info
-	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
-	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
-	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-
-	//VkFrameBuffer info
-	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(a_CreateInfo.windowWidth);
-	t_FrameBufferCreateInfo.height = static_cast<uint32_t>(a_CreateInfo.windowHeight);
-
-	t_FrameBuffer = s_ApiFunc.createFrameBuffer(m_TempAllocator, t_FrameBufferCreateInfo);
-
-	ShaderCreateInfo t_ShaderBuffers[2];
-	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
-	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-	t_ShaderBuffers[1].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
-	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
-
-
-	const wchar_t* t_DX12ShaderPaths[2];
-	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
-	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
-
-	RenderPipelineCreateInfo t_PipelineCreateInfo;
-	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
-	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
-	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
-	t_PipelineCreateInfo.shaderPathCount = 2;
-
-	t_Pipeline = s_ApiFunc.createPipeline(m_TempAllocator, t_PipelineCreateInfo);
-
-	RenderCommandListCreateInfo t_CmdCreateInfo;
-	t_CmdCreateInfo.bufferCount = 5;
-	t_CommandList = s_ApiFunc.createCommandList(m_TempAllocator, t_CmdCreateInfo);
-
-	Vertex t_Vertex[3];
-	t_Vertex[0] = { {0.0f, -0.5f}, {1.0f, 1.0f, 1.0f} };
-	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
-	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
-
-	RenderBufferCreateInfo t_RenderBuffer{};
-	t_RenderBuffer.size = sizeof(t_Vertex);
-	t_RenderBuffer.data = nullptr; //We will upload with pfn_BufferCopyData.
-	t_RenderBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
-	t_RenderBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_Buffer = s_ApiFunc.createBuffer(t_RenderBuffer);
-
-	RDeviceBufferView t_View;
-	t_View.offset = 0;
-	t_View.size = sizeof(t_Vertex);
-
-	s_ApiFunc.bufferCopyData(t_Buffer, &t_Vertex, t_View);
-
-	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
-	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
-}
-
-void BB::RenderBackend::DestroyBackend()
-{
-	s_ApiFunc.waitDevice();
-	s_ApiFunc.destroyBuffer(t_Buffer);
-	s_ApiFunc.destroyPipeline(t_Pipeline);
-	s_ApiFunc.destroyFrameBuffer(t_FrameBuffer);
-	s_ApiFunc.destroyCommandList(t_CommandList);
-	s_ApiFunc.destroyBackend();
 }
 
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
@@ -132,35 +59,52 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
-RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle)
+void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
+{
+	return s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
+}
+
+RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle)
 {
 	//s_ApiFunc.startCommandList(a_Handle, t_FrameBuffer);
-	return VulkanStartCommandList(a_CmdHandle, t_FrameBuffer);
+	return s_ApiFunc.startCommandList(a_CmdHandle, a_FrameHandle);
 }
 
 void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
 	//s_ApiFunc.endCommandList(a_Handle);
-	return VulkanEndCommandList(a_RecordingCmdHandle);
+	return s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
-void BB::RenderBackend::DrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
+void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
-	
+	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
+}
+
+void BB::RenderBackend::DrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
+{
+	s_ApiFunc.drawBuffers(a_RecordingCmdHandle, a_BufferHandles, a_BufferCount);
+}
+
+void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
+{
+	s_ApiFunc.renderFrame(m_TempAllocator, a_CommandHandle, a_FrameBufferHandle, a_PipeHandle);
 }
 
 void BB::RenderBackend::Update()
 {
-	auto t_Recording = StartCommandList(t_CommandList);
-	VulkanSetPipeline(t_Recording, t_Pipeline);
-	VulkanDrawBuffers(t_Recording, &t_Buffer, 1);
-	EndCommandList(t_Recording);
 
-	s_ApiFunc.renderFrame(m_TempAllocator,
-		t_CommandList,
-		t_FrameBuffer,
-		t_Pipeline);
 	m_TempAllocator.Clear();
+}
+
+void BB::RenderBackend::WaitGPUReady()
+{
+	s_ApiFunc.waitDevice();
+}
+
+void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
+{
+	s_ApiFunc.resizeWindow(m_TempAllocator, a_X, a_Y);
 }
 
 void BB::RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
@@ -168,7 +112,27 @@ void BB::RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
 
 }
 
-void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
+void BB::RenderBackend::DestroyBackend()
 {
-	s_ApiFunc.resizeWindow(m_TempAllocator, a_X, a_Y);
+	s_ApiFunc.destroyBackend();
+}
+
+void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)
+{
+	s_ApiFunc.destroyFrameBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
+{
+	s_ApiFunc.destroyPipeline(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
+{
+	s_ApiFunc.destroyCommandList(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
+{
+	s_ApiFunc.destroyBuffer(a_Handle);
 }

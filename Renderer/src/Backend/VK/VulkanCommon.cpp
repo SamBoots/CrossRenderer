@@ -615,7 +615,7 @@ void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 	s_VkBackendInst.renderBuffers.erase(a_Handle.handle);
 }
 
-void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data)
+void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset)
 {
 	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
 	void* t_MapData;
@@ -623,19 +623,7 @@ void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data)
 		t_Buffer.allocation,
 		&t_MapData),
 		"Vulkan: Failed to map memory");
-	memcpy(t_MapData, a_Data, t_Buffer.allocation->GetSize());
-	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
-}
-
-void BB::VulkanBufferCopyData(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View)
-{
-	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
-	void* t_MapData;
-	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
-		t_Buffer.allocation,
-		&t_MapData),
-		"Vulkan: Failed to map memory");
-	memcpy(t_MapData, a_Data, t_Buffer.allocation->GetSize());
+	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_View);
 	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
 }
 
@@ -664,9 +652,8 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 		1,
 		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
 
-
-	VulkanCommandList::GraphicsCommands& t_Cmdlist =
-		s_VkBackendInst.commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
+	VulkanCommandList t_GlobalCommandList = s_VkBackendInst.commandLists[a_CommandHandle.handle];
+	VulkanCommandList::GraphicsCommands& t_Cmdlist = t_GlobalCommandList.graphicCommands[t_CurrentFrame];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
 
 
@@ -704,6 +691,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 		"Vulkan: Failed to queuepresentKHR.");
 
 	t_Cmdlist.currentFree = 0;
+	t_Cmdlist.bufferCount = 0;
 	s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
 }
 
@@ -1032,7 +1020,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));
 }
 
-RecordingCommandListHandle BB::VulkanStartCommandList(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer)
+RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
 	VulkanCommandList::GraphicsCommands& t_Cmdlist =
 		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
@@ -1065,10 +1053,24 @@ RecordingCommandListHandle BB::VulkanStartCommandList(CommandListHandle a_CmdHan
 	t_Cmdlist.currentRecording = t_Cmdlist.buffers[t_Cmdlist.currentFree];
 	++t_Cmdlist.currentFree;
 
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(s_VkBackendInst.swapChain.extent.width);
+	t_Viewport.height = static_cast<float>(s_VkBackendInst.swapChain.extent.height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(t_Cmdlist.currentRecording, 0, 1, &t_Viewport);
+
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
+	vkCmdSetScissor(t_Cmdlist.currentRecording, 0, 1, &t_Scissor);
+
 	return RecordingCommandListHandle(&t_Cmdlist);
 }
 
-void BB::VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
 	VulkanCommandList::GraphicsCommands* t_Cmdlist =
 		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
@@ -1083,7 +1085,7 @@ void BB::VulkanEndCommandList(RecordingCommandListHandle a_RecordingCmdHandle)
 	t_Cmdlist->currentRecording = VK_NULL_HANDLE;
 }
 
-void BB::VulkanSetPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	VulkanCommandList::GraphicsCommands* t_Cmdlist =
 		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
@@ -1091,20 +1093,6 @@ void BB::VulkanSetPipeline(const RecordingCommandListHandle a_RecordingCmdHandle
 	vkCmdBindPipeline(t_Cmdlist->currentRecording,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		s_VkBackendInst.pipelines[a_Pipeline.handle].pipeline);
-
-	VkViewport t_Viewport{};
-	t_Viewport.x = 0.0f;
-	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(s_VkBackendInst.swapChain.extent.width);
-	t_Viewport.height = static_cast<float>(s_VkBackendInst.swapChain.extent.height);
-	t_Viewport.minDepth = 0.0f;
-	t_Viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(t_Cmdlist->currentRecording, 0, 1, &t_Viewport);
-
-	VkRect2D t_Scissor{};
-	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
-	vkCmdSetScissor(t_Cmdlist->currentRecording, 0, 1, &t_Scissor);
 }
 
 void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
@@ -1120,7 +1108,7 @@ void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle
 	vkCmdDraw(t_Cmdlist->currentRecording, 3, 1, 0, 0);
 }
 
-void BB::ResizeWindow(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y)
+void BB::ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)
 {
 	VulkanWaitDeviceReady();
 
@@ -1175,7 +1163,7 @@ void BB::VulkanWaitDeviceReady()
 	vkDeviceWaitIdle(s_VkBackendInst.device.logicalDevice);
 }
 
-void BB::VulkanDestroyCommandList(CommandListHandle a_Handle)
+void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 {
 	VulkanCommandList& a_List = s_VkBackendInst.commandLists[a_Handle.handle];
 
@@ -1190,7 +1178,7 @@ void BB::VulkanDestroyCommandList(CommandListHandle a_Handle)
 		a_List.graphicCommands);
 }
 
-void BB::VulkanDestroyFramebuffer(FrameBufferHandle a_Handle)
+void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
 {
 	for (uint32_t i = 0; i < s_VkBackendInst.frameBuffers[a_Handle.handle].frameBufferCount; i++)
 	{
@@ -1206,7 +1194,7 @@ void BB::VulkanDestroyFramebuffer(FrameBufferHandle a_Handle)
 		nullptr);
 }
 
-void BB::VulkanDestroyPipeline(PipelineHandle a_Handle)
+void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 {
 	vkDestroyPipeline(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.pipelines[a_Handle.handle].pipeline,

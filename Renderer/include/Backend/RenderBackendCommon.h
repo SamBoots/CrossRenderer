@@ -223,32 +223,32 @@ namespace BB
 		float color[3]{};
 	};
 
-	//buffer
-	typedef RBufferHandle(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
-	typedef void (*PFN_RenderAPIDestroyBuffer)(RBufferHandle a_Handle);
-	typedef void (*PFN_RenderAPIBuffer_CopyData)(RBufferHandle a_Handle, const void* a_Data, RDeviceBufferView a_View);
-
-
 	//construction
 	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
+	typedef RBufferHandle(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 
 	//Commandlist handling
-	typedef void (*PFN_RenderAPIStartCommandList)(CommandListHandle a_CmdHandle, FrameBufferHandle a_Framebuffer);
-	typedef void (*PFN_RenderAPIEndCommandList)(CommandListHandle a_CmdHandle);
+	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
+	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
+	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	typedef void (*PFN_RenderAPIDrawBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
 
 	//Utility
-	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, uint32_t a_X, uint32_t a_Y);
-	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator,	CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle);
+	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
+
+	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
-	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(FrameBufferHandle a_Handle);
-	typedef void (*PFN_RenderAPIDestroyPipeline)(PipelineHandle a_Handle);
-	typedef void (*PFN_RenderAPIDestroyCommandList)(CommandListHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(const FrameBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
 
 	struct RenderAPIFunctions
 	{
@@ -260,6 +260,8 @@ namespace BB
 
 		PFN_RenderAPIStartCommandList startCommandList;
 		PFN_RenderAPIEndCommandList endCommandList;
+		PFN_RenderAPIBindPipeline bindPipeline;
+		PFN_RenderAPIDrawBuffers drawBuffers;
 
 		PFN_RenderAPIBuffer_CopyData bufferCopyData;
 
