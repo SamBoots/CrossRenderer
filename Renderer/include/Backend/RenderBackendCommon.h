@@ -174,10 +174,12 @@ namespace BB
 		t_Info.shaderStage = a_Shaderstage;
 		return t_Info;
 	}
+	struct RenderAPIFunctions;
+	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
 
 	struct RenderBackendCreateInfo
 	{
-		RenderAPI api;
+		PFN_RenderGetAPIFunctions getApiFuncPtr;
 		Slice<RENDER_EXTENSIONS> extensions{};
 		Slice<RENDER_EXTENSIONS> deviceExtensions{};
 #ifdef _WIN32
@@ -224,10 +226,10 @@ namespace BB
 	};
 
 	//construction
-	typedef APIRenderBackend (*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
-	typedef PipelineHandle (*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
-	typedef FrameBufferHandle (*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-	typedef CommandListHandle (*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
+	typedef APIRenderBackend(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	typedef PipelineHandle(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+	typedef FrameBufferHandle(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	typedef CommandListHandle(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 
 	//Commandlist handling

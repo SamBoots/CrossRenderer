@@ -36,7 +36,8 @@ namespace BB
 	};
 
 	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
-
+	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
+	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	struct Buffer
 	{
 		void* data;

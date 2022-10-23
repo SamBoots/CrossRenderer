@@ -1,7 +1,5 @@
 #include "RenderBackend.h"
 #include "VulkanBackend.h"
-#include "DX12Backend.h"
-#include "VulkanCommon.h"
 
 #include "Utils/Slice.h"
 #include "BBString.h"
@@ -16,25 +14,9 @@ static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
 static RenderAPIFunctions s_ApiFunc;
 
-void SetAPIFunctions(RenderAPI a_RenderAPI)
-{
-	switch (a_RenderAPI)
-	{
-	case RenderAPI::VULKAN:
-		GetVulkanAPIFunctions(s_ApiFunc);
-		break;
-	case RenderAPI::DX12:
-		GetDX12APIFunctions(s_ApiFunc);
-		break;
-	default:
-		BB_ASSERT(false, "Trying to get functions from an API you don't support.");
-		break;
-	}
-}
-
 void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
-	SetAPIFunctions(a_CreateInfo.api);
+	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
 
 	s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }

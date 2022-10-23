@@ -122,13 +122,22 @@ Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 LibHandle BB::OS::LoadLib(const char* a_LibName)
 {
 	HMODULE t_Mod = LoadLibrary(a_LibName);
-	BB_ASSERT(t_Mod != NULL, "Failed to load .DLL");
+	if (t_Mod == NULL)
+	{
+		OS::LatestOSError();
+		BB_ASSERT(t_Mod != NULL, "Failed to load .DLL");
+	}
 	return LibHandle(t_Mod);
 }
 
 void BB::OS::UnloadLib(const LibHandle a_Handle)
 {
 	FreeLibrary(reinterpret_cast<HMODULE>(a_Handle.ptrHandle));
+}
+
+LibFuncPtr BB::OS::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
+{
+	return GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
 }
 
 WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)

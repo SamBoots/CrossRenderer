@@ -29,7 +29,7 @@ RBufferHandle t_Buffer;
 static RendererInfo s_RendererInfo;
 static RendererInst s_RendererInst;
 
-void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI a_RenderAPI, const bool a_Debug)
+void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
 {
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
@@ -47,7 +47,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI
 	OS::GetWindowSize(a_WindowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.api = a_RenderAPI;
+	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)OS::LibLoadFunc(a_RenderLib, "GetVulkanAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(OS::GetOSWindowHandle(a_WindowHandle));
@@ -60,7 +60,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const RenderAPI
 
 	RenderBackend::InitBackend(t_BackendCreateInfo);
 
-	s_RendererInfo.currentAPI = a_RenderAPI;
 	s_RendererInfo.debug = a_Debug;
 
 
