@@ -11,6 +11,8 @@
 
 namespace BB
 {
+	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
+	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	namespace OS
 	{
 		typedef void (*PFN_WindowResizeEvent)(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y);
@@ -33,6 +35,10 @@ namespace BB
 
 		//Reads an external file from path.
 		Buffer ReadFile(Allocator a_SysAllocator, const char* a_Path);
+
+		//
+		LibHandle LoadLib(const char* a_LibName);
+		void UnloadLib(const LibHandle a_LibHandle);
 
 		WindowHandle CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName);
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void*.

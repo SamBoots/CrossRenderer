@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <Windows.h>
+#include <libloaderapi.h>
 #include <fstream>
 #include "Storage/Hashmap.h"
 #include "Storage/Array.h"
@@ -116,6 +117,18 @@ Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 	t_File.close();
 
 	return t_FileBuffer;
+}
+
+LibHandle BB::OS::LoadLib(const char* a_LibName)
+{
+	HMODULE t_Mod = LoadLibrary(a_LibName);
+	BB_ASSERT(t_Mod != NULL, "Failed to load .DLL");
+	return LibHandle(t_Mod);
+}
+
+void BB::OS::UnloadLib(const LibHandle a_Handle)
+{
+	FreeLibrary(reinterpret_cast<HMODULE>(a_Handle.ptrHandle));
 }
 
 WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
