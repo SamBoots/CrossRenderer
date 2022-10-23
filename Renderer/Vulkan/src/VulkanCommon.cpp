@@ -1007,7 +1007,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 			a_CreateInfo.bufferCount,
 			VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-		t_ReturnCommandList.graphicCommands[i].buffers = BBnewArr(s_VulkanAllocator, 1, VkCommandBuffer);
+		t_ReturnCommandList.graphicCommands[i].buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
 		t_ReturnCommandList.graphicCommands[i].bufferCount = 1;
 		t_ReturnCommandList.graphicCommands[i].currentFree = 0;
 

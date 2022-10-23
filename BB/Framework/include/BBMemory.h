@@ -13,28 +13,20 @@ struct MacroType { typedef T type; }; //I hate C++.
 namespace BB
 {
 #ifdef _DEBUG
-#define BB_MEMORY_DEBUG const char* a_File, size_t a_Line,
-#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
-#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
-#define BB_MEMORY_DEBUG_FREE nullptr, 0,
-#else
-#define BB_MEMORY_DEBUG 
-#define BB_MEMORY_DEBUG_ARGS
-#define BB_MEMORY_DEBUG_SEND
-#define BB_MEMORY_DEBUG_FREE
-#endif //_DEBUG
-
-	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
-	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
-
-	constexpr const size_t kbSize = 1024;
-	constexpr const size_t mbSize = kbSize * 1024;
-	constexpr const size_t gbSize = mbSize * 1024;
+	enum class BOUNDRY_ERROR
+	{
+		NONE,
+		FRONT,
+		BACK
+	};
 
 	//Checks Adds memory boundry to an allocation log.
 	void* Memory_AddBoundries(void* a_Front, size_t a_AllocSize);
 	//Checks the memory boundries, 
-	void Memory_CheckBoundries(void* a_Front, void* a_Back);
+	BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back);
+
+	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
+	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
 
 	struct AllocationLog
 	{
@@ -62,6 +54,21 @@ namespace BB
 
 		return a_Front;
 	}
+
+#define BB_MEMORY_DEBUG const char* a_File, size_t a_Line,
+#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
+#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
+#define BB_MEMORY_DEBUG_FREE nullptr, 0,
+#else //No debug
+#define BB_MEMORY_DEBUG 
+#define BB_MEMORY_DEBUG_ARGS
+#define BB_MEMORY_DEBUG_SEND
+#define BB_MEMORY_DEBUG_FREE
+#endif //_DEBUG
+
+	constexpr const size_t kbSize = 1024;
+	constexpr const size_t mbSize = kbSize * 1024;
+	constexpr const size_t gbSize = mbSize * 1024;
 
 	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_AllocatorData, size_t a_Size, size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
@@ -101,7 +108,21 @@ namespace BB
 			AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
 				Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));
 
-			Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+			BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+			switch (t_HasError)
+			{
+			case BB::BOUNDRY_ERROR::FRONT:
+				std::cout << "Memory Boundry overwritten at front accured in file: " << t_AllocLog->file << "\n on line: "
+					<< t_AllocLog->line << "\n";
+				BB_ASSERT(false, "");
+				break;
+			case BB::BOUNDRY_ERROR::BACK:
+				std::cout << "Memory Boundry overwritten at back accured in file: " << t_AllocLog->file << "\n on line: "
+					<< t_AllocLog->line << "\n";
+				BB_ASSERT(false, "");
+				break;
+			}
+
 			a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
 
 			AllocationLog* t_FrontLog = reinterpret_cast<Allocator_t*>(a_Allocator)->frontLog;
