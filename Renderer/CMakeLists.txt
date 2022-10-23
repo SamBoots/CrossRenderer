@@ -1,18 +1,6 @@
 ﻿# CMakeList.txt : CMake project for Allocator, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
-set(ENV{BASH_ENV} "/home/pi/.bashrc")
-execute_process(COMMAND bash-c "")
-
-#compile Definitions.
-if (WIN32)
-set(PLATFORM_NAME "_WIN")
-add_compile_definitions(PUBLIC VK_USE_PLATFORM_WIN32_KHR)
-elseif(UNIX)
-set(PLATFORM_NAME "_LINUX")
-add_compile_definitions(PUBLIC VK_USE_PLATFORM_XLIB_KHR)
-endif ()
 
 if ("${GRAPHICS_API}" STREQUAL "Vulkan")
 add_compile_definitions(PUBLIC USE_VULKAN)
@@ -27,62 +15,42 @@ add_executable (Renderer
 #Backend .h
 "include/Backend/RenderBackend.h"
 "include/Backend/RenderBackendCommon.h"
-"include/Backend/VK/VulkanBackend.h"
-"include/Backend/VK/VulkanInitializers.h"
-"include/Backend/VK/VulkanCommon.h"
-"include/Backend/DX12/DX12Common.h"
-"include/Backend/DX12/DX12Backend.h"
 #Frontend .h
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
-"src/Backend/VK/VulkanBackend.cpp"
-"src/Backend/VK/VulkanCommon.cpp"
-"src/Backend/DX12/DX12Backend.cpp"
-"src/Backend/DX12/DX12Common.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
 #temporary to test
 "src/main.cpp" )
 
-find_package(Vulkan REQUIRED)
-if (NOT Vulkan_FOUND)
-message(FATAL_ERROR "Vulkan not found")
-else()
-message(STATUS "Vulkan found")
-message(STATUS ${Vulkan_INCLUDE_DIRS})
-endif()
-
 #Include library
 target_include_directories(Renderer PUBLIC
-${Vulkan_INCLUDE_DIRS}
 "../BB/Framework/include"
 "include"
 "include/Backend"
-"include/Backend/VK"
-"include/Backend/DX12"
 "include/Frontend"
+
+"Vulkan/include"
+"DirectX12/include"
 )
+
+add_subdirectory("Vulkan")
+add_subdirectory("DirectX12")
 
 target_link_libraries(Renderer 
     BBFramework 
-    Vulkan::Vulkan
-    VMA
-    DX12MA
-    DX12_ShaderCompiler
-    d3d12.lib
-    dxgi.lib
-    dxguid.lib
-    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
-    DX12_ShaderCompiler)
+    BB_VulkanDLL
+    BB_DirectXDLL
+)
 
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxcompiler.dll"
         $<TARGET_FILE_DIR:Renderer>)
 
-        add_custom_command(TARGET Renderer POST_BUILD
+add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxil.dll"
         $<TARGET_FILE_DIR:Renderer>)
