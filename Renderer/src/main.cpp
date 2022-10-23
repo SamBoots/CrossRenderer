@@ -19,9 +19,7 @@ void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 int main()
 {
 	//load DLL
-	BB::LibHandle renderDLL = BB::OS::LoadLib("BB_VulkanDLL");
-
-
+	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_VulkanDLL");
 
 	BB::WindowHandle t_MainWindow = BB::OS::CreateOSWindow(
 		BB::OS::OS_WINDOW_STYLE::MAIN, 
@@ -45,13 +43,15 @@ int main()
 	RenderAPI api = RenderAPI::DX12;
 #endif //choose graphicsAPI.
 
-	Render::InitRenderer(t_MainWindow, renderDLL, debugRenderer);
+	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
 
 	while (!t_Quit)
 	{
 		Render::Update();
 		OS::ProcessMessages();
 	}
+
+	BB::OS::UnloadLib(t_RenderDLL);
 
 	return 0;
 }

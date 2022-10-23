@@ -125,7 +125,7 @@ LibHandle BB::OS::LoadLib(const char* a_LibName)
 	if (t_Mod == NULL)
 	{
 		OS::LatestOSError();
-		BB_ASSERT(t_Mod != NULL, "Failed to load .DLL");
+		BB_ASSERT(false, "Failed to load .DLL");
 	}
 	return LibHandle(t_Mod);
 }
@@ -137,7 +137,13 @@ void BB::OS::UnloadLib(const LibHandle a_Handle)
 
 LibFuncPtr BB::OS::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
 {
-	return GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
+	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
+	if (t_Func == NULL)
+	{
+		OS::LatestOSError();
+		BB_ASSERT(false, "Failed to load function from .dll");
+	}
+	return t_Func;
 }
 
 WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)

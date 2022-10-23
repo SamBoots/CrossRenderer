@@ -4,5 +4,5 @@
 namespace BB
 {
 	//Get the functions needed to run the Vulkan Renderer.
-	void GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo);
+	EXTERN_C void GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo);
 }
