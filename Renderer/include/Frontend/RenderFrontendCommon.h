@@ -27,6 +27,8 @@ namespace BB
 			uint32_t childCount;
 		};
 
+		PipelineHandle pipelineHandle;
+
 		RBufferHandle vertexBuffer{};
 		RDeviceBufferView vertexBufferView{};
 
@@ -44,5 +46,6 @@ namespace BB
 	{
 		BB::Slice<Vertex> vertices;
 		BB::Slice<uint32_t> indices;
+		PipelineHandle pipeline;
 	};
 }

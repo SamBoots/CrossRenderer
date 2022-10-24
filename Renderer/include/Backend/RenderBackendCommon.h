@@ -242,6 +242,8 @@ namespace BB
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	
+	typedef void (*PFN_RenderAPIStartFrame)();
 	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
@@ -268,6 +270,8 @@ namespace BB
 		PFN_RenderAPIBuffer_CopyData bufferCopyData;
 
 		PFN_RenderAPIResizeWindow resizeWindow;
+
+		PFN_RenderAPIStartFrame startFrame;
 		PFN_RenderAPIRenderFrame renderFrame;
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 

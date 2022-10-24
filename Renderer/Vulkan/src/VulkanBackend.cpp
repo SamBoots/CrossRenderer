@@ -3,7 +3,7 @@
 
 using namespace BB;
 
-void BB::GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
+void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
@@ -19,6 +19,8 @@ void BB::GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bufferCopyData = VulkanBufferCopyData;
 
 	a_FuncCreateInfo.resizeWindow = ResizeWindow;
+
+	a_FuncCreateInfo.startFrame = StartFrame;
 	a_FuncCreateInfo.renderFrame = RenderFrame;
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 

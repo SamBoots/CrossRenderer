@@ -266,6 +266,8 @@ namespace BB
 	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
 
 	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	
+	void StartFrame();
 	void RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();

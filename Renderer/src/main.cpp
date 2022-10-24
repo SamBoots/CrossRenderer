@@ -45,9 +45,25 @@ int main()
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
 
+	Vertex t_Vertex[3];
+	t_Vertex[0] = { {0.0f, -0.5f}, {1.0f, 1.0f, 1.0f} };
+	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
+	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
+	CreateRawModelInfo t_ModelInfo;
+	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
+
+	//t_ModelInfo.pipeline = 
+	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
+
 	while (!t_Quit)
 	{
-		Render::Update();
+		Render::StartFrame();
+		//Record rendering commands.
+		auto t_Recording = Render::StartRecordCmds();
+		Render::DrawModel(t_Recording, t_Model);
+		Render::EndRecordCmds(t_Recording);
+
+		Render::EndFrame();
 		OS::ProcessMessages();
 	}
 

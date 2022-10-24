@@ -47,7 +47,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	OS::GetWindowSize(a_WindowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)OS::LibLoadFunc(a_RenderLib, "GetVulkanAPIFunctions");
+	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)OS::LibLoadFunc(a_RenderLib, "GetRenderAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(OS::GetOSWindowHandle(a_WindowHandle));
@@ -99,20 +99,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_CmdCreateInfo.bufferCount = 5;
 	t_CommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
-	Vertex t_Vertex[3];
-	t_Vertex[0] = { {0.0f, -0.5f}, {1.0f, 1.0f, 1.0f} };
-	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
-	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
-
-	RenderBufferCreateInfo t_RenderBuffer{};
-	t_RenderBuffer.size = sizeof(t_Vertex);
-	t_RenderBuffer.data = nullptr; //We will upload with pfn_BufferCopyData.
-	t_RenderBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
-	t_RenderBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_Buffer = RenderBackend::CreateBuffer(t_RenderBuffer);
-
-	RenderBackend::BufferCopyData(t_Buffer, &t_Vertex, sizeof(t_Vertex), 0);
-
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
 }
@@ -129,9 +115,13 @@ void BB::Render::DestroyRenderer()
 	s_RendererInfo.debug = false;
 }
 
-RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
+RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 {
 	Model t_Model;
+
+	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
+	t_Model.pipelineHandle = t_Pipeline;
+
 
 	RenderBufferCreateInfo t_BufferInfo;
 	t_BufferInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
@@ -176,16 +166,17 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 {
 	const Model& t_Model = s_RendererInst.models.find(a_ModelHandle.handle);
 	
+	RenderBackend::BindPipeline(a_Handle, t_Model.pipelineHandle);
 	RenderBackend::DrawBuffers(a_Handle, &t_Model.vertexBuffer, 1);
 }
 
-void BB::Render::Update()
+void BB::Render::StartFrame()
 {
-	auto t_Recording = RenderBackend::StartCommandList(t_CommandList, t_FrameBuffer);
-	RenderBackend::BindPipeline(t_Recording, t_Pipeline);
-	RenderBackend::DrawBuffers(t_Recording, &t_Buffer, 1);
-	RenderBackend::EndCommandList(t_Recording);
+	RenderBackend::StartFrame();
+}
 
+void BB::Render::EndFrame()
+{
 	RenderBackend::RenderFrame(t_CommandList, t_FrameBuffer, t_Pipeline);
 	RenderBackend::Update();
 }

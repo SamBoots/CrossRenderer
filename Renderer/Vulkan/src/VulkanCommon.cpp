@@ -27,6 +27,7 @@ namespace BB
 	{
 		uint32_t currentFrame = 0;
 		uint32_t frameCount = 0;
+		uint32_t imageIndex = 0;
 		
 		VkInstance instance{};
 		VkSurfaceKHR surface{};
@@ -605,6 +606,17 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 		&t_Buffer.buffer, &t_Buffer.allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
+	if (a_Info.data != nullptr)
+	{
+		void* t_MapData;
+		VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+			t_Buffer.allocation,
+			&t_MapData),
+			"Vulkan: Failed to map memory");
+		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
+		vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
+	}
+
 	return RBufferHandle(s_VkBackendInst.renderBuffers.insert(t_Buffer));
 }
 
@@ -627,18 +639,16 @@ void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, 
 	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
 }
 
-
-void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+void BB::StartFrame()
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	uint32_t t_ImageIndex;
 	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
 		UINT64_MAX,
 		s_VkBackendInst.swapChain.renderSems[t_CurrentFrame],
 		VK_NULL_HANDLE,
-		&t_ImageIndex),
+		&s_VkBackendInst.imageIndex),
 		"Vulkan: failed to get next image.");
 
 	VKASSERT(vkWaitForFences(s_VkBackendInst.device.logicalDevice,
@@ -652,10 +662,19 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 		1,
 		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
 
-	VulkanCommandList t_GlobalCommandList = s_VkBackendInst.commandLists[a_CommandHandle.handle];
-	VulkanCommandList::GraphicsCommands& t_Cmdlist = t_GlobalCommandList.graphicCommands[t_CurrentFrame];
-	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
+	//TODO, go through all commandlists and reset the pools.
+	VulkanCommandList t_GlobalCommandList = s_VkBackendInst.commandLists[0];
+	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
+		t_GlobalCommandList.graphicCommands[t_CurrentFrame].pool,
+		0);
+}
 
+void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+{
+	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+
+	VulkanCommandList::GraphicsCommands& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
+	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
 
 	//submit stage.
 	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -684,7 +703,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
 	t_PresentInfo.swapchainCount = 1;
 	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
-	t_PresentInfo.pImageIndices = &t_ImageIndex;
+	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
 	t_PresentInfo.pResults = nullptr;
 
 	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
@@ -989,7 +1008,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 	QueueFindGraphicsBit(a_TempAllocator, s_VkBackendInst.device.physicalDevice, &t_GraphicsBit);
 	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
 		t_GraphicsBit,
-		VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+		0);
 
 	t_ReturnCommandList.graphicCommands = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VulkanCommandList::GraphicsCommands);
 

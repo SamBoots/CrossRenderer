@@ -68,6 +68,11 @@ void BB::RenderBackend::DrawBuffers(const RecordingCommandListHandle a_Recording
 	s_ApiFunc.drawBuffers(a_RecordingCmdHandle, a_BufferHandles, a_BufferCount);
 }
 
+void BB::RenderBackend::StartFrame()
+{
+	s_ApiFunc.startFrame();
+}
+
 void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
 {
 	s_ApiFunc.renderFrame(m_TempAllocator, a_CommandHandle, a_FrameBufferHandle, a_PipeHandle);

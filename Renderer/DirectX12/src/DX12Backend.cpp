@@ -14,7 +14,7 @@ void TempFrameFunc(FrameBufferHandle a_Handle)
 }
 
 
-void BB::GetDX12APIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
+void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
 	a_FuncCreateInfo.createPipeline = DX12CreatePipeline;
