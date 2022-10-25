@@ -104,12 +104,34 @@ namespace BB
 		PIPELINE_EXTENDED_DYNAMIC_STATE //VK Device Property.
 	};
 
+	enum class RENDER_QUEUE_TYPE : uint32_t
+	{
+		GRAPHICS,
+		TRANSFER
+	};
+
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
 		void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
+	};
+
+	struct RenderCopyBufferInfo
+	{
+		CommandListHandle transferCommandHandle;
+		RBufferHandle src;
+		RBufferHandle dst;
+
+		struct CopyRegions
+		{
+			uint64_t srcOffset;
+			uint64_t dstOffset;
+			uint64_t size;
+		};
+		CopyRegions* copyRegions;
+		uint64_t CopyRegionCount;
 	};
 
 	struct RDeviceBufferView
@@ -140,40 +162,6 @@ namespace BB
 		RENDER_SHADER_STAGE shaderStage{};
 	};
 
-	inline RenderBufferCreateInfo CreateRenderBufferInfo(uint64_t a_Size, void* a_Data, RENDER_BUFFER_USAGE a_Usage, RENDER_MEMORY_PROPERTIES a_MemProperties)
-	{
-		RenderBufferCreateInfo t_Info;
-		t_Info.size = a_Size;
-		t_Info.data = a_Data;
-		t_Info.usage = a_Usage;
-		t_Info.memProperties = a_MemProperties;
-		return t_Info;
-	}
-
-	inline RenderImageCreateInfo CreateRenderImageInfo(uint32_t a_Width, uint32_t a_Height, uint32_t a_ArrayLayers,
-		RENDER_IMAGE_TYPE a_Type,
-		RENDER_IMAGE_USAGE a_Usage,
-		RENDER_IMAGE_FORMAT a_Format,
-		RENDER_IMAGE_VIEWTYPE a_ViewType)
-	{
-		RenderImageCreateInfo t_Info;
-		t_Info.width = a_Width;
-		t_Info.height = a_Height;
-		t_Info.arrayLayers = a_ArrayLayers;
-		t_Info.type = a_Type;
-		t_Info.usage = a_Usage;
-		t_Info.format = a_Format;
-		t_Info.viewtype = a_ViewType;
-		return t_Info;
-	}
-
-	inline ShaderCreateInfo CreateShaderInfo(Buffer a_Buffer, RENDER_SHADER_STAGE a_Shaderstage)
-	{
-		ShaderCreateInfo t_Info;
-		t_Info.buffer = a_Buffer;
-		t_Info.shaderStage = a_Shaderstage;
-		return t_Info;
-	}
 	struct RenderAPIFunctions;
 	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
 
@@ -216,6 +204,7 @@ namespace BB
 
 	struct RenderCommandListCreateInfo
 	{
+		RENDER_QUEUE_TYPE queueType;
 		uint32_t bufferCount;
 	};
 
@@ -240,6 +229,7 @@ namespace BB
 
 	//Utility
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
+	typedef void (*PFN_RenderAPICCopyBuffer)(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
@@ -268,6 +258,7 @@ namespace BB
 		PFN_RenderAPIDrawBuffers drawBuffers;
 
 		PFN_RenderAPIBuffer_CopyData bufferCopyData;
+		PFN_RenderAPICCopyBuffer copyBuffer;
 
 		PFN_RenderAPIResizeWindow resizeWindow;
 

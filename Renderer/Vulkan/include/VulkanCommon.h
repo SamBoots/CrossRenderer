@@ -223,7 +223,7 @@ namespace BB
 
 	struct VulkanCommandList
 	{
-		struct GraphicsCommands
+		struct CommandList
 		{
 			VkCommandPool pool;
 			VkCommandBuffer* buffers;
@@ -232,7 +232,7 @@ namespace BB
 			VkCommandBuffer currentRecording = VK_NULL_HANDLE;
 		};
 
-		GraphicsCommands* graphicCommands;
+		CommandList* commandLists;
 	};
 
 	struct VulkanDevice
@@ -240,9 +240,17 @@ namespace BB
 		VkDevice logicalDevice;
 		VkPhysicalDevice physicalDevice;
 
-		VkQueue graphicsQueue;
-		VkQueue presentQueue;
+		struct VulkanQueue
+		{
+			VkQueue queue;
+			uint32_t index;
+		};
+
+		VulkanQueue graphicsQueue;
+		VulkanQueue presentQueue;
+		VulkanQueue transferQueue;
 	};
+
 	struct VulkanDebug
 	{
 		VkDebugUtilsMessengerEXT debugMessenger;
@@ -263,7 +271,9 @@ namespace BB
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
 
-	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
+	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
+	void VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
+
 
 	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	

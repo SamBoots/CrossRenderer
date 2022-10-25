@@ -46,6 +46,11 @@ void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void*
 	return s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
 }
 
+void BB::RenderBackend::CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo)
+{
+	s_ApiFunc.copyBuffer(m_TempAllocator, a_CopyInfo);
+}
+
 RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle)
 {
 	//s_ApiFunc.startCommandList(a_Handle, t_FrameBuffer);

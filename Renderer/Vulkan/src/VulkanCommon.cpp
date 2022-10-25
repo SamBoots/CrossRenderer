@@ -18,6 +18,12 @@ struct VulkanBuffer
 	VmaAllocation allocation;
 };
 
+struct QueueIndex
+{
+	VkQueueFlagBits bit;
+	uint32_t index;
+};
+
 namespace BB
 {
 	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
@@ -203,7 +209,7 @@ static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, const BB:
 }
 
 //If a_Index is nullptr it will just check if we have a queue that has a graphics bit.
-static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, uint32_t* a_Index)
+static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice)
 {
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
@@ -215,44 +221,8 @@ static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_P
 	{
 		if (t_QueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
-			if (a_Index != nullptr)
-			{
-				*a_Index = i;
-			}
 			return true;
 		}
-	}
-	if (a_Index != nullptr)
-	{
-		*a_Index = EMPTY_FAMILY_INDICES;
-	}
-	return false;
-}
-
-//If a_Index is nullptr it will just check if we have a queue that is available.
-static bool QueueHasPresentSupport(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice, VkSurfaceKHR a_Surface, uint32_t* a_Index)
-{
-	uint32_t t_QueueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
-	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
-	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
-
-	for (uint32_t i = 0; i < t_QueueFamilyCount; i++)
-	{
-		VkBool32 t_PresentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(a_PhysicalDevice, i, a_Surface, &t_PresentSupport);
-		if (t_PresentSupport == VK_TRUE)
-		{
-			if (a_Index != nullptr)
-			{
-				*a_Index = i;
-			}
-			return true;
-		}
-	}
-	if (a_Index != nullptr)
-	{
-		*a_Index = EMPTY_FAMILY_INDICES;
 	}
 	return false;
 }
@@ -276,7 +246,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 
 		if (t_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 			t_DeviceFeatures.geometryShader &&
-			QueueFindGraphicsBit(a_TempAllocator, t_PhysicalDevices[i], nullptr) &&
+			QueueFindGraphicsBit(a_TempAllocator, t_PhysicalDevices[i]) &&
 			t_SwapChainDetails.formatCount != 0 &&
 			t_SwapChainDetails.presentModeCount != 0)
 		{
@@ -288,35 +258,124 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 	return VK_NULL_HANDLE;
 }
 
-static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<const char*>& a_DeviceExtensions, VkPhysicalDevice a_PhysicalDevice, VkQueue* a_GraphicsQueue)
+/// <summary>
+/// Gets the VulkanDevice device queues for graphics, present and transfer.
+/// </summary>
+static BB::Slice<QueueIndex> QueueGetHandles(Allocator a_TempAllocator)
+{
+	uint32_t t_QueueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VkBackendInst.device.physicalDevice, &t_QueueFamilyCount, nullptr);
+	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VkBackendInst.device.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
+
+	uint32_t t_NextEmptyIndex = 0;
+	QueueIndex* t_MaxIndices = BBnewArr(a_TempAllocator, 3, QueueIndex);
+
+	bool t_FoundGraphics = false;
+	bool t_FoundTransfer = false;
+
+	for (uint32_t i = 0; i < t_QueueFamilyCount; i++)
+	{
+		if (t_QueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT && !t_FoundGraphics)
+		{
+			VkBool32 t_HasPresentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(
+				s_VkBackendInst.device.physicalDevice,
+				i, 
+				s_VkBackendInst.surface, 
+				&t_HasPresentSupport);
+
+			if (!t_HasPresentSupport)
+				//TEMP, for now if it doesn't have present support just break;
+				break;
+
+			t_FoundGraphics = true;
+			t_MaxIndices[t_NextEmptyIndex].bit = VK_QUEUE_GRAPHICS_BIT;
+			t_MaxIndices[t_NextEmptyIndex].index = i;
+			++t_NextEmptyIndex;
+		}
+		//We try to find a dedicated transfer queue.
+		else if (t_QueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT && !t_FoundTransfer)
+		{
+			t_FoundTransfer = true;
+			t_MaxIndices[t_NextEmptyIndex].bit = VK_QUEUE_TRANSFER_BIT;
+			t_MaxIndices[t_NextEmptyIndex].index = i;
+			++t_NextEmptyIndex;
+		}
+	}
+
+	//Error checking
+	BB_ASSERT(t_FoundGraphics, "Found no queue with graphics support!");
+	if (!t_FoundTransfer)
+	{
+		BB_WARNING(t_FoundTransfer,
+			"Found no dedicated transfer queue! Taking the graphics queue for trasfer instead.",
+			WarningType::OPTIMALIZATION);
+		s_VkBackendInst.device.transferQueue = s_VkBackendInst.device.graphicsQueue;
+	}
+
+	return BB::Slice(t_MaxIndices, t_NextEmptyIndex);
+}
+
+static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<const char*>& a_DeviceExtensions)
 {
 	VkDevice t_ReturnDevice;
 
-	uint32_t t_Indices;
-	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_Indices);
+	BB::Slice<QueueIndex> t_Indices = QueueGetHandles(a_TempAllocator);
 
-	VkDeviceQueueCreateInfo t_QueueCreateInfo{};
-	t_QueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	t_QueueCreateInfo.queueFamilyIndex = t_Indices;
-	t_QueueCreateInfo.queueCount = 1;
-	float t_QueuePriority = 1.0f;
-	t_QueueCreateInfo.pQueuePriorities = &t_QueuePriority;
-
+	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(a_TempAllocator, t_Indices.size(), VkDeviceQueueCreateInfo);
+	for (size_t i = 0; i < t_Indices.size(); i++)
+	{
+		//Initialize
+		t_QueueCreateInfos[i] = {};
+		t_QueueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		t_QueueCreateInfos[i].queueFamilyIndex = t_Indices[i].index;
+		t_QueueCreateInfos[i].queueCount = 1;
+		float t_QueuePriority = 1.0f;
+		t_QueueCreateInfos[i].pQueuePriorities = &t_QueuePriority;
+	}
 
 	VkPhysicalDeviceFeatures t_DeviceFeatures{};
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	t_CreateInfo.pQueueCreateInfos = &t_QueueCreateInfo;
-	t_CreateInfo.queueCreateInfoCount = 1;
+	t_CreateInfo.pQueueCreateInfos = t_QueueCreateInfos;
+	t_CreateInfo.queueCreateInfoCount = static_cast<uint32_t>(t_Indices.size());
 	t_CreateInfo.pEnabledFeatures = &t_DeviceFeatures;
 
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
 
-	VKASSERT(vkCreateDevice(a_PhysicalDevice, &t_CreateInfo, nullptr, &t_ReturnDevice),
+	VKASSERT(vkCreateDevice(s_VkBackendInst.device.physicalDevice, 
+		&t_CreateInfo, 
+		nullptr, 
+		&t_ReturnDevice),
 		"Failed to create logical device Vulkan.");
 
-	vkGetDeviceQueue(t_ReturnDevice, t_Indices, 0, a_GraphicsQueue);
+	for (size_t i = 0; i < t_Indices.size(); i++)
+	{
+		switch (t_Indices[i].bit)
+		{
+		case VK_QUEUE_GRAPHICS_BIT:
+			s_VkBackendInst.device.graphicsQueue.index = t_Indices[i].index;
+			vkGetDeviceQueue(t_ReturnDevice, 
+				t_Indices[i].index, 0, &s_VkBackendInst.device.graphicsQueue.queue);
+
+			s_VkBackendInst.device.presentQueue.index = t_Indices[i].index;
+			vkGetDeviceQueue(t_ReturnDevice,
+				t_Indices[i].index, 0, &s_VkBackendInst.device.presentQueue.queue);
+			break;
+		case VK_QUEUE_TRANSFER_BIT:
+			s_VkBackendInst.device.transferQueue.index = t_Indices[i].index;
+			vkGetDeviceQueue(t_ReturnDevice, 
+				t_Indices[i].index, 0, &s_VkBackendInst.device.transferQueue.queue);
+			break;
+		default:
+			BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.")
+			break;
+		}
+
+	}
+
 
 	return t_ReturnDevice;
 }
@@ -393,8 +452,8 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	a_SwapChain.extent = t_ChosenExtent;
 
 	uint32_t t_GraphicFamily, t_PresentFamily;
-	QueueFindGraphicsBit(a_TempAllocator, a_PhysicalDevice, &t_GraphicFamily);
-	QueueHasPresentSupport(a_TempAllocator, a_PhysicalDevice, a_Surface, &t_PresentFamily);
+	t_GraphicFamily = s_VkBackendInst.device.graphicsQueue.index;
+	t_PresentFamily = s_VkBackendInst.device.presentQueue.index;
 	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
 	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
@@ -606,7 +665,8 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 		&t_Buffer.buffer, &t_Buffer.allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
-	if (a_Info.data != nullptr)
+	if (a_Info.data != nullptr && 
+		a_Info.memProperties != RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL)
 	{
 		void* t_MapData;
 		VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
@@ -627,7 +687,7 @@ void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 	s_VkBackendInst.renderBuffers.erase(a_Handle.handle);
 }
 
-void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset)
+void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
 	void* t_MapData;
@@ -635,8 +695,50 @@ void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, 
 		t_Buffer.allocation,
 		&t_MapData),
 		"Vulkan: Failed to map memory");
-	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_View);
+	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
 	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
+}
+
+void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
+{
+	VulkanCommandList::CommandList& t_CmdList = s_VkBackendInst.commandLists.find(a_CopyInfo.transferCommandHandle.handle).commandLists[0];
+	VulkanBuffer& t_SrcBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.src.handle);
+	VulkanBuffer& t_DstBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.dst.handle);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree], 
+		&beginInfo);
+
+	VkBufferCopy* t_CopyRegion = BBnewArr(a_TempAllocator, a_CopyInfo.CopyRegionCount, VkBufferCopy);
+	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
+	{
+		t_CopyRegion[i].srcOffset = a_CopyInfo.copyRegions[i].srcOffset;
+		t_CopyRegion[i].dstOffset = a_CopyInfo.copyRegions[i].dstOffset;
+		t_CopyRegion[i].size = a_CopyInfo.copyRegions[i].size;
+	}
+
+	vkCmdCopyBuffer(t_CmdList.buffers[t_CmdList.currentFree],
+		t_SrcBuffer.buffer,
+		t_DstBuffer.buffer,
+		a_CopyInfo.CopyRegionCount,
+		t_CopyRegion);
+	vkEndCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree]);
+
+	VkSubmitInfo t_SubmitInfo{};
+	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	t_SubmitInfo.commandBufferCount = 1;
+	t_SubmitInfo.pCommandBuffers = &t_CmdList.buffers[t_CmdList.currentFree];
+
+	vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue, 1, &t_SubmitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(s_VkBackendInst.device.transferQueue.queue);
+
+	vkFreeCommandBuffers(s_VkBackendInst.device.logicalDevice, 
+		t_CmdList.pool, 
+		1, 
+		&t_CmdList.buffers[t_CmdList.currentFree]);
 }
 
 void BB::StartFrame()
@@ -665,7 +767,7 @@ void BB::StartFrame()
 	//TODO, go through all commandlists and reset the pools.
 	VulkanCommandList t_GlobalCommandList = s_VkBackendInst.commandLists[0];
 	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
-		t_GlobalCommandList.graphicCommands[t_CurrentFrame].pool,
+		t_GlobalCommandList.commandLists[t_CurrentFrame].pool,
 		0);
 }
 
@@ -673,7 +775,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	VulkanCommandList::GraphicsCommands& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle].graphicCommands[t_CurrentFrame];
+	VulkanCommandList::CommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle].commandLists[t_CurrentFrame];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
 
 	//submit stage.
@@ -691,7 +793,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	t_SubmitInfo.commandBufferCount = t_Cmdlist.currentFree;
 	t_SubmitInfo.pCommandBuffers = t_Cmdlist.buffers;
 
-	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue,
+	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
 		1,
 		&t_SubmitInfo,
 		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
@@ -706,7 +808,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
 	t_PresentInfo.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
+	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue.queue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
 	t_Cmdlist.currentFree = 0;
@@ -800,23 +902,9 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 		s_VkBackendInst.surface);
 	//Get the logical device and the graphics queue.
 	s_VkBackendInst.device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
-		BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count),
-		s_VkBackendInst.device.physicalDevice,
-		&s_VkBackendInst.device.graphicsQueue);
+		BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count));
 
-	{
-		uint32_t t_PresentIndex;
-		if (QueueHasPresentSupport(a_TempAllocator,
-			s_VkBackendInst.device.physicalDevice,
-			s_VkBackendInst.surface,
-			&t_PresentIndex))
-		{
-			vkGetDeviceQueue(s_VkBackendInst.device.logicalDevice,
-				t_PresentIndex,
-				0,
-				&s_VkBackendInst.device.presentQueue);
-		}
-	}
+
 	CreateSwapchain(s_VkBackendInst.swapChain, 
 		a_TempAllocator,
 		s_VkBackendInst.surface,
@@ -1004,13 +1092,26 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	VulkanCommandList t_ReturnCommandList{};
-	uint32_t t_GraphicsBit;
-	QueueFindGraphicsBit(a_TempAllocator, s_VkBackendInst.device.physicalDevice, &t_GraphicsBit);
+	uint32_t t_QueueIndex;
+
+	switch (a_CreateInfo.queueType)
+	{
+	case RENDER_QUEUE_TYPE::GRAPHICS:
+		t_QueueIndex = s_VkBackendInst.device.graphicsQueue.index;
+		break;
+	case RENDER_QUEUE_TYPE::TRANSFER:
+		t_QueueIndex = s_VkBackendInst.device.transferQueue.index;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Tried to make a commandlist with a queue type that does not exist.")
+		break;
+	}
+
 	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
-		t_GraphicsBit,
+		t_QueueIndex,
 		0);
 
-	t_ReturnCommandList.graphicCommands = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VulkanCommandList::GraphicsCommands);
+	t_ReturnCommandList.commandLists = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VulkanCommandList::CommandList);
 
 	//The commandlist has graphiccommands per frame.
 	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
@@ -1018,21 +1119,21 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 		VKASSERT(vkCreateCommandPool(s_VkBackendInst.device.logicalDevice,
 			&t_CommandPoolInfo,
 			nullptr,
-			&t_ReturnCommandList.graphicCommands[i].pool),
+			&t_ReturnCommandList.commandLists[i].pool),
 			"Vulkan: Failed to create commandpool.");
 
 		VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
-			t_ReturnCommandList.graphicCommands[i].pool,
+			t_ReturnCommandList.commandLists[i].pool,
 			a_CreateInfo.bufferCount,
 			VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-		t_ReturnCommandList.graphicCommands[i].buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
-		t_ReturnCommandList.graphicCommands[i].bufferCount = 1;
-		t_ReturnCommandList.graphicCommands[i].currentFree = 0;
+		t_ReturnCommandList.commandLists[i].buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
+		t_ReturnCommandList.commandLists[i].bufferCount = a_CreateInfo.bufferCount;
+		t_ReturnCommandList.commandLists[i].currentFree = 0;
 
 		VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
 			&t_AllocInfo,
-			t_ReturnCommandList.graphicCommands[i].buffers),
+			t_ReturnCommandList.commandLists[i].buffers),
 			"Vulkan: failed to allocate commandbuffers.");
 	}
 
@@ -1041,8 +1142,8 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 
 RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
-	VulkanCommandList::GraphicsCommands& t_Cmdlist =
-		s_VkBackendInst.commandLists[a_CmdHandle.handle].graphicCommands[s_VkBackendInst.currentFrame];
+	VulkanCommandList::CommandList& t_Cmdlist =
+		s_VkBackendInst.commandLists[a_CmdHandle.handle].commandLists[s_VkBackendInst.currentFrame];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
 
 	BB_ASSERT(t_Cmdlist.currentRecording == VK_NULL_HANDLE,
@@ -1091,8 +1192,8 @@ RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_
 
 void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
-	VulkanCommandList::GraphicsCommands* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
 	BB_ASSERT(t_Cmdlist->currentRecording != VK_NULL_HANDLE,
 		"Vulkan: Trying to end a commandbuffer that is not recording!");
 
@@ -1106,8 +1207,8 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
-	VulkanCommandList::GraphicsCommands* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdBindPipeline(t_Cmdlist->currentRecording,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1116,12 +1217,12 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 
 void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
 {
-	VulkanCommandList::GraphicsCommands* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::GraphicsCommands*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 0, 1,
-		&s_VkBackendInst.renderBuffers.find(0).buffer,
+		&s_VkBackendInst.renderBuffers.find(a_BufferHandles[0].handle).buffer,
 		offsets);
 
 	vkCmdDraw(t_Cmdlist->currentRecording, 3, 1, 0, 0);
@@ -1189,12 +1290,12 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
 		vkDestroyCommandPool(s_VkBackendInst.device.logicalDevice,
-			a_List.graphicCommands[i].pool, nullptr);
+			a_List.commandLists[i].pool, nullptr);
 		BBfreeArr(s_VulkanAllocator,
-			a_List.graphicCommands[i].buffers);
+			a_List.commandLists[i].buffers);
 	}
 	BBfreeArr(s_VulkanAllocator,
-		a_List.graphicCommands);
+		a_List.commandLists);
 }
 
 void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)

@@ -23,6 +23,7 @@ struct RendererInst
 
 FrameBufferHandle t_FrameBuffer;
 CommandListHandle t_CommandList;
+CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
 RBufferHandle t_Buffer;
 
@@ -96,8 +97,14 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
 
 	RenderCommandListCreateInfo t_CmdCreateInfo;
+	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_CmdCreateInfo.bufferCount = 5;
 	t_CommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+
+	//just reuse the struct above.
+	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
+	t_CmdCreateInfo.bufferCount = 1;
+	t_TransferCommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
@@ -122,15 +129,40 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
+	RenderBufferCreateInfo t_StagingInfo;
+	t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+	t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_StagingInfo.size = a_CreateInfo.vertices.sizeInBytes();
+	t_StagingInfo.data = a_CreateInfo.vertices.data();
 
-	RenderBufferCreateInfo t_BufferInfo;
-	t_BufferInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
-	t_BufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_BufferInfo.size = a_CreateInfo.vertices.sizeInBytes();
-	t_BufferInfo.data = a_CreateInfo.vertices.data();
+	RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
 
-	t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_BufferInfo);
+	//just change the previous stuck to now make a vertex buffer.
+	RenderBufferCreateInfo t_VertexInfo;
+	t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
+	t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+	t_VertexInfo.size = a_CreateInfo.vertices.sizeInBytes();
+	t_VertexInfo.data = nullptr;
+
+	t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
 	t_Model.vertexBufferView;
+
+	RenderCopyBufferInfo t_CopyInfo;
+	t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+	t_CopyInfo.src = t_StagingBuffer;
+	t_CopyInfo.dst = t_Model.vertexBuffer;
+	t_CopyInfo.CopyRegionCount = 1;
+	t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
+	t_CopyInfo.copyRegions->srcOffset = 0;
+	t_CopyInfo.copyRegions->dstOffset = 0;
+	t_CopyInfo.copyRegions->size = a_CreateInfo.vertices.sizeInBytes();
+
+	RenderBackend::CopyBuffer(t_CopyInfo);
+
+	//cleanup staging buffer.
+	// LATER, FIX ERROR RELATED TO SLOTMAP.
+	//RenderBackend::DestroyBuffer(t_StagingBuffer);
+
 
 	//t_BufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
 	//t_BufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
@@ -145,7 +177,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_BaseNode->mesh->primitiveCount = 1;
 	t_BaseNode->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
 	t_BaseNode->mesh->primitives->indexStart = 0;
-	t_BaseNode->mesh->primitives->indexCount = t_BufferInfo.size;
+	t_BaseNode->mesh->primitives->indexCount = t_VertexInfo.size;
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 	t_Model.nodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 
