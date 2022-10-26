@@ -21,57 +21,48 @@ namespace BB
 	private:
 		Allocator m_Allocator;
 
+		size_t m_Capacity;
 		size_t m_Size;
-		T* m_Start;
+		void* m_Start;
 		T** m_Pool;
 	};
 
 	template<typename T>
 	inline BB::Pool<T>::Pool(Allocator a_Allocator, const size_t a_Size)
-		: m_Allocator(a_Allocator), m_Size(a_Size)
+		: m_Allocator(a_Allocator), m_Capacity(a_Size), m_Size(0)
 	{
-		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
-		BB_ASSERT(a_Size != 0, "Pool is created with an object size of 0!");
+		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer");
+		BB_STATIC_ASSERT(std::is_trivially_destructible_v<T>, "Pool template Type is not trivially destructable. This is dangerous behaviour");
 
-		m_Start = BBnewArr(m_Allocator, m_Size, T);
+		m_Start = BBalloc(m_Allocator, m_Capacity * sizeof(T));
 		m_Pool = reinterpret_cast<T**>(m_Start);
 
 		T** t_Pool = m_Pool;
 
-		for (size_t i = 0; i < m_Size - 1; i++)
+		for (size_t i = 0; i < m_Capacity - 1; i++)
 		{
 			*t_Pool = (reinterpret_cast<T*>(t_Pool)) + 1;
 			t_Pool = reinterpret_cast<T**>(*t_Pool);
 		}
-		*t_Pool = nullptr;
 	}
 
 	template<typename T>
 	inline Pool<T>::~Pool()
 	{
-		BBfreeArr(m_Allocator, m_Start);
+		//Call destructor of all available...
+
+		BBfree(m_Start);
 	}
 
 	template<class T>
 	inline T* Pool<T>::Get()
 	{
-		if (m_Pool == nullptr)
-		{
-			BB_WARNING(false, "Trying to get an pool object while there are none left!", WarningType::HIGH);
-			return nullptr;
-		}
 
-		T* t_Ptr = reinterpret_cast<T*>(m_Pool);
-		m_Pool = reinterpret_cast<T**>(*m_Pool);
-
-		return t_Ptr;
 	}
 
 	template<typename T>
 	inline void BB::Pool<T>::Free(T* a_Ptr)
 	{
-		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < m_Start + m_Size), "Trying to free an pool object that is not part of this pool!");
-		(*reinterpret_cast<T**>(a_Ptr)) = reinterpret_cast<T*>(m_Pool);
-		m_Pool = reinterpret_cast<T**>(a_Ptr);
+
 	}
 }
