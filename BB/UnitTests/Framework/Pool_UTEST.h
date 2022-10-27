@@ -11,7 +11,8 @@ TEST(PoolDataStructure, Pool_Create_Get_Free)
 	//2 MB alloactor.
 	BB::FreelistAllocator_t t_Allocator(1024 * 1024 * 2);
 
-	BB::Pool<size2593bytes> t_Pool(t_Allocator, samples);
+	BB::Pool<size2593bytes> t_Pool;
+	t_Pool.CreatePool(t_Allocator, samples);
 
 	size_t t_RandomValues[samples]{};
 	size2593bytes* t_Array[samples]{};
@@ -57,4 +58,6 @@ TEST(PoolDataStructure, Pool_Create_Get_Free)
 
 	//The pool is now empty so when Get gets called again it must return a nullptr.
 	EXPECT_EQ(t_Pool.Get(), nullptr);
+
+	t_Pool.DestroyPool(t_Allocator);
 }

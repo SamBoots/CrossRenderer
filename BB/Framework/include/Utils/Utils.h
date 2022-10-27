@@ -122,9 +122,9 @@ namespace BB
 		/// memcmp abstraction that will use the sizeof operator for type T.
 		/// </summary>
 		template<typename T>
-		inline static int Compare(T* __restrict a_Destination, const void* __restrict a_Source, const size_t a_ElementCount)
+		inline static int Compare(const T* __restrict a_Left, const void* __restrict a_Right, const size_t a_ElementCount)
 		{
-			return memcmp(a_Destination, a_Source, a_ElementCount * sizeof(T));
+			return memcmp(a_Left, a_Right, a_ElementCount * sizeof(T));
 		}
 
 		inline static size_t StrLength(const char* a_String)
