@@ -243,7 +243,7 @@ namespace BB
 	template<typename T>
 	inline T& BB::Slotmap<T>::find(SlotmapID a_ID) const
 	{
-		return m_ObjArr[a_ID].value;
+		return m_ObjArr[m_IdArr[a_ID]].value;
 	}
 
 	template<typename T>
@@ -258,10 +258,10 @@ namespace BB
 		if constexpr (!trivialDestructible_T)
 		{
 			//Before move call the destructor if it has one.
-			t_Node.value.~T();
+			m_ObjArr[m_IdArr[a_ID]].value.~T();
 		}
 
-		t_Node.value = std::move(m_ObjArr[a_ID].value);
+		m_ObjArr[m_IdArr[a_ID]].value = std::move(t_Node.value);
 	}
 	template<typename T>
 	inline void BB::Slotmap<T>::reserve(size_t a_Capacity)

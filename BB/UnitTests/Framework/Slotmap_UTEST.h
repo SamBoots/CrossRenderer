@@ -2,6 +2,34 @@
 #include "../TestValues.h"
 #include "Storage/Slotmap.h"
 
+TEST(Slotmap_Datastructure, Slotmap_Insert_Remove)
+{
+	constexpr const size_t samples = 128;
+
+	//32 MB alloactor.
+	const size_t allocatorSize = BB::mbSize * 32;
+	BB::FreelistAllocator_t t_Allocator(allocatorSize);
+
+	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator, samples);
+
+	{
+		size2593bytesObj t_Value1{};
+		t_Value1.value = 500;
+		BB::SlotmapID t_ID1 = t_Map.insert(t_Value1);
+		ASSERT_EQ(t_Map.find(t_ID1).value, t_Value1.value) << "Wrong element was likely grabbed.";
+
+		//try inserting again after an deletion.
+		size2593bytesObj t_Value2{};
+		t_Value2.value = 1000;
+		BB::SlotmapID t_ID2 = t_Map.insert(t_Value2);
+		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
+
+		t_Map.erase(t_ID1);
+
+		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
+	}
+}
+
 TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 {
 	constexpr const size_t samples = 128;
