@@ -370,7 +370,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 				t_Indices[i].index, 0, &s_VkBackendInst.device.transferQueue.queue);
 			break;
 		default:
-			BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.")
+			BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
 			break;
 		}
 
@@ -660,7 +660,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 	VmaAllocationCreateInfo t_VmaAlloc{};
 	t_VmaAlloc.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-	VKASSERT(vmaCreateBuffer(s_VkBackendInst.vma, 
+	VKASSERT(vmaCreateBuffer(s_VkBackendInst.vma,
 		&t_BufferInfo, &t_VmaAlloc,
 		&t_Buffer.buffer, &t_Buffer.allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
@@ -1103,7 +1103,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 		t_QueueIndex = s_VkBackendInst.device.transferQueue.index;
 		break;
 	default:
-		BB_ASSERT(false, "Vulkan: Tried to make a commandlist with a queue type that does not exist.")
+		BB_ASSERT(false, "Vulkan: Tried to make a commandlist with a queue type that does not exist.");
 		break;
 	}
 
@@ -1215,17 +1215,67 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 		s_VkBackendInst.pipelines[a_Pipeline.handle].pipeline);
 }
 
-void BB::VulkanDrawBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount)
+void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
 	VulkanCommandList::CommandList* t_Cmdlist =
 		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 0, 1,
-		&s_VkBackendInst.renderBuffers.find(a_BufferHandles[0].handle).buffer,
-		offsets);
+	//quick cheat.
+	VkBuffer t_Buffers[12];
+	for (size_t i = 0; i < a_BufferCount; i++)
+	{
+		t_Buffers[i] = s_VkBackendInst.renderBuffers.find(a_Buffers[i].handle).buffer;
+	}
 
-	vkCmdDraw(t_Cmdlist->currentRecording, 3, 1, 0, 0);
+	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 
+		0, 
+		a_BufferCount,
+		t_Buffers,
+		a_BufferOffsets);
+}
+
+void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
+{
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	vkCmdBindIndexBuffer(t_Cmdlist->currentRecording,
+		s_VkBackendInst.renderBuffers.find(a_Buffer.handle).buffer,
+		a_Offset,
+		VK_INDEX_TYPE_UINT32);
+
+	
+}
+
+void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+{
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	////quick cheat.
+	//VkDescriptorSet t_Sets[12];
+	//for (size_t i = 0; i < a_SetCount; i++)
+	//{
+	//	t_Sets[i] = s_VkBackendInst.renderBuffers.find(a_Sets[i].handle).buffer;
+	//}
+
+	//vkCmdBindDescriptorSets()
+}
+
+void BB::VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
+{
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	vkCmdDraw(t_Cmdlist->currentRecording, a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);
+}
+
+void BB::VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
+{
+	VulkanCommandList::CommandList* t_Cmdlist =
+		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	vkCmdDrawIndexed(t_Cmdlist->currentRecording, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
 void BB::ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)

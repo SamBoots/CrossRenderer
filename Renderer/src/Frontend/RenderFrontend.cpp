@@ -160,8 +160,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	RenderBackend::CopyBuffer(t_CopyInfo);
 
 	//cleanup staging buffer.
-	// LATER, FIX ERROR RELATED TO SLOTMAP.
-	//RenderBackend::DestroyBuffer(t_StagingBuffer);
+	RenderBackend::DestroyBuffer(t_StagingBuffer);
 
 
 	//t_BufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
@@ -177,7 +176,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_BaseNode->mesh->primitiveCount = 1;
 	t_BaseNode->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
 	t_BaseNode->mesh->primitives->indexStart = 0;
-	t_BaseNode->mesh->primitives->indexCount = t_VertexInfo.size;
+	t_BaseNode->mesh->primitives->indexCount = static_cast<uint32_t>(t_VertexInfo.size);
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 	t_Model.nodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 
@@ -199,7 +198,9 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 	const Model& t_Model = s_RendererInst.models.find(a_ModelHandle.handle);
 	
 	RenderBackend::BindPipeline(a_Handle, t_Model.pipelineHandle);
-	RenderBackend::DrawBuffers(a_Handle, &t_Model.vertexBuffer, 1);
+	uint64_t t_BufferOffsets[1]{ 0 };
+	RenderBackend::BindVertexBuffers(a_Handle, &t_Model.vertexBuffer, t_BufferOffsets, 1);
+	RenderBackend::DrawVertex(a_Handle, 3, 1, 0, 0);
 }
 
 void BB::Render::StartFrame()

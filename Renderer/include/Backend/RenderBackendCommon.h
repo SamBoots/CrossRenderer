@@ -225,7 +225,12 @@ namespace BB
 	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-	typedef void (*PFN_RenderAPIDrawBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_BufferHandles, const size_t a_BufferCount);
+	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
+	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
+	typedef void (*PFN_RenderAPIBindBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	
+	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
+	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 	//Utility
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
@@ -255,7 +260,12 @@ namespace BB
 		PFN_RenderAPIStartCommandList startCommandList;
 		PFN_RenderAPIEndCommandList endCommandList;
 		PFN_RenderAPIBindPipeline bindPipeline;
-		PFN_RenderAPIDrawBuffers drawBuffers;
+		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
+		PFN_RenderAPIBindIndexBuffer bindIndexBuffer;
+		PFN_RenderAPIBindBuffers bindBuffers;
+
+		PFN_RenderAPIDrawVertex drawVertex;
+		PFN_RenderAPIDrawIndex drawIndex;
 
 		PFN_RenderAPIBuffer_CopyData bufferCopyData;
 		PFN_RenderAPICCopyBuffer copyBuffer;
