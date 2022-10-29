@@ -19,6 +19,7 @@ add_library (BBFramework
 "include/Allocators/TemporaryAllocator.h"
 "include/Storage/Array.h" 
 "include/Storage/Pool.h" 
+"include/Storage/GrowPool.h"
 "include/Storage/Hashmap.h"
 "include/Storage/Slotmap.h"
 "include/Storage/BBString.h"
@@ -36,7 +37,7 @@ add_library (BBFramework
 "src/OS/OSDevice${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
-"src/BBMemory.cpp" )
+"src/BBMemory.cpp")
 
 #Include library
 target_include_directories(BBFramework PUBLIC

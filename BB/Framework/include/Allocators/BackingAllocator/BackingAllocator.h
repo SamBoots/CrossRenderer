@@ -3,7 +3,7 @@
 
 namespace BB
 {
-	enum class virtual_reserve_extra : size_t
+	enum class virtual_reserve_extra
 	{
 		none = 1, //Don't reserve more virtual space, use this if you will never resize a mallocVirtual address.
 #ifdef _64BIT
