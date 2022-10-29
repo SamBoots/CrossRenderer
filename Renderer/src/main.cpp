@@ -45,12 +45,19 @@ int main()
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
 
-	Vertex t_Vertex[3];
-	t_Vertex[0] = { {0.0f, -0.5f}, {1.0f, 1.0f, 1.0f} };
-	t_Vertex[1] = { {0.5f, 0.5f}, {0.0f, 1.0f, 0.0f} };
-	t_Vertex[2] = { {-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
+	Vertex t_Vertex[4];
+	t_Vertex[0] = { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} };
+	t_Vertex[1] = { {0.5f, -0.5f}, {0.0f, 1.0f, 0.0f} };
+	t_Vertex[2] = { {0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
+	t_Vertex[3] = { {-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f} };
+
+	const uint32_t t_Indices[] = {
+	0, 1, 2, 2, 3, 0
+	};
+
 	CreateRawModelInfo t_ModelInfo;
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
+	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
 
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);

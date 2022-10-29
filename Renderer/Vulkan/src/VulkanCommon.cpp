@@ -735,10 +735,9 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue, 1, &t_SubmitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(s_VkBackendInst.device.transferQueue.queue);
 
-	vkFreeCommandBuffers(s_VkBackendInst.device.logicalDevice, 
-		t_CmdList.pool, 
-		1, 
-		&t_CmdList.buffers[t_CmdList.currentFree]);
+	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
+		t_CmdList.pool,
+		0);
 }
 
 void BB::StartFrame()

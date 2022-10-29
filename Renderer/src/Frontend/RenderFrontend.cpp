@@ -129,56 +129,86 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
-	RenderBufferCreateInfo t_StagingInfo;
-	t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-	t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_StagingInfo.size = a_CreateInfo.vertices.sizeInBytes();
-	t_StagingInfo.data = a_CreateInfo.vertices.data();
+	{
+		RenderBufferCreateInfo t_StagingInfo;
+		t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+		t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+		t_StagingInfo.size = a_CreateInfo.vertices.sizeInBytes();
+		t_StagingInfo.data = a_CreateInfo.vertices.data();
 
-	RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
+		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
 
-	//just change the previous stuck to now make a vertex buffer.
-	RenderBufferCreateInfo t_VertexInfo;
-	t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
-	t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-	t_VertexInfo.size = a_CreateInfo.vertices.sizeInBytes();
-	t_VertexInfo.data = nullptr;
+		//just change the previous stuck to now make a vertex buffer.
+		RenderBufferCreateInfo t_VertexInfo;
+		t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
+		t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_VertexInfo.size = a_CreateInfo.vertices.sizeInBytes();
+		t_VertexInfo.data = nullptr;
 
-	t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
-	t_Model.vertexBufferView;
+		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
+		t_Model.vertexBufferView;
 
-	RenderCopyBufferInfo t_CopyInfo;
-	t_CopyInfo.transferCommandHandle = t_TransferCommandList;
-	t_CopyInfo.src = t_StagingBuffer;
-	t_CopyInfo.dst = t_Model.vertexBuffer;
-	t_CopyInfo.CopyRegionCount = 1;
-	t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-	t_CopyInfo.copyRegions->srcOffset = 0;
-	t_CopyInfo.copyRegions->dstOffset = 0;
-	t_CopyInfo.copyRegions->size = a_CreateInfo.vertices.sizeInBytes();
+		RenderCopyBufferInfo t_CopyInfo;
+		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+		t_CopyInfo.src = t_StagingBuffer;
+		t_CopyInfo.dst = t_Model.vertexBuffer;
+		t_CopyInfo.CopyRegionCount = 1;
+		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
+		t_CopyInfo.copyRegions->srcOffset = 0;
+		t_CopyInfo.copyRegions->dstOffset = 0;
+		t_CopyInfo.copyRegions->size = a_CreateInfo.vertices.sizeInBytes();
 
-	RenderBackend::CopyBuffer(t_CopyInfo);
+		RenderBackend::CopyBuffer(t_CopyInfo);
 
-	//cleanup staging buffer.
-	RenderBackend::DestroyBuffer(t_StagingBuffer);
+		//cleanup staging buffer.
+		//RenderBackend::DestroyBuffer(t_StagingBuffer);
+	}
 
+	{
+		RenderBufferCreateInfo t_StagingInfo;
+		t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+		t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+		t_StagingInfo.size = a_CreateInfo.indices.sizeInBytes();
+		t_StagingInfo.data = a_CreateInfo.indices.data();
 
-	//t_BufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
-	//t_BufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	//t_BufferInfo.size = a_CreateInfo.vertices.sizeInBytes();
-	//t_BufferInfo.data = a_CreateInfo.vertices.data();
+		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
+
+		//just change the previous stuck to now make a vertex buffer.
+		RenderBufferCreateInfo t_IndexInfo;
+		t_IndexInfo.usage = RENDER_BUFFER_USAGE::INDEX;
+		t_IndexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_IndexInfo.size = a_CreateInfo.indices.sizeInBytes();
+		t_IndexInfo.data = nullptr;
+
+		t_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexInfo);
+		t_Model.indexBufferView;
+
+		RenderCopyBufferInfo t_CopyInfo;
+		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+		t_CopyInfo.src = t_StagingBuffer;
+		t_CopyInfo.dst = t_Model.indexBuffer;
+		t_CopyInfo.CopyRegionCount = 1;
+		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
+		t_CopyInfo.copyRegions->srcOffset = 0;
+		t_CopyInfo.copyRegions->dstOffset = 0;
+		t_CopyInfo.copyRegions->size = a_CreateInfo.indices.sizeInBytes();
+
+		RenderBackend::CopyBuffer(t_CopyInfo);
+
+		//cleanup staging buffer.
+		//RenderBackend::DestroyBuffer(t_StagingBuffer);
+	}
 	
-	//t_Model.indexBuffer = RenderBackend::CreateBuffer(t_BufferInfo);
-	t_Model.indexBufferView;
-	
-	Model::Node* t_BaseNode = BBnew(m_SystemAllocator, Model::Node);
-	t_BaseNode->mesh = BBnew(m_SystemAllocator, Model::Mesh);
-	t_BaseNode->mesh->primitiveCount = 1;
-	t_BaseNode->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
-	t_BaseNode->mesh->primitives->indexStart = 0;
-	t_BaseNode->mesh->primitives->indexCount = static_cast<uint32_t>(t_VertexInfo.size);
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
-	t_Model.nodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
+	t_Model.nodes = t_Model.linearNodes;
+
+	t_Model.linearNodes->mesh = BBnew(m_SystemAllocator, Model::Mesh);
+	t_Model.linearNodes->mesh->primitiveCount = 1;
+	t_Model.linearNodes->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
+	t_Model.linearNodes->mesh->primitives->indexStart = 0;
+	t_Model.linearNodes->mesh->primitives->indexCount = static_cast<uint32_t>(a_CreateInfo.indices.size());
+	t_Model.linearNodeCount = 1;
+	t_Model.nodeCount = 1;
 
 	return RModelHandle(s_RendererInst.models.insert(t_Model));
 }
@@ -200,7 +230,20 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 	RenderBackend::BindPipeline(a_Handle, t_Model.pipelineHandle);
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(a_Handle, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::DrawVertex(a_Handle, 3, 1, 0, 0);
+	RenderBackend::BindIndexBuffer(a_Handle, t_Model.indexBuffer, 0);
+	for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
+	{
+		for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
+		{
+			RenderBackend::DrawIndexed(a_Handle, 
+				t_Model.linearNodes[i].mesh->primitives[j].indexCount, 
+				1, 
+				t_Model.linearNodes[i].mesh->primitives[j].indexStart,
+				0,
+				0);
+		}
+	}
+
 }
 
 void BB::Render::StartFrame()

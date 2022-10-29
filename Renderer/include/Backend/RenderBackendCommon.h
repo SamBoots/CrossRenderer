@@ -113,7 +113,7 @@ namespace BB
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
-		void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
+		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
 	};

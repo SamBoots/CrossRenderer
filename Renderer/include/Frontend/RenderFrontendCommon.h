@@ -45,7 +45,7 @@ namespace BB
 	struct CreateRawModelInfo
 	{
 		BB::Slice<Vertex> vertices;
-		BB::Slice<uint32_t> indices;
+		BB::Slice<const uint32_t> indices;
 		PipelineHandle pipeline;
 	};
 }
