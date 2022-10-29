@@ -23,11 +23,11 @@ namespace BB
 		{
 			Node* parent = nullptr;
 			Mesh* mesh = nullptr;
-			Model::Node* childeren;
-			uint32_t childCount;
+			Model::Node* childeren = nullptr;
+			uint32_t childCount = 0;
 		};
 
-		PipelineHandle pipelineHandle;
+		PipelineHandle pipelineHandle{};
 
 		RBufferHandle vertexBuffer{};
 		RDeviceBufferView vertexBufferView{};
@@ -36,10 +36,10 @@ namespace BB
 		RDeviceBufferView indexBufferView{};
 		uint32_t indexCount = 0;
 
-		Node* nodes;
-		Node* linearNodes;
-		uint32_t nodeCount;
-		uint32_t linearNodeCount;
+		Node* nodes = nullptr;
+		Node* linearNodes = nullptr;
+		uint32_t nodeCount = 0;
+		uint32_t linearNodeCount = 0;
 	};
 
 	struct CreateRawModelInfo

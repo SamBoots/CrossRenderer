@@ -86,7 +86,7 @@ namespace BB
 		//Again but then go by byte.
 		for (size_t i = 0; i < a_Size; i++)
 		{
-			*t_DestChar++ = reinterpret_cast<char*>(a_Value)[i];
+			*t_DestChar++ = reinterpret_cast<char*>(static_cast<char>(a_Value))[i];
 		}
 	}
 
@@ -114,7 +114,7 @@ namespace BB
 		//Again but then go by byte.
 		for (size_t i = 0; i < a_Size; i++)
 		{
-			*t_DestChar++ = reinterpret_cast<char*>(a_Value)[i];
+			*t_DestChar++ = reinterpret_cast<char*>(static_cast<char>(a_Value))[i];
 		}
 	}
 
@@ -142,7 +142,7 @@ namespace BB
 		//Again but then go by byte.
 		for (size_t i = 0; i < a_Size; i++)
 		{
-			*t_DestChar++ = reinterpret_cast<char*>(a_Value)[i];
+			*t_DestChar++ = reinterpret_cast<char*>(static_cast<char>(a_Value))[i];
 		}
 	}
 

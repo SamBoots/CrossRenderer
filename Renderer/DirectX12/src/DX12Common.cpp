@@ -543,12 +543,12 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	case RENDER_BUFFER_USAGE::VERTEX:
 		t_Resource.view.vertexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
 		t_Resource.view.vertexView.StrideInBytes = sizeof(Vertex);
-		t_Resource.view.vertexView.SizeInBytes = a_Info.size;
+		t_Resource.view.vertexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	case RENDER_BUFFER_USAGE::INDEX:
 		t_Resource.view.indexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
 		t_Resource.view.indexView.Format = DXGI_FORMAT_R32_UINT;
-		t_Resource.view.indexView.SizeInBytes = a_Info.size;
+		t_Resource.view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	case RENDER_BUFFER_USAGE::UNIFORM:
 		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");

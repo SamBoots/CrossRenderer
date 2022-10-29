@@ -723,7 +723,7 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	vkCmdCopyBuffer(t_CmdList.buffers[t_CmdList.currentFree],
 		t_SrcBuffer.buffer,
 		t_DstBuffer.buffer,
-		a_CopyInfo.CopyRegionCount,
+		static_cast<uint32_t>(a_CopyInfo.CopyRegionCount),
 		t_CopyRegion);
 	vkEndCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree]);
 
@@ -1228,8 +1228,8 @@ void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmd
 	}
 
 	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 
-		0, 
-		a_BufferCount,
+		0,
+		static_cast<uint32_t>(a_BufferCount),
 		t_Buffers,
 		a_BufferOffsets);
 }
