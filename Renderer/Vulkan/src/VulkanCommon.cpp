@@ -989,6 +989,69 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
+RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo)
+{
+	//setup vulkan structs.
+	VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
+		a_TempAllocator, 
+		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount, 
+		VkDescriptorSetLayoutBinding);
+
+	VkWriteDescriptorSet* t_Writes = BBnewArr(
+		a_TempAllocator,
+		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount,
+		VkWriteDescriptorSet);
+
+	//Create all the bindings for Buffers
+	for (size_t i = 0; i < a_CreateInfo.bufferBindCount; i++)
+	{
+		//Setup buffer specific info.
+		VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
+			a_TempAllocator,
+			a_CreateInfo.bufferBindCount,
+			VkDescriptorBufferInfo);
+
+		for (size_t bufferIndex = 0; bufferIndex < a_CreateInfo.bufferBind[i].bufferInfoCount; bufferIndex++)
+		{
+			t_BufferInfos[bufferIndex].buffer = s_VkBackendInst.renderBuffers.find(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].buffer.handle).buffer;
+			t_BufferInfos[bufferIndex].offset = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].offset;
+			t_BufferInfos[bufferIndex].range = sizeof(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].size);
+		}
+
+		//Create the Bindings.
+		t_Bindings[i].binding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
+		t_Bindings[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
+		t_Bindings[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
+		t_Bindings[i].pImmutableSamplers = nullptr;
+		t_Bindings[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.bufferBind[i].stage);
+
+		//Create the descriptorwrite.
+		t_Writes[i] = {};
+		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[i].pNext = nullptr;
+
+		t_Writes[i].dstBinding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
+		t_Writes[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
+		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
+		t_Writes[i].pBufferInfo = t_BufferInfos;
+	}
+
+	//Create all the bindings for Images
+	for (size_t i = a_CreateInfo.bufferBindCount; i < a_CreateInfo.textureBindCount; i++)
+	{
+		//Setup buffer specific info.
+		VkDescriptorImageInfo* t_TextureInfos = BBnewArr(
+			a_TempAllocator,
+			a_CreateInfo.textureBindCount,
+			VkDescriptorImageInfo);
+
+		//Do image stuff here.
+	}
+
+	//Not creating the descriptorset yet.
+	return 1;
+}
+
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline;

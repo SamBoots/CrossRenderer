@@ -81,7 +81,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
 	t_ShaderBuffers[1].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
-	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT;
+	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 
 
 	const wchar_t* t_DX12ShaderPaths[2];

@@ -14,6 +14,7 @@ namespace BB
 	using APIRenderBackend = FrameworkHandle<struct APIRenderBackendTag>;
 	//Common handles
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
+	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
@@ -36,6 +37,33 @@ namespace BB
 		UNIFORM,
 		STORAGE,
 		STAGING
+	};
+
+	enum class DESCRIPTOR_BUFFER_TYPE : uint32_t
+	{
+		UNIFORM_BUFFER,
+		STORAGE_BUFFER,
+		UNIFORM_BUFFER_DYNAMIC,
+		STORAGE_BUFFER_DYNAMIC,
+		INPUT_ATTACHMENT
+	};
+
+	enum class DESCRIPTOR_IMAGE_TYPE : uint32_t
+	{
+		SAMPLER,
+		COMBINED_IMAGE_SAMPLER,
+		SAMPLED_IMAGE,
+		STORAGE_IMAGE,
+		UNIFORM_TEXEL_BUFFER,
+		STORAGE_TEXEL_BUFFER
+	};
+
+	enum class DESCRIPTOR_BINDING : uint32_t
+	{
+		SCENE_BINDING = 0,
+		PER_FRAME = 1,
+		PER_MESH = 2,
+		PER_MATERIAL = 3
 	};
 
 	enum class RENDER_MEMORY_PROPERTIES : uint32_t
@@ -69,7 +97,7 @@ namespace BB
 	enum class RENDER_SHADER_STAGE : uint32_t
 	{
 		VERTEX,
-		FRAGMENT
+		FRAGMENT_PIXEL
 	};
 
 	enum class RENDER_LOAD_OP : uint32_t
@@ -179,6 +207,34 @@ namespace BB
 		uint32_t windowHeight{};
 		int version{};
 		bool validationLayers{};
+	};
+
+	struct RenderDescriptorCreateInfo
+	{
+		struct BufferBind
+		{
+			struct BufferInfo
+			{
+				RBufferHandle buffer;
+				uint64_t offset;
+				uint64_t size;
+			};
+			BufferInfo* bufferInfos;
+			uint32_t bufferInfoCount;
+			DESCRIPTOR_BUFFER_TYPE type;
+			RENDER_SHADER_STAGE stage;
+			DESCRIPTOR_BINDING binding;
+		};
+
+		struct ImageBind
+		{
+			DESCRIPTOR_IMAGE_TYPE type;
+			RENDER_SHADER_STAGE stage;
+			DESCRIPTOR_BINDING binding;
+		};
+		BufferBind* bufferBind;
+		uint32_t bufferBindCount;
+		uint32_t textureBindCount;
 	};
 
 	struct RenderPipelineCreateInfo

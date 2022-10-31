@@ -21,7 +21,7 @@ namespace BB
 	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX;
 	namespace VKConv
 	{
-		inline VkBufferUsageFlags RenderBufferUsage(RENDER_BUFFER_USAGE a_Usage)
+		inline VkBufferUsageFlags RenderBufferUsage(const RENDER_BUFFER_USAGE a_Usage)
 		{
 			switch (a_Usage)
 			{
@@ -47,7 +47,33 @@ namespace BB
 			}
 		}
 
-		inline VkMemoryPropertyFlags MemoryPropertyFlags(RENDER_MEMORY_PROPERTIES a_Properties)
+		inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_BUFFER_TYPE a_Type)
+		{
+			switch (a_Type)
+			{
+			case BB::DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER:
+				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				break;
+			case BB::DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER:
+				return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+				break;
+			case BB::DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER_DYNAMIC:
+				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+				break;
+			case BB::DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC:
+				return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+				break;
+			case BB::DESCRIPTOR_BUFFER_TYPE::INPUT_ATTACHMENT:
+				return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+				break;
+			default:
+				BB_ASSERT(false, "this descriptor_type usage is not supported by the vulkan backend!");
+				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				break;
+			}
+		}
+
+		inline VkMemoryPropertyFlags MemoryPropertyFlags(const RENDER_MEMORY_PROPERTIES a_Properties)
 		{
 			switch (a_Properties)
 			{
@@ -64,14 +90,14 @@ namespace BB
 			}
 		}
 
-		inline VkShaderStageFlagBits ShaderStageBits(RENDER_SHADER_STAGE a_Stage)
+		inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
 		{
 			switch (a_Stage)
 			{
 			case BB::RENDER_SHADER_STAGE::VERTEX:
 				return VK_SHADER_STAGE_VERTEX_BIT;
 				break;
-			case BB::RENDER_SHADER_STAGE::FRAGMENT:
+			case BB::RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
 				return VK_SHADER_STAGE_FRAGMENT_BIT;
 				break;
 			default:
@@ -81,7 +107,7 @@ namespace BB
 			}
 		}
 
-		inline VkAttachmentLoadOp LoadOP(RENDER_LOAD_OP a_LoadOp)
+		inline VkAttachmentLoadOp LoadOP(const RENDER_LOAD_OP a_LoadOp)
 		{
 			switch (a_LoadOp)
 			{
@@ -101,7 +127,7 @@ namespace BB
 			}
 		}
 
-		inline VkAttachmentStoreOp StoreOp(RENDER_STORE_OP a_StoreOp)
+		inline VkAttachmentStoreOp StoreOp(const RENDER_STORE_OP a_StoreOp)
 		{
 			switch (a_StoreOp)
 			{
@@ -118,7 +144,7 @@ namespace BB
 			}
 		}
 
-		inline VkImageLayout ImageLayout(RENDER_IMAGE_LAYOUT a_ImageLayout)
+		inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 		{
 			switch (a_ImageLayout)
 			{
@@ -262,6 +288,8 @@ namespace BB
 	//Functions
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	
+	RDescriptorHandle VulkanCreateDescriptor();
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
