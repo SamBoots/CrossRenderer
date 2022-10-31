@@ -45,6 +45,7 @@ namespace BB
 		Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
 		Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
 		Slotmap<VulkanBuffer> renderBuffers{ s_VulkanAllocator };
+		Slotmap<VkDescriptorSet> descriptorSets{ s_VulkanAllocator };
 
 		OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
@@ -1028,8 +1029,6 @@ RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const Render
 		//Create the descriptorwrite.
 		t_Writes[i] = {};
 		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].pNext = nullptr;
-
 		t_Writes[i].dstBinding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
 		t_Writes[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
 		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
@@ -1048,8 +1047,60 @@ RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const Render
 		//Do image stuff here.
 	}
 
-	//Not creating the descriptorset yet.
-	return 1;
+	VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
+	t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	t_LayoutInfo.pBindings = t_Bindings;
+	t_LayoutInfo.bindingCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
+
+	//Do some algorithm to see if I already made a descriptorlayout like this one.
+	VkDescriptorSetLayout t_Layout;
+	VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice, 
+		&t_LayoutInfo, nullptr, &t_Layout),
+		"Vulkan: Failed to create a descriptorsetlayout.");
+
+
+	VkDescriptorSetAllocateInfo t_AllocInfo = {};
+	t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	t_AllocInfo.pSetLayouts = &t_Layout;
+	//Lmao creat pool
+	//t_AllocInfo.descriptorPool = m_CurrentPool;
+	t_AllocInfo.descriptorSetCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
+
+
+	VkDescriptorSet t_Set;
+	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
+		&t_AllocInfo, 
+		&t_Set);
+	bool t_NeedReallocate = false;
+
+	switch (t_AllocResult)
+	{
+	case VK_SUCCESS: //Just continue
+	case VK_ERROR_FRAGMENTED_POOL: //Implement checking later.
+	case VK_ERROR_OUT_OF_POOL_MEMORY:
+		//need a new pool.
+		t_NeedReallocate = true;
+		break;
+
+	default:
+		BB_ASSERT(false, "Vulkan: Something went very badly with vkAllocateDescriptorSets");
+		break;
+	}
+
+
+	//Now write to the descriptorset.
+	for (size_t i = 0; i < t_AllocInfo.descriptorSetCount; i++)
+	{
+		t_Writes[i].dstSet = t_Set;
+	}
+
+	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
+		t_AllocInfo.descriptorSetCount,
+		t_Writes,
+		0, 
+		nullptr);
+
+	return RDescriptorHandle(s_VkBackendInst.descriptorSets.insert(t_Set));
 }
 
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
