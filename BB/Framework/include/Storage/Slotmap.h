@@ -107,7 +107,7 @@ namespace BB
 		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
 		m_ObjArr = reinterpret_cast<Node*>(BBalloc(m_Allocator, sizeof(Node) * m_Capacity));
 
-		for (size_t i = 0; i < m_Capacity; ++i)
+		for (size_t i = 0; i < m_Capacity - 1; ++i)
 		{
 			m_IdArr[i] = i + 1;
 		}
@@ -228,16 +228,15 @@ namespace BB
 		if (m_Size >= m_Capacity)
 			grow();
 
-		SlotmapID& t_Id = m_IdArr[m_NextFree];
-		m_NextFree = t_Id;
+		SlotmapID t_ID = m_NextFree;
+		m_NextFree = m_IdArr[t_ID];
+		m_IdArr[t_ID] = m_Size;
 
-		t_Id = m_Size++;
-
-		Node& t_Node = m_ObjArr[t_Id];
-		t_Node.id = t_Id;
+		Node& t_Node = m_ObjArr[m_Size++];
+		t_Node.id = t_ID;
 		new (&t_Node.value) T(std::forward<Args>(a_Args)...);
 
-		return t_Id;
+		return t_ID;
 	}
 
 	template<typename T>
@@ -251,18 +250,21 @@ namespace BB
 	{
 		size_t t_OldFree = m_NextFree;
 		m_NextFree = a_ID;
-		m_IdArr[a_ID] = t_OldFree;
 
-		Slotmap::Node& t_Node = m_ObjArr[--m_Size];
-		t_Node.id = t_OldFree;
+		Slotmap::Node& t_MoveNode = m_ObjArr[--m_Size];
+		m_IdArr[t_MoveNode.id] = m_IdArr[a_ID];
+		t_MoveNode.id = a_ID;
 		if constexpr (!trivialDestructible_T)
 		{
 			//Before move call the destructor if it has one.
 			m_ObjArr[m_IdArr[a_ID]].value.~T();
 		}
+		//Move the front element to this position.
+		m_ObjArr[m_IdArr[a_ID]].value = std::move(t_MoveNode.value);
 
-		m_ObjArr[m_IdArr[a_ID]].value = std::move(t_Node.value);
+		m_IdArr[a_ID] = t_OldFree;
 	}
+
 	template<typename T>
 	inline void BB::Slotmap<T>::reserve(size_t a_Capacity)
 	{

@@ -27,6 +27,9 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Remove)
 		t_Map.erase(t_ID1);
 
 		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
+
+		t_ID1 = t_Map.insert(t_Value1);
+		ASSERT_EQ(t_Map.find(t_ID1).value, t_Value1.value) << "Wrong element was likely grabbed.";
 	}
 }
 
@@ -75,10 +78,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
-	for (size_t i = 0; i < samples; i++)
-	{
-		t_Map.erase(t_IDs[i]);
-	}
+	t_Map.clear();
 
 	for (size_t i = 0; i < samples; i++)
 	{

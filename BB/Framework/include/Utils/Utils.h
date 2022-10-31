@@ -32,7 +32,7 @@ namespace BB
 		{
 			if constexpr (std::is_trivially_constructible_v<T>)
 			{
-				MemCpySIMD256(a_Destination, a_Source, a_ElementCount * sizeof(T));
+				memcpy(a_Destination, a_Source, a_ElementCount * sizeof(T));
 			}
 			else
 			{

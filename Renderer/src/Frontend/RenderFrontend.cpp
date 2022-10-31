@@ -138,7 +138,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
 
-		//just change the previous stuck to now make a vertex buffer.
 		RenderBufferCreateInfo t_VertexInfo;
 		t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
 		t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
@@ -161,7 +160,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		RenderBackend::CopyBuffer(t_CopyInfo);
 
 		//cleanup staging buffer.
-		//RenderBackend::DestroyBuffer(t_StagingBuffer);
+		RenderBackend::DestroyBuffer(t_StagingBuffer);
 	}
 
 	{
@@ -173,7 +172,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
 
-		//just change the previous stuck to now make a vertex buffer.
 		RenderBufferCreateInfo t_IndexInfo;
 		t_IndexInfo.usage = RENDER_BUFFER_USAGE::INDEX;
 		t_IndexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
@@ -196,7 +194,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		RenderBackend::CopyBuffer(t_CopyInfo);
 
 		//cleanup staging buffer.
-		//RenderBackend::DestroyBuffer(t_StagingBuffer);
+		RenderBackend::DestroyBuffer(t_StagingBuffer);
 	}
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
