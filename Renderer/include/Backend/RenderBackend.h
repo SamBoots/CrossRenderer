@@ -7,6 +7,7 @@ namespace BB
 	namespace RenderBackend
 	{
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
+		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -36,6 +37,8 @@ namespace BB
 		void CreateShader(const ShaderCreateInfo& t_ShaderInfo);
 
 		void DestroyBackend();
+		void DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
+		void DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
 		void DestroyCommandList(const CommandListHandle a_Handle);

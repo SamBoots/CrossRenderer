@@ -6,6 +6,7 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
+	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
@@ -31,6 +32,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
+	a_FuncCreateInfo.destroyDescriptorLayout = VulkanDestroyDescriptorSetLayout;
+	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptorSet;
 	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;

@@ -19,6 +19,9 @@ struct RendererInfo
 struct RendererInst
 {
 	Slotmap<Model> models{ m_SystemAllocator };
+	RBufferHandle perFrameUniBuffer;
+	RDescriptorLayoutHandle perFrameDescriptorLayout;
+	RDescriptorHandle perFrameDescriptor;
 };
 
 FrameBufferHandle t_FrameBuffer;
@@ -108,6 +111,36 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
+
+	RenderBufferCreateInfo t_UniformCreateInfo;
+	t_UniformCreateInfo.size = sizeof(CameraBufferInfo);
+	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
+	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_UniformCreateInfo.data = nullptr;
+	s_RendererInst.perFrameUniBuffer = RenderBackend::CreateBuffer(t_UniformCreateInfo);
+
+	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
+	t_DescriptorCreateInfo.bufferBindCount = 1;
+	t_DescriptorCreateInfo.textureBindCount = 0;
+	t_DescriptorCreateInfo.bufferBind = BBnewArr(m_TempAllocator, 
+		1, 
+		RenderDescriptorCreateInfo::BufferBind);
+	t_DescriptorCreateInfo.bufferBind[0].binding = DESCRIPTOR_BINDING::PER_FRAME;
+	t_DescriptorCreateInfo.bufferBind[0].stage = RENDER_SHADER_STAGE::VERTEX;
+	t_DescriptorCreateInfo.bufferBind[0].type = DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount = 1;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos = BBnewArr(m_TempAllocator, 
+		1, 
+		RenderDescriptorCreateInfo::BufferBind::BufferInfo);
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_RendererInst.perFrameUniBuffer;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo);
+
+	s_RendererInst.perFrameDescriptorLayout.ptrHandle = nullptr;
+	s_RendererInst.perFrameDescriptor = RenderBackend::CreateDescriptor(
+		&s_RendererInst.perFrameDescriptorLayout,
+		t_DescriptorCreateInfo);
+
 }
 
 void BB::Render::DestroyRenderer()

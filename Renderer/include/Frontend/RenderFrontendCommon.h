@@ -1,5 +1,6 @@
 #pragma once
 #include "../Backend/RenderBackendCommon.h"
+#include "GLM/glm.hpp"
 
 namespace BB
 {
@@ -36,6 +37,8 @@ namespace BB
 		RDeviceBufferView indexBufferView{};
 		uint32_t indexCount = 0;
 
+		RBufferHandle uniformBuffer;
+
 		Node* nodes = nullptr;
 		Node* linearNodes = nullptr;
 		uint32_t nodeCount = 0;
@@ -47,5 +50,18 @@ namespace BB
 		BB::Slice<Vertex> vertices;
 		BB::Slice<const uint32_t> indices;
 		PipelineHandle pipeline;
+	};
+
+	struct CameraBufferInfo
+	{
+		glm::mat4 view;
+		glm::mat4 projection;
+		glm::mat4 viewProjection;
+	};
+
+	struct ModelBufferInfo
+	{
+		glm::mat4 model;
+		glm::mat4 inverseModel;
 	};
 }

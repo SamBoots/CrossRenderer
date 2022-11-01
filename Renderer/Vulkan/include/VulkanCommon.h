@@ -284,12 +284,16 @@ namespace BB
 		size_t extensionCount;
 	};
 
+	struct DescriptorLayout
+	{
+
+	};
 
 	//Functions
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-	
-	RDescriptorHandle VulkanCreateDescriptor();
+
+	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
@@ -316,6 +320,8 @@ namespace BB
 	void VulkanWaitDeviceReady();
 
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
+	void VulkanDestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
+	void VulkanDestroyDescriptorSet(const RDescriptorHandle a_Handle);
 	void VulkanDestroyCommandList(const CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(const PipelineHandle a_Handle);

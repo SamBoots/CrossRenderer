@@ -24,37 +24,80 @@ struct QueueIndex
 	uint32_t index;
 };
 
-namespace BB
+using namespace BB;
+
+static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
+
+static VkDescriptorPoolSize s_DescriptorPoolSizes[]
 {
-	static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
+	{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+	{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 },
+	{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 }
+};
 
-	using PipelineLayoutHash = uint64_t;
-	struct VulkanBackend_inst
+struct DescriptorAllocator
+{
+	const VkDescriptorPool GetPool() const
 	{
-		uint32_t currentFrame = 0;
-		uint32_t frameCount = 0;
-		uint32_t imageIndex = 0;
-		
-		VkInstance instance{};
-		VkSurfaceKHR surface{};
+		return descriptorPool;
+	}
 
-		VulkanDevice device{};
-		VulkanSwapChain swapChain{};
-		VmaAllocator vma{};
-		Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
-		Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
-		Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
-		Slotmap<VulkanBuffer> renderBuffers{ s_VulkanAllocator };
-		Slotmap<VkDescriptorSet> descriptorSets{ s_VulkanAllocator };
+	void CreateDescriptorPool();
+	void Destroy();
 
-		OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
+private:
+	VkDescriptorPool descriptorPool;
+};
 
-		VulkanDebug vulkanDebug;
-	};
-	static VulkanBackend_inst s_VkBackendInst;
+using PipelineLayoutHash = uint64_t;
+struct VulkanBackend_inst
+{
+	uint32_t currentFrame = 0;
+	uint32_t frameCount = 0;
+	uint32_t imageIndex = 0;
+
+	VkInstance instance{};
+	VkSurfaceKHR surface{};
+	DescriptorAllocator descriptorAllocator;
+
+	VulkanDevice device{};
+	VulkanSwapChain swapChain{};
+	VmaAllocator vma{};
+	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
+	Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
+	Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
+	Slotmap<VulkanBuffer> renderBuffers{ s_VulkanAllocator };
+	Slotmap<VkDescriptorSet> descriptorSets{ s_VulkanAllocator };
+
+	OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
+	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
+
+	VulkanDebug vulkanDebug;
+};
+static VulkanBackend_inst s_VkBackendInst;
+	
+
+void DescriptorAllocator::CreateDescriptorPool()
+{
+	VkDescriptorPoolCreateInfo t_CreateInfo{};
+	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	t_CreateInfo.pPoolSizes = s_DescriptorPoolSizes;
+	t_CreateInfo.poolSizeCount = _countof(s_DescriptorPoolSizes);
+
+	t_CreateInfo.maxSets = 1000;
+	t_CreateInfo.flags = 0;
+
+	VKASSERT(vkCreateDescriptorPool(s_VkBackendInst.device.logicalDevice,
+		&t_CreateInfo, nullptr, &descriptorPool),
+		"Vulkan: Failed to create descriptorPool.");
 }
 
-using namespace BB;
+void DescriptorAllocator::Destroy()
+{
+	vkDestroyDescriptorPool(s_VkBackendInst.device.logicalDevice,
+		descriptorPool,
+		nullptr);
+}
 
 PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
 {
@@ -990,20 +1033,52 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
-RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	//setup vulkan structs.
-	VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
-		a_TempAllocator, 
-		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount, 
-		VkDescriptorSetLayoutBinding);
+	VkDescriptorSetLayout t_SetLayout;
 
 	VkWriteDescriptorSet* t_Writes = BBnewArr(
 		a_TempAllocator,
 		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount,
 		VkWriteDescriptorSet);
 
-	//Create all the bindings for Buffers
+	if (a_Layout->ptrHandle == nullptr) //Create the layout if we do not supply one, do check if we already have it however.
+	{
+		//setup vulkan structs.
+		VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
+			a_TempAllocator,
+			a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount,
+			VkDescriptorSetLayoutBinding);
+
+		//Create all the bindings for Buffers
+		for (size_t i = 0; i < a_CreateInfo.bufferBindCount; i++)
+		{
+			//Create the Bindings.
+			t_Bindings[i].binding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
+			t_Bindings[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
+			t_Bindings[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
+			t_Bindings[i].pImmutableSamplers = nullptr;
+			t_Bindings[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.bufferBind[i].stage);
+		}
+
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
+		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		t_LayoutInfo.pBindings = t_Bindings;
+		t_LayoutInfo.bindingCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+			&t_LayoutInfo, nullptr, &t_SetLayout),
+			"Vulkan: Failed to create a descriptorsetlayout.");
+
+		a_Layout = reinterpret_cast<RDescriptorLayoutHandle*>(t_SetLayout);
+	}
+	else //Take our existing layout.
+	{
+		t_SetLayout = *reinterpret_cast<VkDescriptorSetLayout*>(a_Layout);
+	}
+
+	//Create all the writes for Buffers
 	for (size_t i = 0; i < a_CreateInfo.bufferBindCount; i++)
 	{
 		//Setup buffer specific info.
@@ -1018,13 +1093,6 @@ RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const Render
 			t_BufferInfos[bufferIndex].offset = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].offset;
 			t_BufferInfos[bufferIndex].range = sizeof(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].size);
 		}
-
-		//Create the Bindings.
-		t_Bindings[i].binding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
-		t_Bindings[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
-		t_Bindings[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
-		t_Bindings[i].pImmutableSamplers = nullptr;
-		t_Bindings[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.bufferBind[i].stage);
 
 		//Create the descriptorwrite.
 		t_Writes[i] = {};
@@ -1047,23 +1115,12 @@ RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, const Render
 		//Do image stuff here.
 	}
 
-	VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
-	t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	t_LayoutInfo.pBindings = t_Bindings;
-	t_LayoutInfo.bindingCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
-
-	//Do some algorithm to see if I already made a descriptorlayout like this one.
-	VkDescriptorSetLayout t_Layout;
-	VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice, 
-		&t_LayoutInfo, nullptr, &t_Layout),
-		"Vulkan: Failed to create a descriptorsetlayout.");
-
 
 	VkDescriptorSetAllocateInfo t_AllocInfo = {};
 	t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	t_AllocInfo.pSetLayouts = &t_Layout;
+	t_AllocInfo.pSetLayouts = &t_SetLayout;
 	//Lmao creat pool
-	//t_AllocInfo.descriptorPool = m_CurrentPool;
+	t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
 	t_AllocInfo.descriptorSetCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
 
 
@@ -1482,6 +1539,19 @@ void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 	vkDestroyPipeline(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.pipelines[a_Handle.handle].pipeline,
 		nullptr);
+}
+
+void BB::VulkanDestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle)
+{
+	vkDestroyDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+		reinterpret_cast<VkDescriptorSetLayout>(a_Handle.ptrHandle),
+		nullptr);
+	//Delete it from the hashmap.
+}
+
+void BB::VulkanDestroyDescriptorSet(const RDescriptorHandle a_Handle)
+{
+	//Nothing to do here.
 }
 
 void BB::VulkanDestroyBackend()

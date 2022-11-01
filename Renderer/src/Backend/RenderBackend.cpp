@@ -21,6 +21,11 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }
 
+RDescriptorHandle BB::RenderBackend::CreateDescriptor(RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+{
+	return s_ApiFunc.createDescriptor(m_TempAllocator, a_Layout, a_CreateInfo);
+}
+
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createFrameBuffer(m_TempAllocator, a_CreateInfo);
@@ -128,6 +133,16 @@ void BB::RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
 void BB::RenderBackend::DestroyBackend()
 {
 	s_ApiFunc.destroyBackend();
+}
+
+void BB::RenderBackend::DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle)
+{
+	s_ApiFunc.destroyDescriptorLayout(a_Handle);
+}
+
+void BB::RenderBackend::DestroyDescriptorSet(const RDescriptorHandle a_Handle)
+{
+	s_ApiFunc.destroyDescriptor(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)

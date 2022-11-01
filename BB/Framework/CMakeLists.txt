@@ -15,7 +15,6 @@ endif ()
 add_library (BBFramework 
 "include/Allocators/BackingAllocator/BackingAllocator.h" 
 "include/Allocators/Allocators.h" 
- 
 "include/Allocators/TemporaryAllocator.h"
 "include/Storage/Array.h" 
 "include/Storage/Pool.h" 

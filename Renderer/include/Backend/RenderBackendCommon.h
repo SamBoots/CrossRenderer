@@ -14,6 +14,7 @@ namespace BB
 	using APIRenderBackend = FrameworkHandle<struct APIRenderBackendTag>;
 	//Common handles
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
+	using RDescriptorLayoutHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
@@ -232,6 +233,7 @@ namespace BB
 			RENDER_SHADER_STAGE stage;
 			DESCRIPTOR_BINDING binding;
 		};
+
 		BufferBind* bufferBind;
 		uint32_t bufferBindCount;
 		uint32_t textureBindCount;
@@ -272,6 +274,7 @@ namespace BB
 
 	//construction
 	typedef APIRenderBackend(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	typedef RDescriptorHandle(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandListHandle(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
@@ -300,6 +303,8 @@ namespace BB
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
+	typedef void (*PFN_RenderAPIDestroyDescriptorLayout)(const RDescriptorLayoutHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(const FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
@@ -308,6 +313,7 @@ namespace BB
 	struct RenderAPIFunctions
 	{
 		PFN_RenderAPICreateBackend createBackend;
+		PFN_RenderAPICreateDescriptor createDescriptor;
 		PFN_RenderAPICreatePipeline createPipeline;
 		PFN_RenderAPICreateFrameBuffer createFrameBuffer;
 		PFN_RenderAPICreateCommandList createCommandList;
@@ -333,6 +339,8 @@ namespace BB
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
+		PFN_RenderAPIDestroyDescriptor destroyDescriptor;
+		PFN_RenderAPIDestroyDescriptorLayout destroyDescriptorLayout;
 		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyFrameBuffer destroyFrameBuffer;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;

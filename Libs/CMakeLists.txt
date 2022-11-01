@@ -14,3 +14,7 @@ add_library(DX12_ShaderCompiler INTERFACE
 "DXC/inc/dxcapi.h"
 "DXC/inc/d3d12shader.h")
 target_include_directories(DX12_ShaderCompiler INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+
+set(GLM_BUILD_STATIC true)
+add_subdirectory(GLM)
+add_library(glm::glm ALIAS glm)
