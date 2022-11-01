@@ -15,6 +15,12 @@ add_library(DX12_ShaderCompiler INTERFACE
 "DXC/inc/d3d12shader.h")
 target_include_directories(DX12_ShaderCompiler INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 
-set(GLM_BUILD_STATIC true)
-add_subdirectory(GLM)
-add_library(glm::glm ALIAS glm)
+
+include(FetchContent)
+FetchContent_Declare(
+  glmLib
+  URL https://github.com/g-truc/glm/releases/download/0.9.9.8/glm-0.9.9.8.zip
+)
+FetchContent_MakeAvailable(glmLib)
+
+message(STATUS "GLM Source dir: ${glm_SOURCE_DIR}")

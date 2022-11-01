@@ -1,6 +1,6 @@
 #pragma once
 #include "../Backend/RenderBackendCommon.h"
-#include "GLM/glm.hpp"
+#include "glm/glm.hpp"
 
 namespace BB
 {

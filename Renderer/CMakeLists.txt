@@ -34,6 +34,7 @@ target_include_directories(Renderer PUBLIC
 
 "Vulkan/include"
 "DirectX12/include"
+${glm_SOURCE_DIR}
 )
 
 add_subdirectory("Vulkan")

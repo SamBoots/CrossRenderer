@@ -970,6 +970,9 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 
 	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VkBackendInst.vma);
 
+	//Create descriptor allocator.
+	s_VkBackendInst.descriptorAllocator.CreateDescriptorPool();
+
 	//The backend handle is not that important which number it is. But we will make it 1.
 	return APIRenderBackend(1);
 }
@@ -1564,6 +1567,8 @@ void BB::VulkanDestroyBackend()
 			nullptr);
 	}
 	s_VkBackendInst.pipelineLayouts.clear();
+
+	s_VkBackendInst.descriptorAllocator.Destroy();
 
 	for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
