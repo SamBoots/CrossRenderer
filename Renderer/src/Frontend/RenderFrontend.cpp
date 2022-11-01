@@ -28,7 +28,6 @@ FrameBufferHandle t_FrameBuffer;
 CommandListHandle t_CommandList;
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
-RBufferHandle t_Buffer;
 
 static RendererInfo s_RendererInfo;
 static RendererInst s_RendererInst;
@@ -146,10 +145,19 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 void BB::Render::DestroyRenderer()
 {
 	RenderBackend::WaitGPUReady();
-	RenderBackend::DestroyBuffer(t_Buffer);
+	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
+	{
+		RenderBackend::DestroyBuffer(it->value.indexBuffer);
+		RenderBackend::DestroyBuffer(it->value.vertexBuffer);
+		//RenderBackend::DestroyBuffer(it->value.indexBuffer);
+	}
+	RenderBackend::DestroyBuffer(s_RendererInst.perFrameUniBuffer);
+	RenderBackend::DestroyDescriptorSetLayout(s_RendererInst.perFrameDescriptorLayout);
+
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);
 	RenderBackend::DestroyCommandList(t_CommandList);
+	RenderBackend::DestroyCommandList(t_TransferCommandList);
 	RenderBackend::DestroyBackend();
 	s_RendererInfo.currentAPI = RenderAPI::NONE;
 	s_RendererInfo.debug = false;

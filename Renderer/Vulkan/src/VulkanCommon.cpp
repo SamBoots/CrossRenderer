@@ -1074,7 +1074,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 			&t_LayoutInfo, nullptr, &t_SetLayout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 
-		a_Layout = reinterpret_cast<RDescriptorLayoutHandle*>(t_SetLayout);
+		a_Layout->ptrHandle = reinterpret_cast<RDescriptorLayoutHandle*>(t_SetLayout);
 	}
 	else //Take our existing layout.
 	{
