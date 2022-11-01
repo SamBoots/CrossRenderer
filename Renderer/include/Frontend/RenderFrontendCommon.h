@@ -54,9 +54,9 @@ namespace BB
 
 	struct CameraBufferInfo
 	{
+		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
-		glm::mat4 viewProjection;
 	};
 
 	struct ModelBufferInfo
