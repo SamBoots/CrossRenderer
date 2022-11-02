@@ -634,14 +634,14 @@ static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevic
 	return t_ReturnResult;
 }
 
-static VkPipelineLayout CreatePipelineLayout(const Slice<VkPushConstantRange> a_PushConstants)
+static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> a_DescLayouts, const Slice<VkPushConstantRange> a_PushConstants)
 {
-	const VkPipelineLayoutCreateInfo t_LayoutCreateInfo = VkInit::PipelineLayoutCreateInfo(
-		0,
-		nullptr,
-		static_cast<uint32_t>(a_PushConstants.size()),
-		a_PushConstants.data()
-	);
+	VkPipelineLayoutCreateInfo t_LayoutCreateInfo{};
+	t_LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	t_LayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(a_DescLayouts.size());
+	t_LayoutCreateInfo.pSetLayouts = a_DescLayouts.data();
+	//t_LayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(a_PushConstants.size());
+	//t_LayoutCreateInfo.pPushConstantRanges = a_PushConstants.data();
 
 	PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
 	VkPipelineLayout* t_FoundLayout = s_VkBackendInst.pipelineLayouts.find(t_DescriptorHash);
@@ -1036,7 +1036,7 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
-RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
 	VkDescriptorSetLayout t_SetLayout;
 
@@ -1045,7 +1045,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount,
 		VkWriteDescriptorSet);
 
-	if (a_Layout->ptrHandle == nullptr) //Create the layout if we do not supply one, do check if we already have it however.
+	if (a_Layout.ptrHandle == nullptr) //Create the layout if we do not supply one, do check if we already have it however.
 	{
 		//setup vulkan structs.
 		VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
@@ -1074,11 +1074,11 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 			&t_LayoutInfo, nullptr, &t_SetLayout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 
-		a_Layout->ptrHandle = reinterpret_cast<RDescriptorLayoutHandle*>(t_SetLayout);
+		a_Layout.ptrHandle = t_SetLayout;
 	}
 	else //Take our existing layout.
 	{
-		t_SetLayout = *reinterpret_cast<VkDescriptorSetLayout*>(a_Layout);
+		t_SetLayout = *reinterpret_cast<VkDescriptorSetLayout*>(a_Layout.ptrHandle);
 	}
 
 	//Create all the writes for Buffers
@@ -1222,7 +1222,12 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	t_PushConstantMatrix.offset = 0;
 
-	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(BB::Slice<VkPushConstantRange>());
+	//lets get the layouts.
+	VkDescriptorSetLayout* t_DescLayouts = reinterpret_cast<VkDescriptorSetLayout*>(a_CreateInfo.descLayoutHandles->ptrHandle);
+
+	VkPipelineLayout t_PipeLayout = CreatePipelineLayout(
+		BB::Slice<VkDescriptorSetLayout>(t_DescLayouts, a_CreateInfo.descLayoutSize), 
+		BB::Slice<VkPushConstantRange>());
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1420,7 +1425,7 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 	
 }
 
-void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t* a_DynamicOffsets)
 {
 	VulkanCommandList::CommandList* t_Cmdlist =
 		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
@@ -1432,7 +1437,21 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 	//	t_Sets[i] = s_VkBackendInst.renderBuffers.find(a_Sets[i].handle).buffer;
 	//}
 
-	//vkCmdBindDescriptorSets()
+	//quick cheat.
+	VkDescriptorSet t_Sets[4];
+	for (size_t i = 0; i < a_SetCount; i++)
+	{
+		t_Sets[i] = s_VkBackendInst.descriptorSets.find(a_Sets[i].handle);
+	}
+
+	vkCmdBindDescriptorSets(t_Cmdlist->currentRecording,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		nullptr, //Set pipeline layout.
+		a_FirstSet,
+		a_SetCount,
+		nullptr,
+		a_SetCount,
+		a_DynamicOffsets);
 }
 
 void BB::VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)

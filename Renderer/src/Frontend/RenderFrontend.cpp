@@ -79,6 +79,37 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	t_FrameBuffer = RenderBackend::CreateFrameBuffer(t_FrameBufferCreateInfo);
 
+#pragma region //Descriptor
+	RenderBufferCreateInfo t_UniformCreateInfo;
+	t_UniformCreateInfo.size = sizeof(CameraBufferInfo);
+	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
+	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_UniformCreateInfo.data = nullptr;
+	s_RendererInst.perFrameUniBuffer = RenderBackend::CreateBuffer(t_UniformCreateInfo);
+
+	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
+	t_DescriptorCreateInfo.bufferBindCount = 1;
+	t_DescriptorCreateInfo.textureBindCount = 0;
+	t_DescriptorCreateInfo.bufferBind = BBnewArr(m_TempAllocator,
+		1,
+		RenderDescriptorCreateInfo::BufferBind);
+	t_DescriptorCreateInfo.bufferBind[0].binding = RENDER_DESCRIPTOR_BINDING::SCENE_BINDING;
+	t_DescriptorCreateInfo.bufferBind[0].stage = RENDER_SHADER_STAGE::VERTEX;
+	t_DescriptorCreateInfo.bufferBind[0].type = DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount = 1;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos = BBnewArr(m_TempAllocator,
+		1,
+		RenderDescriptorCreateInfo::BufferBind::BufferInfo);
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_RendererInst.perFrameUniBuffer;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
+	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo);
+
+	s_RendererInst.perFrameDescriptorLayout.ptrHandle = nullptr;
+	s_RendererInst.perFrameDescriptor = RenderBackend::CreateDescriptor(
+		s_RendererInst.perFrameDescriptorLayout,
+		t_DescriptorCreateInfo);
+#pragma endregion //Descriptor
+
 	ShaderCreateInfo t_ShaderBuffers[2];
 	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
@@ -90,11 +121,13 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 
-	RenderPipelineCreateInfo t_PipelineCreateInfo;
+	RenderPipelineCreateInfo t_PipelineCreateInfo{};
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
 	t_PipelineCreateInfo.shaderPathCount = 2;
+	t_PipelineCreateInfo.descLayoutHandles = &s_RendererInst.perFrameDescriptorLayout;
+	t_PipelineCreateInfo.descLayoutSize = 1;
 
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
 
@@ -110,36 +143,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
-
-	RenderBufferCreateInfo t_UniformCreateInfo;
-	t_UniformCreateInfo.size = sizeof(CameraBufferInfo);
-	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
-	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UniformCreateInfo.data = nullptr;
-	s_RendererInst.perFrameUniBuffer = RenderBackend::CreateBuffer(t_UniformCreateInfo);
-
-	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
-	t_DescriptorCreateInfo.bufferBindCount = 1;
-	t_DescriptorCreateInfo.textureBindCount = 0;
-	t_DescriptorCreateInfo.bufferBind = BBnewArr(m_TempAllocator, 
-		1, 
-		RenderDescriptorCreateInfo::BufferBind);
-	t_DescriptorCreateInfo.bufferBind[0].binding = DESCRIPTOR_BINDING::PER_FRAME;
-	t_DescriptorCreateInfo.bufferBind[0].stage = RENDER_SHADER_STAGE::VERTEX;
-	t_DescriptorCreateInfo.bufferBind[0].type = DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER;
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount = 1;
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfos = BBnewArr(m_TempAllocator, 
-		1, 
-		RenderDescriptorCreateInfo::BufferBind::BufferInfo);
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_RendererInst.perFrameUniBuffer;
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo);
-
-	s_RendererInst.perFrameDescriptorLayout.ptrHandle = nullptr;
-	s_RendererInst.perFrameDescriptor = RenderBackend::CreateDescriptor(
-		&s_RendererInst.perFrameDescriptorLayout,
-		t_DescriptorCreateInfo);
-
 }
 
 void BB::Render::DestroyRenderer()

@@ -17,7 +17,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
-	a_FuncCreateInfo.bindBuffers = VulkanBindDescriptorSets;
+	a_FuncCreateInfo.bindDescriptor = VulkanBindDescriptorSets;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
 	a_FuncCreateInfo.drawIndex = VulkanDrawIndexed;

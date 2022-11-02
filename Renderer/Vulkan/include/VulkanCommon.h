@@ -293,7 +293,7 @@ namespace BB
 	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 
-	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
@@ -304,7 +304,7 @@ namespace BB
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	void VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	void VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t* a_DynamicOffsets);
 	
 	void VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	void VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);

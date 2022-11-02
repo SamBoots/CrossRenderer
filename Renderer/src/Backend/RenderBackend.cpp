@@ -21,7 +21,7 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle BB::RenderBackend::CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createDescriptor(m_TempAllocator, a_Layout, a_CreateInfo);
 }

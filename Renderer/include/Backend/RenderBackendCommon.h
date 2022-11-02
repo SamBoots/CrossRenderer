@@ -59,7 +59,7 @@ namespace BB
 		STORAGE_TEXEL_BUFFER
 	};
 
-	enum class DESCRIPTOR_BINDING : uint32_t
+	enum class RENDER_DESCRIPTOR_BINDING : uint32_t
 	{
 		SCENE_BINDING = 0,
 		PER_FRAME = 1,
@@ -224,14 +224,14 @@ namespace BB
 			uint32_t bufferInfoCount;
 			DESCRIPTOR_BUFFER_TYPE type;
 			RENDER_SHADER_STAGE stage;
-			DESCRIPTOR_BINDING binding;
+			RENDER_DESCRIPTOR_BINDING binding;
 		};
 
 		struct ImageBind
 		{
 			DESCRIPTOR_IMAGE_TYPE type;
 			RENDER_SHADER_STAGE stage;
-			DESCRIPTOR_BINDING binding;
+			RENDER_DESCRIPTOR_BINDING binding;
 		};
 
 		BufferBind* bufferBind;
@@ -244,10 +244,13 @@ namespace BB
 		FrameBufferHandle framebufferHandle{};
 		//Required for Vulkan
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos{};
+		//Use the layouts to a maximum of RENDER_DESCRIPTOR_BINDING
+		RDescriptorLayoutHandle* descLayoutHandles;
+		uint32_t descLayoutSize;
 
-		//Required for DX12
+		//Required for DX12, later for vulkan as well. Or we build the shaders ourselves in the normal backend.
 		const wchar_t** shaderPaths;
-		size_t shaderPathCount;
+		uint32_t shaderPathCount;
 	};
 
 	struct RenderFrameBufferCreateInfo
@@ -274,7 +277,7 @@ namespace BB
 
 	//construction
 	typedef APIRenderBackend(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RDescriptorHandle(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle* a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+	typedef RDescriptorHandle(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandListHandle(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
@@ -286,7 +289,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	typedef void (*PFN_RenderAPIBindBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	typedef void (*PFN_RenderAPIBindDescriptors)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t* a_DynamicOffsets);
 	
 	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
@@ -324,7 +327,7 @@ namespace BB
 		PFN_RenderAPIBindPipeline bindPipeline;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
 		PFN_RenderAPIBindIndexBuffer bindIndexBuffer;
-		PFN_RenderAPIBindBuffers bindBuffers;
+		PFN_RenderAPIBindDescriptors bindDescriptor;
 
 		PFN_RenderAPIDrawVertex drawVertex;
 		PFN_RenderAPIDrawIndex drawIndex;

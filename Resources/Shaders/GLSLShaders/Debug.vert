@@ -1,6 +1,6 @@
 #version 450
 
-layout(binding = 1) uniform CameraBuffer
+layout(binding = 0) uniform CameraBuffer
 {
     mat4 model;
     mat4 view;
