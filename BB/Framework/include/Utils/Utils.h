@@ -265,12 +265,10 @@ namespace BB
 		/// <returns>The given address but aligned forward. </returns>
 		inline static size_t AlignForwardAdjustment(const void* a_Ptr, const size_t a_Alignment)
 		{
-			size_t adjustment = a_Alignment - (reinterpret_cast<uintptr_t>(a_Ptr) & static_cast<uintptr_t>(a_Alignment - 1));
+			const uintptr_t t_UPtr = reinterpret_cast<uintptr_t>(a_Ptr);
+			const uintptr_t t_AlignedPtr = (t_UPtr - 1u + a_Alignment) & -a_Alignment;
 
-			if (adjustment == a_Alignment) return 0;
-
-			//already aligned 
-			return adjustment;
+			return t_AlignedPtr - t_UPtr;
 		}
 
 		/// <summary>

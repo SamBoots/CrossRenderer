@@ -13,7 +13,8 @@ static void FillBuffer(uint8_t* a_Value, size_t a_Size)
 
 	for (size_t i = 2; i < t_Sequences; i++)
 	{
-		a_Value[i] = a_Value[i - 1] + a_Value[i - 2];
+		size_t t_Value = a_Value[i - 1] + a_Value[i - 2];
+		a_Value[i] = t_Value;
 	}
 }
 
@@ -156,16 +157,27 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 	constexpr size_t MediumCopySize = mbSize;
 	constexpr size_t BigCopySize = gbSize / 2;
 
-	BB::FixedLinearAllocator_t t_FixedAllocator(SmallCopySize +
+	BB::FixedLinearAllocator_t t_FixedAllocator((SmallCopySize +
 		MediumCopySize +
-		BigCopySize * 2);
+		BigCopySize) * 4);
 
 	uint8_t* smallBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
+	uint8_t* smallCmprBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
 	FillBuffer(smallBuffer, SmallCopySize);
+	FillBuffer(smallCmprBuffer, SmallCopySize);
+	smallCmprBuffer[SmallCopySize - 10] = 1000;
+
 	uint8_t* mediumBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
+	uint8_t* mediumCmprBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
 	FillBuffer(mediumBuffer, MediumCopySize);
+	FillBuffer(mediumCmprBuffer, MediumCopySize);
+	mediumCmprBuffer[MediumCopySize - 10] = 1000;
+
 	uint8_t* bigBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
+	uint8_t* bigCmprBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	FillBuffer(bigBuffer, BigCopySize);
+	FillBuffer(bigCmprBuffer, BigCopySize);
+	bigCmprBuffer[BigCopySize - 10] = 1000;
 
 #pragma region SmallBuff
 	{
@@ -174,7 +186,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 	 	EXPECT_EQ(BB::Memory::MemCmp(smallBuffer, smallBuffer, SmallCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB 256 bytes memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB 256 equal bytes memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmp(smallBuffer, smallCmprBuffer, SmallCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 256 unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -182,7 +201,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD128(smallBuffer, smallBuffer, SmallCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD128 256 bytes memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD128 256 equal bytes memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD128(smallBuffer, smallCmprBuffer, SmallCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 256 unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -190,7 +216,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD256(smallBuffer, smallBuffer, SmallCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD256 256 bytes memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD256 256 equal bytes memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD256(smallBuffer, smallCmprBuffer, SmallCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 256 unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -198,7 +231,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(memcmp(smallBuffer, smallBuffer, SmallCopySize), 0);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "STL 256 bytes memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "STL 256 equal bytes memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_NE(memcmp(smallBuffer, smallCmprBuffer, SmallCopySize), 0);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 256 unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 #pragma endregion //SmallBuff
 
@@ -209,7 +249,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmp(mediumBuffer, mediumBuffer, MediumCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB 1MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB 1MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmp(mediumBuffer, mediumCmprBuffer, MediumCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 1MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -217,7 +264,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD128(mediumBuffer, mediumBuffer, MediumCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD128 1MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD128 1MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD128(mediumBuffer, mediumCmprBuffer, MediumCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 1MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -225,7 +279,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD256(mediumBuffer, mediumBuffer, MediumCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD256 1MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD256 1MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD256(mediumBuffer, mediumCmprBuffer, MediumCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 1MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -233,7 +294,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(memcmp(mediumBuffer, mediumBuffer, MediumCopySize), 0);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "STL 1MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "STL 1MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_NE(memcmp(mediumBuffer, mediumCmprBuffer, MediumCopySize), 0);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 1MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 #pragma endregion //MediumBuff
 
@@ -244,7 +312,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmp(bigBuffer, bigBuffer, BigCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB 512MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB 512MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmp(bigBuffer, bigCmprBuffer, BigCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB 512MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -252,7 +327,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD128(bigBuffer, bigBuffer, BigCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD128 512MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD128 512MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD128(bigBuffer, bigCmprBuffer, BigCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD128 512MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -260,7 +342,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(BB::Memory::MemCmpSIMD256(bigBuffer, bigBuffer, BigCopySize), true);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "BB SIMD256 512MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "BB SIMD256 512MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_EQ(BB::Memory::MemCmpSIMD256(bigBuffer, bigCmprBuffer, BigCopySize), false);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "BB SIMD256 512MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 	{
 		auto t_Timer = std::chrono::high_resolution_clock::now();
@@ -268,7 +357,14 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 		EXPECT_EQ(memcmp(bigBuffer, bigBuffer, BigCopySize), 0);
 
 		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "STL 512MB memcmp Speed in MS:" << t_Speed << "\n";
+		std::cout << "STL 512MB equal memcmp Speed in MS:" << t_Speed << "\n";
+
+		t_Timer = std::chrono::high_resolution_clock::now();
+
+		EXPECT_NE(memcmp(bigBuffer, bigCmprBuffer, BigCopySize), 0);
+
+		t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+		std::cout << "STL 512MB unequal bytes memcmp Speed in MS:" << t_Speed << "\n";
 	}
 #pragma endregion //BigBuff
 
