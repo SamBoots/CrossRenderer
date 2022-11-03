@@ -257,6 +257,7 @@ namespace BB
 			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_Ptr) - a_Subtract);
 		}
 
+#pragma warning(disable:4146)
 		/// <summary>
 		/// Align a given pointer forward.
 		/// </summary>
@@ -270,7 +271,7 @@ namespace BB
 
 			return t_AlignedPtr - t_UPtr;
 		}
-
+#pragma warning(default:4146)
 		/// <summary>
 		/// Align a given pointer forward.
 		/// </summary>

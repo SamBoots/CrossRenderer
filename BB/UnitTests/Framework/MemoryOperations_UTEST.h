@@ -8,13 +8,14 @@ using namespace BB;
 static void FillBuffer(uint8_t* a_Value, size_t a_Size)
 {
 	const size_t t_Sequences = a_Size / 8;
-	a_Value[0] = 0;
-	a_Value[1] = 1;
+	size_t* t_ModifiedValues = reinterpret_cast<size_t*>(a_Value);
+	t_ModifiedValues[0] = 0;
+	t_ModifiedValues[1] = 1;
 
 	for (size_t i = 2; i < t_Sequences; i++)
 	{
-		size_t t_Value = a_Value[i - 1] + a_Value[i - 2];
-		a_Value[i] = t_Value;
+		size_t t_Value = t_ModifiedValues[i - 1] + t_ModifiedValues[i - 2];
+		t_ModifiedValues[i] = t_Value;
 	}
 }
 
@@ -165,19 +166,19 @@ TEST(MemoryOperation_Speed_Comparison, MemCmp_Aligned)
 	uint8_t* smallCmprBuffer = BBnewArr(t_FixedAllocator, SmallCopySize, uint8_t);
 	FillBuffer(smallBuffer, SmallCopySize);
 	FillBuffer(smallCmprBuffer, SmallCopySize);
-	smallCmprBuffer[SmallCopySize - 10] = 1000;
+	smallCmprBuffer[SmallCopySize - 10] = 255;
 
 	uint8_t* mediumBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
 	uint8_t* mediumCmprBuffer = BBnewArr(t_FixedAllocator, MediumCopySize, uint8_t);
 	FillBuffer(mediumBuffer, MediumCopySize);
 	FillBuffer(mediumCmprBuffer, MediumCopySize);
-	mediumCmprBuffer[MediumCopySize - 10] = 1000;
+	mediumCmprBuffer[MediumCopySize - 10] = 255;
 
 	uint8_t* bigBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	uint8_t* bigCmprBuffer = BBnewArr(t_FixedAllocator, BigCopySize, uint8_t);
 	FillBuffer(bigBuffer, BigCopySize);
 	FillBuffer(bigCmprBuffer, BigCopySize);
-	bigCmprBuffer[BigCopySize - 10] = 1000;
+	bigCmprBuffer[BigCopySize - 10] = 255;
 
 #pragma region SmallBuff
 	{
