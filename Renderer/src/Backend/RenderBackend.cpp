@@ -48,7 +48,7 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 
 void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
-	return s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
+	s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
 }
 
 void BB::RenderBackend::CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo)
@@ -58,14 +58,12 @@ void BB::RenderBackend::CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo)
 
 RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle)
 {
-	//s_ApiFunc.startCommandList(a_Handle, t_FrameBuffer);
 	return s_ApiFunc.startCommandList(a_CmdHandle, a_FrameHandle);
 }
 
 void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
-	//s_ApiFunc.endCommandList(a_Handle);
-	return s_ApiFunc.endCommandList(a_RecordingCmdHandle);
+	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
 void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -83,9 +81,9 @@ void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
 }
 
-void BB::RenderBackend::BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_FirstSet, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::RenderBackend::BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
-	BB_ASSERT(false, "Not implemented yet.");
+	s_ApiFunc.bindDescriptor(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_Sets, a_DynamicOffsetCount, a_DynamicOffsets);
 }
 
 void BB::RenderBackend::DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
@@ -97,7 +95,6 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 {
 	s_ApiFunc.drawIndex(a_RecordingCmdHandle, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
-
 
 void BB::RenderBackend::StartFrame()
 {
@@ -111,7 +108,6 @@ void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, con
 
 void BB::RenderBackend::Update()
 {
-
 	m_TempAllocator.Clear();
 }
 

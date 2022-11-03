@@ -29,7 +29,7 @@ namespace BB
 		};
 		//Some handles work with pointers.
 		void* ptrHandle;
-		uint64_t handle;
+		uint64_t handle{};
 
 		inline bool operator ==(FrameworkHandle a_Rhs) const { return handle == a_Rhs.handle; }
 		inline bool operator !=(FrameworkHandle a_Rhs) const { return handle != a_Rhs.handle; }

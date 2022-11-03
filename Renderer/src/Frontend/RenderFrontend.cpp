@@ -80,11 +80,23 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_FrameBuffer = RenderBackend::CreateFrameBuffer(t_FrameBufferCreateInfo);
 
 #pragma region //Descriptor
+	CameraBufferInfo info;
+	info.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), 
+		glm::vec3(0.0f, 0.0f, 0.0f), 
+		glm::vec3(0.0f, 0.0f, 1.0f));
+	info.projection = glm::perspective(glm::radians(45.0f), 
+		t_WindowWidth / (float)t_WindowHeight,
+		0.1f, 
+		10.0f);
+	info.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	info.projection[1][1] *= -1;
+
 	RenderBufferCreateInfo t_UniformCreateInfo;
 	t_UniformCreateInfo.size = sizeof(CameraBufferInfo);
 	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
 	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UniformCreateInfo.data = nullptr;
+	t_UniformCreateInfo.data = &info;
 	s_RendererInst.perFrameUniBuffer = RenderBackend::CreateBuffer(t_UniformCreateInfo);
 
 	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
@@ -273,19 +285,19 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(a_Handle, &t_Model.vertexBuffer, t_BufferOffsets, 1);
 	RenderBackend::BindIndexBuffer(a_Handle, t_Model.indexBuffer, 0);
+	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_RendererInst.perFrameDescriptor, 0, nullptr);
 	for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 	{
 		for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
 		{
-			RenderBackend::DrawIndexed(a_Handle, 
-				t_Model.linearNodes[i].mesh->primitives[j].indexCount, 
-				1, 
+			RenderBackend::DrawIndexed(a_Handle,
+				t_Model.linearNodes[i].mesh->primitives[j].indexCount,
+				1,
 				t_Model.linearNodes[i].mesh->primitives[j].indexStart,
 				0,
 				0);
 		}
 	}
-
 }
 
 void BB::Render::StartFrame()
