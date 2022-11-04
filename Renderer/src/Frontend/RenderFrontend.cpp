@@ -93,7 +93,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	info.projection[1][1] *= -1;
 
 	RenderBufferCreateInfo t_UniformCreateInfo;
-	t_UniformCreateInfo.size = sizeof(CameraBufferInfo);
+	t_UniformCreateInfo.size = sizeof(CameraBufferInfo) * BB::RenderBackend::GetFrameBufferAmount();
 	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
 	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
 	t_UniformCreateInfo.data = &info;

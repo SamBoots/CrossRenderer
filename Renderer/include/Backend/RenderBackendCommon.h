@@ -11,10 +11,13 @@
 
 namespace BB
 {
-	using APIRenderBackend = FrameworkHandle<struct APIRenderBackendTag>;
+	using FrameIndex = uint32_t;
+	
 	//Common handles
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
 	using RDescriptorLayoutHandle = FrameworkHandle<struct RDescriptorHandleTag>;
+
+	//Index is the start index, Index 
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
@@ -145,6 +148,7 @@ namespace BB
 		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
+
 	};
 
 	struct RenderCopyBufferInfo
@@ -275,8 +279,14 @@ namespace BB
 		float color[3]{};
 	};
 
+	struct BackendInfo
+	{
+		uint32_t framebufferCount;
+		FrameIndex currentFrame = 0;
+	};
+
 	//construction
-	typedef APIRenderBackend(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	typedef BackendInfo(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	typedef RDescriptorHandle(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
@@ -300,7 +310,7 @@ namespace BB
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	typedef void (*PFN_RenderAPIStartFrame)();
+	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
 	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 

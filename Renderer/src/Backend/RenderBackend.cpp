@@ -11,14 +11,20 @@ using namespace BB;
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
 static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
-
 static RenderAPIFunctions s_ApiFunc;
+
+static BackendInfo s_BackendInfo;
+
+const uint32_t BB::RenderBackend::GetFrameBufferAmount()
+{
+	return s_BackendInfo.framebufferCount;
+}
 
 void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
 
-	s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
+	s_BackendInfo = s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }
 
 RDescriptorHandle BB::RenderBackend::CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
@@ -98,7 +104,7 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 
 void BB::RenderBackend::StartFrame()
 {
-	s_ApiFunc.startFrame();
+	s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
 }
 
 void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)

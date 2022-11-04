@@ -314,7 +314,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 }
 
 
-APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	UINT t_FactoryFlags = 0;
 
@@ -406,8 +406,12 @@ APIRenderBackend BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBa
 	//Create the shader compiler.
 	SetupShaderCompiler();
 
-	//The handle doesn't matter, we only have one backend anyway. But it's nice for API clarity.
-	return APIRenderBackend(1);
+	//Returns some info to the global backend that is important.
+	BackendInfo t_BackendInfo;
+	t_BackendInfo.currentFrame = s_DX12BackendInst.currentFrame;
+	t_BackendInfo.framebufferCount = s_DX12BackendInst.backBufferCount;
+
+	return t_BackendInfo;
 }
 
 PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)

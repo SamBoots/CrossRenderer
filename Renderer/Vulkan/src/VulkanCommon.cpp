@@ -53,7 +53,7 @@ using PipelineLayoutHash = uint64_t;
 struct VulkanBackend_inst
 {
 	uint32_t currentFrame = 0;
-	uint32_t frameCount = 0;
+	FrameIndex frameCount = 0;
 	uint32_t imageIndex = 0;
 
 	VkInstance instance{};
@@ -67,12 +67,22 @@ struct VulkanBackend_inst
 	Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
 	Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
 	Slotmap<VulkanBuffer> renderBuffers{ s_VulkanAllocator };
-	Slotmap<VkDescriptorSet> descriptorSets{ s_VulkanAllocator };
+	Pool<VkDescriptorSet> descriptorSets;
 
 	//OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
 	VulkanDebug vulkanDebug;
+
+	void CreatePools()
+	{
+		descriptorSets.CreatePool(s_VulkanAllocator, 64);
+	}
+
+	void DestroyPools()
+	{
+		descriptorSets.DestroyPool(s_VulkanAllocator);
+	}
 };
 static VulkanBackend_inst s_VkBackendInst;
 	
@@ -784,9 +794,9 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 		0);
 }
 
-void BB::StartFrame()
+FrameIndex BB::StartFrame()
 {
-	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
 
 	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
@@ -812,6 +822,8 @@ void BB::StartFrame()
 	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
 		t_GlobalCommandList.commandLists[t_CurrentFrame].pool,
 		0);
+
+	return t_CurrentFrame;
 }
 
 void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
@@ -859,8 +871,12 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 	s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
 }
 
-APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
+	//Initialize data structure
+	s_VkBackendInst.CreatePools();
+
+
 	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
 		a_TempAllocator,
 		a_CreateInfo.extensions);
@@ -973,8 +989,12 @@ APIRenderBackend BB::VulkanCreateBackend(Allocator a_TempAllocator, const Render
 	//Create descriptor allocator.
 	s_VkBackendInst.descriptorAllocator.CreateDescriptorPool();
 
-	//The backend handle is not that important which number it is. But we will make it 1.
-	return APIRenderBackend(1);
+	//Returns some info to the global backend that is important.
+	BackendInfo t_BackendInfo;
+	t_BackendInfo.currentFrame = s_VkBackendInst.currentFrame;;
+	t_BackendInfo.framebufferCount = s_VkBackendInst.frameCount;
+
+	return t_BackendInfo;
 }
 
 FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
@@ -1127,10 +1147,10 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 	t_AllocInfo.descriptorSetCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
 
 
-	VkDescriptorSet t_Set;
+	VkDescriptorSet* t_pSet = s_VkBackendInst.descriptorSets.Get();
 	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
 		&t_AllocInfo, 
-		&t_Set);
+		t_pSet);
 	bool t_NeedReallocate = false;
 
 	switch (t_AllocResult)
@@ -1151,7 +1171,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 	//Now write to the descriptorset.
 	for (size_t i = 0; i < t_AllocInfo.descriptorSetCount; i++)
 	{
-		t_Writes[i].dstSet = t_Set;
+		t_Writes[i].dstSet = *t_pSet;
 	}
 
 	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
@@ -1160,7 +1180,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 		0, 
 		nullptr);
 
-	return RDescriptorHandle(s_VkBackendInst.descriptorSets.insert(t_Set));
+	return RDescriptorHandle(t_pSet);
 }
 
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
@@ -1217,11 +1237,6 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 	VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
 		VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
 
-	VkPushConstantRange t_PushConstantMatrix;
-	t_PushConstantMatrix.size = 256;
-	t_PushConstantMatrix.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	t_PushConstantMatrix.offset = 0;
-
 	//lets get the layouts.
 	VkDescriptorSetLayout t_DescLayouts = reinterpret_cast<VkDescriptorSetLayout>(a_CreateInfo.descLayoutHandles->ptrHandle);
 
@@ -1257,12 +1272,13 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 		&t_ReturnPipeline.pipeline),
 		"Vulkan: Failed to create graphics Pipeline.");
 
-	vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
-		t_ShaderCreateResult.shaderModules[0],
-		nullptr);
-	vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
-		t_ShaderCreateResult.shaderModules[1],
-		nullptr);
+	for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
+	{
+		vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
+			t_ShaderCreateResult.shaderModules[i],
+			nullptr);
+	}
+
 
 	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline));
 }
@@ -1436,7 +1452,7 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 	VkDescriptorSet t_Sets[4];
 	for (size_t i = 0; i < a_SetCount; i++)
 	{
-		t_Sets[i] = s_VkBackendInst.descriptorSets.find(a_Sets[i].handle);
+		t_Sets[i] = *reinterpret_cast<VkDescriptorSet*>(a_Sets[i].ptrHandle);
 	}
 
 	vkCmdBindDescriptorSets(t_Cmdlist->currentRecording,
@@ -1607,6 +1623,8 @@ void BB::VulkanDestroyBackend()
 
 	vkDestroySurfaceKHR(s_VkBackendInst.instance, s_VkBackendInst.surface, nullptr);
 	vkDestroyInstance(s_VkBackendInst.instance, nullptr);
+
+	s_VkBackendInst.DestroyPools();
 
 	//clear all the vulkan memory.
 	//s_VulkanAllocator.Clear();

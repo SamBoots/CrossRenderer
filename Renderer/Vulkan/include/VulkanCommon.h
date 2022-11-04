@@ -11,11 +11,10 @@ namespace BB
 #ifdef _DEBUG
 #define VKASSERT(a_VKResult, a_Msg)\
 	if (a_VKResult != VK_SUCCESS)\
-		BB_ASSERT(false, a_Msg);\
+		BB_ASSERT(false, a_Msg)\
 
 #else
 #define VKASSERT(a_VKResult, a_Msg) a_VKResult
-
 #endif //_DEBUG
 
 	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX;
@@ -288,7 +287,7 @@ namespace BB
 	};
 
 	//Functions
-	APIRenderBackend VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
+	BackendInfo VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 
 	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
@@ -312,7 +311,7 @@ namespace BB
 
 	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	void StartFrame();
+	FrameIndex StartFrame();
 	void RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();

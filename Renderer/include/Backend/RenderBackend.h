@@ -6,6 +6,10 @@ namespace BB
 {
 	namespace RenderBackend
 	{
+		const uint32_t GetFrameBufferAmount();
+
+
+
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
 		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
