@@ -22,7 +22,7 @@ struct RendererInst
 	Slotmap<Model> models{ m_SystemAllocator };
 	RBufferHandle perFrameUniBuffer;
 	RDescriptorLayoutHandle perFrameDescriptorLayout;
-	RDescriptorHandle perFrameDescriptor;
+	RDescriptorHandle perFrameDescriptor[3];
 };
 
 FrameBufferHandle t_FrameBuffer;
@@ -97,8 +97,14 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_UniformCreateInfo.size = sizeof(CameraBufferInfo) * BB::RenderBackend::GetFrameBufferAmount();
 	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
 	t_UniformCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UniformCreateInfo.data = &info;
+	t_UniformCreateInfo.data = nullptr;
 	s_RendererInst.perFrameUniBuffer = RenderBackend::CreateBuffer(t_UniformCreateInfo);
+	for (size_t i = 0; i < BB::RenderBackend::GetFrameBufferAmount(); i++)
+	{
+		RenderBackend::BufferCopyData(s_RendererInst.perFrameUniBuffer, 
+			&info, sizeof(CameraBufferInfo), sizeof(CameraBufferInfo) * i);
+	}
+
 
 	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
 	t_DescriptorCreateInfo.bufferBindCount = 1;
@@ -114,13 +120,19 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		1,
 		RenderDescriptorCreateInfo::BufferBind::BufferInfo);
 	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_RendererInst.perFrameUniBuffer;
-	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
+	//Do offset in the forloop due to the per frame nature
 	t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo);
 
 	s_RendererInst.perFrameDescriptorLayout.ptrHandle = nullptr;
-	s_RendererInst.perFrameDescriptor = RenderBackend::CreateDescriptor(
-		s_RendererInst.perFrameDescriptorLayout,
-		t_DescriptorCreateInfo);
+	for (size_t i = 0; i < _countof(s_RendererInst.perFrameDescriptor); i++)
+	{
+		t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = sizeof(CameraBufferInfo) * i;
+		s_RendererInst.perFrameDescriptor[i] = RenderBackend::CreateDescriptor(
+			s_RendererInst.perFrameDescriptorLayout,
+			t_DescriptorCreateInfo);
+	}
+
+
 #pragma endregion //Descriptor
 
 	ShaderCreateInfo t_ShaderBuffers[2];
@@ -291,7 +303,7 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(a_Handle, &t_Model.vertexBuffer, t_BufferOffsets, 1);
 	RenderBackend::BindIndexBuffer(a_Handle, t_Model.indexBuffer, 0);
-	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_RendererInst.perFrameDescriptor, 0, nullptr);
+	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_RendererInst.perFrameDescriptor[s_CurrentFrame], 0, nullptr);
 	for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 	{
 		for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)

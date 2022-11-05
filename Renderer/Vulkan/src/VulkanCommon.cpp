@@ -1098,7 +1098,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 	}
 	else //Take our existing layout.
 	{
-		t_SetLayout = *reinterpret_cast<VkDescriptorSetLayout*>(a_Layout.ptrHandle);
+		t_SetLayout = reinterpret_cast<VkDescriptorSetLayout>(a_Layout.ptrHandle);
 	}
 
 	//Create all the writes for Buffers
