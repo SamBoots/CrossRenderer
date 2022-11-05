@@ -302,8 +302,8 @@ namespace BB
 	inline void BB::Slotmap<T>::reallocate(size_t a_NewCapacity)
 	{
 		SlotmapID* t_NewIdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * a_NewCapacity));
-		T* t_NewObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * a_NewCapacity));
-		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * a_NewCapacity));
+		T* t_NewObjArr = reinterpret_cast<T*>(Pointer::Add(t_NewIdArr, sizeof(SlotmapID) * a_NewCapacity));
+		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(t_NewObjArr, sizeof(T) * a_NewCapacity));
 
 		BB::Memory::Copy(t_NewIdArr, m_IdArr, m_Capacity);
 		BB::Memory::Copy(t_NewObjArr, m_ObjArr, m_Size);
