@@ -17,19 +17,13 @@ namespace BB
 	{
 		static constexpr bool trivialDestructible_T = std::is_trivially_destructible_v<T>;
 
-		struct Node
-		{
-			SlotmapID id;
-			T value;
-		};
-
 	public:
 		struct Iterator
 		{
-			Iterator(Node* a_Ptr) : m_Ptr(a_Ptr) {}
+			Iterator(T* a_Ptr) : m_Ptr(a_Ptr) {}
 
-			Node& operator*() const { return *m_Ptr; }
-			Node* operator->() { return m_Ptr; }
+			T& operator*() const { return *m_Ptr; }
+			T* operator->() { return m_Ptr; }
 
 			Iterator& operator++()
 			{
@@ -50,7 +44,7 @@ namespace BB
 			friend bool operator>= (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_Ptr >= a_Rhs.m_Ptr; };
 
 		private:
-			Node* m_Ptr;
+			T* m_Ptr;
 		};
 
 		Slotmap(Allocator a_Allocator);
@@ -86,7 +80,8 @@ namespace BB
 		Allocator m_Allocator;
 
 		SlotmapID* m_IdArr;
-		Node* m_ObjArr;
+		T* m_ObjArr;
+		uint32_t* m_EraseArr;
 
 		size_t m_Capacity = 128;
 		size_t m_Size = 0;
@@ -105,7 +100,8 @@ namespace BB
 		m_Capacity = a_Size;
 
 		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<Node*>(BBalloc(m_Allocator, sizeof(Node) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
 
 		for (size_t i = 0; i < m_Capacity - 1; ++i)
 		{
@@ -123,10 +119,12 @@ namespace BB
 		m_NextFree = a_Map.m_NextFree;
 
 		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<Node*>(BBalloc(m_Allocator, sizeof(Node) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Map.m_IdArr, m_Capacity);
 		BB::Memory::Copy(m_ObjArr, a_Map.m_ObjArr, m_Size);
+		BB::Memory::Copy(m_EraseArr, a_Map.m_EraseArr, m_Size);
 	}
 
 	template<typename T>
@@ -137,6 +135,7 @@ namespace BB
 		m_NextFree = a_Map.m_NextFree;
 		m_IdArr = a_Map.m_IdArr;
 		m_ObjArr = a_Map.m_ObjArr;
+		m_EraseArr = a_Map.m_EraseArr;
 		m_Allocator = a_Map.m_Allocator;
 
 		a_Map.m_Capacity = 0;
@@ -144,6 +143,7 @@ namespace BB
 		a_Map.m_NextFree = 0;
 		a_Map.m_IdArr = nullptr;
 		a_Map.m_ObjArr = nullptr;
+		a_Map.m_EraseArr = nullptr;
 		a_Map.m_Allocator.allocator = nullptr;
 		a_Map.m_Allocator.func = nullptr;
 	}
@@ -157,12 +157,13 @@ namespace BB
 			{
 				for (size_t i = 0; i < m_Size; i++)
 				{
-					m_ObjArr[i].value.~T();
+					m_ObjArr[i].~T();
 				}
 			}
 
 			BBfree(m_Allocator, m_IdArr);
 			BBfree(m_Allocator, m_ObjArr);
+			BBfree(m_Allocator, m_EraseArr);
 		}
 	}
 
@@ -177,10 +178,12 @@ namespace BB
 		m_NextFree = a_Rhs.m_NextFree;
 
 		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<Node*>(BBalloc(m_Allocator, sizeof(Node) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Rhs.m_IdArr, m_Capacity);
 		BB::Memory::Copy(m_ObjArr, a_Rhs.m_ObjArr, m_Size);
+		BB::Memory::Copy(m_EraseArr, a_Rhs.m_EraseArr, m_Size);
 
 		return *this;
 	}
@@ -195,6 +198,7 @@ namespace BB
 		m_NextFree = a_Rhs.m_NextFree;
 		m_IdArr = a_Rhs.m_IdArr;
 		m_ObjArr = a_Rhs.m_ObjArr;
+		m_EraseArr = a_Rhs.m_EraseArr;
 		m_Allocator = a_Rhs.m_Allocator;
 
 		a_Rhs.m_Capacity = 0;
@@ -202,6 +206,7 @@ namespace BB
 		a_Rhs.m_NextFree = 0;
 		a_Rhs.m_IdArr = nullptr;
 		a_Rhs.m_ObjArr = nullptr;
+		a_Rhs.m_EraseArr = nullptr;;
 		a_Rhs.m_Allocator.allocator = nullptr;
 		a_Rhs.m_Allocator.func = nullptr;
 
@@ -232,9 +237,8 @@ namespace BB
 		m_NextFree = m_IdArr[t_ID];
 		m_IdArr[t_ID] = m_Size;
 
-		Node& t_Node = m_ObjArr[m_Size++];
-		t_Node.id = t_ID;
-		new (&t_Node.value) T(std::forward<Args>(a_Args)...);
+		new (&m_ObjArr[m_Size]) T(std::forward<Args>(a_Args)...);
+		m_EraseArr[m_Size++] = t_ID;
 
 		return t_ID;
 	}
@@ -242,27 +246,23 @@ namespace BB
 	template<typename T>
 	inline T& BB::Slotmap<T>::find(SlotmapID a_ID) const
 	{
-		return m_ObjArr[m_IdArr[a_ID]].value;
+		return m_ObjArr[m_IdArr[a_ID]];
 	}
 
 	template<typename T>
 	inline void BB::Slotmap<T>::erase(SlotmapID a_ID)
 	{
-		size_t t_OldFree = m_NextFree;
-		m_NextFree = a_ID;
+		const uint32_t t_Index = m_IdArr[a_ID];
 
-		Slotmap::Node& t_MoveNode = m_ObjArr[--m_Size];
-		m_IdArr[t_MoveNode.id] = m_IdArr[a_ID];
-		t_MoveNode.id = a_ID;
 		if constexpr (!trivialDestructible_T)
 		{
 			//Before move call the destructor if it has one.
-			m_ObjArr[m_IdArr[a_ID]].value.~T();
+			m_ObjArr[t_Index].~T();
 		}
-		//Move the front element to this position.
-		m_ObjArr[m_IdArr[a_ID]].value = std::move(t_MoveNode.value);
 
-		m_IdArr[a_ID] = t_OldFree;
+		m_ObjArr[t_Index] = std::move(m_ObjArr[--m_Size]);
+		m_EraseArr[t_Index] = std::move(m_EraseArr[m_Size]);
+		m_IdArr[m_EraseArr[t_Index]] = a_ID;
 	}
 
 	template<typename T>
@@ -289,7 +289,7 @@ namespace BB
 		{
 			for (size_t i = 0; i < m_Size; i++)
 			{
-				m_ObjArr[i].value.~T();
+				m_ObjArr[i].~T();
 			}
 		}
 	}
@@ -304,10 +304,12 @@ namespace BB
 	inline void BB::Slotmap<T>::reallocate(size_t a_NewCapacity)
 	{
 		SlotmapID* t_NewIdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * a_NewCapacity));
-		Node* t_NewObjArr = reinterpret_cast<Node*>(BBalloc(m_Allocator, sizeof(Node) * a_NewCapacity));
+		T* t_NewObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * a_NewCapacity));
+		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * a_NewCapacity));
 
 		BB::Memory::Copy(t_NewIdArr, m_IdArr, m_Capacity);
 		BB::Memory::Copy(t_NewObjArr, m_ObjArr, m_Size);
+		BB::Memory::Copy(t_NewEraseArr, m_EraseArr, m_Size);
 
 		for (size_t i = m_Capacity; i < a_NewCapacity; ++i)
 		{
@@ -319,5 +321,6 @@ namespace BB
 		m_Capacity = a_NewCapacity;
 		m_IdArr = t_NewIdArr;
 		m_ObjArr = t_NewObjArr;
+		m_EraseArr = t_NewEraseArr;
 	}
 }

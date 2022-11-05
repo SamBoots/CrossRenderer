@@ -74,7 +74,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	size_t t_Count = 0;
 	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
@@ -88,7 +88,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	t_Count = 0;
 	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 }
@@ -119,7 +119,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	size_t t_Count = 0;
 	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
@@ -128,7 +128,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	t_Count = 0;
 	for (auto t_It = t_CopyMap.begin(); t_It < t_CopyMap.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
@@ -138,7 +138,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	t_Count = 0;
 	for (auto t_It = t_CopyOperatorMap.begin(); t_It < t_CopyOperatorMap.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
@@ -148,7 +148,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	t_Count = 0;
 	for (auto t_It = t_AssignmentMap.begin(); t_It < t_AssignmentMap.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 
@@ -160,7 +160,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	t_Count = 0;
 	for (auto t_It = t_AssignmentOperatorMap.begin(); t_It < t_AssignmentOperatorMap.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample amount.";
 }
@@ -193,7 +193,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 	size_t t_Count = 0;
 	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed.";
 	}
 	ASSERT_EQ(initialMapSize, t_Count) << "Iterator went over the initialMapSize amount.";
 
@@ -205,7 +205,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 	t_Count = 0;
 	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
 	{
-		ASSERT_EQ(t_It->value.value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed after a grow event.";
+		ASSERT_EQ(t_It->value, t_RandomKeys[t_Count++].value) << "Wrong element was likely grabbed after a grow event.";
 	}
 	ASSERT_EQ(samples, t_Count) << "Iterator went over the sample after a grow event amount.";
 }

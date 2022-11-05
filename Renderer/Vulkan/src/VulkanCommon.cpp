@@ -1486,7 +1486,7 @@ void BB::ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 	for (auto t_It = s_VkBackendInst.frameBuffers.begin();
 		t_It < s_VkBackendInst.frameBuffers.end(); t_It++)
 	{
-		VulkanFrameBuffer& t_FrameBuffer = t_It->value;
+		VulkanFrameBuffer& t_FrameBuffer = *t_It;
 		t_FrameBuffer.width = a_X;
 		t_FrameBuffer.height = a_Y;
 
@@ -1519,7 +1519,7 @@ void BB::ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 	for (auto t_It = s_VkBackendInst.frameBuffers.begin();
 		t_It < s_VkBackendInst.frameBuffers.end(); t_It++)
 	{
-		VulkanFrameBuffer& t_FrameBuffer = t_It->value;
+		VulkanFrameBuffer& t_FrameBuffer = *t_It;
 		CreateFrameBuffers(t_FrameBuffer.frameBuffers,
 			t_FrameBuffer.renderPass,
 			a_X,

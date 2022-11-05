@@ -165,8 +165,8 @@ void BB::Render::DestroyRenderer()
 	RenderBackend::WaitGPUReady();
 	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
 	{
-		RenderBackend::DestroyBuffer(it->value.indexBuffer);
-		RenderBackend::DestroyBuffer(it->value.vertexBuffer);
+		RenderBackend::DestroyBuffer(it->indexBuffer);
+		RenderBackend::DestroyBuffer(it->vertexBuffer);
 		//RenderBackend::DestroyBuffer(it->value.indexBuffer);
 	}
 	RenderBackend::DestroyBuffer(s_RendererInst.perFrameUniBuffer);
