@@ -99,9 +99,9 @@ namespace BB
 		m_Allocator = a_Allocator;
 		m_Capacity = a_Size;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
-		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		for (size_t i = 0; i < m_Capacity - 1; ++i)
 		{
@@ -118,9 +118,9 @@ namespace BB
 		m_Size = a_Map.m_Size;
 		m_NextFree = a_Map.m_NextFree;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
-		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Map.m_IdArr, m_Capacity);
 		BB::Memory::Copy(m_ObjArr, a_Map.m_ObjArr, m_Size);
@@ -162,8 +162,6 @@ namespace BB
 			}
 
 			BBfree(m_Allocator, m_IdArr);
-			BBfree(m_Allocator, m_ObjArr);
-			BBfree(m_Allocator, m_EraseArr);
 		}
 	}
 
@@ -177,9 +175,9 @@ namespace BB
 		m_Size = a_Rhs.m_Size;
 		m_NextFree = a_Rhs.m_NextFree;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * m_Capacity));
-		m_EraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Rhs.m_IdArr, m_Capacity);
 		BB::Memory::Copy(m_ObjArr, a_Rhs.m_ObjArr, m_Size);
@@ -303,9 +301,9 @@ namespace BB
 	template<typename T>
 	inline void BB::Slotmap<T>::reallocate(size_t a_NewCapacity)
 	{
-		SlotmapID* t_NewIdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, sizeof(SlotmapID) * a_NewCapacity));
-		T* t_NewObjArr = reinterpret_cast<T*>(BBalloc(m_Allocator, sizeof(T) * a_NewCapacity));
-		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(BBalloc(m_Allocator, sizeof(uint32_t) * a_NewCapacity));
+		SlotmapID* t_NewIdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * a_NewCapacity));
+		T* t_NewObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * a_NewCapacity));
+		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * a_NewCapacity));
 
 		BB::Memory::Copy(t_NewIdArr, m_IdArr, m_Capacity);
 		BB::Memory::Copy(t_NewObjArr, m_ObjArr, m_Size);
