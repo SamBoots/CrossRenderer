@@ -26,7 +26,7 @@ struct RendererInst
 };
 
 FrameBufferHandle t_FrameBuffer;
-CommandListHandle t_CommandList[3];
+CommandListHandle t_CommandLists[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
 
@@ -147,9 +147,9 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	RenderCommandListCreateInfo t_CmdCreateInfo;
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_CmdCreateInfo.bufferCount = 5;
-	t_CommandList[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CommandList[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CommandList[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandLists[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandLists[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandLists[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
@@ -174,7 +174,10 @@ void BB::Render::DestroyRenderer()
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);
-	RenderBackend::DestroyCommandList(t_CommandList);
+	for (size_t i = 0; i < _countof(t_CommandLists); i++)
+	{
+		RenderBackend::DestroyCommandList(t_CommandLists[i]);
+	}
 	RenderBackend::DestroyCommandList(t_TransferCommandList);
 	RenderBackend::DestroyBackend();
 	s_RendererInfo.currentAPI = RenderAPI::NONE;
@@ -272,7 +275,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 RecordingCommandListHandle BB::Render::StartRecordCmds()
 {
-	return RenderBackend::StartCommandList(t_CommandList[s_CurrentFrame], t_FrameBuffer);
+	return RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame], t_FrameBuffer);
 }
 
 void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
@@ -306,12 +309,12 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 void BB::Render::StartFrame()
 {
 	s_CurrentFrame = RenderBackend::StartFrame();
-	RenderBackend::ResetCommandList(t_CommandList[s_CurrentFrame]);
+	RenderBackend::ResetCommandList(t_CommandLists[s_CurrentFrame]);
 }
 
 void BB::Render::EndFrame()
 {
-	RenderBackend::RenderFrame(t_CommandList[s_CurrentFrame], t_FrameBuffer, t_Pipeline);
+	RenderBackend::RenderFrame(t_CommandLists[s_CurrentFrame], t_FrameBuffer, t_Pipeline);
 	RenderBackend::Update();
 }
 

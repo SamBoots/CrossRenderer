@@ -1537,13 +1537,10 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 {
 	VulkanCommandList& a_List = s_VkBackendInst.commandLists[a_Handle.handle];
 
-	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
-	{
-		vkDestroyCommandPool(s_VkBackendInst.device.logicalDevice,
-			a_List.pool, nullptr);
-		BBfreeArr(s_VulkanAllocator,
-			a_List.buffers);
-	}
+	vkDestroyCommandPool(s_VkBackendInst.device.logicalDevice,
+		a_List.pool, nullptr);
+	BBfreeArr(s_VulkanAllocator,
+		a_List.buffers);
 }
 
 void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
