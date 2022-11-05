@@ -20,6 +20,12 @@ const uint32_t BB::RenderBackend::GetFrameBufferAmount()
 	return s_BackendInfo.framebufferCount;
 }
 
+//Preferably use the value that you get from BB::RenderBackend::StartFrame
+const FrameIndex BB::RenderBackend::GetCurrentFrameBufferIndex()
+{
+	return s_BackendInfo.currentFrame;
+}
+
 void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
@@ -67,6 +73,11 @@ RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandList
 	return s_ApiFunc.startCommandList(a_CmdHandle, a_FrameHandle);
 }
 
+void BB::RenderBackend::ResetCommandList(const CommandListHandle a_CmdHandle)
+{
+	s_ApiFunc.resetCommandList(a_CmdHandle);
+}
+
 void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
 	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
@@ -102,9 +113,9 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 	s_ApiFunc.drawIndex(a_RecordingCmdHandle, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
-void BB::RenderBackend::StartFrame()
+FrameIndex BB::RenderBackend::StartFrame()
 {
-	s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
+	return s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
 }
 
 void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)

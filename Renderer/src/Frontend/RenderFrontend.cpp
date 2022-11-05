@@ -4,6 +4,7 @@
 #include "Storage/Slotmap.h"
 #include "OS/OSDevice.h"
 
+
 using namespace BB;
 using namespace BB::Render;
 
@@ -25,9 +26,11 @@ struct RendererInst
 };
 
 FrameBufferHandle t_FrameBuffer;
-CommandListHandle t_CommandList;
+CommandListHandle t_CommandList[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
+
+static FrameIndex s_CurrentFrame;
 
 static RendererInfo s_RendererInfo;
 static RendererInst s_RendererInst;
@@ -90,8 +93,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		10.0f);
 	info.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-	info.projection[1][1] *= -1;
-
 	RenderBufferCreateInfo t_UniformCreateInfo;
 	t_UniformCreateInfo.size = sizeof(CameraBufferInfo) * BB::RenderBackend::GetFrameBufferAmount();
 	t_UniformCreateInfo.usage = RENDER_BUFFER_USAGE::UNIFORM;
@@ -146,7 +147,9 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	RenderCommandListCreateInfo t_CmdCreateInfo;
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_CmdCreateInfo.bufferCount = 5;
-	t_CommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandList[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandList[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CommandList[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
@@ -269,7 +272,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 RecordingCommandListHandle BB::Render::StartRecordCmds()
 {
-	return RenderBackend::StartCommandList(t_CommandList, t_FrameBuffer);
+	return RenderBackend::StartCommandList(t_CommandList[s_CurrentFrame], t_FrameBuffer);
 }
 
 void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
@@ -302,12 +305,13 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RMod
 
 void BB::Render::StartFrame()
 {
-	RenderBackend::StartFrame();
+	s_CurrentFrame = RenderBackend::StartFrame();
+	RenderBackend::ResetCommandList(t_CommandList[s_CurrentFrame]);
 }
 
 void BB::Render::EndFrame()
 {
-	RenderBackend::RenderFrame(t_CommandList, t_FrameBuffer, t_Pipeline);
+	RenderBackend::RenderFrame(t_CommandList[s_CurrentFrame], t_FrameBuffer, t_Pipeline);
 	RenderBackend::Update();
 }
 

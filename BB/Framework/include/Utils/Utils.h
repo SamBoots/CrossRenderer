@@ -257,6 +257,21 @@ namespace BB
 			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_Ptr) - a_Subtract);
 		}
 
+		/// <summary>
+		/// Returns a aligned size from a_Size based on the a_Alignment size given.
+		/// </summary>
+		/// <param name="a_Size:"> Size of the origional buffer </param>
+		/// <param name="a_Alignment:"> Alignment the returned size needs to be based off. </param>
+		/// <returns> an aligned size based of a_Size and a_Alignment. </returns>
+		inline static size_t AlignPad(const size_t a_Size, const size_t a_Alignment)
+		{
+			size_t t_AlignedSize = a_Size;
+			if (a_Alignment > 0) {
+				t_AlignedSize = (a_Size + a_Alignment - 1) & ~(a_Alignment - 1);
+			}
+			return t_AlignedSize;
+		}
+
 #pragma warning(disable:4146)
 		/// <summary>
 		/// Align a given pointer forward.

@@ -7,6 +7,7 @@ namespace BB
 	namespace RenderBackend
 	{
 		const uint32_t GetFrameBufferAmount();
+		const FrameIndex GetCurrentFrameBufferIndex();
 
 
 
@@ -21,6 +22,7 @@ namespace BB
 		void CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo);
 		
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle);
+		void ResetCommandList(const CommandListHandle a_CmdHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
@@ -30,7 +32,7 @@ namespace BB
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
-		void StartFrame();
+		FrameIndex StartFrame();
 		void RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 		void Update();

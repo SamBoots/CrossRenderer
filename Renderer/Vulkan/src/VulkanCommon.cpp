@@ -85,7 +85,13 @@ struct VulkanBackend_inst
 	}
 };
 static VulkanBackend_inst s_VkBackendInst;
-	
+
+static VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
+{
+	VkPhysicalDeviceProperties t_Properties;
+	vkGetPhysicalDeviceProperties(s_VkBackendInst.device.physicalDevice, &t_Properties);
+	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
+}
 
 void DescriptorAllocator::CreateDescriptorPool()
 {
@@ -755,7 +761,7 @@ void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, 
 
 void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
 {
-	VulkanCommandList::CommandList& t_CmdList = s_VkBackendInst.commandLists.find(a_CopyInfo.transferCommandHandle.handle).commandLists[0];
+	VulkanCommandList& t_CmdList = s_VkBackendInst.commandLists.find(a_CopyInfo.transferCommandHandle.handle);
 	VulkanBuffer& t_SrcBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.src.handle);
 	VulkanBuffer& t_DstBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.dst.handle);
 
@@ -817,12 +823,6 @@ FrameIndex BB::StartFrame()
 		1,
 		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
 
-	//TODO, go through all commandlists and reset the pools.
-	VulkanCommandList t_GlobalCommandList = s_VkBackendInst.commandLists[0];
-	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
-		t_GlobalCommandList.commandLists[t_CurrentFrame].pool,
-		0);
-
 	return t_CurrentFrame;
 }
 
@@ -830,7 +830,7 @@ void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandl
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	VulkanCommandList::CommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle].commandLists[t_CurrentFrame];
+	VulkanCommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
 
 	//submit stage.
@@ -1221,7 +1221,7 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 		VK_FALSE,
 		VK_POLYGON_MODE_FILL,
 		VK_CULL_MODE_BACK_BIT,
-		VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		VK_FRONT_FACE_CLOCKWISE);
 	VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
 		VK_FALSE,
 		VK_SAMPLE_COUNT_1_BIT);
@@ -1305,39 +1305,34 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 		t_QueueIndex,
 		0);
 
-	t_ReturnCommandList.commandLists = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VulkanCommandList::CommandList);
 
-	//The commandlist has graphiccommands per frame.
-	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
-	{
-		VKASSERT(vkCreateCommandPool(s_VkBackendInst.device.logicalDevice,
-			&t_CommandPoolInfo,
-			nullptr,
-			&t_ReturnCommandList.commandLists[i].pool),
-			"Vulkan: Failed to create commandpool.");
+	VKASSERT(vkCreateCommandPool(s_VkBackendInst.device.logicalDevice,
+		&t_CommandPoolInfo,
+		nullptr,
+		&t_ReturnCommandList.pool),
+		"Vulkan: Failed to create commandpool.");
 
-		VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
-			t_ReturnCommandList.commandLists[i].pool,
-			a_CreateInfo.bufferCount,
-			VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+	VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
+		t_ReturnCommandList.pool,
+		a_CreateInfo.bufferCount,
+		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-		t_ReturnCommandList.commandLists[i].buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
-		t_ReturnCommandList.commandLists[i].bufferCount = a_CreateInfo.bufferCount;
-		t_ReturnCommandList.commandLists[i].currentFree = 0;
+	t_ReturnCommandList.buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
+	t_ReturnCommandList.bufferCount = a_CreateInfo.bufferCount;
+	t_ReturnCommandList.currentFree = 0;
 
-		VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
-			&t_AllocInfo,
-			t_ReturnCommandList.commandLists[i].buffers),
-			"Vulkan: failed to allocate commandbuffers.");
-	}
+	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
+		&t_AllocInfo,
+		t_ReturnCommandList.buffers),
+		"Vulkan: failed to allocate commandbuffers.");
+
 
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));
 }
 
 RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
-	VulkanCommandList::CommandList& t_Cmdlist =
-		s_VkBackendInst.commandLists[a_CmdHandle.handle].commandLists[s_VkBackendInst.currentFrame];
+	VulkanCommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CmdHandle.handle];
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
 
 	BB_ASSERT(t_Cmdlist.currentRecording == VK_NULL_HANDLE,
@@ -1384,10 +1379,18 @@ RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_
 	return RecordingCommandListHandle(&t_Cmdlist);
 }
 
+void BB::VulkanResetCommandList(const CommandListHandle a_CmdHandle)
+{
+	//TODO, go through all commandlists and reset the pools.
+	VulkanCommandList t_CmdList = s_VkBackendInst.commandLists[a_CmdHandle.handle];
+	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
+		t_CmdList.pool,
+		0);
+}
+
 void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	BB_ASSERT(t_Cmdlist->currentRecording != VK_NULL_HANDLE,
 		"Vulkan: Trying to end a commandbuffer that is not recording!");
 
@@ -1401,8 +1404,7 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	const VulkanPipeline t_Pipeline = s_VkBackendInst.pipelines[a_Pipeline.handle];
 
@@ -1415,8 +1417,7 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 
 void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//quick cheat.
 	VkBuffer t_Buffers[12];
@@ -1434,8 +1435,7 @@ void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmd
 
 void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdBindIndexBuffer(t_Cmdlist->currentRecording,
 		s_VkBackendInst.renderBuffers.find(a_Buffer.handle).buffer,
@@ -1445,8 +1445,7 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 
 void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//quick cheat.
 	VkDescriptorSet t_Sets[4];
@@ -1467,16 +1466,14 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 
 void BB::VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdDraw(t_Cmdlist->currentRecording, a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);
 }
 
 void BB::VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
-	VulkanCommandList::CommandList* t_Cmdlist =
-		reinterpret_cast<VulkanCommandList::CommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdDrawIndexed(t_Cmdlist->currentRecording, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
@@ -1543,12 +1540,10 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
 		vkDestroyCommandPool(s_VkBackendInst.device.logicalDevice,
-			a_List.commandLists[i].pool, nullptr);
+			a_List.pool, nullptr);
 		BBfreeArr(s_VulkanAllocator,
-			a_List.commandLists[i].buffers);
+			a_List.buffers);
 	}
-	BBfreeArr(s_VulkanAllocator,
-		a_List.commandLists);
 }
 
 void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)

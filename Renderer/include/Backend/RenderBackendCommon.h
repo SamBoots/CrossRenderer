@@ -295,6 +295,7 @@ namespace BB
 
 	//Commandlist handling
 	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
+	typedef void (*PFN_RenderAPIResetCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
@@ -333,6 +334,7 @@ namespace BB
 		PFN_RenderAPICreateBuffer createBuffer;
 
 		PFN_RenderAPIStartCommandList startCommandList;
+		PFN_RenderAPIResetCommandList resetCommandList;
 		PFN_RenderAPIEndCommandList endCommandList;
 		PFN_RenderAPIBindPipeline bindPipeline;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;

@@ -249,18 +249,13 @@ namespace BB
 
 	struct VulkanCommandList
 	{
-		struct CommandList
-		{
-			VkCommandPool pool;
-			VkCommandBuffer* buffers;
-			uint32_t bufferCount;
-			uint32_t currentFree;
-			VkCommandBuffer currentRecording = VK_NULL_HANDLE;
+		VkCommandPool pool;
+		VkCommandBuffer* buffers;
+		uint32_t bufferCount;
+		uint32_t currentFree;
+		VkCommandBuffer currentRecording = VK_NULL_HANDLE;
 
-			VkPipelineLayout currentPipelineLayout;
-		};
-
-		CommandList* commandLists;
+		VkPipelineLayout currentPipelineLayout;
 	};
 
 	struct VulkanDevice
@@ -296,7 +291,7 @@ namespace BB
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
-	
+	void VulkanResetCommandList(const CommandListHandle a_CmdHandle);
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
