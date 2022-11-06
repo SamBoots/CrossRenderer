@@ -6,7 +6,7 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
-	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
+	a_FuncCreateInfo.createDescriptors = VulkanCreateDescriptors;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;

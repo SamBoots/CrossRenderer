@@ -405,6 +405,13 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
 
+	VkPhysicalDeviceShaderDrawParametersFeatures t_ShaderDrawFeatures = {};
+	t_ShaderDrawFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+	t_ShaderDrawFeatures.pNext = nullptr;
+	t_ShaderDrawFeatures.shaderDrawParameters = VK_TRUE;
+	t_CreateInfo.pNext = &t_ShaderDrawFeatures;
+
+
 	VKASSERT(vkCreateDevice(s_VkBackendInst.device.physicalDevice, 
 		&t_CreateInfo, 
 		nullptr, 
@@ -1056,14 +1063,9 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer));
 }
 
-RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle* BB::VulkanCreateDescriptors(Allocator a_SysAllocator, Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
 	VkDescriptorSetLayout t_SetLayout;
-
-	VkWriteDescriptorSet* t_Writes = BBnewArr(
-		a_TempAllocator,
-		a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount,
-		VkWriteDescriptorSet);
 
 	if (a_Layout.ptrHandle == nullptr) //Create the layout if we do not supply one, do check if we already have it however.
 	{
@@ -1101,13 +1103,32 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 		t_SetLayout = reinterpret_cast<VkDescriptorSetLayout>(a_Layout.ptrHandle);
 	}
 
+	uint32_t t_WriteCount = 0;
+	for (uint32_t i = 0; i < a_CreateInfo.bufferBindCount; i++)
+	{
+		for (uint32_t j = 0; j < a_CreateInfo.bufferBind[i].bufferInfoCount; j++)
+		{
+			++t_WriteCount;
+		}
+		// Texturebind
+		//for (size_t j = 0; j < a_CreateInfo.bufferBind[i].bufferInfoCount; j++)
+		//{
+		//	++t_WriteCount;
+		//}
+	}
+
+	VkWriteDescriptorSet* t_Writes = BBnewArr(
+		a_TempAllocator,
+		t_WriteCount,
+		VkWriteDescriptorSet);
+
 	//Create all the writes for Buffers
 	for (size_t i = 0; i < a_CreateInfo.bufferBindCount; i++)
 	{
 		//Setup buffer specific info.
 		VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
 			a_TempAllocator,
-			a_CreateInfo.bufferBindCount,
+			a_CreateInfo.bufferBind[i].bufferInfoCount,
 			VkDescriptorBufferInfo);
 
 		for (size_t bufferIndex = 0; bufferIndex < a_CreateInfo.bufferBind[i].bufferInfoCount; bufferIndex++)
@@ -1115,15 +1136,15 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 			t_BufferInfos[bufferIndex].buffer = s_VkBackendInst.renderBuffers.find(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].buffer.handle).buffer;
 			t_BufferInfos[bufferIndex].offset = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].offset;
 			t_BufferInfos[bufferIndex].range = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].size;
-		}
 
-		//Create the descriptorwrite.
-		t_Writes[i] = {};
-		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].dstBinding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
-		t_Writes[i].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
-		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
-		t_Writes[i].pBufferInfo = t_BufferInfos;
+			//Create the descriptorwrite.
+			t_Writes[i + bufferIndex] = {};
+			t_Writes[i + bufferIndex].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			t_Writes[i + bufferIndex].dstBinding = static_cast<uint32_t>(a_CreateInfo.bufferBind[i].binding);
+			t_Writes[i + bufferIndex].descriptorCount = a_CreateInfo.bufferBind[i].bufferInfoCount;
+			t_Writes[i + bufferIndex].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBind[i].type);
+			t_Writes[i + bufferIndex].pBufferInfo = t_BufferInfos;
+		}
 	}
 
 	//Create all the bindings for Images
@@ -1146,11 +1167,15 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 	t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
 	t_AllocInfo.descriptorSetCount = a_CreateInfo.bufferBindCount + a_CreateInfo.textureBindCount;
 
+	VkDescriptorSet* t_pSets = BBnewArr(a_TempAllocator, t_AllocInfo.descriptorSetCount, VkDescriptorSet);
+	for (uint32_t i = 0; i < t_AllocInfo.descriptorSetCount; i++)
+	{
+		t_pSets[i] = *s_VkBackendInst.descriptorSets.Get();
+	}
 
-	VkDescriptorSet* t_pSet = s_VkBackendInst.descriptorSets.Get();
 	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
 		&t_AllocInfo, 
-		t_pSet);
+		t_pSets);
 	bool t_NeedReallocate = false;
 
 	switch (t_AllocResult)
@@ -1171,16 +1196,23 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 	//Now write to the descriptorset.
 	for (size_t i = 0; i < t_AllocInfo.descriptorSetCount; i++)
 	{
-		t_Writes[i].dstSet = *t_pSet;
+		t_Writes[i].dstSet = t_pSets[i];
 	}
 
 	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
 		t_AllocInfo.descriptorSetCount,
 		t_Writes,
-		0, 
+		0,
 		nullptr);
 
-	return RDescriptorHandle(t_pSet);
+	//System allocation, end user needs to delete this.
+	RDescriptorHandle* t_Handles = BBnewArr(a_SysAllocator, t_AllocInfo.descriptorSetCount, RDescriptorHandle);
+	for (size_t i = 0; i < t_AllocInfo.descriptorSetCount; i++)
+	{
+		t_Handles[i].ptrHandle = t_pSets[i];
+	}
+
+	return t_Handles;
 }
 
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)

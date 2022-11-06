@@ -9,6 +9,18 @@ namespace BB
 {
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
 
+	struct RenderBuffer
+	{
+		uint64_t size;
+		RBufferHandle backendHandle;
+	};
+
+	struct RenderBufferView
+	{
+		uint64_t offset;
+		uint64_t size;
+	};
+
 	struct Model
 	{
 		struct Primitive
@@ -57,7 +69,6 @@ namespace BB
 
 	struct CameraBufferInfo
 	{
-		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
 	};
@@ -67,4 +78,7 @@ namespace BB
 		glm::mat4 model;
 		glm::mat4 inverseModel;
 	};
+
+
+	RenderBuffer CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 }

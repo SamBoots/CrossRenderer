@@ -33,9 +33,9 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_BackendInfo = s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle* BB::RenderBackend::CreateDescriptors(Allocator a_SysAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	return s_ApiFunc.createDescriptor(m_TempAllocator, a_Layout, a_CreateInfo);
+	return s_ApiFunc.createDescriptors(a_SysAllocator, m_TempAllocator, a_Layout, a_CreateInfo);
 }
 
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
