@@ -1,6 +1,8 @@
 #include "OS/OSDevice.h"
 #include "Frontend/RenderFrontend.h"
 
+#include <chrono>
+
 using namespace BB;
 bool t_Quit = false;
 
@@ -62,16 +64,16 @@ int main()
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 
+	static auto t_StartTime = std::chrono::high_resolution_clock::now();
+	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
 	while (!t_Quit)
 	{
-		Render::StartFrame();
-		//Record rendering commands.
-		auto t_Recording = Render::StartRecordCmds();
-		Render::DrawModel(t_Recording, t_Model);
-		Render::EndRecordCmds(t_Recording);
+		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		Render::EndFrame();
+		Render::Update(t_DeltaTime);
 		OS::ProcessMessages();
+
+		t_CurrentTime = std::chrono::high_resolution_clock::now();
 	}
 
 	BB::OS::UnloadLib(t_RenderDLL);

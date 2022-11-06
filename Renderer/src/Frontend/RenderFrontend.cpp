@@ -38,6 +38,8 @@ CommandListHandle t_CommandLists[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
 
+ModelBufferInfo t_ModelInfo;
+
 static FrameIndex s_CurrentFrame;
 
 static RendererInfo s_RendererInfo;
@@ -117,7 +119,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		RenderBackend::BufferCopyData(s_RendererInst.perFrameBuffer, &info, sizeof(CameraBufferInfo), t_PerFrameBufferSingleFrame * i);
 	}
 
-	ModelBufferInfo t_ModelInfo;
+
 	t_ModelInfo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
 	//copy over our matrix.
@@ -219,6 +221,26 @@ void BB::Render::DestroyRenderer()
 	s_RendererInfo.debug = false;
 }
 
+void BB::Render::Update(const float a_DeltaTime)
+{
+	for (auto t_It = s_RendererInst.models.begin(); t_It < s_RendererInst.models.end(); t_It++)
+	{
+		Render::StartFrame();
+		//Record rendering commands.
+		auto t_Recording = Render::StartRecordCmds();
+
+		ModelBufferInfo t_ModelInfo;
+		t_ModelInfo.model = glm::rotate(glm::mat4(1.0f),  glm::radians(90.0f * a_DeltaTime), glm::vec3(0.0f, 0.0f, 1.0f));
+		//copy over our matrix.
+		RenderBackend::BufferCopyData(s_RendererInst.perFrameBuffer, &t_ModelInfo, sizeof(ModelBufferInfo), sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) + sizeof(CameraBufferInfo)) * s_CurrentFrame);
+
+		Render::DrawModel(t_Recording, *t_It);
+		Render::EndRecordCmds(t_Recording);
+
+		Render::EndFrame();
+	}
+}
+
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 {
 	Model t_Model;
@@ -318,24 +340,22 @@ void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
 	RenderBackend::EndCommandList(a_Handle);
 }
 
-void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const RModelHandle a_ModelHandle)
+void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const Model& a_Model)
 {
-	const Model& t_Model = s_RendererInst.models.find(a_ModelHandle.handle);
-	
-	RenderBackend::BindPipeline(a_Handle, t_Model.pipelineHandle);
+	RenderBackend::BindPipeline(a_Handle, a_Model.pipelineHandle);
 	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(a_Handle, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(a_Handle, t_Model.indexBuffer, 0);
+	RenderBackend::BindVertexBuffers(a_Handle, &a_Model.vertexBuffer, t_BufferOffsets, 1);
+	RenderBackend::BindIndexBuffer(a_Handle, a_Model.indexBuffer, 0);
 	uint32_t dynOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo)) * s_CurrentFrame;
 	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_RendererInst.perFrameDescriptors, 1, &dynOffset);
-	for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
+	for (uint32_t i = 0; i < a_Model.linearNodeCount; i++)
 	{
-		for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
+		for (size_t j = 0; j < a_Model.linearNodes[i].mesh->primitiveCount; j++)
 		{
 			RenderBackend::DrawIndexed(a_Handle,
-				t_Model.linearNodes[i].mesh->primitives[j].indexCount,
+				a_Model.linearNodes[i].mesh->primitives[j].indexCount,
 				1,
-				t_Model.linearNodes[i].mesh->primitives[j].indexStart,
+				a_Model.linearNodes[i].mesh->primitives[j].indexStart,
 				0,
 				0);
 		}
