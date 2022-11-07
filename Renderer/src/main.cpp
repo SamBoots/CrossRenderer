@@ -22,13 +22,15 @@ int main()
 {
 	//load DLL
 	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_VulkanDLL");
+	int t_WindowWidth = 1200;
+	int t_WindowHeight = 800;
 
 	BB::WindowHandle t_MainWindow = BB::OS::CreateOSWindow(
 		BB::OS::OS_WINDOW_STYLE::MAIN, 
-		250, 
+		250,
 		200, 
-		1200, 
-		800, 
+		t_WindowWidth,
+		t_WindowHeight,
 		"CrossRenderer");
 
 	OS::SetCloseWindowPtr(WindowQuit);
@@ -46,6 +48,17 @@ int main()
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
+	CameraBufferInfo info;
+	info.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+		glm::vec3(0.0f, 0.0f, 0.0f),
+		glm::vec3(0.0f, 0.0f, 1.0f));
+	info.projection = glm::perspective(glm::radians(45.0f),
+		t_WindowWidth / (float)t_WindowHeight,
+		0.1f,
+		10.0f);
+
+	Render::SetProjection(info.projection);
+	Render::SetView(info.view);
 
 	Vertex t_Vertex[4];
 	t_Vertex[0] = { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} };

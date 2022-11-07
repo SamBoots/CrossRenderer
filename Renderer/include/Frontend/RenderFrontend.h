@@ -9,6 +9,9 @@ namespace BB
 		void DestroyRenderer();
 
 		void Update(const float a_DeltaTime);
+		void SetProjection(const glm::mat4& a_Proj);
+		void SetView(const glm::mat4& a_View);
+
 
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 

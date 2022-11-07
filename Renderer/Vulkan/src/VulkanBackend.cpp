@@ -25,6 +25,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 
 	a_FuncCreateInfo.bufferCopyData = VulkanBufferCopyData;
 	a_FuncCreateInfo.copyBuffer = VulkanCopyBuffer;
+	a_FuncCreateInfo.mapMemory = VulkanMapMemory;
+	a_FuncCreateInfo.unmapMemory = VulkanUnMemory;
 
 	a_FuncCreateInfo.resizeWindow = ResizeWindow;
 

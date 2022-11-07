@@ -303,6 +303,8 @@ namespace BB
 
 	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 	void VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
+	void* VulkanMapMemory(const RBufferHandle a_Handle);
+	void VulkanUnMemory(const RBufferHandle a_Handle);
 
 	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	

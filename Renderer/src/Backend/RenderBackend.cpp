@@ -68,6 +68,16 @@ void BB::RenderBackend::CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo)
 	s_ApiFunc.copyBuffer(m_TempAllocator, a_CopyInfo);
 }
 
+void* BB::RenderBackend::MapMemory(const RBufferHandle a_Handle)
+{
+	return s_ApiFunc.mapMemory(a_Handle);
+}
+
+void BB::RenderBackend::UnmapMemory(const RBufferHandle a_Handle)
+{
+	s_ApiFunc.unmapMemory(a_Handle);
+}
+
 RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle)
 {
 	return s_ApiFunc.startCommandList(a_CmdHandle, a_FrameHandle);

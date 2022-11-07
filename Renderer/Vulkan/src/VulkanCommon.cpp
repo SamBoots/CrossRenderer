@@ -68,7 +68,7 @@ struct VulkanBackend_inst
 	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
 	Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
 	Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
-	Slotmap<VulkanBuffer> renderBuffers{ s_VulkanAllocator };
+	Pool<VulkanBuffer> renderBuffers;
 	Pool<VkDescriptorSet> descriptorSets;
 
 	//OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
@@ -78,11 +78,13 @@ struct VulkanBackend_inst
 
 	void CreatePools()
 	{
-		descriptorSets.CreatePool(s_VulkanAllocator, 64);
+		renderBuffers.CreatePool(s_VulkanAllocator, 16);
+		descriptorSets.CreatePool(s_VulkanAllocator, 16);
 	}
 
 	void DestroyPools()
 	{
+		renderBuffers.DestroyPool(s_VulkanAllocator);
 		descriptorSets.DestroyPool(s_VulkanAllocator);
 	}
 };
@@ -715,7 +717,7 @@ static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_Ren
 
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
-	VulkanBuffer t_Buffer;
+	VulkanBuffer* t_Buffer = s_VkBackendInst.renderBuffers.Get();
 	
 	VkBufferUsageFlags t_Usage = VKConv::RenderBufferUsage(a_Info.usage);
 	VkMemoryPropertyFlags t_MemoryProperties = VKConv::MemoryPropertyFlags(a_Info.memProperties);
@@ -731,7 +733,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 
 	VKASSERT(vmaCreateBuffer(s_VkBackendInst.vma,
 		&t_BufferInfo, &t_VmaAlloc,
-		&t_Buffer.buffer, &t_Buffer.allocation,
+		&t_Buffer->buffer, &t_Buffer->allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
 	if (a_Info.data != nullptr && 
@@ -739,40 +741,40 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 	{
 		void* t_MapData;
 		VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
-			t_Buffer.allocation,
+			t_Buffer->allocation,
 			&t_MapData),
 			"Vulkan: Failed to map memory");
 		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
-		vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
+		vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer->allocation);
 	}
 
-	return RBufferHandle(s_VkBackendInst.renderBuffers.insert(t_Buffer));
+	return RBufferHandle(t_Buffer);
 }
 
 void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 {
-	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
-	vmaDestroyBuffer(s_VkBackendInst.vma, t_Buffer.buffer, t_Buffer.allocation);
-	s_VkBackendInst.renderBuffers.erase(a_Handle.handle);
+	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle);
+	vmaDestroyBuffer(s_VkBackendInst.vma, t_Buffer->buffer, t_Buffer->allocation);
+	s_VkBackendInst.renderBuffers.Free(t_Buffer);
 }
 
 void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
-	VulkanBuffer& t_Buffer = s_VkBackendInst.renderBuffers.find(a_Handle.handle);
+	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.handle);
 	void* t_MapData;
 	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
-		t_Buffer.allocation,
+		t_Buffer->allocation,
 		&t_MapData),
 		"Vulkan: Failed to map memory");
 	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
-	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer.allocation);
+	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer->allocation);
 }
 
 void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	VulkanCommandList& t_CmdList = s_VkBackendInst.commandLists.find(a_CopyInfo.transferCommandHandle.handle);
-	VulkanBuffer& t_SrcBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.src.handle);
-	VulkanBuffer& t_DstBuffer = s_VkBackendInst.renderBuffers.find(a_CopyInfo.dst.handle);
+	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.src.handle);
+	VulkanBuffer* t_DstBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.dst.handle);
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -790,8 +792,8 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	}
 
 	vkCmdCopyBuffer(t_CmdList.buffers[t_CmdList.currentFree],
-		t_SrcBuffer.buffer,
-		t_DstBuffer.buffer,
+		t_SrcBuffer->buffer,
+		t_DstBuffer->buffer,
 		static_cast<uint32_t>(a_CopyInfo.CopyRegionCount),
 		t_CopyRegion);
 	vkEndCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree]);
@@ -807,6 +809,22 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
 		t_CmdList.pool,
 		0);
+}
+
+void* BB::VulkanMapMemory(const RBufferHandle a_Handle)
+{
+	void* t_MapData;
+	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+		reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation,
+		&t_MapData),
+		"Vulkan: Failed to map memory");
+
+	return t_MapData;
+}
+
+void BB::VulkanUnMemory(const RBufferHandle a_Handle)
+{
+	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
 FrameIndex BB::StartFrame()
@@ -1135,7 +1153,7 @@ RDescriptorHandle* BB::VulkanCreateDescriptors(Allocator a_SysAllocator, Allocat
 
 		for (size_t bufferIndex = 0; bufferIndex < a_CreateInfo.bufferBind[i].bufferInfoCount; bufferIndex++)
 		{
-			t_BufferInfos[bufferIndex].buffer = s_VkBackendInst.renderBuffers.find(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].buffer.handle).buffer;
+			t_BufferInfos[bufferIndex].buffer = reinterpret_cast<VulkanBuffer*>(a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].buffer.handle)->buffer;
 			t_BufferInfos[bufferIndex].offset = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].offset;
 			t_BufferInfos[bufferIndex].range = a_CreateInfo.bufferBind[i].bufferInfos[bufferIndex].size;
 
@@ -1457,7 +1475,7 @@ void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmd
 	VkBuffer t_Buffers[12];
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
-		t_Buffers[i] = s_VkBackendInst.renderBuffers.find(a_Buffers[i].handle).buffer;
+		t_Buffers[i] = reinterpret_cast<VulkanBuffer*>(a_Buffers[i].ptrHandle)->buffer;
 	}
 
 	vkCmdBindVertexBuffers(t_Cmdlist->currentRecording, 
@@ -1472,7 +1490,7 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdBindIndexBuffer(t_Cmdlist->currentRecording,
-		s_VkBackendInst.renderBuffers.find(a_Buffer.handle).buffer,
+		reinterpret_cast<VulkanBuffer*>(a_Buffer.ptrHandle)->buffer,
 		a_Offset,
 		VK_INDEX_TYPE_UINT32);
 }

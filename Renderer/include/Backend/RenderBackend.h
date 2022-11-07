@@ -20,7 +20,9 @@ namespace BB
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 		void CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo);
-		
+		void* MapMemory(const RBufferHandle a_Handle);
+		void UnmapMemory(const RBufferHandle a_Handle);
+
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle);
 		void ResetCommandList(const CommandListHandle a_CmdHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);

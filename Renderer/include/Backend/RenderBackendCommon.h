@@ -307,7 +307,9 @@ namespace BB
 
 	//Utility
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
-	typedef void (*PFN_RenderAPICCopyBuffer)(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
+	typedef void (*PFN_RenderAPICopyBuffer)(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
+	typedef void* (*PFN_RenderAPIMapMemory)(const RBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIUnmapMemory)(const RBufferHandle a_Handle);
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
@@ -345,7 +347,9 @@ namespace BB
 		PFN_RenderAPIDrawIndex drawIndex;
 
 		PFN_RenderAPIBuffer_CopyData bufferCopyData;
-		PFN_RenderAPICCopyBuffer copyBuffer;
+		PFN_RenderAPICopyBuffer copyBuffer;
+		PFN_RenderAPIMapMemory mapMemory;
+		PFN_RenderAPIUnmapMemory unmapMemory;
 
 		PFN_RenderAPIResizeWindow resizeWindow;
 
