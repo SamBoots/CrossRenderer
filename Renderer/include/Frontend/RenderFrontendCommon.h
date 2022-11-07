@@ -2,8 +2,7 @@
 #include "../Backend/RenderBackendCommon.h"
 #define GLM_FORCE_RADIANS
 #define GLM_DEPTH_ZERO_TO_ONE
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
+#include "Transform.h"
 
 namespace BB
 {
@@ -78,7 +77,6 @@ namespace BB
 		glm::mat4 model;
 		glm::mat4 inverseModel;
 	};
-
 
 	RenderBuffer CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 }

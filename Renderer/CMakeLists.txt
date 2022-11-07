@@ -18,12 +18,15 @@ add_executable (Renderer
 #Frontend .h
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
+"include/Frontend/Transform.h" 
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
+"src/Frontend/Transform.cpp"
 #temporary to test
-"src/main.cpp" )
+"src/main.cpp"  
+)
 
 #Include library
 target_include_directories(Renderer PUBLIC
