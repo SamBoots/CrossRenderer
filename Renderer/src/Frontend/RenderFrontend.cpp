@@ -23,14 +23,22 @@ struct RendererInst
 	uint32_t modelMatrixMax = 1;
 
 	Slotmap<Model> models{ m_SystemAllocator };
-	RBufferHandle perFrameBuffer;
-	RDescriptorLayoutHandle perFrameDescriptorLayout;
-	RDescriptorHandle perFrameDescriptors;
+
 
 	void SetFramebufferAmountAndMemory(uint32_t a_FrameBufferAmount)
 	{
 		frameBufferAmount = a_FrameBufferAmount;
 	}
+};
+
+struct PerFrameInfo
+{
+	uint64_t singlePerFrameBufferSize;
+
+	RBufferHandle perFrameBuffer;
+	RBufferHandle perFrameTransferBuffer;
+	RDescriptorLayoutHandle perFrameDescriptorLayout;
+	RDescriptorHandle perFrameDescriptors;
 };
 
 FrameBufferHandle t_FrameBuffer;
@@ -44,6 +52,7 @@ static FrameIndex s_CurrentFrame;
 
 static RendererInfo s_RendererInfo;
 static RendererInst s_RendererInst;
+static PerFrameInfo s_PerFrameInfo;
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
 {
@@ -92,7 +101,10 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	t_FrameBuffer = RenderBackend::CreateFrameBuffer(t_FrameBufferCreateInfo);
 
+
 #pragma region //Descriptor
+	const uint64_t t_PerFrameBufferSingleFrame = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+
 	CameraBufferInfo info;
 	info.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
 		glm::vec3(0.0f, 0.0f, 0.0f),
@@ -102,31 +114,29 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		0.1f,
 		10.0f);
 
+	RenderBufferCreateInfo t_PerFrameTransferBuffer;
+	t_PerFrameTransferBuffer.size = t_PerFrameBufferSingleFrame;
+	t_PerFrameTransferBuffer.usage = RENDER_BUFFER_USAGE::STAGING;
+	t_PerFrameTransferBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_PerFrameTransferBuffer.data = &info;
+	s_PerFrameInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
 
-	uint64_t t_PerFrameBufferSingleFrame = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
-	uint64_t t_perFrameBufferEntireSize = t_PerFrameBufferSingleFrame * s_RendererInst.frameBufferAmount;
+
+	const uint64_t t_perFrameBufferEntireSize = t_PerFrameBufferSingleFrame * s_RendererInst.frameBufferAmount;
+
+	//Copy over our camera infos.
+	RenderBackend::BufferCopyData(s_PerFrameInfo.perFrameTransferBuffer, &info, sizeof(CameraBufferInfo), 0);
+
+	t_ModelInfo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	RenderBackend::BufferCopyData(s_PerFrameInfo.perFrameTransferBuffer, &t_ModelInfo, sizeof(ModelBufferInfo), sizeof(CameraBufferInfo));
+
 
 	RenderBufferCreateInfo t_PerFrameBuffer;
 	t_PerFrameBuffer.size = t_perFrameBufferEntireSize;
 	t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
-	t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 	t_PerFrameBuffer.data = nullptr;
-	s_RendererInst.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
-
-	//Copy over our camera infos.
-	for (size_t i = 0; i < BB::RenderBackend::GetFrameBufferAmount(); i++)
-	{
-		RenderBackend::BufferCopyData(s_RendererInst.perFrameBuffer, &info, sizeof(CameraBufferInfo), t_PerFrameBufferSingleFrame * i);
-	}
-
-
-	t_ModelInfo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-	//copy over our matrix.
-	for (size_t i = 0; i < BB::RenderBackend::GetFrameBufferAmount(); i++)
-	{
-		RenderBackend::BufferCopyData(s_RendererInst.perFrameBuffer, &t_ModelInfo, sizeof(ModelBufferInfo), sizeof(CameraBufferInfo) + (t_PerFrameBufferSingleFrame * i));
-	}
+	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
 	t_DescriptorCreateInfo.bufferBindCount = 1;
@@ -143,17 +153,17 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 			t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount,
 			RenderDescriptorCreateInfo::BufferBind::BufferInfo);
 		{//Camera buffer
-			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_RendererInst.perFrameBuffer;
+			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_PerFrameInfo.perFrameBuffer;
 			//Do offset in the forloop due to the per frame nature
 			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
 			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo);
 		}
 	}
 
-	s_RendererInst.perFrameDescriptorLayout.ptrHandle = nullptr;
-	s_RendererInst.perFrameDescriptors = RenderBackend::CreateDescriptors(
+	s_PerFrameInfo.perFrameDescriptorLayout.ptrHandle = nullptr;
+	s_PerFrameInfo.perFrameDescriptors = RenderBackend::CreateDescriptors(
 		m_SystemAllocator,
-		s_RendererInst.perFrameDescriptorLayout,
+		s_PerFrameInfo.perFrameDescriptorLayout,
 		t_DescriptorCreateInfo);
 
 
@@ -176,7 +186,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
 	t_PipelineCreateInfo.shaderPathCount = 2;
-	t_PipelineCreateInfo.descLayoutHandles = &s_RendererInst.perFrameDescriptorLayout;
+	t_PipelineCreateInfo.descLayoutHandles = &s_PerFrameInfo.perFrameDescriptorLayout;
 	t_PipelineCreateInfo.descLayoutSize = 1;
 
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
@@ -206,8 +216,8 @@ void BB::Render::DestroyRenderer()
 		RenderBackend::DestroyBuffer(it->vertexBuffer);
 		//RenderBackend::DestroyBuffer(it->value.indexBuffer);
 	}
-	RenderBackend::DestroyBuffer(s_RendererInst.perFrameBuffer);
-	RenderBackend::DestroyDescriptorSetLayout(s_RendererInst.perFrameDescriptorLayout);
+	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
+	RenderBackend::DestroyDescriptorSetLayout(s_PerFrameInfo.perFrameDescriptorLayout);
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);
@@ -232,7 +242,20 @@ void BB::Render::Update(const float a_DeltaTime)
 		ModelBufferInfo t_ModelInfo;
 		t_ModelInfo.model = glm::rotate(glm::mat4(1.0f),  glm::radians(90.0f * a_DeltaTime), glm::vec3(0.0f, 0.0f, 1.0f));
 		//copy over our matrix.
-		RenderBackend::BufferCopyData(s_RendererInst.perFrameBuffer, &t_ModelInfo, sizeof(ModelBufferInfo), sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) + sizeof(CameraBufferInfo)) * s_CurrentFrame);
+		RenderBackend::BufferCopyData(s_PerFrameInfo.perFrameTransferBuffer, &t_ModelInfo, sizeof(ModelBufferInfo), sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) + sizeof(CameraBufferInfo)) * s_CurrentFrame);
+		RenderCopyBufferInfo t_CopyInfo;
+		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+		t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
+		t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
+		RenderCopyBufferInfo::CopyRegions t_CopyRegion;
+		t_CopyRegion.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
+		t_CopyRegion.srcOffset = 0;
+		t_CopyRegion.dstOffset = t_CopyRegion.size * s_CurrentFrame;
+
+		t_CopyInfo.copyRegions = &t_CopyRegion;
+		t_CopyInfo.CopyRegionCount = 1;
+
+		RenderBackend::CopyBuffer(t_CopyInfo);
 
 		Render::DrawModel(t_Recording, *t_It);
 		Render::EndRecordCmds(t_Recording);
@@ -347,7 +370,7 @@ void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const Mode
 	RenderBackend::BindVertexBuffers(a_Handle, &a_Model.vertexBuffer, t_BufferOffsets, 1);
 	RenderBackend::BindIndexBuffer(a_Handle, a_Model.indexBuffer, 0);
 	uint32_t dynOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo)) * s_CurrentFrame;
-	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_RendererInst.perFrameDescriptors, 1, &dynOffset);
+	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, &s_PerFrameInfo.perFrameDescriptors, 1, &dynOffset);
 	for (uint32_t i = 0; i < a_Model.linearNodeCount; i++)
 	{
 		for (size_t j = 0; j < a_Model.linearNodes[i].mesh->primitiveCount; j++)
