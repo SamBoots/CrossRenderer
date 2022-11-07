@@ -1503,7 +1503,7 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 	VkDescriptorSet t_Sets[4];
 	for (size_t i = 0; i < a_SetCount; i++)
 	{
-		t_Sets[i] = *reinterpret_cast<VkDescriptorSet*>(a_Sets[i].ptrHandle);
+		t_Sets[i] = reinterpret_cast<VkDescriptorSet>(a_Sets[i].ptrHandle);
 	}
 
 	vkCmdBindDescriptorSets(t_Cmdlist->currentRecording,
