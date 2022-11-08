@@ -1,6 +1,8 @@
 #include "RenderFrontend.h"
 #include "RenderBackend.h"
 
+#include "Transform.h"
+
 #include "Storage/Slotmap.h"
 #include "OS/OSDevice.h"
 
@@ -34,8 +36,6 @@ FrameBufferHandle t_FrameBuffer;
 CommandListHandle t_CommandLists[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
-
-ModelBufferInfo t_ModelInfo;
 
 static FrameIndex s_CurrentFrame;
 
@@ -100,9 +100,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	s_PerFrameInfo.transferBufferPtr = RenderBackend::MapMemory(s_PerFrameInfo.perFrameTransferBuffer);
 
 	const uint64_t t_perFrameBufferEntireSize = t_PerFrameBufferSingleFrame * s_RendererInst.frameBufferAmount;
-
-	t_ModelInfo.model = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	memcpy(Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(CameraBufferInfo)), &t_ModelInfo, sizeof(t_ModelInfo));
 
 	RenderBufferCreateInfo t_PerFrameBuffer;
 	t_PerFrameBuffer.size = t_perFrameBufferEntireSize;
@@ -214,10 +211,6 @@ void BB::Render::Update(const float a_DeltaTime)
 		//Record rendering commands.
 		auto t_Recording = Render::StartRecordCmds();
 
-		ModelBufferInfo t_ModelInfo;
-		t_ModelInfo.model = glm::rotate(glm::mat4(1.0f),  glm::radians(90.0f * a_DeltaTime), glm::vec3(0.0f, 0.0f, 1.0f));
-		//copy over our matrix.
-		memcpy(Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(CameraBufferInfo)), &t_ModelInfo, sizeof(t_ModelInfo));
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
 		t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
@@ -247,6 +240,12 @@ void BB::Render::SetProjection(const glm::mat4& a_Proj)
 void BB::Render::SetView(const glm::mat4& a_View)
 {
 	memcpy(s_PerFrameInfo.transferBufferPtr, &a_View, sizeof(glm::mat4));
+}
+
+void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
+{
+	a_MatrixSpace = s_RendererInst.modelMatrixMax;
+	return Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(glm::mat4) * 2);
 }
 
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)

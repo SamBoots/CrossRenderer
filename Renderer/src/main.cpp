@@ -18,6 +18,8 @@ void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 	Render::ResizeWindow(a_X, a_Y);
 }
 
+LinearAllocator_t m_ScopeAllocator{2 * kbSize};
+
 int main()
 {
 	//load DLL
@@ -57,6 +59,11 @@ int main()
 		0.1f,
 		10.0f);
 
+	uint32_t t_MatrixSize;
+	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
+	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
+	Transform& t_Transform = t_TransformPool.GetTransform();
+
 	Render::SetProjection(info.projection);
 	Render::SetView(info.view);
 
@@ -83,6 +90,8 @@ int main()
 	{
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
+		t_Transform.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(90.0f * t_DeltaTime));
+		t_TransformPool.UpdateTransforms();
 		Render::Update(t_DeltaTime);
 		OS::ProcessMessages();
 

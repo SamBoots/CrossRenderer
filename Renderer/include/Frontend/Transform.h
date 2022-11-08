@@ -15,7 +15,6 @@ namespace BB
 
 	class Transform
 	{
-
 	public:
 		Transform(const glm::vec3 a_Position);
 		Transform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians);
@@ -29,7 +28,7 @@ namespace BB
 		void SetScale(const glm::vec3 a_Scale);
 
 		const TRANSFORM_STATE GetState() const { return m_State; };
-		glm::mat4 CreateModelMatrix() const;
+		glm::mat4 CreateModelMatrix();
 	private:
 		//48 bytes class
 		glm::vec3 m_Pos;

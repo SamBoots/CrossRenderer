@@ -11,7 +11,7 @@ namespace BB
 		void Update(const float a_DeltaTime);
 		void SetProjection(const glm::mat4& a_Proj);
 		void SetView(const glm::mat4& a_View);
-
+		void* GetMatrixBufferSpace(uint32_t& a_MatrixSpace);
 
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 
