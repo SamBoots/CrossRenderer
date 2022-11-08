@@ -169,8 +169,8 @@ namespace BB
 
 	struct RDeviceBufferView
 	{
-		uint64_t size{};
-		uint64_t offset{};
+		uint32_t size{};
+		uint32_t offset{};
 	};
 
 	struct RenderImageCreateInfo

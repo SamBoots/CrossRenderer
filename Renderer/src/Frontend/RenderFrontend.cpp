@@ -16,9 +16,10 @@ static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 struct RendererInst
 {
 	uint32_t frameBufferAmount;
-	uint32_t modelMatrixMax = 1;
+	uint32_t modelMatrixMax = 10;
 
 	Slotmap<Model> models{ m_SystemAllocator };
+	Slotmap<DrawObject> drawObjects{ m_SystemAllocator };
 };
 
 struct PerFrameInfo
@@ -41,6 +42,60 @@ static FrameIndex s_CurrentFrame;
 
 static RendererInst s_RendererInst;
 static PerFrameInfo s_PerFrameInfo;
+
+static void Draw3DFrame()
+{
+	//Copy the perframe buffer over.
+	RenderCopyBufferInfo t_CopyInfo;
+	t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+	t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
+	t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
+	RenderCopyBufferInfo::CopyRegions t_CopyRegion;
+	t_CopyRegion.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
+	t_CopyRegion.srcOffset = 0;
+	t_CopyRegion.dstOffset = t_CopyRegion.size * s_CurrentFrame;
+
+	t_CopyInfo.copyRegions = &t_CopyRegion;
+	t_CopyInfo.CopyRegionCount = 1;
+
+	RenderBackend::CopyBuffer(t_CopyInfo);
+
+	//Record rendering commands.
+	RecordingCommandListHandle t_Recording = Render::StartRecordCmds();
+	
+	RModelHandle t_CurrentModel = s_RendererInst.models.capacity();
+	const Model* t_Model;
+	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
+	{
+		if (t_CurrentModel != t_It->m_Model);
+		{
+			t_CurrentModel = t_It->m_Model;
+			t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
+			RenderBackend::BindPipeline(t_Recording, t_Model->pipelineHandle);
+			uint64_t t_BufferOffsets[1]{ 0 };
+			RenderBackend::BindVertexBuffers(t_Recording, &t_Model->vertexBuffer, t_BufferOffsets, 1);
+			RenderBackend::BindIndexBuffer(t_Recording, t_Model->indexBuffer, 0);
+		}
+		//change this.
+		uint32_t dynOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
+		dynOffset += t_It->m_MatrixOffset;
+		RenderBackend::BindDescriptorSets(t_Recording, 0, 1, s_PerFrameInfo.perFrameDescriptor, 1, &dynOffset);
+		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
+		{
+			for (size_t j = 0; j < t_Model->linearNodes[i].mesh->primitiveCount; j++)
+			{
+				RenderBackend::DrawIndexed(t_Recording,
+					t_Model->linearNodes[i].mesh->primitives[j].indexCount,
+					1,
+					t_Model->linearNodes[i].mesh->primitives[j].indexStart,
+					0,
+					0);
+			}
+		}
+	}
+
+	Render::EndRecordCmds(t_Recording);
+}
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
 {
@@ -205,31 +260,12 @@ void BB::Render::DestroyRenderer()
 
 void BB::Render::Update(const float a_DeltaTime)
 {
-	for (auto t_It = s_RendererInst.models.begin(); t_It < s_RendererInst.models.end(); t_It++)
-	{
-		Render::StartFrame();
-		//Record rendering commands.
-		auto t_Recording = Render::StartRecordCmds();
+	Render::StartFrame();
 
-		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
-		t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
-		t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
-		RenderCopyBufferInfo::CopyRegions t_CopyRegion;
-		t_CopyRegion.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
-		t_CopyRegion.srcOffset = 0;
-		t_CopyRegion.dstOffset = t_CopyRegion.size * s_CurrentFrame;
+	Draw3DFrame();
 
-		t_CopyInfo.copyRegions = &t_CopyRegion;
-		t_CopyInfo.CopyRegionCount = 1;
+	Render::EndFrame();
 
-		RenderBackend::CopyBuffer(t_CopyInfo);
-
-		Render::DrawModel(t_Recording, *t_It);
-		Render::EndRecordCmds(t_Recording);
-
-		Render::EndFrame();
-	}
 }
 
 void BB::Render::SetProjection(const glm::mat4& a_Proj)
@@ -337,6 +373,17 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	return RModelHandle(s_RendererInst.models.insert(t_Model));
 }
 
+DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, uint32_t a_MatrixOffset)
+{
+	DrawObject t_DrawObject{ a_Model, a_MatrixOffset };
+	return s_RendererInst.drawObjects.emplace(t_DrawObject);
+}
+
+void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
+{
+	s_RendererInst.drawObjects.erase(a_Handle.handle);
+}
+
 RecordingCommandListHandle BB::Render::StartRecordCmds()
 {
 	return RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame], t_FrameBuffer);
@@ -347,27 +394,7 @@ void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
 	RenderBackend::EndCommandList(a_Handle);
 }
 
-void BB::Render::DrawModel(const RecordingCommandListHandle a_Handle, const Model& a_Model)
-{
-	RenderBackend::BindPipeline(a_Handle, a_Model.pipelineHandle);
-	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(a_Handle, &a_Model.vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(a_Handle, a_Model.indexBuffer, 0);
-	uint32_t dynOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo)) * s_CurrentFrame;
-	RenderBackend::BindDescriptorSets(a_Handle, 0, 1, s_PerFrameInfo.perFrameDescriptor, 1, &dynOffset);
-	for (uint32_t i = 0; i < a_Model.linearNodeCount; i++)
-	{
-		for (size_t j = 0; j < a_Model.linearNodes[i].mesh->primitiveCount; j++)
-		{
-			RenderBackend::DrawIndexed(a_Handle,
-				a_Model.linearNodes[i].mesh->primitives[j].indexCount,
-				1,
-				a_Model.linearNodes[i].mesh->primitives[j].indexStart,
-				0,
-				0);
-		}
-	}
-}
+
 
 void BB::Render::StartFrame()
 {

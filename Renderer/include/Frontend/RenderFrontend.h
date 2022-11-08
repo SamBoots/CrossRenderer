@@ -14,11 +14,13 @@ namespace BB
 		void* GetMatrixBufferSpace(uint32_t& a_MatrixSpace);
 
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
+		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, uint32_t a_MatrixOffset);
+		void DestroyDrawObject(const DrawObjectHandle a_Handle);
+
 
 		RecordingCommandListHandle StartRecordCmds();
 		void EndRecordCmds(const RecordingCommandListHandle a_Handle);
-		void DrawModel(const RecordingCommandListHandle a_Handle, const Model& a_Model);
-		
+
 		void StartFrame();
 		void EndFrame();
 

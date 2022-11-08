@@ -12,6 +12,7 @@ Transform::Transform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const f
 Transform::Transform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 	: m_Pos(a_Position), m_Scale(a_Scale) 
 {
+	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Rot = glm::angleAxis(a_Radians, a_Axis);
 }
 
@@ -58,20 +59,41 @@ glm::mat4 Transform::CreateModelMatrix()
 
 
 TransformPool::TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, const uint32_t a_MatrixSize)
-	:	m_Pool(a_SysAllocator, a_MatrixSize), m_TransferBufferRegions(a_SysAllocator, a_MatrixSize)
+	:	m_Pool(a_SysAllocator, a_MatrixSize), m_MemoryRegionOffsets(a_SysAllocator, a_MatrixSize)
 {
 	//Set all the memory regions.
-	glm::mat4* t_MemRegion = reinterpret_cast<glm::mat4*>(a_GPUMemoryRegion);
-	for (uint32_t i = 0; i < a_MatrixSize; i++)
+	m_MemoryRegion = a_GPUMemoryRegion;
+	for (uint32_t i = 0; i < a_MatrixSize * sizeof(glm::mat4); i+= sizeof(glm::mat4))
 	{
-		m_TransferBufferRegions.emplace_back(t_MemRegion++);
+		m_MemoryRegionOffsets.emplace_back(i);
 	}
 }
 
-Transform& TransformPool::GetTransform()
+TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position)
 {
-	m_Pool.emplace_back(glm::vec3(0));
-	return m_Pool[m_Pool.size() - 1];
+	m_Pool.emplace_back(a_Position);
+	return TransformHandle(m_Pool.size() - 1);
+}
+TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians)
+{
+	m_Pool.emplace_back(a_Position, a_Axis, a_Radians);
+	return TransformHandle(m_Pool.size() - 1);
+}
+
+TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
+{
+	m_Pool.emplace_back(a_Position, a_Axis, a_Radians, a_Scale);
+	return TransformHandle(m_Pool.size() - 1);
+}
+
+Transform& TransformPool::GetTransform(const TransformHandle a_Handle) const
+{
+	return m_Pool[a_Handle.handle];
+}
+
+uint32_t TransformPool::GetMatrixMemOffset(const TransformHandle a_Handle) const
+{
+	return m_MemoryRegionOffsets[a_Handle.handle];
 }
 
 void TransformPool::UpdateTransforms()
@@ -81,7 +103,9 @@ void TransformPool::UpdateTransforms()
 		if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			//Copy the model matrix into the transfer buffer.
-			memcpy(m_TransferBufferRegions[i], &m_Pool[i].CreateModelMatrix(), sizeof(glm::mat4));
+			memcpy(Pointer::Add(m_MemoryRegion, m_MemoryRegionOffsets[i]),
+				&m_Pool[i].CreateModelMatrix(), 
+				sizeof(glm::mat4));
 
 		}
 	}

@@ -7,18 +7,7 @@
 namespace BB
 {
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
-
-	struct RenderBuffer
-	{
-		uint64_t size;
-		RBufferHandle backendHandle;
-	};
-
-	struct RenderBufferView
-	{
-		uint64_t offset;
-		uint64_t size;
-	};
+	using DrawObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
 
 	struct Model
 	{
@@ -78,5 +67,9 @@ namespace BB
 		glm::mat4 inverseModel;
 	};
 
-	RenderBuffer CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
+	struct DrawObject
+	{
+		RModelHandle m_Model;
+		uint32_t m_MatrixOffset;
+	};
 }

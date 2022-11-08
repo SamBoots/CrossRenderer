@@ -62,7 +62,8 @@ int main()
 	uint32_t t_MatrixSize;
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
 	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
-	Transform& t_Transform = t_TransformPool.GetTransform();
+	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
+	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
 
 	Render::SetProjection(info.projection);
 	Render::SetView(info.view);
@@ -83,6 +84,8 @@ int main()
 
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
+	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_Model, 
+		t_TransformPool.GetMatrixMemOffset(t_TransHandle1));
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
@@ -90,7 +93,7 @@ int main()
 	{
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		t_Transform.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(90.0f * t_DeltaTime));
+		t_Transform1.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(90.0f * t_DeltaTime));
 		t_TransformPool.UpdateTransforms();
 		Render::Update(t_DeltaTime);
 		OS::ProcessMessages();

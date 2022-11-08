@@ -19,11 +19,13 @@ add_executable (Renderer
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
 "include/Frontend/Transform.h" 
+
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
 "src/Frontend/Transform.cpp"
+
 #temporary to test
 "src/main.cpp"  
 )

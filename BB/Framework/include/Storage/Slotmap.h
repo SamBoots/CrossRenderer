@@ -71,6 +71,7 @@ namespace BB
 		Iterator end() { return Iterator(&m_ObjArr[m_Size]); }
 
 		size_t size() const { return m_Size; }
+		size_t capacity() const { return m_Capacity; }
 
 	private:
 		void grow();
