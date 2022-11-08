@@ -48,15 +48,22 @@ glm::mat4 Transform::CreateModelMatrix() const
 
 
 
-TransformPool::TransformPool(Allocator a_SysAllocator)
-	:	m_Pool(a_SysAllocator, 64), m_TransferBufferRegions(a_SysAllocator, 64)
-{}
+TransformPool::TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, const uint32_t a_MatrixSize)
+	:	m_Pool(a_SysAllocator, a_MatrixSize), m_TransferBufferRegions(a_SysAllocator, a_MatrixSize)
+{
+	//Set all the memory regions.
+	glm::mat4* t_MemRegion = reinterpret_cast<glm::mat4*>(a_GPUMemoryRegion);
+	for (uint32_t i = 0; i < a_MatrixSize; i++)
+	{
+		m_TransferBufferRegions.emplace_back(t_MemRegion++);
+	}
+}
 
 void TransformPool::UpdateTransforms()
 {
 	for (size_t i = 0; i < m_Pool.size(); i++)
 	{
-		if (m_Pool[i].GetState() != TRANSFORM_STATE::REBUILD_MATRIX)
+		if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			//Copy the model matrix into the transfer buffer.
 			memcpy(m_TransferBufferRegions[i], &m_Pool[i].CreateModelMatrix(), sizeof(glm::mat4));

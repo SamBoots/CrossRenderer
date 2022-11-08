@@ -38,11 +38,18 @@ namespace BB
 		TRANSFORM_STATE m_State = TRANSFORM_STATE::NOT_USED;
 	};
 
-	//Storage idea for later.
+	/// <summary>
+	/// A special pool that handles Transform allocations.
+	/// It has a secondary pool of pointers that all point to memory regions in a CPU exposed GPU buffer.
+	/// </summary>
 	class TransformPool
 	{
 	public:
-		TransformPool(Allocator a_SysAllocator);
+		/// <param name="a_SysAllocator">The allocator that will allocate the pool.</param>
+		/// <param name="a_GPUMemoryRegion">This must point to a valid CPU readable GPU buffer, the transforms will directly write to the memory regions.</param>
+		/// <param name="a_MatrixSize">The amount of matrices you want to allocate. The a_GPUMemoryRegion needs to have enough space to hold them all.</param>
+		TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, const uint32_t a_MatrixSize);
+		Transform& GetTransform();
 
 		void UpdateTransforms();
 			
