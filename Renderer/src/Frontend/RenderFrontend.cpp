@@ -30,7 +30,7 @@ struct PerFrameInfo
 	RBufferHandle perFrameTransferBuffer;
 	void* transferBufferPtr;
 	RDescriptorLayoutHandle perFrameDescriptorLayout;
-	RDescriptorHandle* perFrameDescriptor;
+	RDescriptorHandle perFrameDescriptor;
 };
 
 FrameBufferHandle t_FrameBuffer;
@@ -67,7 +67,7 @@ static void Draw3DFrame()
 	const Model* t_Model;
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
-		if (t_CurrentModel != t_It->m_Model);
+		if (t_CurrentModel != t_It->m_Model)
 		{
 			t_CurrentModel = t_It->m_Model;
 			t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
@@ -77,9 +77,10 @@ static void Draw3DFrame()
 			RenderBackend::BindIndexBuffer(t_Recording, t_Model->indexBuffer, 0);
 		}
 		//change this.
-		uint32_t dynOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
-		dynOffset += t_It->m_MatrixOffset;
-		RenderBackend::BindDescriptorSets(t_Recording, 0, 1, s_PerFrameInfo.perFrameDescriptor, 1, &dynOffset);
+		uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
+		uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
+		uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
+		RenderBackend::BindDescriptorSets(t_Recording, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
 		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
 			for (size_t j = 0; j < t_Model->linearNodes[i].mesh->primitiveCount; j++)
@@ -164,30 +165,29 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	RenderDescriptorCreateInfo t_DescriptorCreateInfo{};
-	t_DescriptorCreateInfo.bufferBindCount = 1;
-	t_DescriptorCreateInfo.textureBindCount = 0;
-	t_DescriptorCreateInfo.bufferBind = BBnewArr(m_TempAllocator,
-		t_DescriptorCreateInfo.bufferBindCount,
-		RenderDescriptorCreateInfo::BufferBind);
-	{
-		t_DescriptorCreateInfo.bufferBind[0].binding = RENDER_DESCRIPTOR_BINDING::PER_FRAME;
-		t_DescriptorCreateInfo.bufferBind[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_DescriptorCreateInfo.bufferBind[0].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
-		t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount = 1;
-		t_DescriptorCreateInfo.bufferBind[0].bufferInfos = BBnewArr(m_TempAllocator,
-			t_DescriptorCreateInfo.bufferBind[0].bufferInfoCount,
-			RenderDescriptorCreateInfo::BufferBind::BufferInfo);
-		{//Camera buffer
-			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].buffer = s_PerFrameInfo.perFrameBuffer;
-			//Do offset in the forloop due to the per frame nature
-			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].offset = 0;
-			t_DescriptorCreateInfo.bufferBind[0].bufferInfos[0].size = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo);
-		}
+	FixedArray<RenderDescriptorCreateInfo::BufferBind, 2> t_BufferBinds;
+	t_DescriptorCreateInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
+	FixedArray<RenderDescriptorCreateInfo::ImageBind, 0> t_ImageBinds;
+	t_DescriptorCreateInfo.ImageBinds = BB::Slice(t_ImageBinds.data(), t_ImageBinds.size());
+	{//CamBind
+		t_BufferBinds[0].binding = 0;
+		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
+		t_BufferBinds[0].buffer = s_PerFrameInfo.perFrameBuffer;
+		t_BufferBinds[0].bufferOffset = 0;
+		t_BufferBinds[0].bufferSize = sizeof(CameraBufferInfo);
+	}
+	{//ModelBind
+		t_BufferBinds[1].binding = 1;
+		t_BufferBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
+		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
+		t_BufferBinds[1].bufferOffset = 0;
+		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo);
 	}
 
 	s_PerFrameInfo.perFrameDescriptorLayout.ptrHandle = nullptr;
-	s_PerFrameInfo.perFrameDescriptor = RenderBackend::CreateDescriptors(
-		m_SystemAllocator,
+	s_PerFrameInfo.perFrameDescriptor = RenderBackend::CreateDescriptor(
 		s_PerFrameInfo.perFrameDescriptorLayout,
 		t_DescriptorCreateInfo);
 
@@ -254,8 +254,6 @@ void BB::Render::DestroyRenderer()
 	}
 	RenderBackend::DestroyCommandList(t_TransferCommandList);
 	RenderBackend::DestroyBackend();
-
-	BBfreeArr(m_SystemAllocator, s_PerFrameInfo.perFrameDescriptor);
 }
 
 void BB::Render::Update(const float a_DeltaTime)

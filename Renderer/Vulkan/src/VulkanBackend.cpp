@@ -6,7 +6,7 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
-	a_FuncCreateInfo.createDescriptors = VulkanCreateDescriptors;
+	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
@@ -19,6 +19,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
 	a_FuncCreateInfo.bindDescriptor = VulkanBindDescriptorSets;
+	a_FuncCreateInfo.bindConstant = VulkanBindConstant;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
 	a_FuncCreateInfo.drawIndex = VulkanDrawIndexed;

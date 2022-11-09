@@ -12,7 +12,7 @@ namespace BB
 
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		RDescriptorHandle* CreateDescriptors(Allocator a_SysAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -30,6 +30,7 @@ namespace BB
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
 		void BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+		void BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data);
 
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
