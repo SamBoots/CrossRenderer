@@ -307,10 +307,10 @@ namespace BB
 	void* VulkanMapMemory(const RBufferHandle a_Handle);
 	void VulkanUnMemory(const RBufferHandle a_Handle);
 
-	void ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	FrameIndex StartFrame();
-	void RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
+	FrameIndex VulkanStartFrame();
+	void VulkanRenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
 
 	void VulkanWaitDeviceReady();
 

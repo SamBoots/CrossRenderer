@@ -22,8 +22,6 @@ LinearAllocator_t m_ScopeAllocator{2 * kbSize};
 
 int main()
 {
-	//load DLL
-	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_VulkanDLL");
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 
@@ -45,8 +43,12 @@ int main()
 #endif //_DEBUG
 #ifdef USE_VULKAN
 	RenderAPI api = RenderAPI::VULKAN;
+	//load DLL
+	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_VulkanDLL");
 #elif USE_DIRECTX12
 	RenderAPI api = RenderAPI::DX12;
+	//load DLL
+	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);

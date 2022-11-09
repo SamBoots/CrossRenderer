@@ -29,10 +29,10 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.mapMemory = VulkanMapMemory;
 	a_FuncCreateInfo.unmapMemory = VulkanUnMemory;
 
-	a_FuncCreateInfo.resizeWindow = ResizeWindow;
+	a_FuncCreateInfo.resizeWindow = VulkanResizeWindow;
 
-	a_FuncCreateInfo.startFrame = StartFrame;
-	a_FuncCreateInfo.renderFrame = RenderFrame;
+	a_FuncCreateInfo.startFrame = VulkanStartFrame;
+	a_FuncCreateInfo.renderFrame = VulkanRenderFrame;
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;

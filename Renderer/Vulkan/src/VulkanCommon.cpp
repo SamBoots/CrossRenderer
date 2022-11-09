@@ -827,7 +827,7 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
-FrameIndex BB::StartFrame()
+FrameIndex BB::VulkanStartFrame()
 {
 	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -853,7 +853,7 @@ FrameIndex BB::StartFrame()
 	return t_CurrentFrame;
 }
 
-void BB::RenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+void BB::VulkanRenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1525,7 +1525,7 @@ void BB::VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle
 	vkCmdDrawIndexed(t_Cmdlist->currentRecording, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
-void BB::ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)
+void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)
 {
 	VulkanWaitDeviceReady();
 
