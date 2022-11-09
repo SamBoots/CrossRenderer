@@ -14,7 +14,7 @@ layout(set = 0, binding = 0) readonly buffer camBuffer
 
 layout(set = 0, binding = 1) readonly buffer ModelBuffer
 {
-    ModelInstance instances;
+    ModelInstance instances[];
 } models;
 
 layout( push_constant ) uniform constants
@@ -31,6 +31,6 @@ layout(location = 0) out vec3 fragColor;
 
 void main() 
 {
-    gl_Position = cam.proj * cam.view * models.instances.model * vec4(inPosition, 0.0, 1.0);
+    gl_Position = cam.proj * cam.view * models.instances[indices.model].model * vec4(inPosition, 0.0, 1.0);
     fragColor = inColor;
 }

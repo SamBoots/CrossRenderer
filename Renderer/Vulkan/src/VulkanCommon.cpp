@@ -667,8 +667,8 @@ static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> 
 	t_LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	t_LayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(a_DescLayouts.size());
 	t_LayoutCreateInfo.pSetLayouts = a_DescLayouts.data();
-	//t_LayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(a_PushConstants.size());
-	//t_LayoutCreateInfo.pPushConstantRanges = a_PushConstants.data();
+	t_LayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(a_PushConstants.size());
+	t_LayoutCreateInfo.pPushConstantRanges = a_PushConstants.data();
 
 	PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
 	VkPipelineLayout* t_FoundLayout = s_VkBackendInst.pipelineLayouts.find(t_DescriptorHash);
@@ -1257,11 +1257,25 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 		VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
 
 	//lets get the layouts.
-	VkDescriptorSetLayout t_DescLayouts = reinterpret_cast<VkDescriptorSetLayout>(a_CreateInfo.descLayoutHandles->ptrHandle);
+	VkDescriptorSetLayout* t_DescLayouts = BBnewArr(a_TempAllocator,
+		a_CreateInfo.descLayoutCount,
+		VkDescriptorSetLayout);
+	for (uint32_t i = 0; i < a_CreateInfo.descLayoutCount; i++)
+		t_DescLayouts[i] = reinterpret_cast<VkDescriptorSetLayout>(a_CreateInfo.descLayoutHandles->ptrHandle);
+		
+	VkPushConstantRange* t_PushConstants = BBnewArr(a_TempAllocator,
+		a_CreateInfo.constantBufferCount,
+		VkPushConstantRange);
+	for (uint32_t i = 0; i < a_CreateInfo.descLayoutCount; i++)
+	{
+		t_PushConstants[i].offset = a_CreateInfo.constantBuffers[i].offset;
+		t_PushConstants[i].size = a_CreateInfo.constantBuffers[i].size;
+		t_PushConstants[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.constantBuffers[i].stage);
+	}
 
 	t_ReturnPipeline.layout = CreatePipelineLayout(
-		BB::Slice<VkDescriptorSetLayout>(&t_DescLayouts, a_CreateInfo.descLayoutSize), 
-		BB::Slice<VkPushConstantRange>());
+		BB::Slice<VkDescriptorSetLayout>(t_DescLayouts, a_CreateInfo.descLayoutCount), 
+		BB::Slice<VkPushConstantRange>(t_PushConstants, a_CreateInfo.constantBufferCount));
 
 	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
 	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1483,15 +1497,15 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 		a_DynamicOffsets);
 }
 
-void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	constexpr size_t MINIMUM_PUSHCONSTANT_SIZE = 128;
-	BB_WARNING(a_Size > MINIMUM_PUSHCONSTANT_SIZE, "Vulkan: Push constant size is bigger then 128, this might not work on all hardware!", WarningType::HIGH);
+	BB_WARNING(a_Size < MINIMUM_PUSHCONSTANT_SIZE, "Vulkan: Push constant size is bigger then 128, this might not work on all hardware!", WarningType::HIGH);
 
 	vkCmdPushConstants(t_Cmdlist->currentRecording,
 		t_Cmdlist->currentPipelineLayout,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		VKConv::ShaderStageBits(a_Stage),
 		a_Offset,
 		a_Size,
 		a_Data);

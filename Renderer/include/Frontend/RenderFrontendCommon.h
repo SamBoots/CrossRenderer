@@ -61,15 +61,9 @@ namespace BB
 		glm::mat4 projection;
 	};
 
-	struct ModelBufferInfo
-	{
-		glm::mat4 model;
-		glm::mat4 inverseModel;
-	};
-
 	struct DrawObject
 	{
-		RModelHandle m_Model;
-		uint32_t m_MatrixOffset;
+		RModelHandle modelHandle;
+		TransformHandle transformHandle;
 	};
 }

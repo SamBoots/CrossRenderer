@@ -113,6 +113,11 @@ void BB::RenderBackend::BindDescriptorSets(const RecordingCommandListHandle a_Re
 	s_ApiFunc.bindDescriptor(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_Sets, a_DynamicOffsetCount, a_DynamicOffsets);
 }
 
+void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+{
+	s_ApiFunc.bindConstant(a_RecordingCmdHandle, a_Stage, a_Offset, a_Size, a_Data);
+}
+
 void BB::RenderBackend::DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
 	s_ApiFunc.drawVertex(a_RecordingCmdHandle, a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);

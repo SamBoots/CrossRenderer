@@ -63,7 +63,7 @@ TransformPool::TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, 
 {
 	//Set all the memory regions.
 	m_MemoryRegion = a_GPUMemoryRegion;
-	for (uint32_t i = 0; i < a_MatrixSize * sizeof(glm::mat4); i+= sizeof(glm::mat4))
+	for (uint32_t i = 0; i < a_MatrixSize * sizeof(ModelBufferInfo); i+= sizeof(ModelBufferInfo))
 	{
 		m_MemoryRegionOffsets.emplace_back(i);
 	}

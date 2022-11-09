@@ -63,32 +63,40 @@ static void Draw3DFrame()
 	//Record rendering commands.
 	RecordingCommandListHandle t_Recording = Render::StartRecordCmds();
 	
-	RModelHandle t_CurrentModel = s_RendererInst.models.capacity();
-	const Model* t_Model;
+	RModelHandle t_CurrentModel = s_RendererInst.drawObjects[0].modelHandle;
+	Model& t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
+	RenderBackend::BindPipeline(t_Recording, t_Model.pipelineHandle);
+
+	uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
+	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
+	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
+	RenderBackend::BindDescriptorSets(t_Recording, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
+
+
+	uint64_t t_BufferOffsets[1]{ 0 };
+	RenderBackend::BindVertexBuffers(t_Recording, &t_Model.vertexBuffer, t_BufferOffsets, 1);
+	RenderBackend::BindIndexBuffer(t_Recording, t_Model.indexBuffer, 0);
+
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
-		if (t_CurrentModel != t_It->m_Model)
+		if (t_CurrentModel != t_It->modelHandle)
 		{
-			t_CurrentModel = t_It->m_Model;
-			t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
-			RenderBackend::BindPipeline(t_Recording, t_Model->pipelineHandle);
-			uint64_t t_BufferOffsets[1]{ 0 };
-			RenderBackend::BindVertexBuffers(t_Recording, &t_Model->vertexBuffer, t_BufferOffsets, 1);
-			RenderBackend::BindIndexBuffer(t_Recording, t_Model->indexBuffer, 0);
+			t_CurrentModel = t_It->modelHandle;
+			t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
+			RenderBackend::BindPipeline(t_Recording, t_Model.pipelineHandle);
+			RenderBackend::BindVertexBuffers(t_Recording, &t_Model.vertexBuffer, t_BufferOffsets, 1);
+			RenderBackend::BindIndexBuffer(t_Recording, t_Model.indexBuffer, 0);
 		}
-		//change this.
-		uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
-		uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
-		uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
-		RenderBackend::BindDescriptorSets(t_Recording, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
-		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
+
+		RenderBackend::BindConstant(t_Recording, RENDER_SHADER_STAGE::VERTEX, 0, sizeof(uint32_t), &t_It->transformHandle.index);
+		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 		{
-			for (size_t j = 0; j < t_Model->linearNodes[i].mesh->primitiveCount; j++)
+			for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
 			{
 				RenderBackend::DrawIndexed(t_Recording,
-					t_Model->linearNodes[i].mesh->primitives[j].indexCount,
+					t_Model.linearNodes[i].mesh->primitives[j].indexCount,
 					1,
-					t_Model->linearNodes[i].mesh->primitives[j].indexStart,
+					t_Model.linearNodes[i].mesh->primitives[j].indexStart,
 					0,
 					0);
 			}
@@ -183,7 +191,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
 		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
 		t_BufferBinds[1].bufferOffset = 0;
-		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo);
+		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 	}
 
 	s_PerFrameInfo.perFrameDescriptorLayout.ptrHandle = nullptr;
@@ -206,13 +214,21 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 
+	//Constant buffer for indices.
+	ConstantBufferInfo a_ConstBufferInfo;
+	a_ConstBufferInfo.offset = 0;
+	a_ConstBufferInfo.size = 64;
+	a_ConstBufferInfo.stage = RENDER_SHADER_STAGE::VERTEX;
+
 	RenderPipelineCreateInfo t_PipelineCreateInfo{};
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
 	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
 	t_PipelineCreateInfo.shaderPathCount = 2;
 	t_PipelineCreateInfo.descLayoutHandles = &s_PerFrameInfo.perFrameDescriptorLayout;
-	t_PipelineCreateInfo.descLayoutSize = 1;
+	t_PipelineCreateInfo.descLayoutCount = 1;
+	t_PipelineCreateInfo.constantBuffers = &a_ConstBufferInfo;
+	t_PipelineCreateInfo.constantBufferCount = 1;
 
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
 
@@ -371,9 +387,9 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	return RModelHandle(s_RendererInst.models.insert(t_Model));
 }
 
-DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, uint32_t a_MatrixOffset)
+DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle)
 {
-	DrawObject t_DrawObject{ a_Model, a_MatrixOffset };
+	DrawObject t_DrawObject{ a_Model, a_TransformHandle };
 	return s_RendererInst.drawObjects.emplace(t_DrawObject);
 }
 

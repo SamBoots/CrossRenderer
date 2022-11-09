@@ -8,6 +8,12 @@
 
 namespace BB
 {
+	struct ModelBufferInfo
+	{
+		glm::mat4 model;
+		glm::mat4 inverseModel;
+	};
+
 	enum class TRANSFORM_STATE : uint32_t
 	{
 		NOT_USED = 0,
