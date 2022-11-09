@@ -554,7 +554,7 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 		t_Resource.view.indexView.Format = DXGI_FORMAT_R32_UINT;
 		t_Resource.view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
-	case RENDER_BUFFER_USAGE::UNIFORM:
+	case RENDER_BUFFER_USAGE::STORAGE:
 		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
 		break;
 	default:
