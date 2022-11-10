@@ -1519,7 +1519,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		t_QueueIndex = s_VkBackendInst.device.graphicsQueue.index;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER:
+	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
 		t_QueueIndex = s_VkBackendInst.device.transferQueue.index;
 		break;
 	default:

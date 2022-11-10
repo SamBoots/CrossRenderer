@@ -27,11 +27,6 @@ namespace BB
 		D3D12_INDEX_BUFFER_VIEW indexView;
 	};
 
-	namespace DX12Conv
-	{
-
-	}
-
 	struct DX12Device
 	{
 		IDXGIAdapter1* adapter;

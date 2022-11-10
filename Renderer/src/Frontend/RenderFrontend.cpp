@@ -240,7 +240,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_CommandLists[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
-	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
+	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
 	t_CmdCreateInfo.bufferCount = 1;
 	t_TransferCommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 

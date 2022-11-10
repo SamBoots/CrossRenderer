@@ -139,7 +139,7 @@ namespace BB
 	enum class RENDER_QUEUE_TYPE : uint32_t
 	{
 		GRAPHICS,
-		TRANSFER
+		TRANSFER_COPY
 	};
 
 	struct RenderBufferCreateInfo
