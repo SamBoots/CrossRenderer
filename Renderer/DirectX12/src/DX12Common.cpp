@@ -30,7 +30,7 @@ struct ShaderCompiler
 
 struct DX12Backend_inst
 {
-	UINT currentFrame = 0;
+	FrameIndex currentFrame = 0;
 	UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
 
 	IDXGIFactory4* factory{};
@@ -578,6 +578,49 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	return RBufferHandle(s_DX12BackendInst.renderResources.insert(t_Resource));
 }
 
+void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+
+
+void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	D3D12_VERTEX_BUFFER_VIEW t_Views[12]{};
+	for (size_t i = 0; i < a_BufferCount; i++)
+	{
+		t_Views[i] = s_DX12BackendInst.renderResources.find(a_Buffers[i].handle).view.vertexView;
+	}
+
+	t_CommandList->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
+}
+
+void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	t_CommandList->IASetIndexBuffer(&s_DX12BackendInst.renderResources.find(a_Buffer.handle).view.indexView);
+}
+
+void DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	t_CommandList.
+}
+
+void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	t_CommandList->DrawInstanced(a_VertexCount, a_InstanceCount, a_FirstInstance, a_InstanceCount);
+}
+
+void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	t_CommandList->DrawIndexedInstanced(a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
+}
+
+
 void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
@@ -590,6 +633,26 @@ void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, co
 
 	t_Resource.resource->Unmap(0, NULL);
 }
+
+void DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
+{
+
+}
+
+void* DX12MapMemory(const RBufferHandle a_Handle)
+{
+	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	void* t_MapData;
+	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapData), "DX12: Failed to map resource.");
+	return t_MapData;
+}
+
+void DX12UnMemory(const RBufferHandle a_Handle)
+{
+	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	t_Resource.resource->Unmap(0, NULL);
+}
+
 
 void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
 {
@@ -623,8 +686,8 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	t_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	t_CommandList->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
 
-	t_CommandList->DrawInstanced(3, 1, 0, 0);
-
+	//t_CommandList->DrawInstanced(3, 1, 0, 0);
+	DX12DrawVertex(t_CommandList, 3, 1, 0, 0);
 
 	// Indicate that the back buffer will now be used to present.
 	D3D12_RESOURCE_BARRIER presentBarrier;
@@ -643,6 +706,12 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_CommandListSend);
 
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
+	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
+}
+
+FrameIndex BB::DX12StartFrame()
+{
+	FrameIndex t_CurrentFrame = s_DX12BackendInst.currentFrame;
 
 	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
 	s_DX12BackendInst.directQueue->Signal(s_DX12BackendInst.fence, fenceV);
@@ -655,7 +724,7 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 		WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
 	}
 
-	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
+	return t_CurrentFrame;
 }
 
 void BB::DX12WaitDeviceReady()
