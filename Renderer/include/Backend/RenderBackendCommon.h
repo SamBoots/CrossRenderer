@@ -216,6 +216,13 @@ namespace BB
 
 	struct RenderDescriptorCreateInfo
 	{
+		struct ConstantBind
+		{
+			uint32_t offset;
+			uint32_t size;
+			RENDER_SHADER_STAGE stage;
+		};
+
 		struct BufferBind
 		{
 			RBufferHandle buffer;
@@ -233,6 +240,7 @@ namespace BB
 			RENDER_SHADER_STAGE stage;
 		};
 
+		BB::Slice<ConstantBind> constantBinds;
 		BB::Slice<BufferBind> bufferBinds;
 		BB::Slice<ImageBind> ImageBinds;
 	};

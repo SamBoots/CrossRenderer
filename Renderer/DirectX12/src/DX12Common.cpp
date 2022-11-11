@@ -83,6 +83,7 @@ struct DX12Backend_inst
 	D3D12MA::Allocator* DXMA;
 
 	Slotmap<DXMAResource> renderResources{ s_DX12Allocator };
+	Slotmap<ID3D12RootSignature*> rootSignatures{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<CommandList> commandLists{ s_DX12Allocator };
 
@@ -179,75 +180,6 @@ static IDxcBlob* CompileShader(Allocator a_TempAllocator, const wchar_t* a_FullP
 	t_Result->Release();
 
 	return t_ShaderCode;
-}
-
-static ID3D12RootSignature* CreateRootSignature()
-{
-	ID3D12RootSignature* t_RootSignature = nullptr;
-
-	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
-	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-
-	if (FAILED(s_DX12BackendInst.device.logicalDevice->CheckFeatureSupport(
-		D3D12_FEATURE_ROOT_SIGNATURE,
-		&t_FeatureData, sizeof(t_FeatureData))))
-	{
-		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
-	}
-
-	//Individual GPU Resources
-	D3D12_DESCRIPTOR_RANGE1 t_Ranges[1];
-	t_Ranges[0].BaseShaderRegister = 0;
-	t_Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	t_Ranges[0].NumDescriptors = 1;
-	t_Ranges[0].RegisterSpace = 0;
-	t_Ranges[0].OffsetInDescriptorsFromTableStart = 0;
-	t_Ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
-
-	//Groups of GPU Resources
-	D3D12_ROOT_PARAMETER1 t_RootParameters[1];
-	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-
-	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
-	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_Ranges;
-
-	//Overall Layout
-	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc;
-	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_RootSignatureDesc.Desc_1_1.Flags =
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	t_RootSignatureDesc.Desc_1_1.NumParameters = 1;
-	t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
-	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
-	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
-
-	ID3DBlob* t_Signature;
-	ID3DBlob* t_Error;
-
-	DXASSERT(D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
-		&t_Signature, &t_Error),
-		"DX12: Failed to serialize root signature.");
-
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0,
-		t_Signature->GetBufferPointer(),
-		t_Signature->GetBufferSize(),
-		IID_PPV_ARGS(&t_RootSignature)),
-		"DX12: Failed to create root signature.");
-
-	t_RootSignature->SetName(L"Hello Triangle Root Signature");
-
-	if (t_Error != nullptr)
-	{
-		BB_LOG((const char*)t_Error->GetBufferPointer());
-		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
-		t_Error->Release();
-	}
-
-	if (t_Signature != nullptr)
-		t_Signature->Release();
-
-	return t_RootSignature;
 }
 
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
@@ -444,6 +376,92 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	return t_BackendInfo;
 }
 
+RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+{
+	ID3D12RootSignature* t_RootSignature = nullptr;
+
+	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
+	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+	if (FAILED(s_DX12BackendInst.device.logicalDevice->CheckFeatureSupport(
+		D3D12_FEATURE_ROOT_SIGNATURE,
+		&t_FeatureData, sizeof(t_FeatureData))))
+	{
+		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+	}
+
+
+	D3D12_DESCRIPTOR_RANGE1* t_CBV_Ranges = BBnewArr(
+		a_TempAllocator,
+		a_CreateInfo.bufferBinds.size(),
+		D3D12_DESCRIPTOR_RANGE1);
+
+	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
+	{
+		t_CBV_Ranges[i].NumDescriptors;
+	}
+
+	D3D12_ROOT_CONSTANTS* t_RootConstants = BBnewArr(
+		a_TempAllocator,
+		a_CreateInfo.constantBinds.size(),
+		D3D12_ROOT_CONSTANTS);
+
+	UINT t_RegisterSpace = 0;
+	for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
+	{
+		BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
+		const UINT t_Dwords = a_CreateInfo.constantBinds[i].size / sizeof(uint32_t);
+		t_RootConstants[i].Num32BitValues = t_Dwords;
+		t_RootConstants[i].ShaderRegister = t_RegisterSpace++;
+		t_RootConstants[i].RegisterSpace = 0; //We will just keep this 0 for now.
+	}
+
+	//Groups of GPU Resources
+	D3D12_ROOT_PARAMETER1 t_RootParameters;
+	t_RootParameters.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	t_RootParameters.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	t_RootParameters.DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
+	t_RootParameters.DescriptorTable.pDescriptorRanges = t_CBV_Ranges;
+	t_RootParameters.Constants = t_RootConstants[0];
+
+	//Overall Layout
+	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc;
+	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+	t_RootSignatureDesc.Desc_1_1.Flags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	t_RootSignatureDesc.Desc_1_1.NumParameters = 1;
+	t_RootSignatureDesc.Desc_1_1.pParameters = &t_RootParameters;
+	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
+	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
+
+	ID3DBlob* t_Signature;
+	ID3DBlob* t_Error;
+
+	DXASSERT(D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
+		&t_Signature, &t_Error),
+		"DX12: Failed to serialize root signature.");
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0,
+		t_Signature->GetBufferPointer(),
+		t_Signature->GetBufferSize(),
+		IID_PPV_ARGS(&t_RootSignature)),
+		"DX12: Failed to create root signature.");
+
+	t_RootSignature->SetName(L"Hello Triangle Root Signature");
+
+	if (t_Error != nullptr)
+	{
+		BB_LOG((const char*)t_Error->GetBufferPointer());
+		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
+		t_Error->Release();
+	}
+
+	if (t_Signature != nullptr)
+		t_Signature->Release();
+
+	return t_RootSignature;
+}
+
 PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
 {
 	ID3D12PipelineState* t_PipelineState;
@@ -541,6 +559,17 @@ CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const Ren
 		t_CommandList.commandListCount,
 		ID3D12GraphicsCommandList*);
 
+	for (size_t i = 0; i < t_CommandList.commandListCount; i++)
+	{
+		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
+			0,
+			t_CommandList.commandlistType,
+			t_CommandList.commandAllocator,
+			nullptr,
+			IID_PPV_ARGS(&t_CommandList.commandLists[i])),
+			"DX12: Failed to create commandlist.");
+	}
+
 	return CommandListHandle(s_DX12BackendInst.commandLists.insert(t_CommandList));
 }
 
@@ -617,17 +646,8 @@ RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_Cm
 	BB_ASSERT(t_CommandList.currentRecording == nullptr,
 		"DX12: Trying to start a commandbuffer while one is already recording (This will change later, this is a bad way of handling commandbuffers!)");
 
-
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
-		0,
-		t_CommandList.commandlistType,
-		t_CommandList.commandAllocator,
-		nullptr, //Optional, we don't pre-set the pipeline.
-		IID_PPV_ARGS(&t_CommandList.commandLists[t_CommandList.currentFree])),
-		"DX12: Failed to create commandlist");
-
 	t_CommandList.currentRecording = t_CommandList.commandLists[t_CommandList.currentFree];
-
+	t_CommandList.currentRecording->Reset(t_CommandList.commandAllocator, nullptr);
 	++t_CommandList.currentFree;
 
 	return RecordingCommandListHandle(t_CommandList.currentRecording);
@@ -637,11 +657,6 @@ void BB::DX12ResetCommandList(const CommandListHandle a_CmdHandle)
 {
 	CommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CmdHandle.handle);
 	DXASSERT(t_CommandList.commandAllocator->Reset(), "DX12: Failed to reset allocator.");
-	
-	for (uint32_t i = 0; i < t_CommandList.commandListCount; i++)
-	{
-		t_CommandList.commandLists[i]->Reset(t_CommandList.commandAllocator, nullptr);
-	}
 }
 
 void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
@@ -692,7 +707,7 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 {
 	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	BB_ASSERT(a_Size % 0, "DX12: BindConstant a_size is not a multiple of 32!");
+	BB_ASSERT(a_Size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
 	const UINT t_Dwords = a_Size / sizeof(uint32_t);
 	t_CommandList->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
 }
@@ -849,7 +864,15 @@ void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 
 void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 {
-	s_DX12BackendInst.commandLists.find(a_Handle.handle).commandLists[0]->Release();
+	CommandList& t_RemovedList = s_DX12BackendInst.commandLists.find(a_Handle.handle);
+	for (size_t i = 0; i < t_RemovedList.commandListCount; i++)
+	{
+		t_RemovedList.commandLists[i]->Release();
+	}
+
+	BBfreeArr(s_DX12Allocator, t_RemovedList.commandLists);
+	t_RemovedList.commandAllocator->Release();
+
 	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
 }
 
