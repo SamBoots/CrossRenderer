@@ -34,6 +34,25 @@ namespace DXConv
 	}
 }
 
+struct DescriptorView
+{
+	DescriptorView operator*(const uint32_t a_Multiply)
+	{
+		DescriptorView t_View;
+		t_View.offset = offset * a_Multiply;
+		t_View.size = size * a_Multiply;
+		return t_View;
+	}
+
+	void operator*=(const uint32_t a_Multiply)
+	{
+		offset *= a_Multiply;
+		size *= a_Multiply;
+	}
+
+	uint32_t offset;
+	uint32_t size;
+};
 
 struct DXMAResource
 {
@@ -378,6 +397,11 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 
 RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
+	if (a_Layout.ptrHandle == nullptr)
+	{
+		return RDescriptorHandle(a_Layout.ptrHandle);
+	}
+
 	ID3D12RootSignature* t_RootSignature = nullptr;
 
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
@@ -419,7 +443,7 @@ RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLay
 	//Groups of GPU Resources
 	D3D12_ROOT_PARAMETER1 t_RootParameters;
 	t_RootParameters.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	t_RootParameters.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	t_RootParameters.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
 	t_RootParameters.DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
 	t_RootParameters.DescriptorTable.pDescriptorRanges = t_CBV_Ranges;
 	t_RootParameters.Constants = t_RootConstants[0];
@@ -459,7 +483,8 @@ RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLay
 	if (t_Signature != nullptr)
 		t_Signature->Release();
 
-	return t_RootSignature;
+	a_Layout.ptrHandle = t_Signature;
+	return RDescriptorHandle(t_Signature);
 }
 
 PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
@@ -476,7 +501,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 
 	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
-	t_PsoDesc.pRootSignature = CreateRootSignature();
+	t_PsoDesc.pRootSignature = reinterpret_cast<ID3D12RootSignature*>(a_CreateInfo.descLayoutHandles[0].ptrHandle);
 	IDxcBlob* t_ShaderCode[2]; // 0 vertex, 1 frag.
 	t_ShaderCode[0] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[0], ShaderType::VERTEX);
 	t_ShaderCode[1] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[1], ShaderType::PIXEL);
@@ -690,17 +715,12 @@ void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHand
 	t_CommandList->IASetIndexBuffer(&s_DX12BackendInst.renderResources.find(a_Buffer.handle).view.indexView);
 }
 
+
 void BB::DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
-
-	//ID3D12DescriptorHeap* heaps[4];
-	//for (size_t i = 0; i < a_SetCount; i++)
-	//{
-
-	//}
-
-	//t_CommandList->SetGraphicsRootSignature()
+	
+	t_CommandList->SetGraphicsRootSignature(reinterpret_cast<ID3D12RootSignature*>(a_Sets[0].ptrHandle));
 }
 
 void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -778,7 +798,6 @@ void BB::DX12UnMemory(const RBufferHandle a_Handle)
 void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
 {
 	CommandList t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.handle);
-	t_CommandList.commandLists[0]->SetGraphicsRootSignature(CreateRootSignature());
 
 	D3D12_RESOURCE_BARRIER renderTargetBarrier;
 	renderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
