@@ -25,6 +25,7 @@ namespace BB
 	{
 		D3D12_VERTEX_BUFFER_VIEW vertexView;
 		D3D12_INDEX_BUFFER_VIEW indexView;
+		D3D12_CONSTANT_BUFFER_VIEW_DESC constantView;
 	};
 
 	struct DX12Device
@@ -82,10 +83,10 @@ namespace BB
 	void DX12WaitDeviceReady();
 
 	void DX12DestroyBuffer(const RBufferHandle a_Handle);
-	void DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
-	void DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 	void DX12DestroyCommandList(const CommandListHandle a_Handle);
 	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
+	void DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
+	void DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 	void DX12DestroyBackend();
 }

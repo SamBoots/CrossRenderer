@@ -395,9 +395,9 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	return t_BackendInfo;
 }
 
-RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	if (a_Layout.ptrHandle == nullptr)
+	if (a_Layout.ptrHandle != nullptr)
 	{
 		return RDescriptorHandle(a_Layout.ptrHandle);
 	}
@@ -617,6 +617,19 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
 	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+	D3D12_RESOURCE_STATES t_States = D3D12_RESOURCE_STATE_GENERIC_READ;
+	switch (a_Info.usage)
+	{
+	case RENDER_BUFFER_USAGE::VERTEX:
+		t_States = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	case RENDER_BUFFER_USAGE::INDEX:
+		t_States = D3D12_RESOURCE_STATE_INDEX_BUFFER | D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	case RENDER_BUFFER_USAGE::STAGING:
+		t_States = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	}
 
 	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
 		&t_AllocationDesc,
@@ -639,11 +652,9 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 		t_Resource.view.indexView.Format = DXGI_FORMAT_R32_UINT;
 		t_Resource.view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
-	case RENDER_BUFFER_USAGE::STORAGE:
-		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
-		break;
 	default:
-		BB_ASSERT(false, "this buffer usage is not supported by the DirectX12 backend!");
+		t_Resource.view.constantView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
+		t_Resource.view.constantView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	}
 
@@ -775,6 +786,8 @@ void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a
 			a_CopyInfo.copyRegions[i].size);
 	}
 
+	//Set a resource barrier.
+
 	t_CommandList->Close();
 	ID3D12CommandList* t_Lists[1]{ t_CommandList };
 	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_Lists);
@@ -899,6 +912,16 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 {
 	s_DX12BackendInst.pipelines.find(a_Handle.handle)->Release();
 	s_DX12BackendInst.pipelines.erase(a_Handle.handle);
+}
+
+void BB::DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle)
+{
+	reinterpret_cast<ID3D12RootSignature*>(a_Handle.ptrHandle)->Release();
+}
+
+void BB::DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle)
+{
+
 }
 
 void BB::DX12DestroyBackend()

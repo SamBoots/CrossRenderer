@@ -177,6 +177,8 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_DescriptorCreateInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
 	FixedArray<RenderDescriptorCreateInfo::ImageBind, 0> t_ImageBinds;
 	t_DescriptorCreateInfo.ImageBinds = BB::Slice(t_ImageBinds.data(), t_ImageBinds.size());
+	FixedArray<RenderDescriptorCreateInfo::ConstantBind, 1> t_ConstantBinds;
+	t_DescriptorCreateInfo.constantBinds = BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size());
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
@@ -193,6 +195,13 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 		t_BufferBinds[1].bufferOffset = 0;
 		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 	}
+	{//IndexConstantBind
+		t_ConstantBinds[0].offset = 0;
+		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_ConstantBinds[0].size = 64;
+	}
+
+
 
 	s_PerFrameInfo.perFrameDescriptorLayout.ptrHandle = nullptr;
 	s_PerFrameInfo.perFrameDescriptor = RenderBackend::CreateDescriptor(
