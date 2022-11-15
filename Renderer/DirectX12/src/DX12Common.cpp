@@ -420,9 +420,15 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		a_CreateInfo.bufferBinds.size(),
 		D3D12_DESCRIPTOR_RANGE1);
 
+	UINT t_RegisterSpace = 0;
 	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
 	{
-		t_CBV_Ranges[i].NumDescriptors;
+		t_CBV_Ranges[i].NumDescriptors = 1;
+		t_CBV_Ranges[i].BaseShaderRegister = t_RegisterSpace;
+		t_CBV_Ranges[i].OffsetInDescriptorsFromTableStart = t_RegisterSpace++;
+		t_CBV_Ranges[i].RegisterSpace = 0; //We will just keep this 0 for now.
+		t_CBV_Ranges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+		t_CBV_Ranges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	}
 
 	D3D12_ROOT_CONSTANTS* t_RootConstants = BBnewArr(
@@ -430,7 +436,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		a_CreateInfo.constantBinds.size(),
 		D3D12_ROOT_CONSTANTS);
 
-	UINT t_RegisterSpace = 0;
+	t_RegisterSpace = 0;
 	for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
 	{
 		BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
@@ -441,20 +447,23 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 	}
 
 	//Groups of GPU Resources
-	D3D12_ROOT_PARAMETER1 t_RootParameters;
-	t_RootParameters.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	t_RootParameters.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters.DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
-	t_RootParameters.DescriptorTable.pDescriptorRanges = t_CBV_Ranges;
-	t_RootParameters.Constants = t_RootConstants[0];
+	D3D12_ROOT_PARAMETER1 t_RootParameters[2]{};
+	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
+	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_CBV_Ranges;
+
+	t_RootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	t_RootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+	t_RootParameters[1].Constants = t_RootConstants[0];
 
 	//Overall Layout
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc;
 	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 	t_RootSignatureDesc.Desc_1_1.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	t_RootSignatureDesc.Desc_1_1.NumParameters = 1;
-	t_RootSignatureDesc.Desc_1_1.pParameters = &t_RootParameters;
+	t_RootSignatureDesc.Desc_1_1.NumParameters = 2;
+	t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
 	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
 	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
 
@@ -483,8 +492,8 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 	if (t_Signature != nullptr)
 		t_Signature->Release();
 
-	a_Layout.ptrHandle = t_Signature;
-	return RDescriptorHandle(t_Signature);
+	a_Layout.ptrHandle = t_RootSignature;
+	return RDescriptorHandle(t_RootSignature);
 }
 
 PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
