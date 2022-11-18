@@ -282,6 +282,7 @@ namespace BB
 	struct RenderCommandListCreateInfo
 	{
 		RENDER_QUEUE_TYPE queueType;
+		FrameIndex frameBufferSet;
 		uint32_t bufferCount;
 	};
 

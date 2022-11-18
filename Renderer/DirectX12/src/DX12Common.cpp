@@ -70,19 +70,18 @@ struct ShaderCompiler
 
 struct CommandList
 {
-	ID3D12CommandAllocator* commandAllocator{};
-	ID3D12GraphicsCommandList** commandLists;
-	uint32_t commandListCount;
-	uint32_t currentFree;
-	ID3D12GraphicsCommandList* currentRecording = nullptr;
-
+	ID3D12GraphicsCommandList* commandList;
 	D3D12_COMMAND_LIST_TYPE commandlistType;
+	FrameIndex commandListIndex;
 };
 
 struct DX12Backend_inst
 {
 	FrameIndex currentFrame = 0;
 	UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
+
+	ID3D12CommandAllocator** directAllocator; //CommandAllocator per backbuffer.
+	ID3D12CommandAllocator* copyAllocator; //CommandAllocator for copy, only one exists.
 
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
@@ -282,6 +281,10 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart();
 
 	s_DX12BackendInst.swapchain.renderTargets = BBnewArr(s_DX12Allocator, s_DX12BackendInst.backBufferCount, ID3D12Resource*);
+	s_DX12BackendInst.directAllocator = BBnewArr(
+		s_DX12Allocator,
+		s_DX12BackendInst.backBufferCount,
+		ID3D12CommandAllocator*);
 
 	// Create a RTV for each frame.
 	for (UINT i = 0; i < s_DX12BackendInst.backBufferCount; i++)
@@ -295,7 +298,18 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 			nullptr, 
 			rtvHandle);
 		rtvHandle.ptr += (1 * s_DX12BackendInst.swapchain.rtvDescriptorSize);
+
+		//Set command allocators per backbuffer.
+		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(
+			D3D12_COMMAND_LIST_TYPE_DIRECT,
+			IID_PPV_ARGS(&s_DX12BackendInst.directAllocator[i])),
+			"DX12: Failed to create command allocator");
 	}
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_COPY,
+		IID_PPV_ARGS(&s_DX12BackendInst.copyAllocator)),
+		"DX12: Failed to create command allocator");
 }
 
 
@@ -414,29 +428,12 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 	}
 
-
-	D3D12_DESCRIPTOR_RANGE1* t_CBV_Ranges = BBnewArr(
-		a_TempAllocator,
-		a_CreateInfo.bufferBinds.size(),
-		D3D12_DESCRIPTOR_RANGE1);
-
-	UINT t_RegisterSpace = 0;
-	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
-	{
-		t_CBV_Ranges[i].NumDescriptors = 1;
-		t_CBV_Ranges[i].BaseShaderRegister = t_RegisterSpace;
-		t_CBV_Ranges[i].OffsetInDescriptorsFromTableStart = t_RegisterSpace++;
-		t_CBV_Ranges[i].RegisterSpace = 0; //We will just keep this 0 for now.
-		t_CBV_Ranges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
-		t_CBV_Ranges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	}
-
 	D3D12_ROOT_CONSTANTS* t_RootConstants = BBnewArr(
 		a_TempAllocator,
 		a_CreateInfo.constantBinds.size(),
 		D3D12_ROOT_CONSTANTS);
 
-	t_RegisterSpace = 0;
+	UINT t_RegisterSpace = 0;
 	for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
 	{
 		BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
@@ -446,12 +443,24 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		t_RootConstants[i].RegisterSpace = 0; //We will just keep this 0 for now.
 	}
 
+
+	D3D12_ROOT_DESCRIPTOR1* t_RootDescriptor = BBnewArr(
+		a_TempAllocator,
+		a_CreateInfo.bufferBinds.size(),
+		D3D12_ROOT_DESCRIPTOR1);
+
+	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
+	{
+		t_RootDescriptor[i].RegisterSpace = 0; //We will keep this 0 for now.
+		t_RootDescriptor[i].ShaderRegister = t_RegisterSpace++;
+		t_RootDescriptor[i].Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+	}
+
 	//Groups of GPU Resources
 	D3D12_ROOT_PARAMETER1 t_RootParameters[2]{};
 	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
-	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_CBV_Ranges;
+	t_RootParameters[0].Descriptor = t_RootDescriptor[0];
 
 	t_RootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	t_RootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
@@ -470,9 +479,15 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 	ID3DBlob* t_Signature;
 	ID3DBlob* t_Error;
 
-	DXASSERT(D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
-		&t_Signature, &t_Error),
-		"DX12: Failed to serialize root signature.");
+	D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
+		&t_Signature, &t_Error);
+
+	if (t_Error != nullptr)
+	{
+		BB_LOG((const char*)t_Error->GetBufferPointer());
+		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
+		t_Error->Release();
+	}
 
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateRootSignature(0,
 		t_Signature->GetBufferPointer(),
@@ -481,13 +496,6 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		"DX12: Failed to create root signature.");
 
 	t_RootSignature->SetName(L"Hello Triangle Root Signature");
-
-	if (t_Error != nullptr)
-	{
-		BB_LOG((const char*)t_Error->GetBufferPointer());
-		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
-		t_Error->Release();
-	}
 
 	if (t_Signature != nullptr)
 		t_Signature->Release();
@@ -579,30 +587,33 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	CommandList t_CommandList;
+	t_CommandList.commandListIndex = a_CreateInfo.frameBufferSet;
 
-	t_CommandList.commandlistType = DXConv::CommandListType(a_CreateInfo.queueType);
+	ID3D12CommandAllocator* t_UsedAllocator;
 
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(
-		t_CommandList.commandlistType,
-		IID_PPV_ARGS(&t_CommandList.commandAllocator)),
-		"DX12: Failed to create command allocator");
-
-	t_CommandList.currentRecording = nullptr;
-	t_CommandList.commandListCount = a_CreateInfo.bufferCount;
-	t_CommandList.commandLists = BBnewArr(s_DX12Allocator,
-		t_CommandList.commandListCount,
-		ID3D12GraphicsCommandList*);
-
-	for (size_t i = 0; i < t_CommandList.commandListCount; i++)
+	switch (a_CreateInfo.queueType)
 	{
-		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
-			0,
-			t_CommandList.commandlistType,
-			t_CommandList.commandAllocator,
-			nullptr,
-			IID_PPV_ARGS(&t_CommandList.commandLists[i])),
-			"DX12: Failed to create commandlist.");
+	case BB::RENDER_QUEUE_TYPE::GRAPHICS:
+		t_CommandList.commandlistType = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		t_UsedAllocator = s_DX12BackendInst.directAllocator[t_CommandList.commandListIndex];
+		break;
+	case BB::RENDER_QUEUE_TYPE::TRANSFER_COPY:
+		t_CommandList.commandlistType = D3D12_COMMAND_LIST_TYPE_COPY;
+		t_UsedAllocator = s_DX12BackendInst.copyAllocator;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, RENDER_QUEUE_TYPE not supported.");
+		break;
 	}
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
+		0,
+		t_CommandList.commandlistType,
+		t_UsedAllocator,
+		nullptr,
+		IID_PPV_ARGS(&t_CommandList.commandList)),
+		"DX12: Failed to create commandlist.");
+
 
 	return CommandListHandle(s_DX12BackendInst.commandLists.insert(t_CommandList));
 }
@@ -687,21 +698,14 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
 	CommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CmdHandle.handle);
-
-	BB_ASSERT(t_CommandList.currentRecording == nullptr,
-		"DX12: Trying to start a commandbuffer while one is already recording (This will change later, this is a bad way of handling commandbuffers!)");
-
-	t_CommandList.currentRecording = t_CommandList.commandLists[t_CommandList.currentFree];
-	t_CommandList.currentRecording->Reset(t_CommandList.commandAllocator, nullptr);
-	++t_CommandList.currentFree;
-
-	return RecordingCommandListHandle(t_CommandList.currentRecording);
+	return RecordingCommandListHandle(t_CommandList.commandList);
 }
 
 void BB::DX12ResetCommandList(const CommandListHandle a_CmdHandle)
 {
 	CommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CmdHandle.handle);
-	DXASSERT(t_CommandList.commandAllocator->Reset(), "DX12: Failed to reset allocator.");
+	DXASSERT(t_CommandList.commandList->Reset(s_DX12BackendInst.directAllocator[t_CommandList.commandListIndex], nullptr)
+		, "DX12: Failed to reset commandlist.");
 }
 
 void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
@@ -828,22 +832,22 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	renderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 	renderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	renderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList.commandLists[0]->ResourceBarrier(1, &renderTargetBarrier);
+	t_CommandList.commandList->ResourceBarrier(1, &renderTargetBarrier);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart());
 	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * s_DX12BackendInst.swapchain.rtvDescriptorSize);
-	t_CommandList.commandLists[0]->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	t_CommandList.commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
-	t_CommandList.commandLists[0]->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
-	t_CommandList.commandLists[0]->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
-	t_CommandList.commandLists[0]->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	t_CommandList.commandLists[0]->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	t_CommandList.commandLists[0]->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
+	t_CommandList.commandList->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
+	t_CommandList.commandList->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
+	t_CommandList.commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	t_CommandList.commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	t_CommandList.commandList->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
 
 	//t_CommandList->DrawInstanced(3, 1, 0, 0);
-	DX12DrawVertex(t_CommandList.commandLists[0], 3, 1, 0, 0);
+	DX12DrawVertex(t_CommandList.commandList, 3, 1, 0, 0);
 
 	// Indicate that the back buffer will now be used to present.
 	D3D12_RESOURCE_BARRIER presentBarrier;
@@ -854,11 +858,11 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList.commandLists[0]->ResourceBarrier(1, &presentBarrier);
+	t_CommandList.commandList->ResourceBarrier(1, &presentBarrier);
 
-	DXASSERT(t_CommandList.commandLists[0]->Close(), "DX12: Failed to close commandlist.");
+	DXASSERT(t_CommandList.commandList->Close(), "DX12: Failed to close commandlist.");
 
-	ID3D12CommandList* t_CommandListSend[] = { t_CommandList.commandLists[0] };
+	ID3D12CommandList* t_CommandListSend[] = { t_CommandList.commandList };
 	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_CommandListSend);
 
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
@@ -906,13 +910,8 @@ void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 {
 	CommandList& t_RemovedList = s_DX12BackendInst.commandLists.find(a_Handle.handle);
-	for (size_t i = 0; i < t_RemovedList.commandListCount; i++)
-	{
-		t_RemovedList.commandLists[i]->Release();
-	}
 
-	BBfreeArr(s_DX12Allocator, t_RemovedList.commandLists);
-	t_RemovedList.commandAllocator->Release();
+	t_RemovedList.commandList->Release();
 
 	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
 }

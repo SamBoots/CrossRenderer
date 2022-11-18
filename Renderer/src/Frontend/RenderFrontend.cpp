@@ -243,14 +243,18 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	RenderCommandListCreateInfo t_CmdCreateInfo;
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
-	t_CmdCreateInfo.bufferCount = 5;
+	t_CmdCreateInfo.bufferCount = 1;
+	t_CmdCreateInfo.frameBufferSet = 0;
 	t_CommandLists[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CmdCreateInfo.frameBufferSet = 1;
 	t_CommandLists[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_CmdCreateInfo.frameBufferSet = 2;
 	t_CommandLists[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
 	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
 	t_CmdCreateInfo.bufferCount = 1;
+	t_CmdCreateInfo.frameBufferSet = 0;
 	t_TransferCommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
