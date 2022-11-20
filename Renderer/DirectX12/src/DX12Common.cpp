@@ -16,6 +16,23 @@ static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 
 namespace DXConv
 {
+	const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
+	{
+		switch (a_Properties)
+		{
+		case RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL:
+			return D3D12_HEAP_TYPE_DEFAULT;
+			break;
+		case RENDER_MEMORY_PROPERTIES::HOST_VISIBLE:
+			return D3D12_HEAP_TYPE_UPLOAD;
+			break;
+		default:
+			BB_ASSERT(false, "DX12: Tried to make a commandlist with a queue type that does not exist.");
+			return D3D12_HEAP_TYPE_DEFAULT;
+			break;
+		}
+	}
+
 	const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType)
 	{
 		switch (a_RenderQueueType)
@@ -636,8 +653,8 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
-	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
-	D3D12_RESOURCE_STATES t_States = D3D12_RESOURCE_STATE_GENERIC_READ;
+	t_AllocationDesc.HeapType = DXConv::HeapType(a_Info.memProperties);
+	D3D12_RESOURCE_STATES t_States;
 	switch (a_Info.usage)
 	{
 	case RENDER_BUFFER_USAGE::VERTEX:
@@ -646,15 +663,23 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	case RENDER_BUFFER_USAGE::INDEX:
 		t_States = D3D12_RESOURCE_STATE_INDEX_BUFFER | D3D12_RESOURCE_STATE_COPY_DEST;
 		break;
+	case RENDER_BUFFER_USAGE::STORAGE:
+		t_States = D3D12_RESOURCE_STATE_COPY_DEST;
+		t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+		break;
 	case RENDER_BUFFER_USAGE::STAGING:
-		t_States = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		t_States = D3D12_RESOURCE_STATE_GENERIC_READ | D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
+		t_States = D3D12_RESOURCE_STATE_COMMON;
 		break;
 	}
 
 	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
 		&t_AllocationDesc,
 		&t_ResourceDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
+		t_States,
 		NULL,
 		&t_Resource.allocation,
 		IID_PPV_ARGS(&t_Resource.resource)),
