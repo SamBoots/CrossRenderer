@@ -10,7 +10,14 @@ namespace BB
 		constexpr const size_t standardSize = 8;
 	}
 
-	using SlotmapID = uint64_t;
+	//union SlotmapID
+	//{
+	//	uint64_t ID;
+	//	uint32_t index;
+	//	uint32_t gen;
+	//};
+
+	typedef uint64_t SlotmapID;
 
 	template <typename T>
 	class Slotmap
@@ -27,7 +34,7 @@ namespace BB
 
 			Iterator& operator++()
 			{
-				m_Ptr++;
+				++m_Ptr;
 				return *this;
 			}
 
