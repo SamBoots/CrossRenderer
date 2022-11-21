@@ -70,9 +70,7 @@ endif()
 add_subdirectory ("BB")
 add_subdirectory ("Libs")
 add_subdirectory ("Renderer")
+add_subdirectory ("Resources")
 
 message(STATUS "Building binaries at")
 message(STATUS ${CMAKE_BINARY_DIR})
-
-#Copy over all the resources to the main directory.
-file(COPY "${CMAKE_SOURCE_DIR}/Resources" DESTINATION ${CMAKE_BINARY_DIR})
