@@ -16,6 +16,29 @@ static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 
 namespace DXConv
 {
+	const D3D12_RESOURCE_STATES ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
+	{
+		switch (a_Usage)
+		{
+		case RENDER_BUFFER_USAGE::VERTEX:
+			return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+			break;
+		case RENDER_BUFFER_USAGE::INDEX:
+			return D3D12_RESOURCE_STATE_INDEX_BUFFER;
+			break;
+		case RENDER_BUFFER_USAGE::STORAGE:
+			return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+			break;
+		case RENDER_BUFFER_USAGE::STAGING:
+			return D3D12_RESOURCE_STATE_GENERIC_READ; //This doesn't work? Lets not use it now| D3D12_RESOURCE_STATE_COPY_SOURCE;
+			break;
+		default:
+			BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
+			return D3D12_RESOURCE_STATE_COMMON;
+			break;
+		}
+	}
+
 	const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
 	{
 		switch (a_Properties)
@@ -104,7 +127,7 @@ struct DX12Backend_inst
 	ID3D12Debug1* debugController{};
 
 	ID3D12CommandQueue* directQueue{};
-	//ID3D12CommandQueue* copyQueue{};
+	ID3D12CommandQueue* copyQueue{};
 
 	ID3D12DescriptorHeap* constantHeap;
 
@@ -408,6 +431,12 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&s_DX12BackendInst.directQueue)),
 		"DX12: Failed to create direct command queue");
+
+	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+
+	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
+		IID_PPV_ARGS(&s_DX12BackendInst.copyQueue)),
+		"DX12: Failed to create direct command queue");
 	 
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&s_DX12BackendInst.fence)),
@@ -653,28 +682,12 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
-	t_AllocationDesc.HeapType = DXConv::HeapType(a_Info.memProperties);
-	D3D12_RESOURCE_STATES t_States;
-	switch (a_Info.usage)
-	{
-	case RENDER_BUFFER_USAGE::VERTEX:
-		t_States = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_COPY_DEST;
-		break;
-	case RENDER_BUFFER_USAGE::INDEX:
-		t_States = D3D12_RESOURCE_STATE_INDEX_BUFFER | D3D12_RESOURCE_STATE_COPY_DEST;
-		break;
-	case RENDER_BUFFER_USAGE::STORAGE:
-		t_States = D3D12_RESOURCE_STATE_COPY_DEST;
-		t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
-		break;
-	case RENDER_BUFFER_USAGE::STAGING:
-		t_States = D3D12_RESOURCE_STATE_GENERIC_READ | D3D12_RESOURCE_STATE_COPY_SOURCE;
-		break;
-	default:
-		BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
-		t_States = D3D12_RESOURCE_STATE_COMMON;
-		break;
-	}
+	//t_AllocationDesc.HeapType = DXConv::HeapType(a_Info.memProperties);
+	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+	D3D12_RESOURCE_STATES t_States = D3D12_RESOURCE_STATE_COPY_DEST;
+
+	//if (a_Info.usage == RENDER_BUFFER_USAGE::STAGING)
+		t_States = D3D12_RESOURCE_STATE_GENERIC_READ;
 
 	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
 		&t_AllocationDesc,
@@ -811,25 +824,57 @@ void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, co
 
 void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
 {
-	RecordingCommandListHandle t_Recording = DX12StartCommandList(a_CopyInfo.transferCommandHandle, FrameBufferHandle(1));
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_CopyInfo.transferCommandHandle.ptrHandle);
 
-	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(t_Recording.ptrHandle);
+	ID3D12Resource* t_DestResource = s_DX12BackendInst.renderResources.find(a_CopyInfo.dst.handle).resource;
+
 	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
 	{
 		t_CommandList->CopyBufferRegion(
-			s_DX12BackendInst.renderResources.find(a_CopyInfo.dst.handle).resource,
+			t_DestResource,
 			a_CopyInfo.copyRegions[i].dstOffset,
 			s_DX12BackendInst.renderResources.find(a_CopyInfo.src.handle).resource,
 			a_CopyInfo.copyRegions[i].srcOffset,
 			a_CopyInfo.copyRegions[i].size);
 	}
 
-	//Set a resource barrier.
-
-	t_CommandList->Close();
-	ID3D12CommandList* t_Lists[1]{ t_CommandList };
-	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_Lists);
+	ID3D12CommandList* t_CommandListSend[] = { t_CommandList };
+	s_DX12BackendInst.copyQueue->ExecuteCommandLists(1, t_CommandListSend);
 }
+
+struct RenderBarriersInfo
+{
+	struct ResourceBarriers
+	{
+		RENDER_BUFFER_USAGE previous;
+		RENDER_BUFFER_USAGE next;
+		RBufferHandle buffer;
+		uint32_t subresource;
+	};
+	ResourceBarriers* barriers;
+	uint32_t barrierCount;
+};
+
+void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHandle a_RecordingCmdHandle, const RenderBarriersInfo& a_Info)
+{
+	D3D12_RESOURCE_BARRIER* t_ResourceBarriers = BBnewArr(a_TempAllocator, 
+		a_Info.barrierCount,
+		D3D12_RESOURCE_BARRIER);
+
+	for (size_t i = 0; i < a_Info.barrierCount; i++)
+	{
+		t_ResourceBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		t_ResourceBarriers[i].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		t_ResourceBarriers[i].Transition.pResource = s_DX12BackendInst.renderResources.find(a_Info.barriers[i].buffer.handle).resource;
+		t_ResourceBarriers[i].Transition.StateBefore = DXConv::ResourceStates(a_Info.barriers[i].previous);
+		t_ResourceBarriers[i].Transition.StateAfter = DXConv::ResourceStates(a_Info.barriers[i].next);
+		t_ResourceBarriers[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	}
+
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	t_CommandList->ResourceBarrier(a_Info.barrierCount, t_ResourceBarriers);
+}
+
 
 void* BB::DX12MapMemory(const RBufferHandle a_Handle)
 {
