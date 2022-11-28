@@ -10,7 +10,8 @@ set (DirectX_DLL_Headers
 #VulkanCommon is included because otherwise Cmake complains about this error on line 20.
 #set_target_properties called with incorrect number of arguments. 
 #I truly do not know why.
-"include/VulkanCommon.h")
+#"include/VulkanCommon.h")
+)
 
 set (DirectX_DLL_Source
 "src/DX12Backend.cpp"

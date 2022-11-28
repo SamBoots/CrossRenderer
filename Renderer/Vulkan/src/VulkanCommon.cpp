@@ -218,6 +218,32 @@ struct QueueIndex
 	VkQueueFlagBits bit;
 	uint32_t index;
 };
+constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
+struct CommandAllocator
+{
+	VkCommandPool pool;
+	VkCommandBuffer buffers[COMMAND_BUFFER_STANDARD_COUNT];
+	VkCommandBuffer currentFree;
+};
+
+CommandAllocator CreateCommandAllocator(const uint32_t a_QueueIndex)
+{
+	CommandAllocator t_Allocator;
+
+	VkCommandPoolCreateInfo t_CommandPoolInfo = VkInit::CommandPoolCreateInfo(
+		a_QueueIndex,
+		0);
+
+	VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
+		t_Allocator.pool,
+		COMMAND_BUFFER_STANDARD_COUNT,
+		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
+		&t_AllocInfo,
+		t_Allocator.buffers),
+		"Vulkan: failed to allocate commandbuffers.");
+}
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
 
@@ -254,6 +280,9 @@ struct VulkanBackend_inst
 	VkInstance instance{};
 	VkSurfaceKHR surface{};
 	DescriptorAllocator descriptorAllocator;
+
+	VkCommandPool graphicsQueuePool;
+	VkCommandPool tranfserQueuePool;
 
 	VulkanDevice device{};
 	VulkanSwapChain swapChain{};
@@ -973,7 +1002,7 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-	vkBeginCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree], 
+	vkBeginCommandBuffer(t_CmdList.buffer, 
 		&beginInfo);
 
 	VkBufferCopy* t_CopyRegion = BBnewArr(a_TempAllocator, a_CopyInfo.CopyRegionCount, VkBufferCopy);
@@ -984,17 +1013,17 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 		t_CopyRegion[i].size = a_CopyInfo.copyRegions[i].size;
 	}
 
-	vkCmdCopyBuffer(t_CmdList.buffers[t_CmdList.currentFree],
+	vkCmdCopyBuffer(t_CmdList.buffer,
 		t_SrcBuffer->buffer,
 		t_DstBuffer->buffer,
 		static_cast<uint32_t>(a_CopyInfo.CopyRegionCount),
 		t_CopyRegion);
-	vkEndCommandBuffer(t_CmdList.buffers[t_CmdList.currentFree]);
+	vkEndCommandBuffer(t_CmdList.buffer);
 
 	VkSubmitInfo t_SubmitInfo{};
 	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	t_SubmitInfo.commandBufferCount = 1;
-	t_SubmitInfo.pCommandBuffers = &t_CmdList.buffers[t_CmdList.currentFree];
+	t_SubmitInfo.pCommandBuffers = &t_CmdList.buffer;
 
 	vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue, 1, &t_SubmitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(s_VkBackendInst.device.transferQueue.queue);
@@ -1002,6 +1031,18 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
 		t_CmdList.pool,
 		0);
+
+	VkSemaphoreCreateInfo t_SemCreateInfo{};
+	t_SemCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkSemaphore t_Semaphore;
+	vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+		&t_SemCreateInfo,
+		nullptr,
+		&t_Semaphore);
+
+	VkSemaphoreSignalInfo t_SignalInfo;
+	t_SignalInfo.
 }
 
 void* BB::VulkanMapMemory(const RBufferHandle a_Handle)
@@ -1046,31 +1087,41 @@ FrameIndex BB::VulkanStartFrame()
 	return t_CurrentFrame;
 }
 
-void BB::VulkanRenderFrame(Allocator a_TempAllocator, CommandListHandle a_CommandHandle, FrameBufferHandle a_FrameBufferHandle, PipelineHandle a_PipeHandle)
+void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
 	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	VulkanCommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CommandHandle.handle];
-	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_FrameBufferHandle.handle];
+	VulkanCommandList* t_CommandLists = BBnewArr(a_TempAllocator,
+		a_ExecuteInfo.commandListCount,
+		VulkanCommandList);
+	VkSubmitInfo* t_SubmitInfos = BBnewArr(a_TempAllocator,
+		a_ExecuteInfo.commandListCount,
+		VkSubmitInfo);
 
-	//submit stage.
 	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-	VkSubmitInfo t_SubmitInfo{};
-	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	for (uint32_t i = 0; i < a_ExecuteInfo.commandListCount; i++)
+	{
+		t_CommandLists[i] = s_VkBackendInst.commandLists[i];
+		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	t_SubmitInfo.waitSemaphoreCount = 1;
-	t_SubmitInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.renderSems[t_CurrentFrame];
-	t_SubmitInfo.pWaitDstStageMask = &t_WaitStagesMask;
+		t_SubmitInfos[i].waitSemaphoreCount = 1;
+		t_SubmitInfos[i].pWaitSemaphores = &s_VkBackendInst.swapChain.renderSems[t_CurrentFrame];
+		t_SubmitInfos[i].pWaitDstStageMask = &t_WaitStagesMask;
 
-	t_SubmitInfo.signalSemaphoreCount = 1;
-	t_SubmitInfo.pSignalSemaphores = &s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
+		t_SubmitInfos[i].signalSemaphoreCount = 1;
+		t_SubmitInfos[i].pSignalSemaphores = &s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
 
-	t_SubmitInfo.commandBufferCount = t_Cmdlist.currentFree;
-	t_SubmitInfo.pCommandBuffers = t_Cmdlist.buffers;
+		t_SubmitInfos[i].commandBufferCount = t_CommandLists[i].currentFree;
+		t_SubmitInfos[i].pCommandBuffers = t_CommandLists[i].buffers;
+
+		//Now soft-reset the commandlists for later use.
+		t_CommandLists[i].currentFree = 0;
+		t_CommandLists[i].bufferCount = 0;
+	}
 
 	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
-		1,
-		&t_SubmitInfo,
+		a_ExecuteInfo.commandListCount,
+		t_SubmitInfos,
 		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
 		"Vulkan: failed to submit to queue.");
 
@@ -1086,8 +1137,6 @@ void BB::VulkanRenderFrame(Allocator a_TempAllocator, CommandListHandle a_Comman
 	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue.queue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
-	t_Cmdlist.currentFree = 0;
-	t_Cmdlist.bufferCount = 0;
 	s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
 }
 
@@ -1538,19 +1587,7 @@ CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const R
 		&t_ReturnCommandList.pool),
 		"Vulkan: Failed to create commandpool.");
 
-	VkCommandBufferAllocateInfo t_AllocInfo = VkInit::CommandBufferAllocateInfo(
-		t_ReturnCommandList.pool,
-		a_CreateInfo.bufferCount,
-		VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-	t_ReturnCommandList.buffers = BBnewArr(s_VulkanAllocator, a_CreateInfo.bufferCount, VkCommandBuffer);
-	t_ReturnCommandList.bufferCount = a_CreateInfo.bufferCount;
-	t_ReturnCommandList.currentFree = 0;
-
-	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
-		&t_AllocInfo,
-		t_ReturnCommandList.buffers),
-		"Vulkan: failed to allocate commandbuffers.");
 
 
 	return CommandListHandle(s_VkBackendInst.commandLists.emplace(t_ReturnCommandList));

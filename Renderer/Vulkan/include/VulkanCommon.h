@@ -56,12 +56,7 @@ namespace BB
 
 	struct VulkanCommandList
 	{
-		VkCommandPool pool;
-		VkCommandBuffer* buffers;
-		uint32_t bufferCount;
-		uint32_t currentFree;
-		VkCommandBuffer currentRecording = VK_NULL_HANDLE;
-
+		VkCommandBuffer buffer;
 		VkPipelineLayout currentPipelineLayout;
 	};
 
@@ -117,7 +112,7 @@ namespace BB
 	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	FrameIndex VulkanStartFrame();
-	void VulkanRenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
+	void VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo);
 
 	void VulkanWaitDeviceReady();
 

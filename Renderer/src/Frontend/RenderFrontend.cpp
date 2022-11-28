@@ -45,9 +45,11 @@ static PerFrameInfo s_PerFrameInfo;
 
 static void Draw3DFrame()
 {
+	RecordingCommandListHandle t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommandList, t_FrameBuffer);
+	
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
-	t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+	t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 	t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
 	t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
 	RenderCopyBufferInfo::CopyRegions t_CopyRegion;
@@ -59,6 +61,8 @@ static void Draw3DFrame()
 	t_CopyInfo.CopyRegionCount = 1;
 
 	RenderBackend::CopyBuffer(t_CopyInfo);
+
+	RenderBackend::EndCommandList(t_RecordingTransfer);
 
 	//Record rendering commands.
 	RecordingCommandListHandle t_Recording = Render::StartRecordCmds();

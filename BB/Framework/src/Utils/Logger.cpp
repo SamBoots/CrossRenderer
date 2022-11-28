@@ -1,6 +1,5 @@
 #include "Logger.h"
 #include <iostream>
-#include <cassert>
 
 using namespace BB;
 
@@ -45,5 +44,4 @@ void Logger::Log_Exception(const char* a_FileName, int a_Line, const char* a_Mes
 void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Message)
 {
 	Log_to_Console(a_FileName, a_Line, a_Message, "Critical Error: ");
-	assert(false);
 }

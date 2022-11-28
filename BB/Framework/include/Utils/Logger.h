@@ -1,4 +1,6 @@
 #pragma once
+#include <cassert>
+
 namespace BB
 {
 	enum class WarningType
@@ -12,12 +14,19 @@ namespace BB
 
 	namespace Logger
 	{
+		//Use BB_LOG for better use.
 		void Log_Message(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_WARNING for better use.
 		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_WARNING for better use.
 		void Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_WARNING for better use.
 		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_WARNING for better use.
 		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_EXCEPTION for better use.
 		void Log_Exception(const char* a_FileName, int a_Line, const char* a_Message);
+		//Use BB_ASSERT for better use.
 		void Log_Error(const char* a_FileName, int a_Line, const char* a_Message);
 	}
 }
@@ -35,7 +44,10 @@ namespace BB
 			@param a_Msg, The message that will be printed. */
 #define BB_ASSERT(a_Check, a_Msg)\
 			if (!(a_Check)) \
-				BB::Logger::Log_Error(__FILE__, __LINE__, a_Msg)\
+			{ \
+				BB::Logger::Log_Error(__FILE__, __LINE__, a_Msg);\
+				assert(false);\
+			}
 
 
 			/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.

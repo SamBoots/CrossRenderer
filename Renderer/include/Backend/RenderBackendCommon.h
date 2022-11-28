@@ -153,7 +153,7 @@ namespace BB
 
 	struct RenderCopyBufferInfo
 	{
-		CommandListHandle transferCommandHandle;
+		RecordingCommandListHandle transferCommandHandle;
 		RBufferHandle src;
 		RBufferHandle dst;
 
@@ -284,6 +284,12 @@ namespace BB
 		RENDER_QUEUE_TYPE queueType;
 		FrameIndex frameBufferSet;
 		uint32_t bufferCount;
+	};
+
+	struct ExecuteCommandsInfo
+	{
+		CommandListHandle* commandLists;
+		uint32_t commandListCount;
 	};
 
 	struct Vertex
