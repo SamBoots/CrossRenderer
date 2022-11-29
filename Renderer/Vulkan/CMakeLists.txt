@@ -20,6 +20,8 @@ add_compile_definitions(PUBLIC VK_USE_PLATFORM_XLIB_KHR)
 endif ()
 
 set (Vulkan_DLL_Source
+"include/VulkanInitializers.h"
+"include/VulkanCommon.h"
 "src/VulkanBackend.cpp"
 "src/VulkanCommon.cpp")
 
@@ -28,20 +30,15 @@ set (Vulkan_DLL_Source
 add_library (BB_VulkanDLL SHARED ${Vulkan_DLL_Source})
 
 # Export all Symbols by default (on Windows creates '.lib'+ '.dll').
-if (CMAKE_BUILD_TYPE MATCHES Debug)
 set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 
-set (Vulkan_DLL_Headers
-"include/VulkanBackend.h"
-"include/VulkanInitializers.h"
-"include/VulkanCommon.h")
+
 
 #Executable-Object
 set_target_properties ( BB_VulkanDLL PROPERTIES
-	PUBLIC_HEADER ${Vulkan_DLL_Headers}
+	PUBLIC_HEADER "include/VulkanBackend.h"
 	RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:Renderer>
 )
-endif(CMAKE_BUILD_TYPE)
 
 #Include library
 target_include_directories(BB_VulkanDLL PUBLIC
@@ -57,4 +54,4 @@ target_link_libraries(BB_VulkanDLL
     VMA)
 
 install(TARGETS BB_VulkanDLL
-DESTINATION  $<TARGET_FILE_DIR:Renderer>)
+DESTINATION $<TARGET_FILE_DIR:Renderer>)

@@ -15,13 +15,13 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Remove)
 	{
 		size2593bytesObj t_Value1{};
 		t_Value1.value = 500;
-		BB::SlotmapID t_ID1 = t_Map.insert(t_Value1);
+		BB::SlotmapHandle t_ID1 = t_Map.insert(t_Value1);
 		ASSERT_EQ(t_Map.find(t_ID1).value, t_Value1.value) << "Wrong element was likely grabbed.";
 
 		//try inserting again after an deletion.
 		size2593bytesObj t_Value2{};
 		t_Value2.value = 1000;
-		BB::SlotmapID t_ID2 = t_Map.insert(t_Value2);
+		BB::SlotmapHandle t_ID2 = t_Map.insert(t_Value2);
 		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
 
 		t_Map.erase(t_ID1);
@@ -46,7 +46,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	{
 		size2593bytesObj t_Value{};
 		t_Value.value = 500;
-		BB::SlotmapID t_ID = t_Map.insert(t_Value);
+		BB::SlotmapHandle t_ID = t_Map.insert(t_Value);
 		ASSERT_EQ(t_Map.find(t_ID).value, t_Value.value) << "Wrong element was likely grabbed.";
 
 		t_Map.erase(t_ID);
@@ -59,7 +59,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	}
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapID t_IDs[samples]{};
+	BB::SlotmapHandle t_IDs[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
@@ -104,7 +104,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator, samples);
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapID t_IDs[samples]{};
+	BB::SlotmapHandle t_IDs[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
@@ -178,7 +178,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 	t_Map.reserve(initialMapSize);
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapID t_IDs[samples]{};
+	BB::SlotmapHandle t_IDs[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
