@@ -9,6 +9,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
+	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
 
@@ -32,7 +33,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resizeWindow = VulkanResizeWindow;
 
 	a_FuncCreateInfo.startFrame = VulkanStartFrame;
-	a_FuncCreateInfo.renderFrame = VulkanRenderFrame;
+	a_FuncCreateInfo.executeCommands = VulkanExecuteCommands;
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
@@ -40,6 +41,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptorSet;
 	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
+	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
 }

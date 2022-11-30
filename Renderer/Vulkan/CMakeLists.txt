@@ -1,5 +1,6 @@
 ﻿# CMakeList.txt : Cmake project for the VulkanDLL
 
+set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 
 #Find vulkan
 find_package(Vulkan REQUIRED)
@@ -27,10 +28,6 @@ set (Vulkan_DLL_Source
 #Add source to this project's executable.
 add_library (BB_VulkanDLL SHARED ${Vulkan_DLL_Source})
 
-# Export all Symbols by default (on Windows creates '.lib'+ '.dll').
-if (CMAKE_BUILD_TYPE MATCHES Debug)
-set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
-
 set (Vulkan_DLL_Headers
 "include/VulkanBackend.h"
 "include/VulkanInitializers.h"
@@ -41,7 +38,6 @@ set_target_properties ( BB_VulkanDLL PROPERTIES
 	PUBLIC_HEADER ${Vulkan_DLL_Headers}
 	RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:Renderer>
 )
-endif(CMAKE_BUILD_TYPE)
 
 #Include library
 target_include_directories(BB_VulkanDLL PUBLIC

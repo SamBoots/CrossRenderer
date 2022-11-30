@@ -15,16 +15,17 @@ namespace BB
 	class Pool
 	{
 	public:
-		Pool() {};
 #ifdef _DEBUG
+		//Must have a constructor because of the debug destructor
+		Pool() {};
 		~Pool();
 #endif _DEBUG
 
 		//just delete these for safety, copies might cause errors.
-		Pool(const Pool&) = delete;
-		Pool(const Pool&&) = delete;
-		Pool& operator =(const Pool&) = delete;
-		Pool& operator =(Pool&&) = delete;
+		//Pool(const Pool&) = delete;
+		//Pool(const Pool&&) = delete;
+		//Pool& operator =(const Pool&) = delete;
+		//Pool& operator =(Pool&&) = delete;
 
 		void CreatePool(Allocator a_Allocator, const size_t a_Size);
 		void DestroyPool(Allocator a_Allocator);
@@ -37,6 +38,8 @@ namespace BB
 		/// Return an object to the pool.
 		/// </summary>
 		void Free(T* a_Ptr);
+
+		T* data() const { return reinterpret_cast<T*>(m_Start); }
 
 	private:
 #ifdef _DEBUG

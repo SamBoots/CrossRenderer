@@ -47,7 +47,8 @@ add_subdirectory("DirectX12")
 
 target_link_libraries(Renderer 
     BBFramework 
-    BB_DirectXDLL
+    #BB_DirectXDLL
+    BB_VulkanDLL
 )
 
 add_custom_command(TARGET Renderer POST_BUILD

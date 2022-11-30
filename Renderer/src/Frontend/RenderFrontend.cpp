@@ -34,6 +34,9 @@ struct PerFrameInfo
 };
 
 FrameBufferHandle t_FrameBuffer;
+CommandAllocatorHandle t_CommandAllocators[3];
+CommandAllocatorHandle t_TransferAllocator;
+
 CommandListHandle t_CommandLists[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
@@ -244,21 +247,26 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_PipelineCreateInfo.constantBufferCount = 1;
 
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
+	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo;
+	t_AllocatorCreateInfo.commandListCount = 10;
+	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
+	t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+	t_CommandAllocators[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+	t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+
+	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
+	t_TransferAllocator = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 
 	RenderCommandListCreateInfo t_CmdCreateInfo;
-	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
-	t_CmdCreateInfo.bufferCount = 1;
-	t_CmdCreateInfo.frameBufferSet = 0;
+	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
 	t_CommandLists[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.frameBufferSet = 1;
+	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
 	t_CommandLists[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.frameBufferSet = 2;
+	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[2];
 	t_CommandLists[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
-	t_CmdCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
-	t_CmdCreateInfo.bufferCount = 1;
-	t_CmdCreateInfo.frameBufferSet = 0;
+	t_CmdCreateInfo.commandAllocator = t_TransferAllocator;
 	t_TransferCommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
@@ -322,6 +330,8 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
+	RecordingCommandListHandle t_TransferCmd = RenderBackend::StartCommandList(t_TransferCommandList, nullptr);
+
 	{
 		RenderBufferCreateInfo t_StagingInfo;
 		t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
@@ -341,7 +351,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.vertexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+		t_CopyInfo.transferCommandHandle = t_TransferCmd;
 		t_CopyInfo.src = t_StagingBuffer;
 		t_CopyInfo.dst = t_Model.vertexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
@@ -375,7 +385,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.indexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_TransferCommandList;
+		t_CopyInfo.transferCommandHandle = t_TransferCmd;
 		t_CopyInfo.src = t_StagingBuffer;
 		t_CopyInfo.dst = t_Model.indexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
@@ -389,6 +399,8 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		//cleanup staging buffer.
 		RenderBackend::DestroyBuffer(t_StagingBuffer);
 	}
+
+	RenderBackend::EndCommandList(t_TransferCmd);
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 	t_Model.nodes = t_Model.linearNodes;
@@ -435,7 +447,13 @@ void BB::Render::StartFrame()
 
 void BB::Render::EndFrame()
 {
-	RenderBackend::RenderFrame(t_CommandLists[s_CurrentFrame], t_FrameBuffer, t_Pipeline);
+	ExecuteCommandsInfo t_ExecuteInfo;
+	t_ExecuteInfo.graphicCommandCount = 1;
+	t_ExecuteInfo.graphicCommands = &t_CommandLists[s_CurrentFrame];
+	t_ExecuteInfo.transferCommandCount = 0;
+	t_ExecuteInfo.transferCommands = nullptr;
+
+	RenderBackend::ExecuteCommands(t_ExecuteInfo);
 	RenderBackend::Update();
 }
 

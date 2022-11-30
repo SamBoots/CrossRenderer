@@ -47,7 +47,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resizeWindow = TempResizeWindow;//DX12ResizeWindow;
 
 	a_FuncCreateInfo.startFrame = DX12StartFrame;
-	a_FuncCreateInfo.renderFrame = DX12RenderFrame;
+	//a_FuncCreateInfo.renderFrame = DX12RenderFrame;
 	a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;

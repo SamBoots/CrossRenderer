@@ -20,9 +20,11 @@ namespace BB
 	//Index is the start index, Index 
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
+	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
+	using RSemaphoreHandle = FrameworkHandle<struct RSemaphoreHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
@@ -279,17 +281,24 @@ namespace BB
 		uint32_t height{};
 	};
 
-	struct RenderCommandListCreateInfo
+	struct RenderCommandAllocatorCreateInfo
 	{
 		RENDER_QUEUE_TYPE queueType;
-		FrameIndex frameBufferSet;
-		uint32_t bufferCount;
+		uint32_t commandListCount;
+	};
+
+	struct RenderCommandListCreateInfo
+	{
+		CommandAllocatorHandle commandAllocator;
 	};
 
 	struct ExecuteCommandsInfo
 	{
-		CommandListHandle* commandLists;
-		uint32_t commandListCount;
+		CommandListHandle* graphicCommands;
+		uint32_t graphicCommandCount;
+
+		CommandListHandle* transferCommands;
+		uint32_t transferCommandCount;
 	};
 
 	struct Vertex
@@ -309,6 +318,7 @@ namespace BB
 	typedef RDescriptorHandle	(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle		(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle	(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle	(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 
@@ -334,7 +344,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
-	typedef void (*PFN_RenderAPIRenderFrame)(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
+	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo);
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
@@ -343,6 +353,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(const FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
 
@@ -352,6 +363,7 @@ namespace BB
 		PFN_RenderAPICreateDescriptor createDescriptor;
 		PFN_RenderAPICreatePipeline createPipeline;
 		PFN_RenderAPICreateFrameBuffer createFrameBuffer;
+		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
 
@@ -375,15 +387,16 @@ namespace BB
 		PFN_RenderAPIResizeWindow resizeWindow;
 
 		PFN_RenderAPIStartFrame startFrame;
-		PFN_RenderAPIRenderFrame renderFrame;
+		PFN_RenderAPIExecuteCommands executeCommands;
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 
-		PFN_RenderAPIDestroyBuffer destroyBuffer;
+		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyDescriptor destroyDescriptor;
 		PFN_RenderAPIDestroyDescriptorLayout destroyDescriptorLayout;
-		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyFrameBuffer destroyFrameBuffer;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;
+		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
+		PFN_RenderAPIDestroyBuffer destroyBuffer;
 	};
 }

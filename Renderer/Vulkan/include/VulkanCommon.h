@@ -54,12 +54,6 @@ namespace BB
 		uint32_t frameBufferCount;
 	};
 
-	struct VulkanCommandList
-	{
-		VkCommandBuffer buffer;
-		VkPipelineLayout currentPipelineLayout;
-	};
-
 	struct VulkanDevice
 	{
 		VkDevice logicalDevice;
@@ -89,8 +83,10 @@ namespace BB
 
 	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+	RSemaphoreHandle VulkanCreateSemaphore();
 
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
 	void VulkanResetCommandList(const CommandListHandle a_CmdHandle);
@@ -116,9 +112,11 @@ namespace BB
 
 	void VulkanWaitDeviceReady();
 
+	void VulkanDestroySemaphore(const RSemaphoreHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
 	void VulkanDestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 	void VulkanDestroyDescriptorSet(const RDescriptorHandle a_Handle);
+	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void VulkanDestroyCommandList(const CommandListHandle a_Handle);
 	void VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void VulkanDestroyPipeline(const PipelineHandle a_Handle);

@@ -48,6 +48,11 @@ PipelineHandle BB::RenderBackend::CreatePipeline(const RenderPipelineCreateInfo&
 	return s_ApiFunc.createPipeline(m_TempAllocator, a_CreateInfo);
 }
 
+CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
+{
+	return s_ApiFunc.createCommandAllocator(a_CreateInfo);
+}
+
 CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createCommandList(m_TempAllocator, a_CreateInfo);
@@ -133,9 +138,9 @@ FrameIndex BB::RenderBackend::StartFrame()
 	return s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
 }
 
-void BB::RenderBackend::RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
+void BB::RenderBackend::ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo)
 {
-	s_ApiFunc.renderFrame(m_TempAllocator, a_CommandHandle, a_FrameBufferHandle, a_PipeHandle);
+	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteInfo);
 }
 
 void BB::RenderBackend::Update()

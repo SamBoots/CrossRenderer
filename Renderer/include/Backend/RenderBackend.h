@@ -15,6 +15,7 @@ namespace BB
 		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
+		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
@@ -36,7 +37,7 @@ namespace BB
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 		FrameIndex StartFrame();
-		void RenderFrame(const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
+		void ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo);
 
 		void Update();
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
