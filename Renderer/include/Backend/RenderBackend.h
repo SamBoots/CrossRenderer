@@ -24,9 +24,10 @@ namespace BB
 		void* MapMemory(const RBufferHandle a_Handle);
 		void UnmapMemory(const RBufferHandle a_Handle);
 
-		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle);
+		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
 		void ResetCommandList(const CommandListHandle a_CmdHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
+		void StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -38,6 +39,7 @@ namespace BB
 
 		FrameIndex StartFrame();
 		void ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo);
+		void PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 		void Update();
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);

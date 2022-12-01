@@ -41,6 +41,8 @@ CommandListHandle t_CommandLists[3];
 CommandListHandle t_TransferCommandList;
 PipelineHandle t_Pipeline;
 
+RBufferHandle t_UploadBuffer;
+
 static FrameIndex s_CurrentFrame;
 
 static RendererInst s_RendererInst;
@@ -48,7 +50,7 @@ static PerFrameInfo s_PerFrameInfo;
 
 static void Draw3DFrame()
 {
-	RecordingCommandListHandle t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommandList, t_FrameBuffer);
+	RecordingCommandListHandle t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommandList);
 	
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
@@ -330,7 +332,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
-	RecordingCommandListHandle t_TransferCmd = RenderBackend::StartCommandList(t_TransferCommandList, nullptr);
+	RecordingCommandListHandle t_TransferCmd = RenderBackend::StartCommandList(t_TransferCommandList);
 
 	{
 		RenderBufferCreateInfo t_StagingInfo;
@@ -429,15 +431,15 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 
 RecordingCommandListHandle BB::Render::StartRecordCmds()
 {
-	return RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame], t_FrameBuffer);
+	RecordingCommandListHandle t_Recording = RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame]);
+	RenderBackend::StartRenderPass(t_Recording, t_FrameBuffer);
+	return t_Recording;
 }
 
 void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
 {
 	RenderBackend::EndCommandList(a_Handle);
 }
-
-
 
 void BB::Render::StartFrame()
 {
@@ -454,6 +456,10 @@ void BB::Render::EndFrame()
 	t_ExecuteInfo.transferCommands = nullptr;
 
 	RenderBackend::ExecuteCommands(t_ExecuteInfo);
+
+	PresentFrameInfo t_PresentFrame{};
+
+	RenderBackend::PresentFrame(t_PresentFrame);
 	RenderBackend::Update();
 }
 

@@ -83,9 +83,14 @@ void BB::RenderBackend::UnmapMemory(const RBufferHandle a_Handle)
 	s_ApiFunc.unmapMemory(a_Handle);
 }
 
-RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_FrameHandle)
+RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle)
 {
-	return s_ApiFunc.startCommandList(a_CmdHandle, a_FrameHandle);
+	return s_ApiFunc.startCommandList(a_CmdHandle);
+}
+
+void BB::RenderBackend::StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
+{
+	s_ApiFunc.startRenderPass(a_RecordingCmdHandle, a_Framebuffer);
 }
 
 void BB::RenderBackend::ResetCommandList(const CommandListHandle a_CmdHandle)
@@ -141,6 +146,11 @@ FrameIndex BB::RenderBackend::StartFrame()
 void BB::RenderBackend::ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo)
 {
 	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteInfo);
+}
+
+void BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
+{
+	s_ApiFunc.presentFrame(m_TempAllocator, a_PresentInfo);
 }
 
 void BB::RenderBackend::Update()

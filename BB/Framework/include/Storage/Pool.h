@@ -21,11 +21,13 @@ namespace BB
 		~Pool();
 #endif _DEBUG
 
-		//just delete these for safety, copies might cause errors.
-		//Pool(const Pool&) = delete;
-		//Pool(const Pool&&) = delete;
-		//Pool& operator =(const Pool&) = delete;
-		//Pool& operator =(Pool&&) = delete;
+		//We do no copying
+		Pool(const Pool&) = delete;
+		Pool& operator =(const Pool&) = delete;
+
+		//We do moving however
+		Pool(Pool&& a_Pool);
+		Pool& operator =(Pool&& a_Rhs);
 
 		void CreatePool(Allocator a_Allocator, const size_t a_Size);
 		void DestroyPool(Allocator a_Allocator);
@@ -61,6 +63,46 @@ namespace BB
 		BB_ASSERT(m_Start == nullptr, "Memory pool was not destroyed before it went out of scope!");
 	}
 #endif // _DEBUG
+
+	template<typename T>
+	inline Pool<T>::Pool(Pool&& a_Pool)
+	{
+		m_Start = a_Pool.m_Start;
+		m_Pool = a_Pool.m_Pool;
+		m_Start = nullptr;
+		m_Pool = nullptr;
+
+#ifdef _DEBUG
+		m_Size = a_Pool.m_Size;
+		m_Capacity = a_Pool.m_Capacity;
+		m_Allocator = a_Pool.m_Allocator;
+		a_Pool.m_Size = 0;
+		a_Pool.m_Capacity = 0;
+		a_Pool.m_Allocator.allocator = nullptr;
+		a_Pool.m_Allocator.func = nullptr;
+#endif // _DEBUG
+	}
+
+	template<typename T>
+	inline Pool<T>& Pool<T>::operator=(Pool&& a_Rhs)
+	{
+		m_Start = a_Rhs.m_Start;
+		m_Pool = a_Rhs.m_Pool;
+		a_Rhs.m_Start = nullptr;
+		a_Rhs.m_Pool = nullptr;
+
+#ifdef _DEBUG
+		m_Size = a_Rhs.m_Size;
+		m_Capacity = a_Rhs.m_Capacity;
+		m_Allocator = a_Rhs.m_Allocator;
+		a_Rhs.m_Size = 0;
+		a_Rhs.m_Capacity = 0;
+		a_Rhs.m_Allocator.allocator = nullptr;
+		a_Rhs.m_Allocator.func = nullptr;
+#endif // _DEBUG
+
+		return *this;
+	}
 
 	template<typename T>
 	inline void Pool<T>::CreatePool(Allocator a_Allocator, const size_t a_Size)

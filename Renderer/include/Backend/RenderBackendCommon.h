@@ -301,6 +301,12 @@ namespace BB
 		uint32_t transferCommandCount;
 	};
 
+	struct PresentFrameInfo
+	{
+		RSemaphoreHandle* waitSemaphores;
+		uint32_t waitSemaphoreCount;
+	};
+
 	struct Vertex
 	{
 		float pos[2]{};
@@ -323,9 +329,10 @@ namespace BB
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 
 	//Commandlist handling
-	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
+	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIResetCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
+	typedef void (*PFN_RenderAPIStartRenderPass)(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -345,6 +352,9 @@ namespace BB
 	
 	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
 	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo);
+	typedef void (*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
+
+
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
 	//Deletion
@@ -370,6 +380,7 @@ namespace BB
 		PFN_RenderAPIStartCommandList startCommandList;
 		PFN_RenderAPIResetCommandList resetCommandList;
 		PFN_RenderAPIEndCommandList endCommandList;
+		PFN_RenderAPIStartRenderPass startRenderPass;
 		PFN_RenderAPIBindPipeline bindPipeline;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
 		PFN_RenderAPIBindIndexBuffer bindIndexBuffer;
@@ -388,6 +399,8 @@ namespace BB
 
 		PFN_RenderAPIStartFrame startFrame;
 		PFN_RenderAPIExecuteCommands executeCommands;
+		PFN_RenderAPIPresentFrame presentFrame;
+
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 
 		PFN_RenderAPIDestroyBackend destroyBackend;
