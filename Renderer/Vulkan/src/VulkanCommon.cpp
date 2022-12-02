@@ -1065,53 +1065,53 @@ FrameIndex BB::VulkanStartFrame()
 	return t_CurrentFrame;
 }
 
-void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo)
+void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
 	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-	VkSubmitInfo t_SubmitInfos[2]{}; //0 = graphic commands, 1 = transfer commands.
+	VkSubmitInfo* t_SubmitInfos = BBnewArr(
+		a_TempAllocator,
+		a_ExecuteInfoCount,
+		VkSubmitInfo);
 
+	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
-		VkCommandBuffer* t_GraphicBuffers = BBnewArr(a_TempAllocator,
-			a_ExecuteInfo.graphicCommandCount,
+		VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+			a_ExecuteInfos[i].commandCount,
 			VkCommandBuffer);
-
-		for (uint32_t i = 0; i < a_ExecuteInfo.graphicCommandCount; i++)
+		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
-			t_GraphicBuffers[i] = s_VkBackendInst.commandLists[a_ExecuteInfo.graphicCommands[i].handle].Buffer();
+			t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
 		}
-		t_SubmitInfos[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		t_SubmitInfos[0].waitSemaphoreCount = 1;
-		t_SubmitInfos[0].pWaitSemaphores = &s_VkBackendInst.swapChain.renderSems[t_CurrentFrame];
-		t_SubmitInfos[0].pWaitDstStageMask = &t_WaitStagesMask;
-		t_SubmitInfos[0].signalSemaphoreCount = 1;
-		t_SubmitInfos[0].pSignalSemaphores = &s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
-		t_SubmitInfos[0].commandBufferCount = a_ExecuteInfo.graphicCommandCount;
-		t_SubmitInfos[0].pCommandBuffers = t_GraphicBuffers;
+
+		const uint32_t t_WaitSem = a_ExecuteInfos[i].waitSemaphoresCount;
+		const uint32_t t_SignalSem = a_ExecuteInfos[i].signalSemaphoresCount;
+		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+			t_WaitSem + t_SignalSem,
+			VkSemaphore);
+		for (uint32_t j = 0; j < t_WaitSem; j++)
+		{
+			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].waitSemaphores[j].ptrHandle);
+		}
+		for (uint32_t j = t_WaitSem; j < t_WaitSem + t_SignalSem; j++)
+		{
+			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].signalSemaphores[j].ptrHandle);
+		}
+
+		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		t_SubmitInfos[i].waitSemaphoreCount = t_WaitSem;
+		t_SubmitInfos[i].pWaitSemaphores = t_Semaphores;
+		t_SubmitInfos[i].pWaitDstStageMask = &t_WaitStagesMask;
+		t_SubmitInfos[i].signalSemaphoreCount = t_SignalSem;
+		t_SubmitInfos[i].pSignalSemaphores = &t_Semaphores[t_WaitSem]; //Get the semaphores after all the wait sems
+		t_SubmitInfos[i].commandBufferCount = a_ExecuteInfos[i].commandCount;
+		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
 	}
 
-	{
-		VkCommandBuffer* t_TransferBuffers = BBnewArr(a_TempAllocator,
-			a_ExecuteInfo.transferCommandCount,
-			VkCommandBuffer);
-
-		for (uint32_t i = 0; i < a_ExecuteInfo.transferCommandCount; i++)
-		{
-			t_TransferBuffers[i] = s_VkBackendInst.commandLists[a_ExecuteInfo.transferCommands[i].handle].Buffer();
-		}
-		t_SubmitInfos[1].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		t_SubmitInfos[1].waitSemaphoreCount = 0;
-		t_SubmitInfos[1].pWaitSemaphores = nullptr;
-		t_SubmitInfos[1].pWaitDstStageMask = &t_WaitStagesMask;
-		t_SubmitInfos[1].signalSemaphoreCount = 0;
-		t_SubmitInfos[1].pSignalSemaphores = nullptr;
-		t_SubmitInfos[1].commandBufferCount = a_ExecuteInfo.transferCommandCount;
-		t_SubmitInfos[1].pCommandBuffers = t_TransferBuffers;
-	}
-
+	//QUEUE IS WRONG
 	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
-		2,
+		a_ExecuteInfoCount,
 		t_SubmitInfos,
 		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
 		"Vulkan: failed to submit to queue.");
@@ -1119,22 +1119,25 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsI
 
 void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
 {
-	VkSemaphore* t_Semaphore = BBnewArr(a_TempAllocator,
-		a_PresentInfo.waitSemaphoreCount + 1,
-		VkSemaphore);
-
-	uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
-
-	t_Semaphore[0] = s_VkBackendInst.swapChain.presentSems[t_CurrentFrame];
-	for (uint32_t i = 1; i < a_PresentInfo.waitSemaphoreCount + 1; i++)
+	VkSemaphore* t_Semaphores = nullptr;
+	if (a_PresentInfo.waitSemaphores != nullptr)
 	{
-		t_Semaphore[i] = reinterpret_cast<VkSemaphore>(a_PresentInfo.waitSemaphores[i].ptrHandle);
+		t_Semaphores = BBnewArr(a_TempAllocator,
+			a_PresentInfo.waitSemaphoreCount,
+			VkSemaphore);
+
+		for (uint32_t i = 0; i < a_PresentInfo.waitSemaphoreCount; i++)
+		{
+			t_Semaphores[i] = reinterpret_cast<VkSemaphore>(a_PresentInfo.waitSemaphores[i].ptrHandle);
+		}
 	}
+
+	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = t_Semaphore;
+	t_PresentInfo.waitSemaphoreCount = a_PresentInfo.waitSemaphoreCount;
+	t_PresentInfo.pWaitSemaphores = t_Semaphores;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
 	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
@@ -1641,9 +1644,14 @@ RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_
 	return RecordingCommandListHandle(&t_Cmdlist);
 }
 
-void BB::VulkanResetCommandList(const CommandListHandle a_CmdHandle)
+void BB::VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
-	//TODO, we don't reset the pools.
+	//Wait for fence.
+	VkCommandAllocator* t_CmdAllocator = reinterpret_cast<VkCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle);
+	
+	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
+		t_CmdAllocator->pool,
+		0);
 }
 
 void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)

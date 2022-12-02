@@ -17,15 +17,16 @@ namespace BB
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
-		
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
+		RSemaphoreHandle CreatSemaphore();
+		
 		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 		void CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo);
 		void* MapMemory(const RBufferHandle a_Handle);
 		void UnmapMemory(const RBufferHandle a_Handle);
 
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
-		void ResetCommandList(const CommandListHandle a_CmdHandle);
+		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -38,7 +39,7 @@ namespace BB
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 		FrameIndex StartFrame();
-		void ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo);
+		void ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 		void PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 		void Update();
@@ -52,8 +53,10 @@ namespace BB
 		void DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 		void DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
+		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
+		void DestroySemaphore(const RSemaphoreHandle a_Handle);
 	};
 }

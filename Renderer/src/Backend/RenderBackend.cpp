@@ -63,6 +63,11 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
+RSemaphoreHandle BB::RenderBackend::CreatSemaphore()
+{
+	return s_ApiFunc.createSemaphore();
+}
+
 void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
@@ -93,9 +98,9 @@ void BB::RenderBackend::StartRenderPass(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.startRenderPass(a_RecordingCmdHandle, a_Framebuffer);
 }
 
-void BB::RenderBackend::ResetCommandList(const CommandListHandle a_CmdHandle)
+void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
-	s_ApiFunc.resetCommandList(a_CmdHandle);
+	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);
 }
 
 void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
@@ -143,9 +148,9 @@ FrameIndex BB::RenderBackend::StartFrame()
 	return s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
 }
 
-void BB::RenderBackend::ExecuteCommands(const ExecuteCommandsInfo& a_ExecuteInfo)
+void BB::RenderBackend::ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteInfo);
+	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
 }
 
 void BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
@@ -193,6 +198,11 @@ void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)
 	s_ApiFunc.destroyFrameBuffer(a_Handle);
 }
 
+void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+{
+	s_ApiFunc.destroyCommandAllocator(a_Handle);
+}
+
 void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
 {
 	s_ApiFunc.destroyPipeline(a_Handle);
@@ -206,4 +216,9 @@ void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroySemaphore(const RSemaphoreHandle a_Handle)
+{
+	s_ApiFunc.destroySemaphore(a_Handle);
 }

@@ -88,8 +88,9 @@ namespace BB
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RSemaphoreHandle VulkanCreateSemaphore();
 
+	void VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
+
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);
-	void VulkanResetCommandList(const CommandListHandle a_CmdHandle);
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -109,7 +110,7 @@ namespace BB
 	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	FrameIndex VulkanStartFrame();
-	void VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo);
+	void VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 	void VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 	void VulkanWaitDeviceReady();

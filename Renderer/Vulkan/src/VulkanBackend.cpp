@@ -12,9 +12,10 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
+	a_FuncCreateInfo.createSemaphore = VulkanCreateSemaphore;
 
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
-	a_FuncCreateInfo.resetCommandList = VulkanResetCommandList;
+	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
 	a_FuncCreateInfo.startRenderPass = VulkanStartRenderPass;
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
@@ -47,4 +48,5 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
+	a_FuncCreateInfo.destroySemaphore = VulkanDestroySemaphore;
 }

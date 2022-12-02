@@ -294,11 +294,12 @@ namespace BB
 
 	struct ExecuteCommandsInfo
 	{
-		CommandListHandle* graphicCommands;
-		uint32_t graphicCommandCount;
-
-		CommandListHandle* transferCommands;
-		uint32_t transferCommandCount;
+		CommandListHandle* commands;
+		uint32_t commandCount;
+		RSemaphoreHandle* waitSemaphores;
+		uint32_t waitSemaphoresCount;
+		RSemaphoreHandle* signalSemaphores;
+		uint32_t signalSemaphoresCount;
 	};
 
 	struct PresentFrameInfo
@@ -327,10 +328,12 @@ namespace BB
 	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle	(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
+	typedef RSemaphoreHandle	(*PFN_RenderAPICreateSemaphore)();
+
+	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 	//Commandlist handling
 	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
-	typedef void (*PFN_RenderAPIResetCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIStartRenderPass)(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -351,7 +354,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
-	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo& a_ExecuteInfo);
+	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 	typedef void (*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 
@@ -366,6 +369,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroySemaphore)(const RSemaphoreHandle a_Handle);
 
 	struct RenderAPIFunctions
 	{
@@ -376,9 +380,10 @@ namespace BB
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
+		PFN_RenderAPICreateSemaphore createSemaphore;
 
 		PFN_RenderAPIStartCommandList startCommandList;
-		PFN_RenderAPIResetCommandList resetCommandList;
+		PFN_RenderAPIResetCommandAllocator resetCommandAllocator;
 		PFN_RenderAPIEndCommandList endCommandList;
 		PFN_RenderAPIStartRenderPass startRenderPass;
 		PFN_RenderAPIBindPipeline bindPipeline;
@@ -411,5 +416,6 @@ namespace BB
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
+		PFN_RenderAPIDestroySemaphore destroySemaphore;
 	};
 }
