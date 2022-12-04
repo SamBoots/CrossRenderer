@@ -17,10 +17,6 @@ namespace BB
 		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
 		void DestroyDrawObject(const DrawObjectHandle a_Handle);
 
-
-		RecordingCommandListHandle StartRecordCmds();
-		void EndRecordCmds(const RecordingCommandListHandle a_Handle);
-
 		void StartFrame();
 		void EndFrame();
 

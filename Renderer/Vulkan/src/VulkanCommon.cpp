@@ -1065,7 +1065,7 @@ FrameIndex BB::VulkanStartFrame()
 	return t_CurrentFrame;
 }
 
-void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, const RENDER_QUEUE_TYPE a_QueueType)
 {
 	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1109,12 +1109,30 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsI
 		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
 	}
 
-	//QUEUE IS WRONG
-	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
-		a_ExecuteInfoCount,
-		t_SubmitInfos,
-		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
-		"Vulkan: failed to submit to queue.");
+	switch (a_QueueType)
+	{
+	case RENDER_QUEUE_TYPE::GRAPHICS:
+		//QUEUE IS WRONG
+		VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
+			a_ExecuteInfoCount,
+			t_SubmitInfos,
+			VK_NULL_HANDLE),
+			//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
+			"Vulkan: failed to submit to queue.");
+		break;
+	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+		//QUEUE IS WRONG
+		VKASSERT(vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue,
+			a_ExecuteInfoCount,
+			t_SubmitInfos,
+			VK_NULL_HANDLE),
+			//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
+			"Vulkan: failed to submit to queue.");
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: QueueType not supported.");
+		break;
+	}
 }
 
 void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
@@ -1136,8 +1154,8 @@ void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a
 
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	t_PresentInfo.waitSemaphoreCount = a_PresentInfo.waitSemaphoreCount;
-	t_PresentInfo.pWaitSemaphores = t_Semaphores;
+	//t_PresentInfo.waitSemaphoreCount = a_PresentInfo.waitSemaphoreCount;
+	//t_PresentInfo.pWaitSemaphores = t_Semaphores;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
 	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;

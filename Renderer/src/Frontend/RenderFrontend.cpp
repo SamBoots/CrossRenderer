@@ -72,8 +72,11 @@ static void Draw3DFrame()
 
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 
+
+
 	//Record rendering commands.
-	RecordingCommandListHandle t_Recording = Render::StartRecordCmds();
+	RecordingCommandListHandle t_Recording = RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame]);
+	RenderBackend::StartRenderPass(t_Recording, t_FrameBuffer);
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects[0].modelHandle;
 	Model& t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
@@ -114,8 +117,7 @@ static void Draw3DFrame()
 			}
 		}
 	}
-
-	Render::EndRecordCmds(t_Recording);
+	RenderBackend::EndCommandList(t_Recording);
 }
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
@@ -464,18 +466,6 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 	s_RendererInst.drawObjects.erase(a_Handle.handle);
 }
 
-RecordingCommandListHandle BB::Render::StartRecordCmds()
-{
-	RecordingCommandListHandle t_Recording = RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame]);
-	RenderBackend::StartRenderPass(t_Recording, t_FrameBuffer);
-	return t_Recording;
-}
-
-void BB::Render::EndRecordCmds(const RecordingCommandListHandle a_Handle)
-{
-	RenderBackend::EndCommandList(a_Handle);
-}
-
 void BB::Render::StartFrame()
 {
 	s_CurrentFrame = RenderBackend::StartFrame();
@@ -505,8 +495,8 @@ void BB::Render::EndFrame()
 	}
 
 	t_ExecuteInfos[0] = {};
-	t_ExecuteInfos[0].commands = t_TransferCommandList;
-	t_ExecuteInfos[0].commandCount = 1;
+	t_ExecuteInfos[0].commands = t_TransferCommands;
+	t_ExecuteInfos[0].commandCount = t_TransferCommandCount;
 	t_ExecuteInfos[0].signalSemaphores = &t_TransferSemaphores[s_CurrentFrame];
 	t_ExecuteInfos[0].signalSemaphoresCount = 1;
 
@@ -516,8 +506,9 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[1].waitSemaphores = &t_TransferSemaphores[s_CurrentFrame];
 	t_ExecuteInfos[1].waitSemaphoresCount = 1;
 
-	RenderBackend::ExecuteCommands(t_ExecuteInfos, 2);
+	RenderBackend::ExecuteCommands(&t_ExecuteInfos[0], 1, RENDER_QUEUE_TYPE::TRANSFER_COPY);
 
+	RenderBackend::ExecuteCommands(&t_ExecuteInfos[1], 1, RENDER_QUEUE_TYPE::GRAPHICS);
 	PresentFrameInfo t_PresentFrame{};
 
 	RenderBackend::PresentFrame(t_PresentFrame);

@@ -354,7 +354,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
-	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, const RENDER_QUEUE_TYPE a_QueueType);
 	typedef void (*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 
