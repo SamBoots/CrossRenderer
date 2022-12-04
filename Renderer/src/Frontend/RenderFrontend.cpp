@@ -506,9 +506,9 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[1].waitSemaphores = &t_TransferSemaphores[s_CurrentFrame];
 	t_ExecuteInfos[1].waitSemaphoresCount = 1;
 
-	RenderBackend::ExecuteCommands(&t_ExecuteInfos[0], 1, RENDER_QUEUE_TYPE::TRANSFER_COPY);
+	RenderBackend::ExecuteTransferCommands(&t_ExecuteInfos[0], 1);
 
-	RenderBackend::ExecuteCommands(&t_ExecuteInfos[1], 1, RENDER_QUEUE_TYPE::GRAPHICS);
+	RenderBackend::ExecuteGraphicCommands(&t_ExecuteInfos[1], 1);
 	PresentFrameInfo t_PresentFrame{};
 
 	RenderBackend::PresentFrame(t_PresentFrame);

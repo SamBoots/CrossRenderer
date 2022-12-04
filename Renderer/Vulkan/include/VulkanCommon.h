@@ -110,7 +110,8 @@ namespace BB
 	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	FrameIndex VulkanStartFrame();
-	void VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, const RENDER_QUEUE_TYPE a_QueueType);
+	void VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	void VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 	void VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 	void VulkanWaitDeviceReady();

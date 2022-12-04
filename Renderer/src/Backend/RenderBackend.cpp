@@ -148,9 +148,14 @@ FrameIndex BB::RenderBackend::StartFrame()
 	return s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
 }
 
-void BB::RenderBackend::ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, const RENDER_QUEUE_TYPE a_QueueType)
+void BB::RenderBackend::ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount, a_QueueType);
+	s_ApiFunc.executeGraphicCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
+}
+
+void BB::RenderBackend::ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+{
+	s_ApiFunc.executeTransferCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
 }
 
 void BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)

@@ -35,7 +35,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resizeWindow = VulkanResizeWindow;
 
 	a_FuncCreateInfo.startFrame = VulkanStartFrame;
-	a_FuncCreateInfo.executeCommands = VulkanExecuteCommands;
+	a_FuncCreateInfo.executeGraphicCommands = VulkanExecuteGraphicCommands;
+	a_FuncCreateInfo.executeTransferCommands = VulkanExecuteTransferCommands;
 	a_FuncCreateInfo.presentFrame = VulkanPresentFrame;
 
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;

@@ -1065,7 +1065,7 @@ FrameIndex BB::VulkanStartFrame()
 	return t_CurrentFrame;
 }
 
-void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, const RENDER_QUEUE_TYPE a_QueueType)
+void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1109,30 +1109,63 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsI
 		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
 	}
 
-	switch (a_QueueType)
+	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
+		a_ExecuteInfoCount,
+		t_SubmitInfos,
+		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
+		"Vulkan: failed to submit to queue.");
+}
+
+void BB::VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+{
+	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+
+	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	VkSubmitInfo* t_SubmitInfos = BBnewArr(
+		a_TempAllocator,
+		a_ExecuteInfoCount,
+		VkSubmitInfo);
+
+	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:
-		//QUEUE IS WRONG
-		VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
-			a_ExecuteInfoCount,
-			t_SubmitInfos,
-			VK_NULL_HANDLE),
-			//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
-			"Vulkan: failed to submit to queue.");
-		break;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		//QUEUE IS WRONG
-		VKASSERT(vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue,
-			a_ExecuteInfoCount,
-			t_SubmitInfos,
-			VK_NULL_HANDLE),
-			//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
-			"Vulkan: failed to submit to queue.");
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan: QueueType not supported.");
-		break;
+		VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+			a_ExecuteInfos[i].commandCount,
+			VkCommandBuffer);
+		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
+		{
+			t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
+		}
+
+		const uint32_t t_WaitSem = a_ExecuteInfos[i].waitSemaphoresCount;
+		const uint32_t t_SignalSem = a_ExecuteInfos[i].signalSemaphoresCount;
+		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+			t_WaitSem + t_SignalSem,
+			VkSemaphore);
+		for (uint32_t j = 0; j < t_WaitSem; j++)
+		{
+			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].waitSemaphores[j].ptrHandle);
+		}
+		for (uint32_t j = t_WaitSem; j < t_WaitSem + t_SignalSem; j++)
+		{
+			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].signalSemaphores[j].ptrHandle);
+		}
+
+		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		t_SubmitInfos[i].waitSemaphoreCount = t_WaitSem;
+		t_SubmitInfos[i].pWaitSemaphores = t_Semaphores;
+		t_SubmitInfos[i].pWaitDstStageMask = &t_WaitStagesMask;
+		t_SubmitInfos[i].signalSemaphoreCount = t_SignalSem;
+		t_SubmitInfos[i].pSignalSemaphores = &t_Semaphores[t_WaitSem]; //Get the semaphores after all the wait sems
+		t_SubmitInfos[i].commandBufferCount = a_ExecuteInfos[i].commandCount;
+		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
 	}
+
+	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue,
+		a_ExecuteInfoCount,
+		t_SubmitInfos,
+		VK_NULL_HANDLE),
+		//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
+		"Vulkan: failed to submit to queue.");
 }
 
 void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
