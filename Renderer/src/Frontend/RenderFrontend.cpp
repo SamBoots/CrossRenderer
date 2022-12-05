@@ -78,7 +78,7 @@ static void Draw3DFrame()
 	RecordingCommandListHandle t_Recording = RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame]);
 	RenderBackend::StartRenderPass(t_Recording, t_FrameBuffer);
 	
-	RModelHandle t_CurrentModel = s_RendererInst.drawObjects[0].modelHandle;
+	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model& t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
 	RenderBackend::BindPipeline(t_Recording, t_Model.pipelineHandle);
 
@@ -452,13 +452,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_Model.linearNodeCount = 1;
 	t_Model.nodeCount = 1;
 
-	return RModelHandle(s_RendererInst.models.insert(t_Model));
+	return RModelHandle(s_RendererInst.models.insert(t_Model).handle);
 }
 
 DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle)
 {
 	DrawObject t_DrawObject{ a_Model, a_TransformHandle };
-	return s_RendererInst.drawObjects.emplace(t_DrawObject);
+	return DrawObjectHandle(s_RendererInst.drawObjects.emplace(t_DrawObject).handle);
 }
 
 void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)

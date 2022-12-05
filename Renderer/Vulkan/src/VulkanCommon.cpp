@@ -1382,7 +1382,7 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 			);
 	}
 
-	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer));
+	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer).handle);
 }
 
 RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
@@ -1615,7 +1615,7 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 	}
 
 
-	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline));
+	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline).handle);
 }
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
@@ -1664,7 +1664,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	BB_ASSERT(a_CreateInfo.commandAllocator.handle != NULL, "Sending a commandallocator handle that is null!");
-	return s_VkBackendInst.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList());
+	return CommandListHandle(s_VkBackendInst.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
 }
 
 RSemaphoreHandle BB::VulkanCreateSemaphore()
