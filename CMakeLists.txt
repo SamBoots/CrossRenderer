@@ -60,7 +60,7 @@ message("RELEASE BUILD SELECTED")
 add_compile_definitions(PUBLIC _RELEASE)
 else()
 message(FATAL_ERROR "UNKNOWN BUILD TYPE")
-endif(CMAKE_BUILD_TYPE)
+endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 if(WIN32)
 elseif(UNIX)

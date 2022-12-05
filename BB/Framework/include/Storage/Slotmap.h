@@ -2,6 +2,8 @@
 #include "Utils/Utils.h"
 #include "BBMemory.h"
 
+#include "Common.h"
+
 namespace BB
 {
 	namespace Slotmap_Specs
@@ -10,14 +12,9 @@ namespace BB
 		constexpr const size_t standardSize = 8;
 	}
 
-	//union SlotmapID
-	//{
-	//	uint64_t ID;
-	//	uint32_t index;
-	//	uint32_t gen;
-	//};
-
-	typedef uint64_t SlotmapID;
+	//first 32 bytes is the Index.
+	//second 32 bytes is the generation.
+	using SlotmapHandle = FrameworkHandle<struct SlotmapHandleTag>;
 
 	template <typename T>
 	class Slotmap
@@ -62,13 +59,13 @@ namespace BB
 
 		Slotmap<T>& operator=(const Slotmap<T>& a_Rhs);
 		Slotmap<T>& operator=(Slotmap<T>&& a_Rhs) noexcept;
-		T& operator[](const SlotmapID a_Index) const;
+		T& operator[](const SlotmapHandle a_Handle) const;
 
-		SlotmapID insert(T& a_Obj);
+		SlotmapHandle insert(T& a_Obj);
 		template <class... Args>
-		SlotmapID emplace(Args&&... a_Args);
-		T& find(SlotmapID a_ID) const;
-		void erase(SlotmapID a_ID);
+		SlotmapHandle emplace(Args&&... a_Args);
+		T& find(SlotmapHandle a_Handle) const;
+		void erase(SlotmapHandle a_Handle);
 
 		void reserve(size_t a_Capacity);
 
@@ -81,19 +78,22 @@ namespace BB
 		size_t capacity() const { return m_Capacity; }
 
 	private:
+		void CheckGen(const SlotmapHandle a_Handle) const;
+
 		void grow();
 		//This function also changes the m_Capacity value.
 		void reallocate(size_t a_NewCapacity);
 
 		Allocator m_Allocator;
 
-		SlotmapID* m_IdArr;
+		SlotmapHandle* m_IdArr;
 		T* m_ObjArr;
 		uint32_t* m_EraseArr;
 
 		size_t m_Capacity = 128;
 		size_t m_Size = 0;
-		SlotmapID m_NextFree;
+		//index to m_IdArr
+		uint32_t m_NextFree;
 	};
 
 	template<typename T>
@@ -107,13 +107,14 @@ namespace BB
 		m_Allocator = a_Allocator;
 		m_Capacity = a_Size;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapHandle*>(BBalloc(m_Allocator, (sizeof(SlotmapHandle) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapHandle) * m_Capacity));
 		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		for (size_t i = 0; i < m_Capacity - 1; ++i)
 		{
-			m_IdArr[i] = i + 1;
+			m_IdArr[i].index = i + 1;
+			m_IdArr[i].extraIndex = 0;
 		}
 		m_NextFree = 0;
 	}
@@ -126,8 +127,8 @@ namespace BB
 		m_Size = a_Map.m_Size;
 		m_NextFree = a_Map.m_NextFree;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapHandle*>(BBalloc(m_Allocator, (sizeof(SlotmapHandle) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapHandle) * m_Capacity));
 		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Map.m_IdArr, m_Capacity);
@@ -148,7 +149,7 @@ namespace BB
 
 		a_Map.m_Capacity = 0;
 		a_Map.m_Size = 0;
-		a_Map.m_NextFree = 0;
+		a_Map.m_NextFree = 1;
 		a_Map.m_IdArr = nullptr;
 		a_Map.m_ObjArr = nullptr;
 		a_Map.m_EraseArr = nullptr;
@@ -183,8 +184,8 @@ namespace BB
 		m_Size = a_Rhs.m_Size;
 		m_NextFree = a_Rhs.m_NextFree;
 
-		m_IdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
-		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapID) * m_Capacity));
+		m_IdArr = reinterpret_cast<SlotmapHandle*>(BBalloc(m_Allocator, (sizeof(SlotmapHandle) + sizeof(T) + sizeof(uint32_t)) * m_Capacity));
+		m_ObjArr = reinterpret_cast<T*>(Pointer::Add(m_IdArr, sizeof(SlotmapHandle) * m_Capacity));
 		m_EraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(m_ObjArr, sizeof(T) * m_Capacity));
 
 		BB::Memory::Copy(m_IdArr, a_Rhs.m_IdArr, m_Capacity);
@@ -209,7 +210,7 @@ namespace BB
 
 		a_Rhs.m_Capacity = 0;
 		a_Rhs.m_Size = 0;
-		a_Rhs.m_NextFree = 0;
+		a_Rhs.m_NextFree = 1;
 		a_Rhs.m_IdArr = nullptr;
 		a_Rhs.m_ObjArr = nullptr;
 		a_Rhs.m_EraseArr = nullptr;;
@@ -220,46 +221,52 @@ namespace BB
 	}
 
 	template<typename T>
-	inline T& BB::Slotmap<T>::operator[](const SlotmapID a_Index) const
+	inline T& BB::Slotmap<T>::operator[](const SlotmapHandle a_Handle) const
 	{
-		return find(a_Index);
+		CheckGen(a_Handle);
+		return find(a_Handle);
 	}
 
 
 	template<typename T>
-	inline SlotmapID BB::Slotmap<T>::insert(T& a_Obj)
+	inline SlotmapHandle BB::Slotmap<T>::insert(T& a_Obj)
 	{
 		return emplace(a_Obj);
 	}
 
 	template<typename T>
 	template<class ...Args>
-	inline SlotmapID BB::Slotmap<T>::emplace(Args&&... a_Args)
+	inline SlotmapHandle BB::Slotmap<T>::emplace(Args&&... a_Args)
 	{
 		if (m_Size >= m_Capacity)
 			grow();
 
-		SlotmapID t_ID = m_NextFree;
-		m_NextFree = m_IdArr[t_ID];
-		m_IdArr[t_ID] = m_Size;
+		SlotmapHandle t_ID = m_IdArr[m_NextFree];
+		t_ID.index = m_NextFree;
+		//Set the next free to the one that is next, an unused m_IdArr entry holds the next free one.
+		m_NextFree = m_IdArr[t_ID.index].index;
+		m_IdArr[t_ID.index].index = m_Size;
 
 		new (&m_ObjArr[m_Size]) T(std::forward<Args>(a_Args)...);
-		m_EraseArr[m_Size++] = t_ID;
+		m_EraseArr[m_Size++] = t_ID.index;
 
 		return t_ID;
 	}
 
 	template<typename T>
-	inline T& BB::Slotmap<T>::find(SlotmapID a_ID) const
+	inline T& BB::Slotmap<T>::find(SlotmapHandle a_Handle) const
 	{
-		return m_ObjArr[m_IdArr[a_ID]];
+		CheckGen(a_Handle);
+		return m_ObjArr[m_IdArr[a_Handle.index].index];
 	}
 
 	template<typename T>
-	inline void BB::Slotmap<T>::erase(SlotmapID a_ID)
+	inline void BB::Slotmap<T>::erase(SlotmapHandle a_Handle)
 	{
-		const uint32_t t_Index = m_IdArr[a_ID];
-
+		CheckGen(a_Handle);
+		const uint32_t t_Index = m_IdArr[a_Handle.index].index;
+		++a_Handle.extraIndex;
+		//Increment the gen for when placing it inside the m_IdArr again.
 		if constexpr (!trivialDestructible_T)
 		{
 			//Before move call the destructor if it has one.
@@ -267,8 +274,8 @@ namespace BB
 		}
 
 		m_ObjArr[t_Index] = std::move(m_ObjArr[--m_Size]);
+		m_IdArr[m_EraseArr[t_Index]] = a_Handle;
 		m_EraseArr[t_Index] = std::move(m_EraseArr[m_Size]);
-		m_IdArr[m_EraseArr[t_Index]] = a_ID;
 	}
 
 	template<typename T>
@@ -278,7 +285,6 @@ namespace BB
 			reallocate(a_Capacity);
 	}
 
-
 	template<typename T>
 	inline void BB::Slotmap<T>::clear()
 	{
@@ -286,7 +292,8 @@ namespace BB
 
 		for (size_t i = 0; i < m_Capacity; ++i)
 		{
-			m_IdArr[i] = i + 1;
+			m_IdArr[i].index = i + 1;
+			m_IdArr[i].extraIndex = 0;
 		}
 		m_NextFree = 0;
 
@@ -301,6 +308,13 @@ namespace BB
 	}
 
 	template<typename T>
+	inline void BB::Slotmap<T>::CheckGen(const SlotmapHandle a_Handle) const
+	{
+		BB_ASSERT(m_IdArr[a_Handle.index].extraIndex == a_Handle.extraIndex, 
+			"Slotmap, Handle is from the wrong generation! Likely means this handle was already used to delete an element.");
+	}
+
+	template<typename T>
 	inline void BB::Slotmap<T>::grow()
 	{
 		reallocate(m_Capacity * 2);
@@ -309,8 +323,10 @@ namespace BB
 	template<typename T>
 	inline void BB::Slotmap<T>::reallocate(size_t a_NewCapacity)
 	{
-		SlotmapID* t_NewIdArr = reinterpret_cast<SlotmapID*>(BBalloc(m_Allocator, (sizeof(SlotmapID) + sizeof(T) + sizeof(uint32_t)) * a_NewCapacity));
-		T* t_NewObjArr = reinterpret_cast<T*>(Pointer::Add(t_NewIdArr, sizeof(SlotmapID) * a_NewCapacity));
+		BB_ASSERT(a_NewCapacity < UINT32_MAX, "Slotmap's too big! Slotmaps cannot be bigger then UINT32_MAX");
+
+		SlotmapHandle* t_NewIdArr = reinterpret_cast<SlotmapHandle*>(BBalloc(m_Allocator, (sizeof(SlotmapHandle) + sizeof(T) + sizeof(uint32_t)) * a_NewCapacity));
+		T* t_NewObjArr = reinterpret_cast<T*>(Pointer::Add(t_NewIdArr, sizeof(SlotmapHandle) * a_NewCapacity));
 		uint32_t* t_NewEraseArr = reinterpret_cast<uint32_t*>(Pointer::Add(t_NewObjArr, sizeof(T) * a_NewCapacity));
 
 		BB::Memory::Copy(t_NewIdArr, m_IdArr, m_Capacity);
