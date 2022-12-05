@@ -93,7 +93,7 @@ namespace BB
 		size_t m_Capacity = 128;
 		size_t m_Size = 0;
 		//index to m_IdArr
-		SlotmapHandle m_NextFree;
+		uint32_t m_NextFree;
 	};
 
 	template<typename T>
@@ -116,8 +116,7 @@ namespace BB
 			m_IdArr[i].index = i + 1;
 			m_IdArr[i].extraIndex = 0;
 		}
-		m_NextFree.index = 0;
-		m_NextFree.extraIndex = 0;
+		m_NextFree = 0;
 	}
 
 	template<typename T>
@@ -242,11 +241,11 @@ namespace BB
 		if (m_Size >= m_Capacity)
 			grow();
 
-		SlotmapHandle t_ID = m_NextFree;
+		SlotmapHandle t_ID = m_IdArr[m_NextFree];
+		t_ID.index = m_NextFree;
 		//Set the next free to the one that is next, an unused m_IdArr entry holds the next free one.
-		m_NextFree = m_IdArr[t_ID.index];
+		m_NextFree = m_IdArr[t_ID.index].index;
 		m_IdArr[t_ID.index].index = m_Size;
-		m_IdArr[t_ID.index].extraIndex = t_ID.extraIndex;
 
 		new (&m_ObjArr[m_Size]) T(std::forward<Args>(a_Args)...);
 		m_EraseArr[m_Size++] = t_ID.index;
@@ -275,8 +274,8 @@ namespace BB
 		}
 
 		m_ObjArr[t_Index] = std::move(m_ObjArr[--m_Size]);
-		m_EraseArr[t_Index] = std::move(m_EraseArr[m_Size]);
 		m_IdArr[m_EraseArr[t_Index]] = a_Handle;
+		m_EraseArr[t_Index] = std::move(m_EraseArr[m_Size]);
 	}
 
 	template<typename T>
@@ -296,7 +295,7 @@ namespace BB
 			m_IdArr[i].index = i + 1;
 			m_IdArr[i].extraIndex = 0;
 		}
-		m_NextFree = m_IdArr[0];
+		m_NextFree = 0;
 
 		//Destruct all the variables when it is not trivially destructable.
 		if constexpr (!trivialDestructible_T)
