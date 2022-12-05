@@ -20,8 +20,11 @@ void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 
 LinearAllocator_t m_ScopeAllocator{2 * kbSize};
 
-int main()
+int main(int argc, char** argv)
 {
+	BB_LOG(argv[0]);
+
+
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 

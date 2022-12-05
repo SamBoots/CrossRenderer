@@ -47,9 +47,10 @@ add_subdirectory("DirectX12")
 
 target_link_libraries(Renderer 
     BBFramework 
-    #BB_DirectXDLL
-    BB_VulkanDLL
 )
+
+add_dependencies(Renderer BB_VulkanDLL)
+#add_dependencies(Renderer BB_DirectXDLL)
 
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
