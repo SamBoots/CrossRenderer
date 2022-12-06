@@ -302,6 +302,11 @@ namespace BB
 		uint32_t signalSemaphoresCount;
 	};
 
+	struct StartFrameInfo
+	{
+		RSemaphoreHandle renderSem;
+	};
+
 	struct PresentFrameInfo
 	{
 		RSemaphoreHandle* waitSemaphores;
@@ -353,10 +358,10 @@ namespace BB
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	typedef FrameIndex (*PFN_RenderAPIStartFrame)();
+	typedef void (*PFN_RenderAPIStartFrame)(const StartFrameInfo& a_StartInfo);
 	typedef void (*PFN_RenderAPIExecuteGraphicCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 	typedef void (*PFN_RenderAPIExecuteTransferCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-	typedef void (*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
+	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();

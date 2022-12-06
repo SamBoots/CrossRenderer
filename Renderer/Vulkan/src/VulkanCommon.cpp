@@ -814,8 +814,6 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 		VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
 		a_SwapChain.frameFences = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkFence);
-		a_SwapChain.presentSems = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkSemaphore);
-		a_SwapChain.renderSems = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkSemaphore);
 
 		CreateImageViews(a_SwapChain.imageViews,
 			a_SwapChain.images,
@@ -830,16 +828,6 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 				nullptr,
 				&a_SwapChain.frameFences[i]),
 				"Vulkan: Failed to create fence.");
-			VKASSERT(vkCreateSemaphore(a_Device,
-				&t_SemCreateInfo,
-				nullptr,
-				&a_SwapChain.presentSems[i]),
-				"Vulkan: Failed to create present semaphore.");
-			VKASSERT(vkCreateSemaphore(a_Device,
-				&t_SemCreateInfo,
-				nullptr,
-				&a_SwapChain.renderSems[i]),
-				"Vulkan: Failed to create render semaphore.");
 		}
 	}
 	else //Or recreate the swapchain.
@@ -1039,14 +1027,14 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
-FrameIndex BB::VulkanStartFrame()
+void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 {
 	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
 
 	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
 		UINT64_MAX,
-		s_VkBackendInst.swapChain.renderSems[t_CurrentFrame],
+		reinterpret_cast<VkSemaphore>(a_StartInfo.renderSem.ptrHandle),
 		VK_NULL_HANDLE,
 		&s_VkBackendInst.imageIndex),
 		"Vulkan: failed to get next image.");
@@ -1061,15 +1049,13 @@ FrameIndex BB::VulkanStartFrame()
 	vkResetFences(s_VkBackendInst.device.logicalDevice,
 		1,
 		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
-
-	return t_CurrentFrame;
 }
 
 void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
-	VkPipelineStageFlags t_WaitStagesMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
 	VkSubmitInfo* t_SubmitInfos = BBnewArr(
 		a_TempAllocator,
 		a_ExecuteInfoCount,
@@ -1087,24 +1073,27 @@ void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCo
 
 		const uint32_t t_WaitSem = a_ExecuteInfos[i].waitSemaphoresCount;
 		const uint32_t t_SignalSem = a_ExecuteInfos[i].signalSemaphoresCount;
-		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
-			t_WaitSem + t_SignalSem,
+		VkSemaphore* t_WaitSemaphore = BBnewArr(a_TempAllocator,
+			t_WaitSem,
+			VkSemaphore);
+		VkSemaphore* t_SignalSemaphore = BBnewArr(a_TempAllocator,
+			t_SignalSem,
 			VkSemaphore);
 		for (uint32_t j = 0; j < t_WaitSem; j++)
 		{
-			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].waitSemaphores[j].ptrHandle);
+			t_WaitSemaphore[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].waitSemaphores[j].ptrHandle);
 		}
-		for (uint32_t j = t_WaitSem; j < t_WaitSem + t_SignalSem; j++)
+		for (uint32_t j = 0; j < t_SignalSem; j++)
 		{
-			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].signalSemaphores[j].ptrHandle);
+			t_SignalSemaphore[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].signalSemaphores[j].ptrHandle);
 		}
 
 		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		t_SubmitInfos[i].waitSemaphoreCount = t_WaitSem;
-		t_SubmitInfos[i].pWaitSemaphores = t_Semaphores;
-		t_SubmitInfos[i].pWaitDstStageMask = &t_WaitStagesMask;
+		t_SubmitInfos[i].pWaitSemaphores = t_WaitSemaphore;
+		t_SubmitInfos[i].pWaitDstStageMask = t_WaitStagesMask;
 		t_SubmitInfos[i].signalSemaphoreCount = t_SignalSem;
-		t_SubmitInfos[i].pSignalSemaphores = &t_Semaphores[t_WaitSem]; //Get the semaphores after all the wait sems
+		t_SubmitInfos[i].pSignalSemaphores = t_SignalSemaphore; //Get the semaphores after all the wait sems
 		t_SubmitInfos[i].commandBufferCount = a_ExecuteInfos[i].commandCount;
 		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
 	}
@@ -1168,7 +1157,7 @@ void BB::VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteC
 		"Vulkan: failed to submit to queue.");
 }
 
-void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
+FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
 {
 	VkSemaphore* t_Semaphores = nullptr;
 	if (a_PresentInfo.waitSemaphores != nullptr)
@@ -1187,8 +1176,8 @@ void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a
 
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	//t_PresentInfo.waitSemaphoreCount = a_PresentInfo.waitSemaphoreCount;
-	//t_PresentInfo.pWaitSemaphores = t_Semaphores;
+	t_PresentInfo.waitSemaphoreCount = a_PresentInfo.waitSemaphoreCount;
+	t_PresentInfo.pWaitSemaphores = t_Semaphores;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
 	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
@@ -1197,7 +1186,7 @@ void BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a
 	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue.queue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
-	s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
+	return s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
 }
 
 BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
@@ -1978,10 +1967,6 @@ void BB::VulkanDestroyBackend()
 			s_VkBackendInst.swapChain.imageViews[i], nullptr);
 		vkDestroyFence(s_VkBackendInst.device.logicalDevice,
 			s_VkBackendInst.swapChain.frameFences[i], nullptr);
-		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.presentSems[i], nullptr);
-		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.renderSems[i], nullptr);
 	}
 
 	vkDestroySwapchainKHR(s_VkBackendInst.device.logicalDevice,

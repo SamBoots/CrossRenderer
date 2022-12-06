@@ -42,6 +42,8 @@ CommandListHandle t_TransferCommandList[3];
 CommandListHandle t_ModelCommandList;
 
 RSemaphoreHandle t_TransferSemaphores[3];
+RSemaphoreHandle t_PresentSemaphores[3];
+RSemaphoreHandle t_RenderSemaphores[3];
 PipelineHandle t_Pipeline;
 
 RBufferHandle t_UploadBuffer;
@@ -289,6 +291,10 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	for (size_t i = 0; i < _countof(t_TransferSemaphores); i++)
 		t_TransferSemaphores[i] = RenderBackend::CreatSemaphore();
+	for (size_t i = 0; i < _countof(t_PresentSemaphores); i++)
+		t_PresentSemaphores[i] = RenderBackend::CreatSemaphore();
+	for (size_t i = 0; i < _countof(t_RenderSemaphores); i++)
+		t_RenderSemaphores[i] = RenderBackend::CreatSemaphore();
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
@@ -297,9 +303,12 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 void BB::Render::DestroyRenderer()
 {
 	RenderBackend::WaitGPUReady();
+	//all semaphores have the same array length (at least now)
 	for (size_t i = 0; i < _countof(t_TransferSemaphores); i++)
 	{
 		RenderBackend::DestroySemaphore(t_TransferSemaphores[i]);
+		RenderBackend::DestroySemaphore(t_PresentSemaphores[i]);
+		RenderBackend::DestroySemaphore(t_RenderSemaphores[i]);
 	}
 
 	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
@@ -332,7 +341,6 @@ void BB::Render::DestroyRenderer()
 		RenderBackend::DestroyCommandAllocator(t_TransferAllocator[i]);
 	}
 
-	RenderBackend::DestroyCommandList(t_TransferCommandList);
 	RenderBackend::DestroyBackend();
 }
 
@@ -468,7 +476,10 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 
 void BB::Render::StartFrame()
 {
-	s_CurrentFrame = RenderBackend::StartFrame();
+	StartFrameInfo t_StartInfo;
+	t_StartInfo.renderSem = t_PresentSemaphores[s_CurrentFrame];
+
+	RenderBackend::StartFrame(t_StartInfo);
 	//Prepare the commandallocator for a new frame
 	//TODO, send a fence that waits until the image was presented.
 	RenderBackend::ResetCommandAllocator(t_CommandAllocators[s_CurrentFrame]);
@@ -500,18 +511,25 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0].signalSemaphores = &t_TransferSemaphores[s_CurrentFrame];
 	t_ExecuteInfos[0].signalSemaphoresCount = 1;
 
+	RSemaphoreHandle t_GraphicsWaitSemaphores[2] = {
+		t_TransferSemaphores[s_CurrentFrame],
+		t_PresentSemaphores[s_CurrentFrame] };
+
 	t_ExecuteInfos[1] = {};
 	t_ExecuteInfos[1].commands = &t_CommandLists[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
-	t_ExecuteInfos[1].waitSemaphores = &t_TransferSemaphores[s_CurrentFrame];
-	t_ExecuteInfos[1].waitSemaphoresCount = 1;
+	t_ExecuteInfos[1].waitSemaphores = t_GraphicsWaitSemaphores;
+	t_ExecuteInfos[1].waitSemaphoresCount = 2;
+	t_ExecuteInfos[1].signalSemaphores = &t_RenderSemaphores[s_CurrentFrame];
+	t_ExecuteInfos[1].signalSemaphoresCount = 1;
 
 	RenderBackend::ExecuteTransferCommands(&t_ExecuteInfos[0], 1);
 
 	RenderBackend::ExecuteGraphicCommands(&t_ExecuteInfos[1], 1);
 	PresentFrameInfo t_PresentFrame{};
-
-	RenderBackend::PresentFrame(t_PresentFrame);
+	t_PresentFrame.waitSemaphoreCount = 1;
+	t_PresentFrame.waitSemaphores = &t_RenderSemaphores[s_CurrentFrame];
+	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 	RenderBackend::Update();
 }
 

@@ -143,9 +143,9 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 	s_ApiFunc.drawIndex(a_RecordingCmdHandle, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
-FrameIndex BB::RenderBackend::StartFrame()
+void BB::RenderBackend::StartFrame(const StartFrameInfo& a_StartInfo)
 {
-	return s_BackendInfo.currentFrame = s_ApiFunc.startFrame();
+	s_ApiFunc.startFrame(a_StartInfo);
 }
 
 void BB::RenderBackend::ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
@@ -158,9 +158,9 @@ void BB::RenderBackend::ExecuteTransferCommands(const ExecuteCommandsInfo* a_Exe
 	s_ApiFunc.executeTransferCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
 }
 
-void BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
+FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
 {
-	s_ApiFunc.presentFrame(m_TempAllocator, a_PresentInfo);
+	return s_BackendInfo.currentFrame = s_ApiFunc.presentFrame(m_TempAllocator, a_PresentInfo);
 }
 
 void BB::RenderBackend::Update()

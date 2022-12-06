@@ -9,8 +9,6 @@ namespace BB
 		const uint32_t GetFrameBufferAmount();
 		const FrameIndex GetCurrentFrameBufferIndex();
 
-
-
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
 		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
@@ -38,10 +36,10 @@ namespace BB
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
-		FrameIndex StartFrame();
+		void StartFrame(const StartFrameInfo& a_StartInfo);
 		void ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 		void ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-		void PresentFrame(const PresentFrameInfo& a_PresentInfo);
+		FrameIndex PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 		void Update();
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
