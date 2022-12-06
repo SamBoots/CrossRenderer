@@ -33,6 +33,62 @@ struct PerFrameInfo
 	RDescriptorHandle perFrameDescriptor;
 };
 
+struct UploadBufferChunk
+{
+	void* memory;
+	uint64_t offset;
+};
+
+class UploadBuffer
+{
+public:
+	UploadBuffer(const uint64_t a_Size)
+		:	size(a_Size)
+	{
+		RenderBufferCreateInfo t_UploadBufferInfo;
+		t_UploadBufferInfo.size = size;
+		t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+		t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+		t_UploadBufferInfo.data = nullptr;
+		buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
+
+		offset = 0;
+		start = RenderBackend::MapMemory(buffer);
+		position = start;
+	}
+
+	~UploadBuffer()
+	{
+		RenderBackend::UnmapMemory(buffer);
+		RenderBackend::DestroyBuffer(buffer);
+	}
+
+	UploadBufferChunk Alloc(const uint64_t a_Size)
+	{
+		UploadBufferChunk t_Chunk;
+		t_Chunk.memory = position;
+		t_Chunk.offset = offset;
+		position = Pointer::Add(position, a_Size);
+		offset += a_Size;
+		return t_Chunk;
+	}
+
+	void Clear()
+	{
+		offset = 0;
+		position = start;
+	}
+
+	const RBufferHandle Buffer() const { return buffer; }
+
+private:
+	RBufferHandle buffer;
+	const uint64_t size;
+	uint64_t offset;
+	void* start;
+	void* position;
+};
+
 FrameBufferHandle t_FrameBuffer;
 CommandAllocatorHandle t_CommandAllocators[3];
 CommandAllocatorHandle t_TransferAllocator[4];
@@ -46,7 +102,7 @@ RSemaphoreHandle t_PresentSemaphores[3];
 RSemaphoreHandle t_RenderSemaphores[3];
 PipelineHandle t_Pipeline;
 
-RBufferHandle t_UploadBuffer;
+UploadBuffer* t_UploadBuffer;
 
 static FrameIndex s_CurrentFrame;
 
@@ -298,6 +354,10 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
 	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
+
+	//Create upload buffer.
+	constexpr const uint64_t UPLOAD_BUFFER_SIZE = mbSize * 32;
+	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
 }
 
 void BB::Render::DestroyRenderer()
@@ -315,8 +375,8 @@ void BB::Render::DestroyRenderer()
 	{
 		RenderBackend::DestroyBuffer(it->indexBuffer);
 		RenderBackend::DestroyBuffer(it->vertexBuffer);
-		//RenderBackend::DestroyBuffer(it->value.indexBuffer);
 	}
+	BBfree(m_SystemAllocator, t_UploadBuffer);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_PerFrameInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);
@@ -380,13 +440,8 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	RecordingCommandListHandle t_TransferCmd = RenderBackend::StartCommandList(t_ModelCommandList);
 
 	{
-		RenderBufferCreateInfo t_StagingInfo;
-		t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-		t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-		t_StagingInfo.size = a_CreateInfo.vertices.sizeInBytes();
-		t_StagingInfo.data = a_CreateInfo.vertices.data();
-
-		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());
+		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
 
 		RenderBufferCreateInfo t_VertexInfo;
 		t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
@@ -399,28 +454,20 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.transferCommandHandle = t_TransferCmd;
-		t_CopyInfo.src = t_StagingBuffer;
+		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.vertexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
 		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = 0;
+		t_CopyInfo.copyRegions->srcOffset = t_StageBuffer.offset;
 		t_CopyInfo.copyRegions->dstOffset = 0;
 		t_CopyInfo.copyRegions->size = a_CreateInfo.vertices.sizeInBytes();
 
 		RenderBackend::CopyBuffer(t_CopyInfo);
-
-		//cleanup staging buffer.
-		//RenderBackend::DestroyBuffer(t_StagingBuffer);
 	}
 
 	{
-		RenderBufferCreateInfo t_StagingInfo;
-		t_StagingInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-		t_StagingInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-		t_StagingInfo.size = a_CreateInfo.indices.sizeInBytes();
-		t_StagingInfo.data = a_CreateInfo.indices.data();
-
-		RBufferHandle t_StagingBuffer = RenderBackend::CreateBuffer(t_StagingInfo);
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.indices.sizeInBytes());
+		memcpy(t_StageBuffer.memory, a_CreateInfo.indices.data(), a_CreateInfo.indices.sizeInBytes());
 
 		RenderBufferCreateInfo t_IndexInfo;
 		t_IndexInfo.usage = RENDER_BUFFER_USAGE::INDEX;
@@ -433,18 +480,15 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.transferCommandHandle = t_TransferCmd;
-		t_CopyInfo.src = t_StagingBuffer;
+		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.indexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
 		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = 0;
+		t_CopyInfo.copyRegions->srcOffset = t_StageBuffer.offset;
 		t_CopyInfo.copyRegions->dstOffset = 0;
 		t_CopyInfo.copyRegions->size = a_CreateInfo.indices.sizeInBytes();
 
 		RenderBackend::CopyBuffer(t_CopyInfo);
-
-		//cleanup staging buffer.
-		//RenderBackend::DestroyBuffer(t_StagingBuffer);
 	}
 
 	RenderBackend::EndCommandList(t_TransferCmd);
