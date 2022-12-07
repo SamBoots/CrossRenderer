@@ -812,23 +812,12 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
 		//first one is already signaled to make sure we can still render.
 		t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-		VkSemaphoreCreateInfo t_SemCreateInfo = VkInit::SemaphoreCreationInfo();
-		a_SwapChain.frameFences = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkFence);
 
 		CreateImageViews(a_SwapChain.imageViews,
 			a_SwapChain.images,
 			s_VkBackendInst.device.logicalDevice,
 			a_SwapChain.imageFormat,
 			s_VkBackendInst.frameCount);
-
-		for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
-		{
-			VKASSERT(vkCreateFence(a_Device,
-				&t_FenceCreateInfo,
-				nullptr,
-				&a_SwapChain.frameFences[i]),
-				"Vulkan: Failed to create fence.");
-		}
 	}
 	else //Or recreate the swapchain.
 	{
@@ -1027,7 +1016,7 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
-void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
+void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
 {
 	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1035,23 +1024,32 @@ void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 		s_VkBackendInst.swapChain.swapChain,
 		UINT64_MAX,
 		reinterpret_cast<VkSemaphore>(a_StartInfo.renderSem.ptrHandle),
-		VK_NULL_HANDLE,
+		reinterpret_cast<VkFence>(a_StartInfo.imageWait.ptrHandle),
 		&s_VkBackendInst.imageIndex),
 		"Vulkan: failed to get next image.");
 
+	VkFence* t_Fences = BBnewArr(a_TempAllocator,
+		a_StartInfo.fenceCount,
+		VkFence);
+
+	for (size_t i = 0; i < a_StartInfo.fenceCount; i++)
+	{
+		t_Fences[i] = reinterpret_cast<VkFence>(a_StartInfo.fences[i].ptrHandle);
+	}
+
 	VKASSERT(vkWaitForFences(s_VkBackendInst.device.logicalDevice,
-		1,
-		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame],
+		a_StartInfo.fenceCount,
+		t_Fences,
 		VK_TRUE,
 		UINT64_MAX),
 		"Vulkan: Failed to wait for frences");
 
 	vkResetFences(s_VkBackendInst.device.logicalDevice,
-		1,
-		&s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]);
+		a_StartInfo.fenceCount,
+		t_Fences);
 }
 
-void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
 {
 	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1101,11 +1099,11 @@ void BB::VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCo
 	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.graphicsQueue.queue,
 		a_ExecuteInfoCount,
 		t_SubmitInfos,
-		s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
+		reinterpret_cast<VkFence>(a_SumbitFence.ptrHandle)),
 		"Vulkan: failed to submit to queue.");
 }
 
-void BB::VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
 {
 	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
 
@@ -1152,7 +1150,7 @@ void BB::VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteC
 	VKASSERT(vkQueueSubmit(s_VkBackendInst.device.transferQueue.queue,
 		a_ExecuteInfoCount,
 		t_SubmitInfos,
-		VK_NULL_HANDLE),
+		reinterpret_cast<VkFence>(a_SumbitFence.ptrHandle)),
 		//s_VkBackendInst.swapChain.frameFences[t_CurrentFrame]),
 		"Vulkan: failed to submit to queue.");
 }
@@ -1360,14 +1358,13 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	{
 		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
 		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
-		t_ReturnFrameBuffer.frameBufferCount = s_VkBackendInst.frameCount;
-		t_ReturnFrameBuffer.frameBuffers = BBnewArr(s_VulkanAllocator, t_ReturnFrameBuffer.frameBufferCount, VkFramebuffer);
+		t_ReturnFrameBuffer.frameBuffers = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkFramebuffer);
 		CreateFrameBuffers(
 			t_ReturnFrameBuffer.frameBuffers,
 			t_ReturnFrameBuffer.renderPass,
 			t_ReturnFrameBuffer.width,
 			t_ReturnFrameBuffer.height,
-			t_ReturnFrameBuffer.frameBufferCount
+			s_VkBackendInst.frameCount
 			);
 	}
 
@@ -1670,6 +1667,27 @@ RSemaphoreHandle BB::VulkanCreateSemaphore()
 	return RSemaphoreHandle(t_Semaphore);
 }
 
+RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
+{
+	VkFenceCreateInfo t_FenceInfo{};
+	t_FenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+	switch (a_Info.flags)
+	{
+	case RENDER_FENCE_FLAGS::CREATE_SIGNALED:
+		t_FenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		break;
+	}
+
+	VkFence t_Fence;
+	vkCreateFence(s_VkBackendInst.device.logicalDevice,
+		&t_FenceInfo,
+		nullptr,
+		&t_Fence);
+
+	return RFenceHandle(t_Fence);
+}
+
 RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
 {
 	VulkanCommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CmdHandle.handle];
@@ -1847,7 +1865,7 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 		t_FrameBuffer.width = a_X;
 		t_FrameBuffer.height = a_Y;
 
-		for (size_t i = 0; i < t_FrameBuffer.frameBufferCount; i++)
+		for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
 		{
 			vkDestroyFramebuffer(s_VkBackendInst.device.logicalDevice,
 				t_FrameBuffer.frameBuffers[i],
@@ -1881,13 +1899,20 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 			t_FrameBuffer.renderPass,
 			a_X,
 			a_Y,
-			t_FrameBuffer.frameBufferCount);
+			s_VkBackendInst.frameCount);
 	}
 }
 
 void BB::VulkanWaitDeviceReady()
 {
 	vkDeviceWaitIdle(s_VkBackendInst.device.logicalDevice);
+}
+
+void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
+{
+	vkDestroyFence(s_VkBackendInst.device.logicalDevice,
+		reinterpret_cast<VkFence>(a_Handle.ptrHandle),
+		nullptr);
 }
 
 void BB::VulkanDestroySemaphore(const RSemaphoreHandle a_Handle)
@@ -1914,7 +1939,7 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 
 void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
 {
-	for (uint32_t i = 0; i < s_VkBackendInst.frameBuffers[a_Handle.handle].frameBufferCount; i++)
+	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
 		vkDestroyFramebuffer(s_VkBackendInst.device.logicalDevice,
 			s_VkBackendInst.frameBuffers[a_Handle.handle].frameBuffers[i],
@@ -1965,8 +1990,6 @@ void BB::VulkanDestroyBackend()
 	{
 		vkDestroyImageView(s_VkBackendInst.device.logicalDevice,
 			s_VkBackendInst.swapChain.imageViews[i], nullptr);
-		vkDestroyFence(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.frameFences[i], nullptr);
 	}
 
 	vkDestroySwapchainKHR(s_VkBackendInst.device.logicalDevice,

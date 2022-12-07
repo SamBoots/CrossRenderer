@@ -25,6 +25,7 @@ namespace BB
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
 	using RSemaphoreHandle = FrameworkHandle<struct RSemaphoreHandleTag>;
+	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
@@ -144,6 +145,12 @@ namespace BB
 		TRANSFER_COPY
 	};
 
+	enum class RENDER_FENCE_FLAGS : uint32_t
+	{
+		NONE = 0,
+		CREATE_SIGNALED
+	};
+
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
@@ -151,6 +158,11 @@ namespace BB
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
 
+	};
+
+	struct FenceCreateInfo
+	{
+		RENDER_FENCE_FLAGS flags;
 	};
 
 	struct RenderCopyBufferInfo
@@ -305,6 +317,9 @@ namespace BB
 	struct StartFrameInfo
 	{
 		RSemaphoreHandle renderSem;
+		RFenceHandle imageWait;
+		RFenceHandle* fences;
+		uint32_t fenceCount;
 	};
 
 	struct PresentFrameInfo
@@ -334,6 +349,7 @@ namespace BB
 	typedef CommandListHandle	(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 	typedef RSemaphoreHandle	(*PFN_RenderAPICreateSemaphore)();
+	typedef RFenceHandle		(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
 	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
@@ -358,9 +374,9 @@ namespace BB
 
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	typedef void (*PFN_RenderAPIStartFrame)(const StartFrameInfo& a_StartInfo);
-	typedef void (*PFN_RenderAPIExecuteGraphicCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-	typedef void (*PFN_RenderAPIExecuteTransferCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	typedef void (*PFN_RenderAPIStartFrame)(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
+	typedef void (*PFN_RenderAPIExecuteGraphicCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+	typedef void (*PFN_RenderAPIExecuteTransferCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
 	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 
@@ -376,6 +392,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroySemaphore)(const RSemaphoreHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyFence)(const RFenceHandle a_Handle);
 
 	struct RenderAPIFunctions
 	{
@@ -387,6 +404,7 @@ namespace BB
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
 		PFN_RenderAPICreateSemaphore createSemaphore;
+		PFN_RenderAPICreateFence createFence;
 
 		PFN_RenderAPIStartCommandList startCommandList;
 		PFN_RenderAPIResetCommandAllocator resetCommandAllocator;
@@ -424,5 +442,6 @@ namespace BB
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
 		PFN_RenderAPIDestroySemaphore destroySemaphore;
+		PFN_RenderAPIDestroyFence destroyFence;
 	};
 }

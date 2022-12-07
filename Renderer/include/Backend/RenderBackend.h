@@ -17,6 +17,7 @@ namespace BB
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 		RSemaphoreHandle CreatSemaphore();
+		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 		
 		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 		void CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo);
@@ -37,8 +38,8 @@ namespace BB
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 		void StartFrame(const StartFrameInfo& a_StartInfo);
-		void ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-		void ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+		void ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+		void ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
 		FrameIndex PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 		void Update();
@@ -57,5 +58,6 @@ namespace BB
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
 		void DestroySemaphore(const RSemaphoreHandle a_Handle);
+		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }

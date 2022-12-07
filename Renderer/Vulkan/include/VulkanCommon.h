@@ -33,8 +33,6 @@ namespace BB
 		VkExtent2D extent;
 		VkImage* images;
 		VkImageView* imageViews;
-
-		VkFence* frameFences;
 	};
 
 	struct VulkanPipeline
@@ -49,7 +47,6 @@ namespace BB
 		uint32_t height;
 		VkFramebuffer* frameBuffers;
 		VkRenderPass renderPass;
-		uint32_t frameBufferCount;
 	};
 
 	struct VulkanDevice
@@ -85,6 +82,7 @@ namespace BB
 	CommandListHandle VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RSemaphoreHandle VulkanCreateSemaphore();
+	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
 	void VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
@@ -107,13 +105,14 @@ namespace BB
 
 	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
-	void VulkanStartFrame(const StartFrameInfo& a_StartInfo);
-	void VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-	void VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	void VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
+	void VulkanExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+	void VulkanExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
 	FrameIndex VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 	void VulkanWaitDeviceReady();
 
+	void VulkanDestroyFence(const RFenceHandle a_Handle);
 	void VulkanDestroySemaphore(const RSemaphoreHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
 	void VulkanDestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);

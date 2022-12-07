@@ -68,6 +68,11 @@ RSemaphoreHandle BB::RenderBackend::CreatSemaphore()
 	return s_ApiFunc.createSemaphore();
 }
 
+RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
+{
+	return s_ApiFunc.createFence(a_Info);
+}
+
 void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
@@ -145,17 +150,17 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 
 void BB::RenderBackend::StartFrame(const StartFrameInfo& a_StartInfo)
 {
-	s_ApiFunc.startFrame(a_StartInfo);
+	s_ApiFunc.startFrame(m_TempAllocator, a_StartInfo);
 }
 
-void BB::RenderBackend::ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::RenderBackend::ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
 {
-	s_ApiFunc.executeGraphicCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
+	s_ApiFunc.executeGraphicCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount, a_SumbitFence);
 }
 
-void BB::RenderBackend::ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::RenderBackend::ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
 {
-	s_ApiFunc.executeTransferCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount);
+	s_ApiFunc.executeTransferCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount, a_SumbitFence);
 }
 
 FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
@@ -226,4 +231,9 @@ void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 void BB::RenderBackend::DestroySemaphore(const RSemaphoreHandle a_Handle)
 {
 	s_ApiFunc.destroySemaphore(a_Handle);
+}
+
+void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
+{
+	s_ApiFunc.destroyFence(a_Handle);
 }
