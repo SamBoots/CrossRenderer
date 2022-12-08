@@ -1606,7 +1606,7 @@ PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderP
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
-	VkCommandAllocator t_CmdAllocator;
+	VkCommandAllocator* t_CmdAllocator = s_VkBackendInst.cmdAllocators.Get();
 
 	VkCommandPoolCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1626,25 +1626,23 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 	VKASSERT(vkCreateCommandPool(s_VkBackendInst.device.logicalDevice,
 		&t_CreateInfo,
 		nullptr,
-		&t_CmdAllocator.pool),
+		&t_CmdAllocator->pool),
 		"Vulkan: Failed to create command pool.");
 
-	t_CmdAllocator.buffers.CreatePool(s_VulkanAllocator, a_CreateInfo.commandListCount);
+	t_CmdAllocator->buffers.CreatePool(s_VulkanAllocator, a_CreateInfo.commandListCount);
 
 	VkCommandBufferAllocateInfo t_AllocCreateInfo{};
 	t_AllocCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	t_AllocCreateInfo.commandPool = t_CmdAllocator.pool;
+	t_AllocCreateInfo.commandPool = t_CmdAllocator->pool;
 	t_AllocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	t_AllocCreateInfo.commandBufferCount = a_CreateInfo.commandListCount;
 
 	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
 		&t_AllocCreateInfo,
-		t_CmdAllocator.buffers.data()),
+		t_CmdAllocator->buffers.data()),
 		"Vulkan: Failed to allocate command buffers!");
 
-	VkCommandAllocator* t_PoolCmdAlloc = s_VkBackendInst.cmdAllocators.Get();
-	*t_PoolCmdAlloc = std::move(t_CmdAllocator);
-	return t_PoolCmdAlloc; //Creates a handle from this.
+	return t_CmdAllocator; //Creates a handle from this.
 }
 
 CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
