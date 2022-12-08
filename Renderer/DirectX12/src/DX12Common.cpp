@@ -6,6 +6,7 @@
 #include "DXC/inc/d3d12shader.h"
 
 #include "Slotmap.h"
+#include "Pool.h"
 #include "BBString.h"
 
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
@@ -13,6 +14,13 @@
 using namespace BB;
 
 static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
+
+//Safely releases a type by setting it back to null
+void DX12Release(IUnknown* a_Obj)
+{
+	if (a_Obj)
+		a_Obj->Release();
+}
 
 namespace DXConv
 {
@@ -74,26 +82,6 @@ namespace DXConv
 	}
 }
 
-struct DescriptorView
-{
-	DescriptorView operator*(const uint32_t a_Multiply)
-	{
-		DescriptorView t_View;
-		t_View.offset = offset * a_Multiply;
-		t_View.size = size * a_Multiply;
-		return t_View;
-	}
-
-	void operator*=(const uint32_t a_Multiply)
-	{
-		offset *= a_Multiply;
-		size *= a_Multiply;
-	}
-
-	uint32_t offset;
-	uint32_t size;
-};
-
 struct DXMAResource
 {
 	D3D12MA::Allocation* allocation;
@@ -115,13 +103,64 @@ struct CommandList
 	FrameIndex commandListIndex;
 };
 
+struct Fence
+{
+	UINT64 fenceValue = 0;
+	ID3D12Fence* fence{};
+
+	bool IsFenceComplete() const
+	{
+		return fence->GetCompletedValue() >= fenceValue;
+	}
+
+	void WaitFence(const uint64_t t_FenceValue)
+	{
+		if (fence->GetCompletedValue() < fenceValue)
+		{
+			HANDLE t_Event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+			BB_ASSERT(t_Event, "DX12, failed to create a fence event.");
+
+			DXASSERT(fence->SetEventOnCompletion(t_FenceValue, t_Event),
+				"DX12, failed to set event on completion");
+
+			::CloseHandle(t_Event);
+		}
+	}
+};
+
+struct DXCommandAllocator;
+
+struct DXCommandList
+{
+	ID3D12CommandList* list;
+	DXCommandAllocator* allocator;
+
+	ID3D12CommandList* List() const { return list; }
+};
+
+constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
+struct DXCommandAllocator
+{
+	ID3D12CommandAllocator* allocator;
+	Pool<ID3D12CommandList> lists;
+
+	DXCommandList GetCommandList()
+	{
+		DXCommandList t_CommandList{};
+		t_CommandList.list = lists.Get();
+		t_CommandList.allocator = this;
+		return t_CommandList;
+	}
+	void FreeCommandList(const DXCommandList t_CmdList)
+	{
+		lists.Free(t_CmdList.list);
+	}
+};
+
 struct DX12Backend_inst
 {
 	FrameIndex currentFrame = 0;
 	UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
-
-	ID3D12CommandAllocator** directAllocator; //CommandAllocator per backbuffer.
-	ID3D12CommandAllocator* copyAllocator; //CommandAllocator for copy, only one exists.
 
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
@@ -131,21 +170,35 @@ struct DX12Backend_inst
 
 	ID3D12DescriptorHeap* constantHeap;
 
-	UINT64 fenceValue = 0;
-	HANDLE fenceEvent{};
-	ID3D12Fence* fence{};
-
 	DX12Device device{};
 	DX12Swapchain swapchain{};
 
 	D3D12MA::Allocator* DXMA;
 
-	Slotmap<DXMAResource> renderResources{ s_DX12Allocator };
+
 	Slotmap<ID3D12RootSignature*> rootSignatures{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<CommandList> commandLists{ s_DX12Allocator };
 
+	Pool<DXCommandAllocator> cmdAllocators;
+	Pool<DXMAResource> renderResources;
+	Pool<Fence> fencePool;
+
 	ShaderCompiler shaderCompiler;
+
+	void CreatePools()
+	{
+		cmdAllocators.CreatePool(s_DX12Allocator, 16);
+		renderResources.CreatePool(s_DX12Allocator, 8);
+		fencePool.CreatePool(s_DX12Allocator, 16);
+	}
+
+	void DestroyPools()
+	{
+		cmdAllocators.DestroyPool(s_DX12Allocator);
+		renderResources.DestroyPool(s_DX12Allocator);
+		fencePool.DestroyPool(s_DX12Allocator);
+	}
 };
 static DX12Backend_inst s_DX12BackendInst;
 
@@ -356,6 +409,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	UINT t_FactoryFlags = 0;
+	s_DX12BackendInst.CreatePools();
 
 	if (a_CreateInfo.validationLayers)
 	{
@@ -732,6 +786,20 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	return RBufferHandle(s_DX12BackendInst.renderResources.insert(t_Resource));
 }
 
+RSemaphoreHandle BB::DX12CreateSemaphore()
+{
+	//not sure what semaphores in DX12 are yet, don't think they have em the same way.
+}
+
+RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
+{
+	Fence* t_Fence = s_DX12BackendInst.fencePool.Get();
+	s_DX12BackendInst.device.logicalDevice->CreateFence(0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&t_Fence->fence));
+	return RFenceHandle(t_Fence);
+}
+
 
 RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
@@ -939,22 +1007,17 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
 }
 
-FrameIndex BB::DX12StartFrame()
+void BB::DX12StartFrame(const StartFrameInfo& a_StartInfo)
 {
-	FrameIndex t_CurrentFrame = s_DX12BackendInst.currentFrame;
-
 	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
 	s_DX12BackendInst.directQueue->Signal(s_DX12BackendInst.fence, fenceV);
 	++s_DX12BackendInst.fenceValue;
-
 	if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
 	{
 		DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),
 			"DX12: Failed to wait for event complection on fence.");
 		WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
 	}
-
-	return t_CurrentFrame;
 }
 
 void BB::DX12WaitDeviceReady()
@@ -969,12 +1032,32 @@ void BB::DX12WaitDeviceReady()
 	//}
 }
 
+void BB::DX12DestroyFence(const RFenceHandle a_Handle)
+{
+	DX12Release(reinterpret_cast<Fence*>(a_Handle.ptrHandle)->fence);
+	s_DX12BackendInst.fencePool.Free(reinterpret_cast<Fence*>(a_Handle.ptrHandle));
+}
+
+void BB::DX12DestroySemaphore(const RSemaphoreHandle a_Handle)
+{
+	
+
+}
+
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
 	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
 	t_Resource.resource->Release();
 	t_Resource.allocation->Release();
 	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
+}
+
+void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+{
+	DXCommandAllocator* t_CmdAllocator = reinterpret_cast<DXCommandAllocator*>(a_Handle.ptrHandle);
+	t_CmdAllocator->lists.DestroyPool(s_DX12Allocator);
+	t_CmdAllocator->allocator->Release();
+	s_DX12BackendInst.cmdAllocators.Free(t_CmdAllocator);
 }
 
 void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
@@ -1015,7 +1098,7 @@ void BB::DX12DestroyBackend()
 	s_DX12BackendInst.swapchain.swapchain = nullptr;
 
 	s_DX12BackendInst.directQueue->Release();
-	s_DX12BackendInst.fence->Release();
+	s_DX12BackendInst.copyQueue->Release();
 
 	s_DX12BackendInst.DXMA->Release();
 	if (s_DX12BackendInst.device.debugDevice)

@@ -75,7 +75,6 @@ namespace BB
 	//Functions
 	BackendInfo VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-
 	RDescriptorHandle VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
