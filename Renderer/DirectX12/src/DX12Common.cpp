@@ -946,17 +946,76 @@ void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHa
 
 void* BB::DX12MapMemory(const RBufferHandle a_Handle)
 {
-	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
 	void* t_MapData;
-	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapData), "DX12: Failed to map resource.");
+	DXASSERT(t_Resource->resource->Map(0, NULL, &t_MapData),
+		"DX12: Failed to map resource.");
 	return t_MapData;
 }
 
 void BB::DX12UnMemory(const RBufferHandle a_Handle)
 {
-	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
-	t_Resource.resource->Unmap(0, NULL);
+	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
+	t_Resource->resource->Unmap(0, NULL);
 }
+
+void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
+{
+
+}
+
+void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
+{
+	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
+	{
+		ID3D12CommandList** t_CommandLists = BBnewArr(
+			a_TempAllocator,
+			a_ExecuteInfos[i].commandCount,
+			ID3D12CommandList*
+		);
+
+		for (size_t j = 0; j < a_ExecuteInfos[j].commandCount; j++)
+		{
+			t_CommandLists[j] = reinterpret_cast<ID3D12CommandList*>(
+				a_ExecuteInfos[i].commands[j].ptrHandle);
+		}
+
+		s_DX12BackendInst.directQueue->ExecuteCommandLists(
+			a_ExecuteInfos[i].commandCount, 
+			t_CommandLists);
+	}
+}
+
+void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
+{
+	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
+	{
+		ID3D12CommandList** t_CommandLists = BBnewArr(
+			a_TempAllocator,
+			a_ExecuteInfos[i].commandCount,
+			ID3D12CommandList*
+		);
+
+		for (size_t j = 0; j < a_ExecuteInfos[j].commandCount; j++)
+		{
+			t_CommandLists[j] = reinterpret_cast<ID3D12CommandList*>(
+				a_ExecuteInfos[i].commands[j].ptrHandle);
+		}
+
+		s_DX12BackendInst.copyQueue->ExecuteCommandLists(
+			a_ExecuteInfos[i].commandCount,
+			t_CommandLists);
+	}
+}
+
+FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
+{
+	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
+	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
+
+	return s_DX12BackendInst.currentFrame;
+}
+
 
 
 void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
@@ -1005,19 +1064,6 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
 	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
-}
-
-void BB::DX12StartFrame(const StartFrameInfo& a_StartInfo)
-{
-	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
-	s_DX12BackendInst.directQueue->Signal(s_DX12BackendInst.fence, fenceV);
-	++s_DX12BackendInst.fenceValue;
-	if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
-	{
-		DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),
-			"DX12: Failed to wait for event complection on fence.");
-		WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
-	}
 }
 
 void BB::DX12WaitDeviceReady()

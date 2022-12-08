@@ -78,10 +78,10 @@ namespace BB
 	void* DX12MapMemory(const RBufferHandle a_Handle);
 	void DX12UnMemory(const RBufferHandle a_Handle);
 
-
-	void DX12ResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
-	void DX12StartFrame(const StartFrameInfo& a_StartInfo);
-	void DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle);
+	void DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
+	void DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+	void DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+	FrameIndex DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 	void DX12WaitDeviceReady();
 

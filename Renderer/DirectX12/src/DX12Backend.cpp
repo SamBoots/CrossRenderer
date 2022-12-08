@@ -24,8 +24,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createDescriptor = DX12CreateDescriptor;
 	a_FuncCreateInfo.createPipeline = DX12CreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = TempCreateFrameBuff; //DX12CreateFrameBuffer
+	a_FuncCreateInfo.createCommandAllocator = DX12CreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = DX12CreateCommandList;
 	a_FuncCreateInfo.createBuffer = DX12CreateBuffer;
+	a_FuncCreateInfo.createSemaphore = DX12CreateSemaphore;
+	a_FuncCreateInfo.createFence = DX12CreateFence;
 
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
 	a_FuncCreateInfo.resetCommandList = DX12ResetCommandList;
@@ -55,6 +58,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyDescriptor = DX12DestroyDescriptorSet;
 	a_FuncCreateInfo.destroyFrameBuffer = TempDestroyFrameBuff; //DX12DestroyFramebuffer;
 	a_FuncCreateInfo.destroyPipeline = DX12DestroyPipeline;
+	a_FuncCreateInfo.destroyCommandAllocator = DX12DestroyCommandAllocator;
 	a_FuncCreateInfo.destroyCommandList = DX12DestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = DX12DestroyBuffer;
+	a_FuncCreateInfo.destroySemaphore = DX12DestroySemaphore;
+	a_FuncCreateInfo.destroyFence = DX12DestroyFence;
 }
