@@ -138,25 +138,6 @@ struct DXCommandList
 	ID3D12CommandList* List() const { return list; }
 };
 
-constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
-struct DXCommandAllocator
-{
-	ID3D12CommandAllocator* allocator;
-	Pool<ID3D12CommandList> lists;
-
-	DXCommandList GetCommandList()
-	{
-		DXCommandList t_CommandList{};
-		t_CommandList.list = lists.Get();
-		t_CommandList.allocator = this;
-		return t_CommandList;
-	}
-	void FreeCommandList(const DXCommandList t_CmdList)
-	{
-		lists.Free(t_CmdList.list);
-	}
-};
-
 struct DX12Backend_inst
 {
 	FrameIndex currentFrame = 0;
@@ -200,6 +181,35 @@ struct DX12Backend_inst
 		fencePool.DestroyPool(s_DX12Allocator);
 	}
 };
+
+constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
+struct DXCommandAllocator
+{
+	ID3D12CommandAllocator* allocator;
+	D3D12_COMMAND_LIST_TYPE type;
+	Pool<DXCommandList> lists;
+
+	DXCommandList* GetCommandList()
+	{
+		DXCommandList* t_CommandList = lists.Get();
+		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(0, 
+			type, 
+			allocator, 
+			nullptr,
+			IID_PPV_ARGS(&t_CommandList->list)),
+			"DX12: Failed to allocate commandlist.");
+
+		t_CommandList->allocator = this;
+
+		return t_CommandList;
+	}
+	void FreeCommandList(DXCommandList* t_CmdList)
+	{
+		t_CmdList->list->Release();
+		lists.Free(t_CmdList);
+	}
+};
+
 static DX12Backend_inst s_DX12BackendInst;
 
 static void SetupShaderCompiler()
@@ -491,10 +501,6 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&s_DX12BackendInst.copyQueue)),
 		"DX12: Failed to create direct command queue");
-	 
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&s_DX12BackendInst.fence)),
-		"DX12: Failed to create fence");
 
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
 
@@ -686,36 +692,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 
 CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
 {
-	CommandList t_CommandList;
-	t_CommandList.commandListIndex = a_CreateInfo.frameBufferSet;
-
-	ID3D12CommandAllocator* t_UsedAllocator;
-
-	switch (a_CreateInfo.queueType)
-	{
-	case BB::RENDER_QUEUE_TYPE::GRAPHICS:
-		t_CommandList.commandlistType = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		t_UsedAllocator = s_DX12BackendInst.directAllocator[t_CommandList.commandListIndex];
-		break;
-	case BB::RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		t_CommandList.commandlistType = D3D12_COMMAND_LIST_TYPE_COPY;
-		t_UsedAllocator = s_DX12BackendInst.copyAllocator;
-		break;
-	default:
-		BB_ASSERT(false, "DX12, RENDER_QUEUE_TYPE not supported.");
-		break;
-	}
-
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(
-		0,
-		t_CommandList.commandlistType,
-		t_UsedAllocator,
-		nullptr,
-		IID_PPV_ARGS(&t_CommandList.commandList)),
-		"DX12: Failed to create commandlist.");
-
-
-	return CommandListHandle(s_DX12BackendInst.commandLists.insert(t_CommandList));
+	return CommandListHandle(reinterpret_cast<DXCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList());
 }
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
