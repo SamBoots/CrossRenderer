@@ -29,16 +29,16 @@ namespace DXConv
 		switch (a_Usage)
 		{
 		case RENDER_BUFFER_USAGE::VERTEX:
-			return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+			return D3D12_RESOURCE_STATE_COPY_DEST;
 			break;
 		case RENDER_BUFFER_USAGE::INDEX:
-			return D3D12_RESOURCE_STATE_INDEX_BUFFER;
+			return D3D12_RESOURCE_STATE_COPY_DEST;
 			break;
 		case RENDER_BUFFER_USAGE::STORAGE:
-			return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+			return D3D12_RESOURCE_STATE_COPY_DEST;
 			break;
 		case RENDER_BUFFER_USAGE::STAGING:
-			return D3D12_RESOURCE_STATE_GENERIC_READ; //This doesn't work? Lets not use it now| D3D12_RESOURCE_STATE_COPY_SOURCE;
+			return D3D12_RESOURCE_STATE_GENERIC_READ;
 			break;
 		default:
 			BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
@@ -137,7 +137,7 @@ void ResetCommandLists(DXCommandList* a_CommandLists, const uint32_t a_Count)
 {
 	for (uint32_t i = 0; i < a_Count; i++)
 	{
-		a_CommandLists[]
+		a_CommandLists[i].list->Reset(a_CommandLists->allocator->allocator, 0);
 	}
 }
 
@@ -938,7 +938,7 @@ void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteComm
 			ID3D12CommandList*
 		);
 
-		for (size_t j = 0; j < a_ExecuteInfos[j].commandCount; j++)
+		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
 			t_CommandLists[j] = reinterpret_cast<ID3D12CommandList*>(
 				a_ExecuteInfos[i].commands[j].ptrHandle);
@@ -948,13 +948,7 @@ void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteComm
 			a_ExecuteInfos[i].commandCount, 
 			t_CommandLists);
 
-		//reset all the lists that you have executed.
-		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
-		{
-			DXCommandList* t_CmdList = reinterpret_cast<DXCommandList*>(
-				t_CommandLists[j]);
-			t_CmdList->list->Reset(t_CmdList->allocator->allocator, 0);
-		}
+		ResetCommandLists(reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands), a_ExecuteInfos[i].commandCount);
 	}
 }
 
@@ -978,13 +972,7 @@ void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCom
 			a_ExecuteInfos[i].commandCount,
 			t_CommandLists);
 
-		//reset all the lists that you have executed.
-		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
-		{
-			DXCommandList* t_CmdList = reinterpret_cast<DXCommandList*>(
-				t_CommandLists[j]);
-			t_CmdList->list->Reset(t_CmdList->allocator->allocator, 0);
-		}
+		ResetCommandLists(reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands), a_ExecuteInfos[i].commandCount);
 	}
 }
 
