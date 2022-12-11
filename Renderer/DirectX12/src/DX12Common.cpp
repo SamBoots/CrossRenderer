@@ -96,13 +96,6 @@ struct ShaderCompiler
 	IDxcLibrary* library;
 };
 
-struct CommandList
-{
-	ID3D12GraphicsCommandList* commandList;
-	D3D12_COMMAND_LIST_TYPE commandlistType;
-	FrameIndex commandListIndex;
-};
-
 struct Fence
 {
 	UINT64 fenceValue = 0;
@@ -132,11 +125,21 @@ struct DXCommandAllocator;
 
 struct DXCommandList
 {
-	ID3D12CommandList* list;
-	DXCommandAllocator* allocator;
+	union 
+	{
+		ID3D12GraphicsCommandList* list;
+	};
 
-	ID3D12CommandList* List() const { return list; }
+	DXCommandAllocator* allocator;
 };
+
+void ResetCommandLists(DXCommandList* a_CommandLists, const uint32_t a_Count)
+{
+	for (uint32_t i = 0; i < a_Count; i++)
+	{
+		a_CommandLists[]
+	}
+}
 
 struct DX12Backend_inst
 {
@@ -159,7 +162,6 @@ struct DX12Backend_inst
 
 	Slotmap<ID3D12RootSignature*> rootSignatures{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
-	Slotmap<CommandList> commandLists{ s_DX12Allocator };
 
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXMAResource> renderResources;
@@ -384,10 +386,6 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart();
 
 	s_DX12BackendInst.swapchain.renderTargets = BBnewArr(s_DX12Allocator, s_DX12BackendInst.backBufferCount, ID3D12Resource*);
-	s_DX12BackendInst.directAllocator = BBnewArr(
-		s_DX12Allocator,
-		s_DX12BackendInst.backBufferCount,
-		ID3D12CommandAllocator*);
 
 	// Create a RTV for each frame.
 	for (UINT i = 0; i < s_DX12BackendInst.backBufferCount; i++)
@@ -401,18 +399,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 			nullptr, 
 			rtvHandle);
 		rtvHandle.ptr += (1 * s_DX12BackendInst.swapchain.rtvDescriptorSize);
-
-		//Set command allocators per backbuffer.
-		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&s_DX12BackendInst.directAllocator[i])),
-			"DX12: Failed to create command allocator");
 	}
-
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandAllocator(
-		D3D12_COMMAND_LIST_TYPE_COPY,
-		IID_PPV_ARGS(&s_DX12BackendInst.copyAllocator)),
-		"DX12: Failed to create command allocator");
 }
 
 
@@ -687,7 +674,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 		&t_PsoDesc, IID_PPV_ARGS(&t_PipelineState)),
 		"DX12: Failed to create graphics pipeline");
 
-	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState));
+	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState).handle);
 }
 
 CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
@@ -697,7 +684,7 @@ CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const Ren
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
-	DXMAResource t_Resource;
+	DXMAResource* t_Resource = s_DX12BackendInst.renderResources.Get();
 
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
 	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -725,25 +712,25 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 		&t_ResourceDesc,
 		t_States,
 		NULL,
-		&t_Resource.allocation,
-		IID_PPV_ARGS(&t_Resource.resource)),
+		&t_Resource->allocation,
+		IID_PPV_ARGS(&t_Resource->resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
 
 	switch (a_Info.usage)
 	{
 	case RENDER_BUFFER_USAGE::VERTEX:
-		t_Resource.view.vertexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
-		t_Resource.view.vertexView.StrideInBytes = sizeof(Vertex);
-		t_Resource.view.vertexView.SizeInBytes = static_cast<UINT>(a_Info.size);
+		t_Resource->view.vertexView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
+		t_Resource->view.vertexView.StrideInBytes = sizeof(Vertex);
+		t_Resource->view.vertexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	case RENDER_BUFFER_USAGE::INDEX:
-		t_Resource.view.indexView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
-		t_Resource.view.indexView.Format = DXGI_FORMAT_R32_UINT;
-		t_Resource.view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
+		t_Resource->view.indexView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
+		t_Resource->view.indexView.Format = DXGI_FORMAT_R32_UINT;
+		t_Resource->view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	default:
-		t_Resource.view.constantView.BufferLocation = t_Resource.resource->GetGPUVirtualAddress();
-		t_Resource.view.constantView.SizeInBytes = static_cast<UINT>(a_Info.size);
+		t_Resource->view.constantView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
+		t_Resource->view.constantView.SizeInBytes = static_cast<UINT>(a_Info.size);
 		break;
 	}
 
@@ -754,13 +741,13 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 		t_ReadRange.Begin = 0;
 		t_ReadRange.End = 0;
 
-		DXASSERT(t_Resource.resource->Map(0, nullptr, &t_MappedPtr),
+		DXASSERT(t_Resource->resource->Map(0, nullptr, &t_MappedPtr),
 			"DX12: failed to map memory to resource.");
 		memcpy(t_MappedPtr, a_Info.data, a_Info.size);
-		t_Resource.resource->Unmap(0, nullptr);
+		t_Resource->resource->Unmap(0, nullptr);
 	}
 
-	return RBufferHandle(s_DX12BackendInst.renderResources.insert(t_Resource));
+	return RBufferHandle(t_Resource);
 }
 
 RSemaphoreHandle BB::DX12CreateSemaphore()
@@ -780,14 +767,14 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 
 RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
 {
-	CommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CmdHandle.handle);
-	return RecordingCommandListHandle(t_CommandList.commandList);
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
+	return RecordingCommandListHandle(t_CommandList);
 }
 
 void BB::DX12ResetCommandList(const CommandListHandle a_CmdHandle)
 {
-	CommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CmdHandle.handle);
-	DXASSERT(t_CommandList.commandList->Reset(s_DX12BackendInst.directAllocator[t_CommandList.commandListIndex], nullptr)
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
+	DXASSERT(t_CommandList->list->Reset(t_CommandList->allocator->allocator, nullptr)
 		, "DX12: Failed to reset commandlist.");
 }
 
@@ -810,7 +797,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	D3D12_VERTEX_BUFFER_VIEW t_Views[12]{};
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
-		t_Views[i] = s_DX12BackendInst.renderResources.find(a_Buffers[i].handle).view.vertexView;
+		t_Views[i] = reinterpret_cast<DXMAResource*>(a_Buffers[i].ptrHandle)->view.vertexView;
 	}
 
 	t_CommandList->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
@@ -819,7 +806,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->IASetIndexBuffer(&s_DX12BackendInst.renderResources.find(a_Buffer.handle).view.indexView);
+	t_CommandList->IASetIndexBuffer(&reinterpret_cast<DXMAResource*>(a_Buffer.ptrHandle)->view.indexView);
 }
 
 
@@ -856,29 +843,29 @@ void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, 
 
 void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
-	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
+	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
 	void* t_MapData;
 
-	DXASSERT(t_Resource.resource->Map(0, NULL, &t_MapData),
+	DXASSERT(t_Resource->resource->Map(0, NULL, &t_MapData),
 		"DX12: Failed to map resource.");
 
 	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
 
-	t_Resource.resource->Unmap(0, NULL);
+	t_Resource->resource->Unmap(0, NULL);
 }
 
 void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_CopyInfo.transferCommandHandle.ptrHandle);
 
-	ID3D12Resource* t_DestResource = s_DX12BackendInst.renderResources.find(a_CopyInfo.dst.handle).resource;
+	ID3D12Resource* t_DestResource = reinterpret_cast<DXMAResource*>(a_CopyInfo.dst.ptrHandle)->resource;
 
 	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
 	{
 		t_CommandList->CopyBufferRegion(
 			t_DestResource,
 			a_CopyInfo.copyRegions[i].dstOffset,
-			s_DX12BackendInst.renderResources.find(a_CopyInfo.src.handle).resource,
+			reinterpret_cast<DXMAResource*>(a_CopyInfo.src.handle)->resource,
 			a_CopyInfo.copyRegions[i].srcOffset,
 			a_CopyInfo.copyRegions[i].size);
 	}
@@ -910,7 +897,7 @@ void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHa
 	{
 		t_ResourceBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		t_ResourceBarriers[i].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		t_ResourceBarriers[i].Transition.pResource = s_DX12BackendInst.renderResources.find(a_Info.barriers[i].buffer.handle).resource;
+		t_ResourceBarriers[i].Transition.pResource = reinterpret_cast<DXMAResource*>(a_Info.barriers[i].buffer.ptrHandle)->resource;
 		t_ResourceBarriers[i].Transition.StateBefore = DXConv::ResourceStates(a_Info.barriers[i].previous);
 		t_ResourceBarriers[i].Transition.StateAfter = DXConv::ResourceStates(a_Info.barriers[i].next);
 		t_ResourceBarriers[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -960,6 +947,14 @@ void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteComm
 		s_DX12BackendInst.directQueue->ExecuteCommandLists(
 			a_ExecuteInfos[i].commandCount, 
 			t_CommandLists);
+
+		//reset all the lists that you have executed.
+		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
+		{
+			DXCommandList* t_CmdList = reinterpret_cast<DXCommandList*>(
+				t_CommandLists[j]);
+			t_CmdList->list->Reset(t_CmdList->allocator->allocator, 0);
+		}
 	}
 }
 
@@ -975,18 +970,28 @@ void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCom
 
 		for (size_t j = 0; j < a_ExecuteInfos[j].commandCount; j++)
 		{
-			t_CommandLists[j] = reinterpret_cast<ID3D12CommandList*>(
-				a_ExecuteInfos[i].commands[j].ptrHandle);
+			t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
+				a_ExecuteInfos[i].commands[j].ptrHandle)->list;
 		}
 
 		s_DX12BackendInst.copyQueue->ExecuteCommandLists(
 			a_ExecuteInfos[i].commandCount,
 			t_CommandLists);
+
+		//reset all the lists that you have executed.
+		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
+		{
+			DXCommandList* t_CmdList = reinterpret_cast<DXCommandList*>(
+				t_CommandLists[j]);
+			t_CmdList->list->Reset(t_CmdList->allocator->allocator, 0);
+		}
 	}
 }
 
 FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
 {
+
+
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
 	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
 
@@ -997,7 +1002,7 @@ FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInf
 
 void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
 {
-	CommandList t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.handle);
+	DXCommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.ptrHandle);
 
 	D3D12_RESOURCE_BARRIER renderTargetBarrier;
 	renderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -1006,22 +1011,22 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	renderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 	renderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	renderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList.commandList->ResourceBarrier(1, &renderTargetBarrier);
+	t_CommandList.list->ResourceBarrier(1, &renderTargetBarrier);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart());
 	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * s_DX12BackendInst.swapchain.rtvDescriptorSize);
-	t_CommandList.commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	t_CommandList.list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
 	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
-	t_CommandList.commandList->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
-	t_CommandList.commandList->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
-	t_CommandList.commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	t_CommandList.commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	t_CommandList.commandList->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
+	t_CommandList.list->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
+	t_CommandList.list->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
+	t_CommandList.list->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	t_CommandList.list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	t_CommandList.list->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
 
 	//t_CommandList->DrawInstanced(3, 1, 0, 0);
-	DX12DrawVertex(t_CommandList.commandList, 3, 1, 0, 0);
+	DX12DrawVertex(t_CommandList.list, 3, 1, 0, 0);
 
 	// Indicate that the back buffer will now be used to present.
 	D3D12_RESOURCE_BARRIER presentBarrier;
@@ -1032,11 +1037,11 @@ void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_Co
 	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList.commandList->ResourceBarrier(1, &presentBarrier);
+	t_CommandList.list->ResourceBarrier(1, &presentBarrier);
 
-	DXASSERT(t_CommandList.commandList->Close(), "DX12: Failed to close commandlist.");
+	DXASSERT(t_CommandList.list->Close(), "DX12: Failed to close commandlist.");
 
-	ID3D12CommandList* t_CommandListSend[] = { t_CommandList.commandList };
+	ID3D12CommandList* t_CommandListSend[] = { t_CommandList.list };
 	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_CommandListSend);
 
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
@@ -1063,16 +1068,15 @@ void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 
 void BB::DX12DestroySemaphore(const RSemaphoreHandle a_Handle)
 {
-	
 
 }
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
-	DXMAResource& t_Resource = s_DX12BackendInst.renderResources.find(a_Handle.handle);
-	t_Resource.resource->Release();
-	t_Resource.allocation->Release();
-	s_DX12BackendInst.renderResources.erase(a_Handle.handle);
+	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
+	t_Resource->resource->Release();
+	t_Resource->allocation->Release();
+	s_DX12BackendInst.renderResources.Free(t_Resource);
 }
 
 void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
@@ -1085,11 +1089,10 @@ void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 
 void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 {
-	CommandList& t_RemovedList = s_DX12BackendInst.commandLists.find(a_Handle.handle);
+	DXCommandList* t_RemovedList = reinterpret_cast<DXCommandList*>(a_Handle.ptrHandle);
 
-	t_RemovedList.commandList->Release();
-
-	s_DX12BackendInst.commandLists.erase(a_Handle.handle);
+	t_RemovedList->list->Release();
+	t_RemovedList->allocator->lists.Free(t_RemovedList);
 }
 
 void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
