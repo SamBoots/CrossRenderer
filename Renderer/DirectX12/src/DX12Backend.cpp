@@ -31,8 +31,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createFence = DX12CreateFence;
 
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
-	a_FuncCreateInfo.resetCommandList = DX12ResetCommandList;
+	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = DX12EndCommandList;
+	a_FuncCreateInfo.startRenderPass = DX12StartRenderPass;
 	a_FuncCreateInfo.bindPipeline = DX12BindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = DX12BindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = DX12BindIndexBuffer;
@@ -50,7 +51,10 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resizeWindow = TempResizeWindow;//DX12ResizeWindow;
 
 	a_FuncCreateInfo.startFrame = DX12StartFrame;
-	//a_FuncCreateInfo.renderFrame = DX12RenderFrame;
+	a_FuncCreateInfo.executeGraphicCommands = DX12ExecuteGraphicCommands;
+	a_FuncCreateInfo.executeTransferCommands = DX12ExecuteTransferCommands;
+	a_FuncCreateInfo.presentFrame = DX12PresentFrame;
+
 	a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;

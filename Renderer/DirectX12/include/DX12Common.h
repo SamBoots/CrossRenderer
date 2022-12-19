@@ -61,9 +61,12 @@ namespace BB
 	RSemaphoreHandle DX12CreateSemaphore();
 	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_Info);
 
-	RecordingCommandListHandle DX12StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer);
-	void DX12ResetCommandList(const CommandListHandle a_CmdHandle);
+	void DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
+
+	RecordingCommandListHandle DX12StartCommandList(const CommandListHandle a_CmdHandle);
 	void DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
+	void DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
+	void DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);

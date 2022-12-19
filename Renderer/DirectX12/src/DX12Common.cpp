@@ -765,17 +765,15 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 }
 
 
-RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle, const FrameBufferHandle a_Framebuffer)
+void BB::DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
+{
+	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->allocator->Reset();
+}
+
+RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
 	return RecordingCommandListHandle(t_CommandList);
-}
-
-void BB::DX12ResetCommandList(const CommandListHandle a_CmdHandle)
-{
-	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
-	DXASSERT(t_CommandList->list->Reset(t_CommandList->allocator->allocator, nullptr)
-		, "DX12: Failed to reset commandlist.");
 }
 
 void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
@@ -783,6 +781,46 @@ void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandl
 	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	//Close it for now
 	t_CommandList->Close();
+}
+
+void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier;
+	t_RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	t_RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	t_RenderTargetBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
+	t_RenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	t_RenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	t_CommandList->ResourceBarrier(1, &t_RenderTargetBarrier);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE
+		rtvHandle(s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart());
+	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * s_DX12BackendInst.swapchain.rtvDescriptorSize);
+	t_CommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
+
+	t_CommandList->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
+	t_CommandList->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
+	t_CommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+}
+
+void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+{
+	ID3D12GraphicsCommandList* t_CommandList = reinterpret_cast<ID3D12GraphicsCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	//// Indicate that the back buffer will now be used to present.
+	D3D12_RESOURCE_BARRIER presentBarrier;
+	presentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	presentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	presentBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
+	presentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+	t_CommandList->ResourceBarrier(1, &presentBarrier);
 }
 
 void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -978,67 +1016,15 @@ void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCom
 
 FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
 {
-
-
 	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
 	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
 
 	return s_DX12BackendInst.currentFrame;
 }
 
-
-
-void BB::DX12RenderFrame(Allocator a_TempAllocator, const CommandListHandle a_CommandHandle, const FrameBufferHandle a_FrameBufferHandle, const PipelineHandle a_PipeHandle)
-{
-	DXCommandList& t_CommandList = s_DX12BackendInst.commandLists.find(a_CommandHandle.ptrHandle);
-
-	D3D12_RESOURCE_BARRIER renderTargetBarrier;
-	renderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	renderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	renderTargetBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
-	renderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	renderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	renderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList.list->ResourceBarrier(1, &renderTargetBarrier);
-
-	D3D12_CPU_DESCRIPTOR_HANDLE
-		rtvHandle(s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart());
-	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * s_DX12BackendInst.swapchain.rtvDescriptorSize);
-	t_CommandList.list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-
-	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
-	t_CommandList.list->RSSetViewports(1, &s_DX12BackendInst.swapchain.viewport);
-	t_CommandList.list->RSSetScissorRects(1, &s_DX12BackendInst.swapchain.surfaceRect);
-	t_CommandList.list->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-	t_CommandList.list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	t_CommandList.list->IASetVertexBuffers(0, 1, &s_DX12BackendInst.renderResources.find(0).view.vertexView);
-
-	//t_CommandList->DrawInstanced(3, 1, 0, 0);
-	DX12DrawVertex(t_CommandList.list, 3, 1, 0, 0);
-
-	// Indicate that the back buffer will now be used to present.
-	D3D12_RESOURCE_BARRIER presentBarrier;
-	presentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	presentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	presentBarrier.Transition.pResource = s_DX12BackendInst.swapchain.renderTargets[s_DX12BackendInst.currentFrame];
-	presentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
-	t_CommandList.list->ResourceBarrier(1, &presentBarrier);
-
-	DXASSERT(t_CommandList.list->Close(), "DX12: Failed to close commandlist.");
-
-	ID3D12CommandList* t_CommandListSend[] = { t_CommandList.list };
-	s_DX12BackendInst.directQueue->ExecuteCommandLists(1, t_CommandListSend);
-
-	s_DX12BackendInst.swapchain.swapchain->Present(1, 0);
-	s_DX12BackendInst.currentFrame = s_DX12BackendInst.swapchain.swapchain->GetCurrentBackBufferIndex();
-}
-
 void BB::DX12WaitDeviceReady()
 {
-	const UINT64 fenceV = s_DX12BackendInst.fenceValue;
+	//const UINT64 fenceV = s_DX12BackendInst.fenceValue;
 	BB_WARNING(false, "DX12: DX12WaitDeviceReady function is unfinished, using it is dangerous.", WarningType::MEDIUM);
 	//if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
 	//{
