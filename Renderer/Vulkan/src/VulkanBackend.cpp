@@ -19,6 +19,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
 	a_FuncCreateInfo.startRenderPass = VulkanStartRenderPass;
+	a_FuncCreateInfo.endRenderPass = VulkanEndRenderPass;
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;

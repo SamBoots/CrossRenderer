@@ -229,7 +229,6 @@ struct VulkanCommandList
 	VkCommandBuffer* bufferPtr;
 
 	//Cached variables
-	VkRenderPass renderPass = VK_NULL_HANDLE;
 	VkPipelineLayout currentPipelineLayout = VK_NULL_HANDLE;
 
 	VkCommandAllocator* cmdAllocator;
@@ -1714,11 +1713,6 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	if (t_Cmdlist->renderPass != VK_NULL_HANDLE)
-	{
-		vkCmdEndRenderPass(t_Cmdlist->Buffer());
-		t_Cmdlist->renderPass = VK_NULL_HANDLE;
-	}
 	t_Cmdlist->currentPipelineLayout = VK_NULL_HANDLE;
 
 	VKASSERT(vkEndCommandBuffer(t_Cmdlist->Buffer()),
@@ -1729,7 +1723,6 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
-	t_Cmdlist->renderPass = t_FrameBuffer.renderPass;
 
 	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
 
@@ -1759,6 +1752,12 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_Scissor.offset = { 0, 0 };
 	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
+}
+
+void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+{
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	vkCmdEndRenderPass(t_Cmdlist->Buffer());
 }
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)

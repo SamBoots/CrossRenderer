@@ -176,6 +176,7 @@ static void Draw3DFrame()
 			}
 		}
 	}
+	RenderBackend::EndRenderPass(t_Recording);
 	RenderBackend::EndCommandList(t_Recording);
 }
 

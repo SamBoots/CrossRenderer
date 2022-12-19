@@ -103,6 +103,11 @@ void BB::RenderBackend::StartRenderPass(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.startRenderPass(a_RecordingCmdHandle, a_Framebuffer);
 }
 
+void BB::RenderBackend::EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+{
+	s_ApiFunc.endRenderPass(a_RecordingCmdHandle);
+}
+
 void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
 	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);

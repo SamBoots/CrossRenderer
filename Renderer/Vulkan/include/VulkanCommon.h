@@ -88,6 +88,7 @@ namespace BB
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
+	void VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);

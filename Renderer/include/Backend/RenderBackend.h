@@ -28,6 +28,7 @@ namespace BB
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
+		void EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
