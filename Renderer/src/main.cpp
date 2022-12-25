@@ -25,6 +25,11 @@ int main(int argc, char** argv)
 	BB_LOG(argv[0]);
 
 
+	Program::InitProgramInfo t_ProgramInfo;
+	t_ProgramInfo.exePath = argv[0];
+	t_ProgramInfo.programName = "Crossrenderer";
+	Program::InitProgram(t_ProgramInfo);
+
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 
@@ -90,6 +95,9 @@ int main(int argc, char** argv)
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
 
+	//Start frame before we upload.
+	Render::StartFrame();
+
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_Model, 
@@ -101,15 +109,19 @@ int main(int argc, char** argv)
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
 	while (!t_Quit)
 	{
+		Program::ProcessMessages();
+
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
 		t_Transform1.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(-90.0f * t_DeltaTime));
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 		t_TransformPool.UpdateTransforms();
+
 		Render::Update(t_DeltaTime);
-		Program::ProcessMessages();
+		Render::EndFrame();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
+		Render::StartFrame();
 	}
 
 	BB::Program::UnloadLib(t_RenderDLL);

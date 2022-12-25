@@ -91,11 +91,14 @@ private:
 
 FrameBufferHandle t_FrameBuffer;
 CommandAllocatorHandle t_CommandAllocators[3];
-CommandAllocatorHandle t_TransferAllocator[4];
+CommandAllocatorHandle t_TransferAllocator[3];
 
-CommandListHandle t_CommandLists[3];
-CommandListHandle t_TransferCommandList[3];
-CommandListHandle t_ModelCommandList;
+CommandListHandle t_GraphicCommands[3];
+CommandListHandle t_TransferCommands[3];
+
+RecordingCommandListHandle t_RecordingGraphics;
+RecordingCommandListHandle t_RecordingTransfer;
+
 
 RFenceHandle t_SwapchainFence[3];
 RSemaphoreHandle t_TransferSemaphores[3];
@@ -112,8 +115,6 @@ static PerFrameInfo s_PerFrameInfo;
 
 static void Draw3DFrame()
 {
-	RecordingCommandListHandle t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommandList[s_CurrentFrame]);
-	
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
 	t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
@@ -129,27 +130,22 @@ static void Draw3DFrame()
 
 	RenderBackend::CopyBuffer(t_CopyInfo);
 
-	RenderBackend::EndCommandList(t_RecordingTransfer);
-
-
-
 	//Record rendering commands.
-	RecordingCommandListHandle t_Recording = RenderBackend::StartCommandList(t_CommandLists[s_CurrentFrame]);
-	RenderBackend::StartRenderPass(t_Recording, t_FrameBuffer);
+	RenderBackend::StartRenderPass(t_RecordingGraphics, t_FrameBuffer);
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model& t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
-	RenderBackend::BindPipeline(t_Recording, t_Model.pipelineHandle);
+	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
 
 	uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
-	RenderBackend::BindDescriptorSets(t_Recording, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
+	RenderBackend::BindDescriptorSets(t_RecordingGraphics, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
 
 
 	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(t_Recording, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(t_Recording, t_Model.indexBuffer, 0);
+	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
+	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model.indexBuffer, 0);
 
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
@@ -157,17 +153,17 @@ static void Draw3DFrame()
 		{
 			t_CurrentModel = t_It->modelHandle;
 			t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
-			RenderBackend::BindPipeline(t_Recording, t_Model.pipelineHandle);
-			RenderBackend::BindVertexBuffers(t_Recording, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-			RenderBackend::BindIndexBuffer(t_Recording, t_Model.indexBuffer, 0);
+			RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
+			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
+			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model.indexBuffer, 0);
 		}
 
-		RenderBackend::BindConstant(t_Recording, RENDER_SHADER_STAGE::VERTEX, 0, sizeof(uint32_t), &t_It->transformHandle.index);
+		RenderBackend::BindConstant(t_RecordingGraphics, RENDER_SHADER_STAGE::VERTEX, 0, sizeof(uint32_t), &t_It->transformHandle.index);
 		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 		{
 			for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
 			{
-				RenderBackend::DrawIndexed(t_Recording,
+				RenderBackend::DrawIndexed(t_RecordingGraphics,
 					t_Model.linearNodes[i].mesh->primitives[j].indexCount,
 					1,
 					t_Model.linearNodes[i].mesh->primitives[j].indexStart,
@@ -176,8 +172,8 @@ static void Draw3DFrame()
 			}
 		}
 	}
-	RenderBackend::EndRenderPass(t_Recording);
-	RenderBackend::EndCommandList(t_Recording);
+	RenderBackend::EndRenderPass(t_RecordingGraphics);
+	RenderBackend::EndCommandList(t_RecordingGraphics);
 }
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
@@ -325,27 +321,22 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-	t_TransferAllocator[3] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 
 	RenderCommandListCreateInfo t_CmdCreateInfo;
 	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
-	t_CommandLists[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_GraphicCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
-	t_CommandLists[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_GraphicCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[2];
-	t_CommandLists[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_GraphicCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[0];
-	t_TransferCommandList[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_TransferCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[1];
-	t_TransferCommandList[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_TransferCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[2];
-	t_TransferCommandList[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-
-
-	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[3];
-	t_ModelCommandList = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	t_TransferCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	FenceCreateInfo t_CreateInfo;
 	t_CreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
@@ -391,13 +382,13 @@ void BB::Render::DestroyRenderer()
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);
-	for (size_t i = 0; i < _countof(t_CommandLists); i++)
+	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
 	{
-		RenderBackend::DestroyCommandList(t_CommandLists[i]);
+		RenderBackend::DestroyCommandList(t_GraphicCommands[i]);
 	}
-	for (size_t i = 0; i < _countof(t_TransferCommandList); i++)
+	for (size_t i = 0; i < _countof(t_TransferCommands); i++)
 	{
-		RenderBackend::DestroyCommandList(t_TransferCommandList[i]);
+		RenderBackend::DestroyCommandList(t_TransferCommands[i]);
 	}
 	for (size_t i = 0; i < _countof(t_CommandAllocators); i++)
 	{
@@ -413,12 +404,7 @@ void BB::Render::DestroyRenderer()
 
 void BB::Render::Update(const float a_DeltaTime)
 {
-	Render::StartFrame();
-
 	Draw3DFrame();
-
-	Render::EndFrame();
-
 }
 
 void BB::Render::SetProjection(const glm::mat4& a_Proj)
@@ -444,8 +430,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
-	RecordingCommandListHandle t_TransferCmd = RenderBackend::StartCommandList(t_ModelCommandList);
-
 	{
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
@@ -460,7 +444,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.vertexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_TransferCmd;
+		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.vertexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
@@ -486,7 +470,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.indexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_TransferCmd;
+		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.indexBuffer;
 		t_CopyInfo.CopyRegionCount = 1;
@@ -497,8 +481,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderBackend::CopyBuffer(t_CopyInfo);
 	}
-
-	RenderBackend::EndCommandList(t_TransferCmd);
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
 	t_Model.nodes = t_Model.linearNodes;
@@ -536,30 +518,28 @@ void BB::Render::StartFrame()
 	//TODO, send a fence that waits until the image was presented.
 	RenderBackend::ResetCommandAllocator(t_CommandAllocators[s_CurrentFrame]);
 	RenderBackend::ResetCommandAllocator(t_TransferAllocator[s_CurrentFrame]);
+
+	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
+	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
+
 }
 
 bool firstTimeTransfer = true;
 
 void BB::Render::EndFrame()
 {
+	RenderBackend::EndCommandList(t_RecordingTransfer);
+	//RenderBackend::EndCommandList(t_RecordingGraphics);
+
+
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,
 		2,
 		ExecuteCommandsInfo);
 
-	CommandListHandle t_TransferCommands[2];
-	t_TransferCommands[0] = t_TransferCommandList[s_CurrentFrame];
-	uint32_t t_TransferCommandCount = 1;
-	if (firstTimeTransfer)
-	{
-		firstTimeTransfer = false;
-		t_TransferCommandCount++;
-		t_TransferCommands[1] = t_ModelCommandList;
-	}
-
 	t_ExecuteInfos[0] = {};
-	t_ExecuteInfos[0].commands = t_TransferCommands;
-	t_ExecuteInfos[0].commandCount = t_TransferCommandCount;
+	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
+	t_ExecuteInfos[0].commandCount = 1;
 	t_ExecuteInfos[0].signalSemaphores = &t_TransferSemaphores[s_CurrentFrame];
 	t_ExecuteInfos[0].signalSemaphoresCount = 1;
 
@@ -568,7 +548,7 @@ void BB::Render::EndFrame()
 		t_PresentSemaphores[s_CurrentFrame] };
 
 	t_ExecuteInfos[1] = {};
-	t_ExecuteInfos[1].commands = &t_CommandLists[s_CurrentFrame];
+	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
 	t_ExecuteInfos[1].waitSemaphores = t_GraphicsWaitSemaphores;
 	t_ExecuteInfos[1].waitSemaphoresCount = 2;
