@@ -11,23 +11,23 @@
 #include "Framework/Slotmap_UTEST.h"
 #include "Framework/String_UTEST.h"
 
-#include "OS/OSDevice.h"
+#include "OS/Program.h"
 
 using namespace BB;
 int main()
 {
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
-	WindowHandle mainWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");
+	WindowHandle mainWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");
 
-	WindowHandle childWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
+	WindowHandle childWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
 
-	WindowHandle destroyWindow = OS::CreateOSWindow(OS::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
+	WindowHandle destroyWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
 
 	bool hasWindows = true;
 	while (hasWindows)
 	{
-		hasWindows = OS::ProcessMessages();
+		hasWindows = Program::ProcessMessages();
 	}
 
 	return 0;

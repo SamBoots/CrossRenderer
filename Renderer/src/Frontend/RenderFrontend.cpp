@@ -4,7 +4,7 @@
 #include "Transform.h"
 
 #include "Storage/Slotmap.h"
-#include "OS/OSDevice.h"
+#include "OS/Program.h"
 
 
 using namespace BB;
@@ -195,13 +195,13 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	int t_WindowWidth;
 	int t_WindowHeight;
-	OS::GetWindowSize(a_WindowHandle, t_WindowWidth, t_WindowHeight);
+	Program::GetWindowSize(a_WindowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)OS::LibLoadFunc(a_RenderLib, "GetRenderAPIFunctions");
+	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)Program::LibLoadFunc(a_RenderLib, "GetRenderAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
-	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(OS::GetOSWindowHandle(a_WindowHandle));
+	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(Program::GetOSWindowHandle(a_WindowHandle));
 	t_BackendCreateInfo.version = 1;
 	t_BackendCreateInfo.validationLayers = a_Debug;
 	t_BackendCreateInfo.appName = "TestName";
@@ -287,9 +287,9 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 #pragma endregion //Descriptor
 
 	ShaderCreateInfo t_ShaderBuffers[2];
-	t_ShaderBuffers[0].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
+	t_ShaderBuffers[0].buffer = Program::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-	t_ShaderBuffers[1].buffer = OS::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
+	t_ShaderBuffers[1].buffer = Program::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 
 

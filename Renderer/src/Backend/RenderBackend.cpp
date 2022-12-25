@@ -4,8 +4,6 @@
 #include "Utils/Slice.h"
 #include "BBString.h"
 
-#include "OS/OSDevice.h"
-
 using namespace BB;
 
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };

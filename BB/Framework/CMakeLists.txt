@@ -13,7 +13,7 @@ endif ()
 
 #Add source to this project's executable.
 add_library (BBFramework 
-"include/Allocators/BackingAllocator/BackingAllocator.h" 
+"include/Allocators/BackingAllocator.h" 
 "include/Allocators/Allocators.h" 
 "include/Allocators/TemporaryAllocator.h"
 "include/Storage/Array.h" 
@@ -22,18 +22,19 @@ add_library (BBFramework
 "include/Storage/Hashmap.h"
 "include/Storage/Slotmap.h"
 "include/Storage/BBString.h"
-"include/OS/OSDevice.h"
+
 "include/Utils/Utils.h"
 "include/Utils/Hash.h"
 "include/Utils/Slice.h"
 "include/Utils/Logger.h"
+"include/OS/Program.h" 
 "include/Common.h"
 "include/BBMemory.h" 
 
 "src/Allocators/Allocators.cpp" 
-"src/Allocators/BackingAllocator/BackingAllocator${PLATFORM_NAME}.cpp" 
+"src/Allocators/BackingAllocator.cpp" 
 "src/Allocators/TemporaryAllocator.cpp"
-"src/OS/OSDevice${PLATFORM_NAME}.cpp"
+"src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
 "src/BBMemory.cpp")

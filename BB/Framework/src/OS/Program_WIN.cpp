@@ -1,27 +1,24 @@
+#include "Program.h"
 #include "Utils/Logger.h"
-#include "OSDevice.h"
 
-#include <cstdint>
 #include <Windows.h>
+#include <memoryapi.h>
 #include <libloaderapi.h>
 #include <fstream>
-#include "Storage/Hashmap.h"
-#include "Storage/Array.h"
 
 using namespace BB;
-using namespace BB::OS;
+using namespace BB::Program;
 
-typedef FreelistAllocator_t OSAllocator_t;
-typedef LinearAllocator_t OSTempAllocator_t;
-
-OSAllocator_t OSAllocator{ kbSize * 2 };
-OSTempAllocator_t OSTempAllocator{ kbSize * 1 };
+FreelistAllocator_t OSAllocator{ kbSize * 2 };
 
 void DefaultClose(WindowHandle a_WindowHandle) {}
-void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y){}
+void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y) {}
 
 static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
 static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
+
+static const char* exePath;
+static const char* programName;
 
 //The OS window for Windows.
 struct OSWindow
@@ -30,16 +27,6 @@ struct OSWindow
 	const char* windowName = nullptr;
 	HINSTANCE hInstance = nullptr;
 };
-
-
-struct OSDevice
-{
-	//Special array for all the windows. Stored seperately 
-};
-
-static OSDevice s_OSDevice{};
-
-
 
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
@@ -63,22 +50,44 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	return DefWindowProc(a_Hwnd, a_Msg, a_WParam, a_LParam);
 }
 
+bool BB::Program::InitProgram(const InitProgramInfo& a_InitProgramInfo)
+{
+	programName = a_InitProgramInfo.programName;
+	exePath = a_InitProgramInfo.exePath;
+	return true;
+}
 
-const size_t BB::OS::VirtualMemoryPageSize()
+const size_t BB::Program::VirtualMemoryPageSize()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwPageSize;
 }
 
-const size_t BB::OS::VirtualMemoryMinimumAllocation()
+const size_t BB::Program::VirtualMemoryMinimumAllocation()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwAllocationGranularity;
 }
 
-const uint32_t BB::OS::LatestOSError()
+void* BB::Program::ReserveVirtualMemory(const size_t a_Size)
+{
+	return VirtualAlloc(nullptr, a_Size, MEM_RESERVE, PAGE_NOACCESS);
+}
+
+bool BB::Program::CommitVirtualMemory(void* a_Ptr, const size_t a_Size)
+{
+	void* t_Ptr = VirtualAlloc(a_Ptr, a_Size, MEM_COMMIT, PAGE_READWRITE);
+	return t_Ptr;
+}
+
+bool BB::Program::ReleaseVirtualMemory(void* a_Ptr)
+{
+	return VirtualFree(a_Ptr, 0, MEM_RELEASE);
+}
+
+const uint32_t BB::Program::LatestOSError()
 {
 	DWORD t_ErrorMsg = GetLastError();
 	if (t_ErrorMsg == 0)
@@ -95,7 +104,7 @@ const uint32_t BB::OS::LatestOSError()
 	return static_cast<uint32_t>(t_ErrorMsg);
 }
 
-Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
+Buffer BB::Program::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 {
 	Buffer t_FileBuffer;
 
@@ -119,34 +128,34 @@ Buffer BB::OS::ReadFile(Allocator a_SysAllocator, const char* a_Path)
 	return t_FileBuffer;
 }
 
-LibHandle BB::OS::LoadLib(const char* a_LibName)
+LibHandle BB::Program::LoadLib(const char* a_LibName)
 {
 	HMODULE t_Mod = LoadLibrary(a_LibName);
 	if (t_Mod == NULL)
 	{
-		OS::LatestOSError();
+		Program::LatestOSError();
 		BB_ASSERT(false, "Failed to load .DLL");
 	}
 	return LibHandle(t_Mod);
 }
 
-void BB::OS::UnloadLib(const LibHandle a_Handle)
+void BB::Program::UnloadLib(const LibHandle a_Handle)
 {
 	FreeLibrary(reinterpret_cast<HMODULE>(a_Handle.ptrHandle));
 }
 
-LibFuncPtr BB::OS::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
+LibFuncPtr BB::Program::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
 {
 	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
 	if (t_Func == NULL)
 	{
-		OS::LatestOSError();
+		Program::LatestOSError();
 		BB_ASSERT(false, "Failed to load function from .dll");
 	}
 	return t_Func;
 }
 
-WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
+WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const char* a_WindowName)
 {
 	OSWindow t_ReturnWindow;
 	t_ReturnWindow.windowName = a_WindowName;
@@ -187,7 +196,7 @@ WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, i
 	t_ReturnWindow.hwnd = CreateWindowEx(
 		0,
 		t_ReturnWindow.windowName,
-		"Memory Studies",
+		programName,
 		t_Style,
 		t_Rect.left,
 		t_Rect.top,
@@ -202,12 +211,12 @@ WindowHandle BB::OS::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, i
 	return WindowHandle(t_ReturnWindow.hwnd);
 }
 
-void* BB::OS::GetOSWindowHandle(WindowHandle a_Handle)
+void* BB::Program::GetOSWindowHandle(const WindowHandle a_Handle)
 {
 	return reinterpret_cast<HWND>(a_Handle.handle);
 }
 
-void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
+void BB::Program::GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y)
 {
 	RECT t_Rect;
 	GetClientRect(reinterpret_cast<HWND>(a_Handle.handle), &t_Rect);
@@ -216,27 +225,27 @@ void BB::OS::GetWindowSize(WindowHandle a_Handle, int& a_X, int& a_Y)
 	a_Y = t_Rect.bottom;
 }
 
-void BB::OS::DirectDestroyOSWindow(WindowHandle a_Handle)
+void BB::Program::DirectDestroyOSWindow(const WindowHandle a_Handle)
 {
 	DestroyWindow(reinterpret_cast<HWND>(a_Handle.ptrHandle));
 }
 
-void BB::OS::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
+void BB::Program::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
 {
 	sPFN_CloseEvent = a_Func;
 }
 
-void BB::OS::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
+void BB::Program::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
 {
 	sPFN_ResizeEvent = a_Func;
 }
 
-void BB::OS::ExitApp()
+void BB::Program::ExitApp()
 {
-	exit(EXIT_FAILURE);
+	exit(EXIT_SUCCESS);
 }
 
-bool BB::OS::ProcessMessages()
+bool BB::Program::ProcessMessages()
 {
 	MSG t_Msg{};
 
@@ -249,10 +258,12 @@ bool BB::OS::ProcessMessages()
 	return true;
 }
 
-char* BB::OS::GetExePath(Allocator a_SysAllocator)
+const char* BB::Program::ProgramName()
 {
-	//Can force to use the return value to get the size but I decide for 256 for ease of use.
-	char* a_Buffer = reinterpret_cast<char*>(BBalloc(a_SysAllocator, 256));
-	GetModuleFileNameA(nullptr, a_Buffer, 256);
-	return a_Buffer;
+	return programName;
+}
+
+const char* BB::Program::ProgramPath()
+{
+	return exePath;
 }

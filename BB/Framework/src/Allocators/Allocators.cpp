@@ -2,8 +2,8 @@
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
 
-#include "BackingAllocator/BackingAllocator.h"
-#include "OS/OSDevice.h"
+#include "BackingAllocator.h"
+#include "OS/Program.h"
 
 using namespace BB::allocators;
 
@@ -241,7 +241,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t)
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Roundup the freelist with the virtual memory page size for the most optimal allocation. 
-		size_t t_UsedMemory = Math::RoundUp(OS::VirtualMemoryPageSize(), t_Freelist_Buffer_Size);
+		size_t t_UsedMemory = Math::RoundUp(Program::VirtualMemoryPageSize(), t_Freelist_Buffer_Size);
 		m_FreeLists[i].allocSize = t_Freelist_Buffer_Size;
 		m_FreeLists[i].fullSize = t_UsedMemory;
 		//reserve half since we are splitting up the block, otherwise we might use a lot of virtual space.

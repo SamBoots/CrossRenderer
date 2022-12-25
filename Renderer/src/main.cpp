@@ -1,4 +1,4 @@
-#include "OS/OSDevice.h"
+#include "OS/Program.h"
 #include "Frontend/RenderFrontend.h"
 
 #include <chrono>
@@ -28,16 +28,16 @@ int main(int argc, char** argv)
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 
-	BB::WindowHandle t_MainWindow = BB::OS::CreateOSWindow(
-		BB::OS::OS_WINDOW_STYLE::MAIN, 
+	BB::WindowHandle t_MainWindow = BB::Program::CreateOSWindow(
+		BB::Program::OS_WINDOW_STYLE::MAIN, 
 		250,
 		200, 
 		t_WindowWidth,
 		t_WindowHeight,
 		"CrossRenderer");
 
-	OS::SetCloseWindowPtr(WindowQuit);
-	OS::SetResizeEventPtr(WindowResize);
+	Program::SetCloseWindowPtr(WindowQuit);
+	Program::SetResizeEventPtr(WindowResize);
 
 #ifdef _DEBUG
 	bool debugRenderer = true;
@@ -47,11 +47,11 @@ int main(int argc, char** argv)
 #ifdef USE_VULKAN
 	RenderAPI api = RenderAPI::VULKAN;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_VulkanDLL");
+	BB::LibHandle t_RenderDLL = BB::Program::LoadLib("BB_VulkanDLL");
 #elif USE_DIRECTX12
 	RenderAPI api = RenderAPI::DX12;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::OS::LoadLib("BB_DirectXDLL");
+	BB::LibHandle t_RenderDLL = BB::Program::LoadLib("BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
@@ -107,12 +107,12 @@ int main(int argc, char** argv)
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 		t_TransformPool.UpdateTransforms();
 		Render::Update(t_DeltaTime);
-		OS::ProcessMessages();
+		Program::ProcessMessages();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
 	}
 
-	BB::OS::UnloadLib(t_RenderDLL);
+	BB::Program::UnloadLib(t_RenderDLL);
 
 	return 0;
 }
