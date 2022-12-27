@@ -15,6 +15,7 @@ add_executable (Renderer
 #Backend .h
 "include/Backend/RenderBackend.h"
 "include/Backend/RenderBackendCommon.h"
+"include/Backend/ShaderCompiler.h"
 #Frontend .h
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
@@ -22,12 +23,19 @@ add_executable (Renderer
 
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
+"src/Backend/ShaderCompiler.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
 "src/Frontend/Transform.cpp"
 
 #temporary to test
-"src/main.cpp"  
+"src/main.cpp"
+)
+
+target_link_libraries(Renderer
+    DXCompiler
+    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
+    BBFramework 
 )
 
 #Include library
@@ -43,11 +51,7 @@ ${glm_SOURCE_DIR}
 )
 
 add_subdirectory("Vulkan")
-add_subdirectory("DirectX12")
-
-target_link_libraries(Renderer 
-    BBFramework 
-)
+#add_subdirectory("DirectX12")
 
 add_dependencies(Renderer BB_VulkanDLL)
 #add_dependencies(Renderer BB_DirectXDLL)

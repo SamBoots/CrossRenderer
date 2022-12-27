@@ -1,5 +1,6 @@
 #include "RenderFrontend.h"
 #include "RenderBackend.h"
+#include "ShaderCompiler.h"
 
 #include "Transform.h"
 
@@ -178,6 +179,8 @@ static void Draw3DFrame()
 
 void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
 {
+	Shader::InitShaderCompiler();
+
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES);
@@ -281,17 +284,29 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 
 #pragma endregion //Descriptor
-
-	ShaderCreateInfo t_ShaderBuffers[2];
-	t_ShaderBuffers[0].buffer = Program::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugVert.spv");
-	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-	t_ShaderBuffers[1].buffer = Program::ReadFile(m_SystemAllocator, "../Resources/Shaders/Vulkan/debugFrag.spv");
-	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-
-
 	const wchar_t* t_DX12ShaderPaths[2];
 	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+
+	Shader::ShaderCodeHandle t_ShaderHandles[2];
+	t_ShaderHandles[0] = Shader::CompileShader(
+		t_DX12ShaderPaths[0],
+		L"main",
+		RENDER_SHADER_STAGE::VERTEX);
+	t_ShaderHandles[1] = Shader::CompileShader(
+		t_DX12ShaderPaths[1],
+		L"main",
+		RENDER_SHADER_STAGE::FRAGMENT_PIXEL);
+
+	Buffer t_ShaderBuffer;
+	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
+	ShaderCreateInfo t_ShaderBuffers[2];
+	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
+	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+
+	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
+	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
+	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 
 	//Constant buffer for indices.
 	ConstantBufferInfo a_ConstBufferInfo;
@@ -350,12 +365,15 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	for (size_t i = 0; i < _countof(t_TransferSemaphores); i++)
 		t_TransferSemaphores[i] = RenderBackend::CreatSemaphore();
 
-	BBfree(m_SystemAllocator, t_ShaderBuffers[0].buffer.data);
-	BBfree(m_SystemAllocator, t_ShaderBuffers[1].buffer.data);
-
 	//Create upload buffer.
 	constexpr const uint64_t UPLOAD_BUFFER_SIZE = mbSize * 32;
 	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
+
+
+	for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
+	{
+		Shader::ReleaseShaderCode(t_ShaderHandles[i]);
+	}
 }
 
 void BB::Render::DestroyRenderer()

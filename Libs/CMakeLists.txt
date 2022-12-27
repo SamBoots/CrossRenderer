@@ -10,10 +10,10 @@ add_library(DX12MA
 "DX12MA/D3D12MemAlloc.cpp")
 target_include_directories(DX12MA INTERFACE DX12MA)
 
-add_library(DX12_ShaderCompiler INTERFACE
+add_library(DXCompiler INTERFACE
 "DXC/inc/dxcapi.h"
 "DXC/inc/d3d12shader.h")
-target_include_directories(DX12_ShaderCompiler INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(DXCompiler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(GLM)
 #Not found

@@ -1,3 +1,4 @@
+#define WIN32_LEAN_AND_MEAN
 #include "Program.h"
 #include "Utils/Logger.h"
 
@@ -8,8 +9,6 @@
 
 using namespace BB;
 using namespace BB::Program;
-
-FreelistAllocator_t OSAllocator{ kbSize * 2 };
 
 void DefaultClose(WindowHandle a_WindowHandle) {}
 void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y) {}

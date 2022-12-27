@@ -1,17 +1,9 @@
-struct PixelInput
+struct VSoutput
 {
-    float3 color : COLOR;
+    [[vk::location(0)]] float3 fragColor : COLOR0;
 };
 
-struct PixelOutput
+float4 main(VSoutput input) : SV_Target
 {
-    float4 attachment0 : SV_Target0;
-};
-
-PixelOutput main(PixelInput pixelInput)
-{
-    float3 inColor = pixelInput.color;
-    PixelOutput output;
-    output.attachment0 = float4(inColor, 1.0f);
-    return output;
+    return float4(input.fragColor.xyz, 1.0);
 }

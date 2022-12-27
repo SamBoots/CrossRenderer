@@ -36,12 +36,9 @@ target_include_directories(BB_DirectXDLL PUBLIC
 target_link_libraries(BB_DirectXDLL 
     BBFramework 
     DX12MA
-    DX12_ShaderCompiler
     d3d12.lib
     dxgi.lib
-    dxguid.lib
-    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
-    DX12_ShaderCompiler)
+    dxguid.lib)
 
 install(TARGETS BB_DirectXDLL
 DESTINATION $<TARGET_FILE_DIR:Renderer>)

@@ -3,11 +3,6 @@
 #include <cstdint>
 #include "Common.h"
 #include "BBMemory.h"
-#include "Utils/Slice.h"
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#endif
 
 ////// PROGRAM.h //////
 /// Program abstracts most OS calls and handles creation of windows,
