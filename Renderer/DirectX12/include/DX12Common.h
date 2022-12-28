@@ -36,20 +36,6 @@ namespace BB
 		ID3D12DebugDevice* debugDevice;
 	};
 
-	struct DX12Swapchain
-	{
-		UINT width;
-		UINT height;
-		IDXGISwapChain3* swapchain;
-
-		ID3D12DescriptorHeap* rtvHeap;
-		ID3D12Resource** renderTargets; //dyn alloc
-
-		D3D12_VIEWPORT viewport;
-		D3D12_RECT surfaceRect;
-		UINT rtvDescriptorSize;
-	};
-
 	//Functions
 	BackendInfo DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
@@ -93,8 +79,8 @@ namespace BB
 	void DX12DestroyBuffer(const RBufferHandle a_Handle);
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void DX12DestroyCommandList(const CommandListHandle a_Handle);
-	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
+	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 	void DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 	void DX12DestroyBackend();
