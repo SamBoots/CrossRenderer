@@ -1,41 +1,8 @@
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
-#include <d3d12.h>
-#include <dxgi1_6.h>
-
-//Compile HLSL in runtime for ease of use.
-#include <d3dcompiler.h>
-
-#include "RenderBackendCommon.h"
-
-#ifdef _DEBUG
-#define DXASSERT(a_HRESULT, a_Msg)\
-	if (a_HRESULT != S_OK)\
-		BB_ASSERT(false, a_Msg);\
-
-#else
-#define DXASSERT(a_HRESULT, a_Msg) a_HRESULT
-
-#endif //_DEBUG
+#pragma once
+#include "DX12HelperTypes.h"
 
 namespace BB
 {
-	union DX12BufferView
-	{
-		D3D12_VERTEX_BUFFER_VIEW vertexView;
-		D3D12_INDEX_BUFFER_VIEW indexView;
-		D3D12_CONSTANT_BUFFER_VIEW_DESC constantView;
-	};
-
-	struct DX12Device
-	{
-		IDXGIAdapter1* adapter;
-		ID3D12Device* logicalDevice;
-
-		ID3D12DebugDevice* debugDevice;
-	};
-
 	//Functions
 	BackendInfo DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);

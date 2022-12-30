@@ -18,7 +18,7 @@ set (DirectX_DLL_Source
 
 
 #Add source to this project's executable.
-add_library (BB_DirectXDLL SHARED ${DirectX_DLL_Source})
+add_library (BB_DirectXDLL SHARED ${DirectX_DLL_Source} "src/DX12HelperTypes.cpp")
 
 #Executable-Object
 set_target_properties ( BB_DirectXDLL PROPERTIES

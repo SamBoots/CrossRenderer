@@ -317,8 +317,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	RenderPipelineCreateInfo t_PipelineCreateInfo{};
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
-	t_PipelineCreateInfo.shaderPaths = t_DX12ShaderPaths;
-	t_PipelineCreateInfo.shaderPathCount = 2;
 	t_PipelineCreateInfo.descLayoutHandles = &s_PerFrameInfo.perFrameDescriptorLayout;
 	t_PipelineCreateInfo.descLayoutCount = 1;
 	t_PipelineCreateInfo.constantBuffers = &a_ConstBufferInfo;

@@ -276,11 +276,6 @@ namespace BB
 		uint32_t descLayoutCount;
 		ConstantBufferInfo* constantBuffers;
 		uint32_t constantBufferCount;
-		
-
-		//Required for DX12, later for vulkan as well. Or we build the shaders ourselves in the normal backend.
-		const wchar_t** shaderPaths;
-		uint32_t shaderPathCount;
 	};
 
 	struct RenderFrameBufferCreateInfo

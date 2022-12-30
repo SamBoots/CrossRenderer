@@ -12,141 +12,12 @@ using namespace BB;
 
 static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 
-//Safely releases a type by setting it back to null
-void DX12Release(IUnknown* a_Obj)
-{
-	if (a_Obj)
-		a_Obj->Release();
-}
-
-namespace DXConv
-{
-	const D3D12_RESOURCE_STATES ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
-	{
-		switch (a_Usage)
-		{
-		case RENDER_BUFFER_USAGE::VERTEX:
-			return D3D12_RESOURCE_STATE_COPY_DEST;
-			break;
-		case RENDER_BUFFER_USAGE::INDEX:
-			return D3D12_RESOURCE_STATE_COPY_DEST;
-			break;
-		case RENDER_BUFFER_USAGE::STORAGE:
-			return D3D12_RESOURCE_STATE_COPY_DEST;
-			break;
-		case RENDER_BUFFER_USAGE::STAGING:
-			return D3D12_RESOURCE_STATE_GENERIC_READ;
-			break;
-		default:
-			BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
-			return D3D12_RESOURCE_STATE_COMMON;
-			break;
-		}
-	}
-
-	const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
-	{
-		switch (a_Properties)
-		{
-		case RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL:
-			return D3D12_HEAP_TYPE_DEFAULT;
-			break;
-		case RENDER_MEMORY_PROPERTIES::HOST_VISIBLE:
-			return D3D12_HEAP_TYPE_UPLOAD;
-			break;
-		default:
-			BB_ASSERT(false, "DX12: Tried to make a commandlist with a queue type that does not exist.");
-			return D3D12_HEAP_TYPE_DEFAULT;
-			break;
-		}
-	}
-
-	const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType)
-	{
-		switch (a_RenderQueueType)
-		{
-		case RENDER_QUEUE_TYPE::GRAPHICS:
-			return D3D12_COMMAND_LIST_TYPE_DIRECT;
-			break;
-		case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-			return D3D12_COMMAND_LIST_TYPE_COPY;
-			break;
-		default:
-			BB_ASSERT(false, "DX12: Tried to make a commandlist with a queue type that does not exist.");
-			return D3D12_COMMAND_LIST_TYPE_DIRECT;
-			break;
-		}
-	}
-}
-
-struct DX12Swapchain
-{
-	UINT width;
-	UINT height;
-	IDXGISwapChain3* swapchain;
-};
-
-struct DX12FrameBuffer
-{
-	ID3D12Resource** renderTargets; //dyn alloc
-
-	ID3D12DescriptorHeap* rtvHeap;
-	D3D12_VIEWPORT viewport;
-	D3D12_RECT surfaceRect;
-};
-
 struct DXMAResource
 {
 	D3D12MA::Allocation* allocation;
 	ID3D12Resource* resource;
 	DX12BufferView view;
 };
-
-struct Fence
-{
-	UINT64 fenceValue = 0;
-	ID3D12Fence* fence{};
-
-	bool IsFenceComplete() const
-	{
-		return fence->GetCompletedValue() >= fenceValue;
-	}
-
-	void WaitFence(const uint64_t t_FenceValue)
-	{
-		if (fence->GetCompletedValue() < fenceValue)
-		{
-			HANDLE t_Event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
-			BB_ASSERT(t_Event, "DX12, failed to create a fence event.");
-
-			DXASSERT(fence->SetEventOnCompletion(t_FenceValue, t_Event),
-				"DX12, failed to set event on completion");
-
-			::CloseHandle(t_Event);
-		}
-	}
-};
-
-struct DXCommandAllocator;
-
-struct DXCommandList
-{
-	union 
-	{
-		ID3D12GraphicsCommandList* list;
-	};
-
-	ID3D12Resource* rtv;
-	DXCommandAllocator* allocator;
-};
-
-void ResetCommandLists(DXCommandList* a_CommandLists, const uint32_t a_Count)
-{
-	for (uint32_t i = 0; i < a_Count; i++)
-	{
-		a_CommandLists[i].list->Reset(a_CommandLists->allocator->allocator, 0);
-	}
-}
 
 struct DX12Backend_inst
 {
@@ -190,35 +61,9 @@ struct DX12Backend_inst
 	}
 };
 
-constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
-struct DXCommandAllocator
-{
-	ID3D12CommandAllocator* allocator;
-	D3D12_COMMAND_LIST_TYPE type;
-	Pool<DXCommandList> lists;
-
-	DXCommandList* GetCommandList()
-	{
-		DXCommandList* t_CommandList = lists.Get();
-		DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandList(0, 
-			type, 
-			allocator, 
-			nullptr,
-			IID_PPV_ARGS(&t_CommandList->list)),
-			"DX12: Failed to allocate commandlist.");
-
-		t_CommandList->allocator = this;
-
-		return t_CommandList;
-	}
-	void FreeCommandList(DXCommandList* t_CmdList)
-	{
-		t_CmdList->list->Release();
-		lists.Free(t_CmdList);
-	}
-};
-
 static DX12Backend_inst s_DX12BackendInst;
+
+constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
 
 enum class ShaderType
 {
@@ -564,21 +409,24 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
 	t_PsoDesc.pRootSignature = reinterpret_cast<ID3D12RootSignature*>(a_CreateInfo.descLayoutHandles[0].ptrHandle);
-	IDxcBlob* t_ShaderCode[2]; // 0 vertex, 1 frag.
-	t_ShaderCode[0] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[0], ShaderType::VERTEX);
-	t_ShaderCode[1] = CompileShader(a_TempAllocator, a_CreateInfo.shaderPaths[1], ShaderType::PIXEL);
 
-	//All the vertex shader stuff
-	D3D12_SHADER_BYTECODE t_VertexShader;
-	t_VertexShader.BytecodeLength = t_ShaderCode[0]->GetBufferSize();
-	t_VertexShader.pShaderBytecode = t_ShaderCode[0]->GetBufferPointer();
-	t_PsoDesc.VS = t_VertexShader;
-
-	//All the pixel shader stuff
-	D3D12_SHADER_BYTECODE t_PixelShader;
-	t_PixelShader.BytecodeLength = t_ShaderCode[1]->GetBufferSize();
-	t_PixelShader.pShaderBytecode = t_ShaderCode[1]->GetBufferPointer();
-	t_PsoDesc.PS = t_PixelShader;
+	for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
+	{
+		switch (a_CreateInfo.shaderCreateInfos[i].shaderStage)
+		{
+		case RENDER_SHADER_STAGE::VERTEX:
+			t_PsoDesc.VS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
+			t_PsoDesc.VS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
+			break;
+		case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
+			t_PsoDesc.PS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
+			t_PsoDesc.PS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
+			break;
+		default:
+			BB_ASSERT(false, "DX12: unsupported shaderstage.")
+			break;
+		}
+	}
 
 	D3D12_RASTERIZER_DESC t_RasterDesc;
 	t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
@@ -967,7 +815,7 @@ void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCom
 		s_DX12BackendInst.copyQueue->ExecuteCommandLists(
 			a_ExecuteInfos[i].commandCount,
 			t_CommandLists);
-
+		
 		ResetCommandLists(reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands), a_ExecuteInfos[i].commandCount);
 	}
 }
@@ -1068,11 +916,16 @@ void BB::DX12DestroyBackend()
 
 	s_DX12BackendInst.DXMA->Release();
 	if (s_DX12BackendInst.device.debugDevice)
+	{
+		s_DX12BackendInst.device.debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_NONE);
 		s_DX12BackendInst.device.debugDevice->Release();
-	
+	}
+
+
 	s_DX12BackendInst.device.logicalDevice->Release();
 	s_DX12BackendInst.device.adapter->Release();
 	if (s_DX12BackendInst.debugController)
 		s_DX12BackendInst.debugController->Release();
+
 	s_DX12BackendInst.factory->Release();
 }
