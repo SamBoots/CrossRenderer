@@ -56,15 +56,35 @@ struct DX12FrameBuffer
 	D3D12_RECT surfaceRect;
 };
 
-struct DXCommandQueue
+class DXCommandQueue
 {
-	ID3D12CommandQueue* queue;
-	D3D12_COMMAND_LIST_TYPE queueType;
+public:
+	DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType);
+	~DXCommandQueue();
 
-	ID3D12Fence* fence;
-	uint64_t nextFenceValue;
-	uint64_t lastCompleteValue;
-	HANDLE fenceEvent;
+	uint64_t PollFenceValue();
+	bool IsFenceComplete(const uint64_t a_FenceValue);
+
+	void WaitFenceCPU(const uint64_t a_FenceValue);
+	void WaitIdle() { WaitFenceCPU(m_NextFenceValue - 1); }
+
+	void InsertWait(const uint64_t a_FenceValue);
+	void InsertWaitQueue(const DXCommandQueue& a_WaitQueue);
+	void InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
+
+	void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
+
+	ID3D12CommandQueue* GetQueue() const { return m_Queue; }
+	ID3D12Fence* GetFence() const { return m_Fence; }
+	uint64_t GetNextFenceValue() const { return m_NextFenceValue; }
+
+private:
+	ID3D12CommandQueue* m_Queue;
+	D3D12_COMMAND_LIST_TYPE m_QueueType;
+	ID3D12Fence* m_Fence;
+	uint64_t m_NextFenceValue;
+	uint64_t m_LastCompleteValue;
+	HANDLE m_FenceEvent;
 };
 
 struct DXCommandList
@@ -91,14 +111,6 @@ struct Fence
 	UINT64 fenceValue = 0;
 	ID3D12Fence* fence{};
 };
-
-bool IsFenceComplete(const Fence a_Fence);
-void WaitFence(const Fence a_Fence, const uint64_t a_FenceValue);
-
-void InsertWait(DXCommandQueue& a_Queue, const uint64_t a_FenceValue);
-void WaitForQueueFence(DXCommandQueue& a_Queue, const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
-void WaitForQueue(DXCommandQueue& a_Queue, const DXCommandQueue& a_WaitQueue);
-void DestroyQueue(DXCommandQueue& a_Queue);
 
 DXCommandList* GetCommandList(DXCommandAllocator& a_CmdAllocator, ID3D12Device* a_Device);
 void FreeCommandList(DXCommandAllocator& cmdAllocator, DXCommandList* t_CmdList);
