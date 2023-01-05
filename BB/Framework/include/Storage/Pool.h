@@ -5,7 +5,7 @@
 namespace BB
 {
 	/// <summary>
-	/// NON_RAII and does not support POD types. 
+	/// NON_RAII and does not support non-POD types. 
 	/// You must call the destructor and constructor yourself.
 	/// Create the pool by using CreatePool and DestroyPool. 
 	/// A special container that is not responsible for it's own deallocation. 

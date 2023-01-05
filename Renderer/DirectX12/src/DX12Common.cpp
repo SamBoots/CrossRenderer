@@ -10,8 +10,6 @@
 
 using namespace BB;
 
-static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
-
 struct DXMAResource
 {
 	D3D12MA::Allocation* allocation;
@@ -27,9 +25,6 @@ struct DX12Backend_inst
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
 
-	ID3D12CommandQueue* directQueue{};
-	ID3D12CommandQueue* copyQueue{};
-
 	ID3D12DescriptorHeap* constantHeap;
 
 	DX12Device device{};
@@ -42,6 +37,7 @@ struct DX12Backend_inst
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<DX12FrameBuffer> frameBuffers{ s_DX12Allocator };
 
+	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXMAResource> renderResources;
 	Pool<Fence> fencePool;
@@ -477,7 +473,25 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState).handle);
 }
 
-CommandListHandle BB::DX12CreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
+CommandQueueHandle BB::DX12CreateCommandQueue()
+{
+	//Create the command queue
+	DXCommandQueue* t_CmdQueue = new (s_DX12BackendInst.cmdQueues.Get())
+		DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT);
+	return CommandQueueHandle(t_CmdQueue);
+}
+
+CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
+{
+	//Create the command allocator and it's command lists.
+	DXCommandAllocator* t_CmdAllocator = new (s_DX12BackendInst.cmdAllocators.Get())
+		DXCommandAllocator(s_DX12BackendInst.device.logicalDevice,
+			DXConv::CommandListType(a_CreateInfo.queueType),
+			a_CreateInfo.commandListCount);
+	return CommandAllocatorHandle(t_CmdAllocator);
+}
+
+CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	return CommandListHandle(reinterpret_cast<DXCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList());
 }
@@ -567,7 +581,7 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 
 void BB::DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
-	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->allocator->Reset();
+	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->ResetCommandAllocator();
 }
 
 RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle)
@@ -581,7 +595,7 @@ void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandl
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->rtv = nullptr;
 	//Close it for now
-	t_CommandList->list->Close();
+	t_CommandList->Close();
 }
 
 void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
@@ -598,19 +612,19 @@ void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	t_RenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
 	t_RenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList->list->ResourceBarrier(1, &t_RenderTargetBarrier);
+	t_CommandList->List()->ResourceBarrier(1, &t_RenderTargetBarrier);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(t_Framebuffer.rtvHeap->GetCPUDescriptorHandleForHeapStart());
 	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * 
 		s_DX12BackendInst.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
-	t_CommandList->list->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
-	t_CommandList->list->RSSetViewports(1, &t_Framebuffer.viewport);
-	t_CommandList->list->RSSetScissorRects(1, &t_Framebuffer.surfaceRect);
-	t_CommandList->list->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	t_CommandList->List()->RSSetViewports(1, &t_Framebuffer.viewport);
+	t_CommandList->List()->RSSetScissorRects(1, &t_Framebuffer.surfaceRect);
+	t_CommandList->List()->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 }
 
 void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
@@ -626,13 +640,13 @@ void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle
 	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList->list->ResourceBarrier(1, &presentBarrier);
+	t_CommandList->List()->ResourceBarrier(1, &presentBarrier);
 }
 
 void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->list->SetPipelineState(s_DX12BackendInst.pipelines.find(a_Pipeline.handle));
+	t_CommandList->List()->SetPipelineState(s_DX12BackendInst.pipelines.find(a_Pipeline.handle));
 }
 
 void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -644,13 +658,13 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 		t_Views[i] = reinterpret_cast<DXMAResource*>(a_Buffers[i].ptrHandle)->view.vertexView;
 	}
 
-	t_CommandList->list->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
+	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
 }
 
 void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->list->IASetIndexBuffer(&reinterpret_cast<DXMAResource*>(a_Buffer.ptrHandle)->view.indexView);
+	t_CommandList->List()->IASetIndexBuffer(&reinterpret_cast<DXMAResource*>(a_Buffer.ptrHandle)->view.indexView);
 }
 
 
@@ -658,7 +672,7 @@ void BB::DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdH
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	
-	t_CommandList->list->SetGraphicsRootSignature(reinterpret_cast<ID3D12RootSignature*>(a_Sets[0].ptrHandle));
+	t_CommandList->List()->SetGraphicsRootSignature(reinterpret_cast<ID3D12RootSignature*>(a_Sets[0].ptrHandle));
 }
 
 void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -667,21 +681,21 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 
 	BB_ASSERT(a_Size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
 	const UINT t_Dwords = a_Size / sizeof(uint32_t);
-	t_CommandList->list->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
+	t_CommandList->List()->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
 }
 
 void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	t_CommandList->list->DrawInstanced(a_VertexCount, a_InstanceCount, a_FirstInstance, a_InstanceCount);
+	t_CommandList->List()->DrawInstanced(a_VertexCount, a_InstanceCount, a_FirstInstance, a_InstanceCount);
 }
 
 void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	t_CommandList->list->DrawIndexedInstanced(a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
+	t_CommandList->List()->DrawIndexedInstanced(a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
 
@@ -706,7 +720,7 @@ void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a
 
 	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
 	{
-		t_CommandList->list->CopyBufferRegion(
+		t_CommandList->List()->CopyBufferRegion(
 			t_DestResource,
 			a_CopyInfo.copyRegions[i].dstOffset,
 			reinterpret_cast<DXMAResource*>(a_CopyInfo.src.handle)->resource,
@@ -714,7 +728,7 @@ void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a
 			a_CopyInfo.copyRegions[i].size);
 	}
 
-	ID3D12CommandList* t_CommandListSend[] = { t_CommandList->list };
+	ID3D12CommandList* t_CommandListSend[] = { t_CommandList->List() };
 	s_DX12BackendInst.copyQueue->ExecuteCommandLists(1, t_CommandListSend);
 }
 
@@ -748,7 +762,7 @@ void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHa
 	}
 
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->list->ResourceBarrier(a_Info.barrierCount, t_ResourceBarriers);
+	t_CommandList->List()->ResourceBarrier(a_Info.barrierCount, t_ResourceBarriers);
 }
 
 
@@ -772,7 +786,7 @@ void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Start
 
 }
 
-void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
+void DX12ExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
@@ -785,38 +799,18 @@ void BB::DX12ExecuteGraphicCommands(Allocator a_TempAllocator, const ExecuteComm
 		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
 			t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
-				a_ExecuteInfos[i].commands[j].ptrHandle)->list;
+				a_ExecuteInfos[i].commands[j].ptrHandle)->List();
 		}
 
-		s_DX12BackendInst.directQueue->ExecuteCommandLists(
-			a_ExecuteInfos[i].commandCount, 
-			t_CommandLists);
+		reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].executeQueue.ptrHandle)->ExecuteCommandlist(
+			t_CommandLists,
+			a_ExecuteInfos[i].commandCount);
 
-		ResetCommandLists(reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands), a_ExecuteInfos[i].commandCount);
-	}
-}
-
-void BB::DX12ExecuteTransferCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
-{
-	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
-	{
-		ID3D12CommandList** t_CommandLists = BBnewArr(
-			a_TempAllocator,
-			a_ExecuteInfos[i].commandCount,
-			ID3D12CommandList*
-		);
-
-		for (size_t j = 0; j < a_ExecuteInfos[j].commandCount; j++)
+		//Now reset the command lists.
+		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
-			t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
-				a_ExecuteInfos[i].commands[j].ptrHandle)->list;
+			reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Reset();
 		}
-
-		s_DX12BackendInst.copyQueue->ExecuteCommandLists(
-			a_ExecuteInfos[i].commandCount,
-			t_CommandLists);
-		
-		ResetCommandLists(reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands), a_ExecuteInfos[i].commandCount);
 	}
 }
 
@@ -842,7 +836,7 @@ void BB::DX12WaitDeviceReady()
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 {
-	DX12Release(reinterpret_cast<Fence*>(a_Handle.ptrHandle)->fence);
+	reinterpret_cast<Fence*>(a_Handle.ptrHandle)->fence->Release();
 	s_DX12BackendInst.fencePool.Free(reinterpret_cast<Fence*>(a_Handle.ptrHandle));
 }
 
@@ -859,20 +853,20 @@ void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 	s_DX12BackendInst.renderResources.Free(t_Resource);
 }
 
-void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+void BB::DX12DestroycommandQueue(const CommandQueueHandle a_Handle)
 {
-	DXCommandAllocator* t_CmdAllocator = reinterpret_cast<DXCommandAllocator*>(a_Handle.ptrHandle);
-	t_CmdAllocator->lists.DestroyPool(s_DX12Allocator);
-	t_CmdAllocator->allocator->Release();
-	s_DX12BackendInst.cmdAllocators.Free(t_CmdAllocator);
+	reinterpret_cast<DXCommandQueue*>(a_Handle.ptrHandle)->~DXCommandQueue();
 }
 
-void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
+void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 {
-	DXCommandList* t_RemovedList = reinterpret_cast<DXCommandList*>(a_Handle.ptrHandle);
+	//Deconstructing the command allocator.
+	reinterpret_cast<DXCommandAllocator*>(a_Handle.ptrHandle)->~DXCommandAllocator();
+}
 
-	t_RemovedList->list->Release();
-	t_RemovedList->allocator->lists.Free(t_RemovedList);
+void BB::DX12DestroyCommandList(const CommandListHandle a_Handle, const CommandAllocatorHandle a_CmdAllocatorHandle)
+{
+	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->FreeCommandList(reinterpret_cast<DXCommandList*>(a_Handle.ptrHandle));
 }
 
 void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)

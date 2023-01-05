@@ -16,6 +16,8 @@
 
 #include "RenderBackendCommon.h"
 
+static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
+
 using namespace BB;
 
 namespace DXConv
@@ -72,7 +74,7 @@ public:
 	void InsertWaitQueue(const DXCommandQueue& a_WaitQueue);
 	void InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
 
-	void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
+	void ExecuteCommandlist(const uint32_t a_CommandListCount, ID3D12CommandList** a_CommandLists, );
 
 	ID3D12CommandQueue* GetQueue() const { return m_Queue; }
 	ID3D12Fence* GetFence() const { return m_Fence; }
@@ -85,25 +87,52 @@ private:
 	uint64_t m_NextFenceValue;
 	uint64_t m_LastCompleteValue;
 	HANDLE m_FenceEvent;
+
+	friend class DXCommandAllocator; //Allocator should have access to the QueueType.
 };
 
-struct DXCommandList
+struct DXCommandAllocator* a_CmdAllocator;
+
+class DXCommandList
 {
-	union
-	{
-		ID3D12GraphicsCommandList* list;
-	};
-	struct DXCommandAllocator* allocator;
+public:
+	DXCommandList(ID3D12Device* a_Device, DXCommandAllocator& a_CmdAllocator);
+	~DXCommandList();
 
 	//Possible caching for efficiency, might go for specific commandlist types.
 	ID3D12Resource* rtv;
+
+	ID3D12GraphicsCommandList* List() const { return m_List; }
+	//Commandlist holds the allocator info, so use this instead of List()->Reset
+	void Reset(ID3D12PipelineState* a_PipeState = nullptr);
+	//Prefer to use this Close instead of List()->Close() for error testing purposes
+	void Close();
+
+private:
+	union
+	{
+		ID3D12GraphicsCommandList* m_List;
+	};
+	DXCommandAllocator& m_CmdAllocator;
 };
 
-struct DXCommandAllocator
+class DXCommandAllocator
 {
-	ID3D12CommandAllocator* allocator;
-	D3D12_COMMAND_LIST_TYPE type;
-	Pool<DXCommandList> lists;
+public:
+	DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount);
+	~DXCommandAllocator();
+
+	DXCommandList* GetCommandList();
+	void FreeCommandList(DXCommandList* a_CmdList);
+	void ResetCommandAllocator();
+
+private:
+	ID3D12CommandAllocator* m_Allocator;
+	D3D12_COMMAND_LIST_TYPE m_Type;
+	Pool<DXCommandList> m_Lists;
+	uint32_t m_ListSize;
+
+	friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
 };
 
 struct Fence
@@ -112,9 +141,5 @@ struct Fence
 	ID3D12Fence* fence{};
 };
 
-DXCommandList* GetCommandList(DXCommandAllocator& a_CmdAllocator, ID3D12Device* a_Device);
-void FreeCommandList(DXCommandAllocator& cmdAllocator, DXCommandList* t_CmdList);
-void ResetCommandLists(DXCommandList* a_CommandLists, const uint32_t a_Count);
-
-//Safely releases a type by setting it back to null
-void DX12Release(IUnknown* a_Obj);
+//Safely releases a DX type
+void DXRelease(IUnknown* a_Obj);

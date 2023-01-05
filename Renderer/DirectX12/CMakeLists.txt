@@ -7,18 +7,16 @@ set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 set (DirectX_DLL_Headers
 "include/DX12Backend.h"
 "include/DX12Common.h"
-#VulkanCommon is included because otherwise Cmake complains about this error on line 20.
-#set_target_properties called with incorrect number of arguments. 
-#I truly do not know why.
-"include/VulkanCommon.h")
+"include/DX12HelperTypes.h")
 
 set (DirectX_DLL_Source
 "src/DX12Backend.cpp"
-"src/DX12Common.cpp")
+"src/DX12Common.cpp"
+"src/DX12HelperTypes.cpp")
 
 
 #Add source to this project's executable.
-add_library (BB_DirectXDLL SHARED ${DirectX_DLL_Source} "src/DX12HelperTypes.cpp")
+add_library (BB_DirectXDLL SHARED ${DirectX_DLL_Source})
 
 #Executable-Object
 set_target_properties ( BB_DirectXDLL PROPERTIES

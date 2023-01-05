@@ -99,8 +99,8 @@ DXCommandQueue::~DXCommandQueue()
 {
 	CloseHandle(m_FenceEvent);
 
-	DX12Release(m_Queue);
-	DX12Release(m_Fence);
+	DXRelease(m_Queue);
+	DXRelease(m_Fence);
 }
 
 uint64_t DXCommandQueue::PollFenceValue()
@@ -150,42 +150,83 @@ void DXCommandQueue::ExecuteCommandlist(ID3D12CommandList** a_CommandLists, cons
 {
 	m_Queue->ExecuteCommandLists(a_CommandListCount, a_CommandLists);
 	m_Queue->Signal(m_Fence, m_NextFenceValue);
-	m_NextFenceValue++;
+	++m_NextFenceValue;
 }
 
-
-DXCommandList* GetCommandList(DXCommandAllocator& a_CmdAllocator, ID3D12Device* a_Device)
+DXCommandAllocator::DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount)
 {
-	DXCommandList* t_CommandList = lists.Get();
-	DXASSERT(a_Device->CreateCommandList(0,
-		a_CmdAllocator.type,
-		a_CmdAllocator.allocator,
-		nullptr,
-		IID_PPV_ARGS(&t_CommandList->list)),
-		"DX12: Failed to allocate commandlist.");
+	m_ListSize = a_CommandListCount;
+	m_Type = a_QueueType;
+	a_Device->CreateCommandAllocator(m_Type, IID_PPV_ARGS(&m_Allocator));
+	m_Lists.CreatePool(s_DX12Allocator, m_ListSize);
 
-	t_CommandList->allocator = this;
-
-	return t_CommandList;
-}
-
-void FreeCommandList(DXCommandAllocator& cmdAllocator, DXCommandList* t_CmdList)
-{
-	DX12Release(t_CmdList->list);
-	//CHecking to see if the pointer is from the list is done in list.Free
-	lists.Free(t_CmdList);
-}
-
-void ResetCommandLists(DXCommandList* a_CommandLists, const uint32_t a_Count)
-{
-	for (uint32_t i = 0; i < a_Count; i++)
+	//pre-reserve the commandlists, doing it here so it becomes easy to make a cross-API renderer with vulkan.
+	for (size_t i = 0; i < m_ListSize; i++)
 	{
-		a_CommandLists[i].list->Reset(a_CommandLists->allocator->allocator, 0);
+		new (&m_Lists.data()[i]) DXCommandList(a_Device, *this);
 	}
 }
 
+DXCommandAllocator::~DXCommandAllocator()
+{
+	//Call the destructor before removing the pool memory.
+	for (size_t i = 0; i < m_ListSize; i++)
+	{
+		m_Lists.data()[i].~DXCommandList();
+	}
+
+	m_Lists.DestroyPool(s_DX12Allocator);
+	DXRelease(m_Allocator);
+}
+
+void DXCommandAllocator::FreeCommandList(DXCommandList* a_CmdList)
+{
+	m_Lists.Free(a_CmdList);
+}
+
+void DXCommandAllocator::ResetCommandAllocator()
+{
+	m_Allocator->Reset();
+}
+
+DXCommandList* DXCommandAllocator::GetCommandList()
+{
+	return m_Lists.Get();
+}
+
+DXCommandList::DXCommandList(ID3D12Device* a_Device, struct DXCommandAllocator& a_CmdAllocator)
+	: m_CmdAllocator(a_CmdAllocator)
+{
+	DXASSERT(a_Device->CreateCommandList(0,
+		m_CmdAllocator.m_Type,
+		m_CmdAllocator.m_Allocator,
+		nullptr,
+		IID_PPV_ARGS(&m_List)),
+		"DX12: Failed to allocate commandlist.");
+
+	//Caching variables just null.
+	rtv = nullptr;
+}
+
+DXCommandList::~DXCommandList()
+{
+	DXRelease(m_List);
+	rtv = nullptr;
+}
+
+void DXCommandList::Reset(ID3D12PipelineState* a_PipeState)
+{
+	m_List->Reset(m_CmdAllocator.m_Allocator, a_PipeState);
+}
+
+void DXCommandList::Close()
+{
+	m_List->Close();
+	rtv = nullptr;
+}
+
 //Safely releases a type by setting it back to null
-void DX12Release(IUnknown* a_Obj)
+void DXRelease(IUnknown* a_Obj)
 {
 	if (a_Obj)
 		a_Obj->Release();

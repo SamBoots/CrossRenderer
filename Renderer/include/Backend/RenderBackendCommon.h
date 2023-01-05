@@ -20,6 +20,7 @@ namespace BB
 	//Index is the start index, Index 
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
+	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
@@ -301,6 +302,7 @@ namespace BB
 
 	struct ExecuteCommandsInfo
 	{
+		CommandQueueHandle executeQueue;
 		CommandListHandle* commands;
 		uint32_t commandCount;
 		RSemaphoreHandle* waitSemaphores;
