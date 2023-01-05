@@ -74,7 +74,7 @@ public:
 	void InsertWaitQueue(const DXCommandQueue& a_WaitQueue);
 	void InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
 
-	void ExecuteCommandlist(const uint32_t a_CommandListCount, ID3D12CommandList** a_CommandLists, );
+	void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
 
 	ID3D12CommandQueue* GetQueue() const { return m_Queue; }
 	ID3D12Fence* GetFence() const { return m_Fence; }
