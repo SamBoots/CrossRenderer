@@ -91,6 +91,10 @@ private:
 };
 
 FrameBufferHandle t_FrameBuffer;
+
+CommandQueueHandle t_GraphicsQueue;
+CommandQueueHandle t_TransferQueue;
+
 CommandAllocatorHandle t_CommandAllocators[3];
 CommandAllocatorHandle t_TransferAllocator[3];
 
@@ -100,11 +104,7 @@ CommandListHandle t_TransferCommands[3];
 RecordingCommandListHandle t_RecordingGraphics;
 RecordingCommandListHandle t_RecordingTransfer;
 
-
 RFenceHandle t_SwapchainFence[3];
-RSemaphoreHandle t_TransferSemaphores[3];
-RSemaphoreHandle t_PresentSemaphores[3];
-RSemaphoreHandle t_RenderSemaphores[3];
 PipelineHandle t_Pipeline;
 
 UploadBuffer* t_UploadBuffer;
@@ -183,7 +183,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
-	t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES);
+	//t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES); Now all these are included in STANDARD_VULKAN_INSTANCE
 	if (a_Debug)
 	{
 		t_Extensions.emplace_back(RENDER_EXTENSIONS::DEBUG);
@@ -201,7 +201,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(Program::GetOSWindowHandle(a_WindowHandle));
-	t_BackendCreateInfo.version = 1;
+	t_BackendCreateInfo.version = 2;
 	t_BackendCreateInfo.validationLayers = a_Debug;
 	t_BackendCreateInfo.appName = "TestName";
 	t_BackendCreateInfo.engineName = "TestEngine";
@@ -323,6 +323,15 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_PipelineCreateInfo.constantBufferCount = 1;
 
 	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
+
+
+	RenderCommandQueueCreateInfo t_QueueCreateInfo;
+	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
+	t_QueueCreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
+	t_GraphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
+	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::TRANSFER_COPY;
+	t_TransferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
+
 	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo;
 	t_AllocatorCreateInfo.commandListCount = 10;
 	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
@@ -356,12 +365,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	for (size_t i = 0; i < _countof(t_SwapchainFence); i++)
 		t_SwapchainFence[i] = RenderBackend::CreateFence(t_CreateInfo);
-	for (size_t i = 0; i < _countof(t_PresentSemaphores); i++)
-		t_PresentSemaphores[i] = RenderBackend::CreatSemaphore();
-	for (size_t i = 0; i < _countof(t_RenderSemaphores); i++)
-		t_RenderSemaphores[i] = RenderBackend::CreatSemaphore();
-	for (size_t i = 0; i < _countof(t_TransferSemaphores); i++)
-		t_TransferSemaphores[i] = RenderBackend::CreatSemaphore();
 
 	//Create upload buffer.
 	constexpr const uint64_t UPLOAD_BUFFER_SIZE = mbSize * 32;
@@ -377,13 +380,6 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 void BB::Render::DestroyRenderer()
 {
 	RenderBackend::WaitGPUReady();
-	//all semaphores have the same array length (at least now)
-	for (size_t i = 0; i < _countof(t_TransferSemaphores); i++)
-	{
-		RenderBackend::DestroySemaphore(t_TransferSemaphores[i]);
-		RenderBackend::DestroySemaphore(t_PresentSemaphores[i]);
-		RenderBackend::DestroySemaphore(t_RenderSemaphores[i]);
-	}
 
 	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
 	{
@@ -526,7 +522,6 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 void BB::Render::StartFrame()
 {
 	StartFrameInfo t_StartInfo{};
-	t_StartInfo.renderSem = t_PresentSemaphores[s_CurrentFrame];
 	t_StartInfo.fences = &t_SwapchainFence[s_CurrentFrame];
 	t_StartInfo.fenceCount = 1;
 	RenderBackend::StartFrame(t_StartInfo);
@@ -556,27 +551,21 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0] = {};
 	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
 	t_ExecuteInfos[0].commandCount = 1;
-	t_ExecuteInfos[0].signalSemaphores = &t_TransferSemaphores[s_CurrentFrame];
-	t_ExecuteInfos[0].signalSemaphoresCount = 1;
-
-	RSemaphoreHandle t_GraphicsWaitSemaphores[2] = {
-		t_TransferSemaphores[s_CurrentFrame],
-		t_PresentSemaphores[s_CurrentFrame] };
+	//t_ExecuteInfos[0].signalQueues = &t_TransferQueue;
+	//t_ExecuteInfos[0].signalQueueCount = 1;
 
 	t_ExecuteInfos[1] = {};
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
-	t_ExecuteInfos[1].waitSemaphores = t_GraphicsWaitSemaphores;
-	t_ExecuteInfos[1].waitSemaphoresCount = 2;
-	t_ExecuteInfos[1].signalSemaphores = &t_RenderSemaphores[s_CurrentFrame];
-	t_ExecuteInfos[1].signalSemaphoresCount = 1;
+	//t_ExecuteInfos[1].waitQueueCount = 1;
+	//t_ExecuteInfos[1].waitQueues = &t_TransferQueue;
 
-	RenderBackend::ExecuteTransferCommands(&t_ExecuteInfos[0], 1, RFenceHandle(nullptr));
+	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
 
-	RenderBackend::ExecuteGraphicCommands(&t_ExecuteInfos[1], 1, t_SwapchainFence[s_CurrentFrame]);
+	RenderBackend::ExecutePresentCommands(t_GraphicsQueue, t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
-	t_PresentFrame.waitSemaphoreCount = 1;
-	t_PresentFrame.waitSemaphores = &t_RenderSemaphores[s_CurrentFrame];
+	//t_PresentFrame = 1;
+	//t_PresentFrame.waitSemaphores = &t_RenderSemaphores[s_CurrentFrame];
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 	RenderBackend::Update();
 }

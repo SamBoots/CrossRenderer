@@ -13,10 +13,10 @@ namespace BB
 		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
+		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
-		RSemaphoreHandle CreatSemaphore();
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 		
 		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
@@ -39,8 +39,8 @@ namespace BB
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 		void StartFrame(const StartFrameInfo& a_StartInfo);
-		void ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
-		void ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+		void ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+		void ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 		FrameIndex PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 		void Update();
@@ -54,11 +54,11 @@ namespace BB
 		void DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 		void DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
-		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
+		void DestroyCommandQueue(const CommandQueueHandle a_Handle);
+		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
-		void DestroySemaphore(const RSemaphoreHandle a_Handle);
 		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }

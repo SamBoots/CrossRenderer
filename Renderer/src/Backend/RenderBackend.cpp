@@ -46,6 +46,11 @@ PipelineHandle BB::RenderBackend::CreatePipeline(const RenderPipelineCreateInfo&
 	return s_ApiFunc.createPipeline(m_TempAllocator, a_CreateInfo);
 }
 
+CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
+{
+	return s_ApiFunc.createCommandQueue(a_CreateInfo);
+}
+
 CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createCommandAllocator(a_CreateInfo);
@@ -59,11 +64,6 @@ CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCr
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createBuffer(a_CreateInfo);
-}
-
-RSemaphoreHandle BB::RenderBackend::CreatSemaphore()
-{
-	return s_ApiFunc.createSemaphore();
 }
 
 RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
@@ -156,14 +156,14 @@ void BB::RenderBackend::StartFrame(const StartFrameInfo& a_StartInfo)
 	s_ApiFunc.startFrame(m_TempAllocator, a_StartInfo);
 }
 
-void BB::RenderBackend::ExecuteGraphicCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
+void BB::RenderBackend::ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	s_ApiFunc.executeGraphicCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount, a_SumbitFence);
+	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteQueue, a_ExecuteInfos, a_ExecuteInfoCount);
 }
 
-void BB::RenderBackend::ExecuteTransferCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence)
+void BB::RenderBackend::ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
-	s_ApiFunc.executeTransferCommands(m_TempAllocator, a_ExecuteInfos, a_ExecuteInfoCount, a_SumbitFence);
+	s_ApiFunc.executePresentCommands(m_TempAllocator, a_ExecuteQueue, a_ExecuteInfo);
 }
 
 FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
@@ -211,14 +211,19 @@ void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)
 	s_ApiFunc.destroyFrameBuffer(a_Handle);
 }
 
-void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
-{
-	s_ApiFunc.destroyCommandAllocator(a_Handle);
-}
-
 void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
 {
 	s_ApiFunc.destroyPipeline(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
+{
+	s_ApiFunc.destroyCommandQueue(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+{
+	s_ApiFunc.destroyCommandAllocator(a_Handle);
 }
 
 void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
@@ -229,11 +234,6 @@ void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyBuffer(a_Handle);
-}
-
-void BB::RenderBackend::DestroySemaphore(const RSemaphoreHandle a_Handle)
-{
-	s_ApiFunc.destroySemaphore(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)

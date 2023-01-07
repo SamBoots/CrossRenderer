@@ -9,10 +9,10 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
+	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
-	a_FuncCreateInfo.createSemaphore = VulkanCreateSemaphore;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
@@ -37,8 +37,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resizeWindow = VulkanResizeWindow;
 
 	a_FuncCreateInfo.startFrame = VulkanStartFrame;
-	a_FuncCreateInfo.executeGraphicCommands = VulkanExecuteGraphicCommands;
-	a_FuncCreateInfo.executeTransferCommands = VulkanExecuteTransferCommands;
+	a_FuncCreateInfo.executeCommands = VulkanExecuteCommands;
+	a_FuncCreateInfo.executePresentCommands = VulkanExecutePresentCommand;
 	a_FuncCreateInfo.presentFrame = VulkanPresentFrame;
 
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
@@ -48,9 +48,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptorSet;
 	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
+	a_FuncCreateInfo.destroyCommandQueue = VulkanDestroyCommandQueue;
 	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
-	a_FuncCreateInfo.destroySemaphore = VulkanDestroySemaphore;
 	a_FuncCreateInfo.destroyFence = VulkanDestroyFence;
 }

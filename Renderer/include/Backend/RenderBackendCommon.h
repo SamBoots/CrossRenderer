@@ -25,7 +25,6 @@ namespace BB
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
-	using RSemaphoreHandle = FrameworkHandle<struct RSemaphoreHandleTag>;
 	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
@@ -136,14 +135,14 @@ namespace BB
 		STANDARD_VULKAN_DEVICE, //VK Device Property.
 		STANDARD_DX12,
 		DEBUG,
-		PHYSICAL_DEVICE_EXTRA_PROPERTIES, 
 		PIPELINE_EXTENDED_DYNAMIC_STATE //VK Device Property.
 	};
 
 	enum class RENDER_QUEUE_TYPE : uint32_t
 	{
 		GRAPHICS,
-		TRANSFER_COPY
+		TRANSFER_COPY,
+		COMPUTE
 	};
 
 	enum class RENDER_FENCE_FLAGS : uint32_t
@@ -289,6 +288,12 @@ namespace BB
 		uint32_t height{};
 	};
 
+	struct RenderCommandQueueCreateInfo
+	{
+		RENDER_QUEUE_TYPE queue;
+		RENDER_FENCE_FLAGS flags;
+	};
+
 	struct RenderCommandAllocatorCreateInfo
 	{
 		RENDER_QUEUE_TYPE queueType;
@@ -302,18 +307,23 @@ namespace BB
 
 	struct ExecuteCommandsInfo
 	{
-		CommandQueueHandle executeQueue;
 		CommandListHandle* commands;
 		uint32_t commandCount;
-		RSemaphoreHandle* waitSemaphores;
-		uint32_t waitSemaphoresCount;
-		RSemaphoreHandle* signalSemaphores;
-		uint32_t signalSemaphoresCount;
+		CommandQueueHandle* waitQueues;
+		uint64_t* waitValues;
+		uint32_t waitQueueCount;
+		CommandQueueHandle* signalQueues;
+		uint32_t signalQueueCount;
+	};
+
+	//This struct gets returned and has the signal values of the send queue's fences.
+	struct ExecuteCommandSignalValues
+	{
+		uint64_t* signalValues;
 	};
 
 	struct StartFrameInfo
 	{
-		RSemaphoreHandle renderSem;
 		RFenceHandle imageWait;
 		RFenceHandle* fences;
 		uint32_t fenceCount;
@@ -321,8 +331,7 @@ namespace BB
 
 	struct PresentFrameInfo
 	{
-		RSemaphoreHandle* waitSemaphores;
-		uint32_t waitSemaphoreCount;
+
 	};
 
 	struct Vertex
@@ -342,10 +351,10 @@ namespace BB
 	typedef RDescriptorHandle	(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle		(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle	(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	typedef CommandQueueHandle(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle	(*PFN_RenderAPICreateCommandList)(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
-	typedef RSemaphoreHandle	(*PFN_RenderAPICreateSemaphore)();
 	typedef RFenceHandle		(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
 	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
@@ -373,8 +382,8 @@ namespace BB
 	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	typedef void (*PFN_RenderAPIStartFrame)(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
-	typedef void (*PFN_RenderAPIExecuteGraphicCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
-	typedef void (*PFN_RenderAPIExecuteTransferCommands)(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount, RFenceHandle a_SumbitFence);
+	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	typedef void (*PFN_RenderAPIExecutePresentCommands)(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 
@@ -386,10 +395,10 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(const FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyCommandQueue)(const CommandQueueHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
-	typedef void (*PFN_RenderAPIDestroySemaphore)(const RSemaphoreHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFence)(const RFenceHandle a_Handle);
 
 	struct RenderAPIFunctions
@@ -398,10 +407,11 @@ namespace BB
 		PFN_RenderAPICreateDescriptor createDescriptor;
 		PFN_RenderAPICreatePipeline createPipeline;
 		PFN_RenderAPICreateFrameBuffer createFrameBuffer;
+		PFN_RenderAPICreateCommandQueue createCommandQueue;
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
-		PFN_RenderAPICreateSemaphore createSemaphore;
+
 		PFN_RenderAPICreateFence createFence;
 
 		PFN_RenderAPIStartCommandList startCommandList;
@@ -426,8 +436,8 @@ namespace BB
 		PFN_RenderAPIResizeWindow resizeWindow;
 
 		PFN_RenderAPIStartFrame startFrame;
-		PFN_RenderAPIExecuteGraphicCommands executeGraphicCommands;
-		PFN_RenderAPIExecuteTransferCommands executeTransferCommands;
+		PFN_RenderAPIExecuteCommands executeCommands;
+		PFN_RenderAPIExecutePresentCommands executePresentCommands;
 		PFN_RenderAPIPresentFrame presentFrame;
 
 		PFN_RenderAPIWaitDeviceReady waitDevice;
@@ -437,10 +447,10 @@ namespace BB
 		PFN_RenderAPIDestroyDescriptorLayout destroyDescriptorLayout;
 		PFN_RenderAPIDestroyFrameBuffer destroyFrameBuffer;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;
+		PFN_RenderAPIDestroyCommandQueue destroyCommandQueue;
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
-		PFN_RenderAPIDestroySemaphore destroySemaphore;
 		PFN_RenderAPIDestroyFence destroyFence;
 	};
 }
