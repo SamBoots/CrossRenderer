@@ -386,6 +386,8 @@ namespace BB
 	typedef void (*PFN_RenderAPIExecutePresentCommands)(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
+	typedef uint64_t (*PFN_RenderAPINextQueueFenceValue)(const CommandQueueHandle a_Handle);
+	typedef uint64_t (*PFN_RenderAPINextFenceValue)(const RFenceHandle a_Handle);
 
 	typedef void (*PFN_RenderAPIWaitDeviceReady)();
 
@@ -439,6 +441,9 @@ namespace BB
 		PFN_RenderAPIExecuteCommands executeCommands;
 		PFN_RenderAPIExecutePresentCommands executePresentCommands;
 		PFN_RenderAPIPresentFrame presentFrame;
+
+		PFN_RenderAPINextQueueFenceValue nextQueueFenceValue;
+		PFN_RenderAPINextFenceValue nextFenceValue;
 
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 

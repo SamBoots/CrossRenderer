@@ -42,6 +42,9 @@ namespace BB
 	void VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	FrameIndex VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
+	uint64_t VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle);
+	uint64_t VulkanNextFenceValue(const RFenceHandle a_Handle);
+
 	void VulkanWaitDeviceReady();
 
 	void VulkanDestroyFence(const RFenceHandle a_Handle);

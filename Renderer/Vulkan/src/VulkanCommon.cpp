@@ -827,209 +827,6 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
-void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
-{
-	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
-
-	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
-		s_VkBackendInst.swapChain.swapChain,
-		UINT64_MAX,
-		s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame],
-		VK_NULL_HANDLE,
-		&s_VkBackendInst.imageIndex),
-		"Vulkan: failed to get next image.");
-
-	//VkSemaphore* t_TimelineSemaphores = BBnewArr(a_TempAllocator,
-	//	a_StartInfo.fenceCount,
-	//	VkSemaphore);
-
-	//for (size_t i = 0; i < a_StartInfo.fenceCount; i++)
-	//{
-	//	t_TimelineSemaphores[i] = reinterpret_cast<VkSemaphore>(a_StartInfo.fences[i].ptrHandle);
-	//}
-
-	//For now not wait for semaphores, may be required later.
-	//VkSemaphoreWaitInfo t_WaitInfo;
-	//t_WaitInfo.pSemaphores = t_TimelineSemaphores
-	//vkWaitSemaphores(s_VkBackendInst.device.logicalDevice,)
-}
-
-void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
-{
-	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
-
-	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(
-		a_TempAllocator,
-		a_ExecuteInfoCount,
-		VkTimelineSemaphoreSubmitInfo);
-	VkSubmitInfo* t_SubmitInfos = BBnewArr(
-		a_TempAllocator,
-		a_ExecuteInfoCount,
-		VkSubmitInfo);
-
-	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
-	{
-		VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
-			a_ExecuteInfos[i].commandCount,
-			VkCommandBuffer);
-		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
-		{
-			t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
-		}
-
-		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
-		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
-
-		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
-			t_WaitSemCount + t_SignalSemCount + 1,
-			VkSemaphore);
-		uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
-			t_WaitSemCount + t_SignalSemCount + 1,
-			uint64_t);
-
-		//SETTING THE WAIT
-		for (uint32_t j = 0; j < t_WaitSemCount; j++)
-		{
-			t_Semaphores[j] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->timelineSemaphore;
-			t_SemValues[j] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->nextSemValue;
-		}
-
-		//SETTING THE SIGNAL
-		for (uint32_t j = 0; j < t_SignalSemCount; j++)
-		{
-			t_Semaphores[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->timelineSemaphore;
-			//Increment the next sem value for signal
-			t_SemValues[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->nextSemValue++;
-		}
-
-		t_TimelineInfos[i].sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		t_TimelineInfos[i].waitSemaphoreValueCount = t_WaitSemCount;
-		t_TimelineInfos[i].pWaitSemaphoreValues = t_SemValues;
-		t_TimelineInfos[i].signalSemaphoreValueCount = t_SignalSemCount;
-		t_TimelineInfos[i].pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
-		t_TimelineInfos[i].pNext = nullptr;
-
-		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		t_SubmitInfos[i].waitSemaphoreCount = t_WaitSemCount;
-		t_SubmitInfos[i].pWaitSemaphores = t_Semaphores;
-		t_SubmitInfos[i].pWaitDstStageMask = t_WaitStagesMask;
-		t_SubmitInfos[i].signalSemaphoreCount = t_SignalSemCount;
-		t_SubmitInfos[i].pSignalSemaphores = &t_Semaphores[t_WaitSemCount]; //Get the semaphores after all the wait sems
-		t_SubmitInfos[i].commandBufferCount = a_ExecuteInfos[i].commandCount;
-		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
-
-		t_SubmitInfos[i].pNext = &t_TimelineInfos[i];
-	}
-
-	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
-	VKASSERT(vkQueueSubmit(t_Queue.queue,
-		a_ExecuteInfoCount,
-		t_SubmitInfos,
-		VK_NULL_HANDLE),
-		"Vulkan: failed to submit to queue.");
-}
-
-void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
-{
-	VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
-		a_ExecuteInfo.commandCount,
-		VkCommandBuffer);
-	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
-	{
-		t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfo.commands[j].handle].Buffer();
-	}
-
-	//add 1 more to wait the binary semaphore for image presenting
-	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitQueueCount + 1;
-	//add 1 more to signal the binary semaphore for image presenting
-	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 1;
-
-	VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
-		t_WaitSemCount + t_SignalSemCount,
-		VkSemaphore);
-	uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
-		t_WaitSemCount + t_SignalSemCount,
-		uint64_t);
-
-	//SETTING THE WAIT
-	// 	//Set the wait semaphore so that it must wait until it can present.
-	t_Semaphores[0] = s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame];
-	t_SemValues[0] = 0;
-	//Get the semaphore from the queues.
-	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
-	{
-		t_Semaphores[i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.waitQueues[i].ptrHandle)->timelineSemaphore;
-		t_SemValues[i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.waitQueues[i].ptrHandle)->nextSemValue;
-	}
-
-	//SETTING THE SIGNAL
-	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount] = s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
-	t_SemValues[t_WaitSemCount] = 0;
-	for (uint32_t i = 0; i < t_SignalSemCount - 1; i++)
-	{
-		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.signalQueues[i].ptrHandle)->timelineSemaphore;
-		//Increment the next sem value for signal
-		t_SemValues[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.signalQueues[i].ptrHandle)->nextSemValue++;
-	}
-
-	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
-
-	VkTimelineSemaphoreSubmitInfo t_TimelineInfo;
-	t_TimelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-	t_TimelineInfo.waitSemaphoreValueCount = t_WaitSemCount;
-	t_TimelineInfo.pWaitSemaphoreValues = t_SemValues;
-	t_TimelineInfo.signalSemaphoreValueCount = t_SignalSemCount;
-	t_TimelineInfo.pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
-	t_TimelineInfo.pNext = nullptr;
-
-	VkSubmitInfo t_SubmitInfo;
-	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	t_SubmitInfo.waitSemaphoreCount = t_WaitSemCount;
-	t_SubmitInfo.pWaitSemaphores = t_Semaphores;
-	t_SubmitInfo.pWaitDstStageMask = t_WaitStagesMask;
-	t_SubmitInfo.signalSemaphoreCount = t_SignalSemCount;
-	t_SubmitInfo.pSignalSemaphores = &t_Semaphores[t_WaitSemCount]; //Get the semaphores after all the wait sems
-	t_SubmitInfo.commandBufferCount = a_ExecuteInfo.commandCount;
-	t_SubmitInfo.pCommandBuffers = t_CmdBuffers;
-	t_SubmitInfo.pNext = &t_TimelineInfo;
-
-
-	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
-	VKASSERT(vkQueueSubmit(t_Queue.queue,
-		1,
-		&t_SubmitInfo,
-		VK_NULL_HANDLE),
-		"Vulkan: failed to submit to queue.");
-}
-
-FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
-{
-	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
-
-	VkPresentInfoKHR t_PresentInfo{};
-	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
-	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
-	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
-	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
-	t_PresentInfo.pResults = nullptr;
-
-	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
-		"Vulkan: Failed to queuepresentKHR.");
-
-	return s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
-}
-
 BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	//Initialize data structure
@@ -1788,6 +1585,217 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 			a_Y,
 			s_VkBackendInst.frameCount);
 	}
+}
+
+void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
+{
+	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
+
+	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
+		s_VkBackendInst.swapChain.swapChain,
+		UINT64_MAX,
+		s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame],
+		VK_NULL_HANDLE,
+		&s_VkBackendInst.imageIndex),
+		"Vulkan: failed to get next image.");
+
+	//VkSemaphore* t_TimelineSemaphores = BBnewArr(a_TempAllocator,
+	//	a_StartInfo.fenceCount,
+	//	VkSemaphore);
+
+	//for (size_t i = 0; i < a_StartInfo.fenceCount; i++)
+	//{
+	//	t_TimelineSemaphores[i] = reinterpret_cast<VkSemaphore>(a_StartInfo.fences[i].ptrHandle);
+	//}
+
+	//For now not wait for semaphores, may be required later.
+	//VkSemaphoreWaitInfo t_WaitInfo;
+	//t_WaitInfo.pSemaphores = t_TimelineSemaphores
+	//vkWaitSemaphores(s_VkBackendInst.device.logicalDevice,)
+}
+
+void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+{
+	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(
+		a_TempAllocator,
+		a_ExecuteInfoCount,
+		VkTimelineSemaphoreSubmitInfo);
+	VkSubmitInfo* t_SubmitInfos = BBnewArr(
+		a_TempAllocator,
+		a_ExecuteInfoCount,
+		VkSubmitInfo);
+
+	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
+	{
+		VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+			a_ExecuteInfos[i].commandCount,
+			VkCommandBuffer);
+		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
+		{
+			t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
+		}
+
+		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
+		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
+
+		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+			t_WaitSemCount + t_SignalSemCount + 1,
+			VkSemaphore);
+		uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
+			t_WaitSemCount + t_SignalSemCount + 1,
+			uint64_t);
+
+		//SETTING THE WAIT
+		for (uint32_t j = 0; j < t_WaitSemCount; j++)
+		{
+			t_Semaphores[j] = reinterpret_cast<VulkanCommandQueue*>(
+				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->timelineSemaphore;
+			t_SemValues[j] = a_ExecuteInfos[i].waitValues[j];;
+		}
+
+		//SETTING THE SIGNAL
+		for (uint32_t j = 0; j < t_SignalSemCount; j++)
+		{
+			t_Semaphores[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
+				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->timelineSemaphore;
+			//Increment the next sem value for signal
+			t_SemValues[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
+				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->nextSemValue++;
+		}
+
+		t_TimelineInfos[i].sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+		t_TimelineInfos[i].waitSemaphoreValueCount = t_WaitSemCount;
+		t_TimelineInfos[i].pWaitSemaphoreValues = t_SemValues;
+		t_TimelineInfos[i].signalSemaphoreValueCount = t_SignalSemCount;
+		t_TimelineInfos[i].pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
+		t_TimelineInfos[i].pNext = nullptr;
+
+		t_SubmitInfos[i].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		t_SubmitInfos[i].waitSemaphoreCount = t_WaitSemCount;
+		t_SubmitInfos[i].pWaitSemaphores = t_Semaphores;
+		t_SubmitInfos[i].pWaitDstStageMask = t_WaitStagesMask;
+		t_SubmitInfos[i].signalSemaphoreCount = t_SignalSemCount;
+		t_SubmitInfos[i].pSignalSemaphores = &t_Semaphores[t_WaitSemCount]; //Get the semaphores after all the wait sems
+		t_SubmitInfos[i].commandBufferCount = a_ExecuteInfos[i].commandCount;
+		t_SubmitInfos[i].pCommandBuffers = t_CmdBuffers;
+
+		t_SubmitInfos[i].pNext = &t_TimelineInfos[i];
+	}
+
+	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
+	VKASSERT(vkQueueSubmit(t_Queue.queue,
+		a_ExecuteInfoCount,
+		t_SubmitInfos,
+		VK_NULL_HANDLE),
+		"Vulkan: failed to submit to queue.");
+}
+
+void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
+{
+	VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+		a_ExecuteInfo.commandCount,
+		VkCommandBuffer);
+	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
+	{
+		t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfo.commands[j].handle].Buffer();
+	}
+
+	//add 1 more to wait the binary semaphore for image presenting
+	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitQueueCount + 1;
+	//add 1 more to signal the binary semaphore for image presenting
+	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 1;
+
+	VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+		t_WaitSemCount + t_SignalSemCount,
+		VkSemaphore);
+	uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
+		t_WaitSemCount + t_SignalSemCount,
+		uint64_t);
+
+	//SETTING THE WAIT
+	// 	//Set the wait semaphore so that it must wait until it can present.
+	t_Semaphores[0] = s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame];
+	t_SemValues[0] = 0;
+	//Get the semaphore from the queues.
+	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
+	{
+		t_Semaphores[i + 1] = reinterpret_cast<VulkanCommandQueue*>(
+			a_ExecuteInfo.waitQueues[i].ptrHandle)->timelineSemaphore;
+		t_SemValues[i + 1] = a_ExecuteInfo.waitValues[i];
+	}
+
+	//SETTING THE SIGNAL
+	//signal the binary semaphore to signal that the image is being worked on.
+	t_Semaphores[t_WaitSemCount] = s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
+	t_SemValues[t_WaitSemCount] = 0;
+	for (uint32_t i = 0; i < t_SignalSemCount - 1; i++)
+	{
+		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
+			a_ExecuteInfo.signalQueues[i].ptrHandle)->timelineSemaphore;
+		//Increment the next sem value for signal
+		t_SemValues[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
+			a_ExecuteInfo.signalQueues[i].ptrHandle)->nextSemValue++;
+	}
+
+	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+	VkTimelineSemaphoreSubmitInfo t_TimelineInfo;
+	t_TimelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+	t_TimelineInfo.waitSemaphoreValueCount = t_WaitSemCount;
+	t_TimelineInfo.pWaitSemaphoreValues = t_SemValues;
+	t_TimelineInfo.signalSemaphoreValueCount = t_SignalSemCount;
+	t_TimelineInfo.pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
+	t_TimelineInfo.pNext = nullptr;
+
+	VkSubmitInfo t_SubmitInfo;
+	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	t_SubmitInfo.waitSemaphoreCount = t_WaitSemCount;
+	t_SubmitInfo.pWaitSemaphores = t_Semaphores;
+	t_SubmitInfo.pWaitDstStageMask = t_WaitStagesMask;
+	t_SubmitInfo.signalSemaphoreCount = t_SignalSemCount;
+	t_SubmitInfo.pSignalSemaphores = &t_Semaphores[t_WaitSemCount]; //Get the semaphores after all the wait sems
+	t_SubmitInfo.commandBufferCount = a_ExecuteInfo.commandCount;
+	t_SubmitInfo.pCommandBuffers = t_CmdBuffers;
+	t_SubmitInfo.pNext = &t_TimelineInfo;
+
+
+	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
+	VKASSERT(vkQueueSubmit(t_Queue.queue,
+		1,
+		&t_SubmitInfo,
+		VK_NULL_HANDLE),
+		"Vulkan: failed to submit to queue.");
+}
+
+FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
+{
+	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+
+	VkPresentInfoKHR t_PresentInfo{};
+	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	t_PresentInfo.waitSemaphoreCount = 1;
+	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
+	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
+	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
+	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
+	t_PresentInfo.pResults = nullptr;
+
+	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
+		"Vulkan: Failed to queuepresentKHR.");
+
+	return s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
+}
+
+uint64_t BB::VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle)
+{
+	return reinterpret_cast<VulkanCommandQueue*>(a_Handle.ptrHandle)->nextSemValue;
+}
+
+uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
+{
+	return 0;//return reinterpret_cast<VkSemaphore*>(a_Handle.ptrHandle)->nextSemValue;
 }
 
 void BB::VulkanWaitDeviceReady()

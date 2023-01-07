@@ -551,14 +551,16 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0] = {};
 	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
 	t_ExecuteInfos[0].commandCount = 1;
-	//t_ExecuteInfos[0].signalQueues = &t_TransferQueue;
-	//t_ExecuteInfos[0].signalQueueCount = 1;
+	t_ExecuteInfos[0].signalQueues = &t_TransferQueue;
+	t_ExecuteInfos[0].signalQueueCount = 1;
 
+	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_TransferQueue) - 1;
 	t_ExecuteInfos[1] = {};
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
-	//t_ExecuteInfos[1].waitQueueCount = 1;
-	//t_ExecuteInfos[1].waitQueues = &t_TransferQueue;
+	t_ExecuteInfos[1].waitQueueCount = 1;
+	t_ExecuteInfos[1].waitQueues = &t_TransferQueue;
+	t_ExecuteInfos[1].waitValues = &t_WaitValue;
 
 	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
 

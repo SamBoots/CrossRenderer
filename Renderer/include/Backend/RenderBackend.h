@@ -46,9 +46,10 @@ namespace BB
 		void Update();
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
-		void WaitGPUReady();
+		uint64_t NextQueueFenceValue(const CommandQueueHandle a_Handle);
+		uint64_t NextFenceValue(const RFenceHandle a_Handle);
 
-		void CreateShader(const ShaderCreateInfo& t_ShaderInfo);
+		void WaitGPUReady();
 
 		void DestroyBackend();
 		void DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);

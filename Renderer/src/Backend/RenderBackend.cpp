@@ -186,9 +186,14 @@ void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
 	s_ApiFunc.resizeWindow(m_TempAllocator, a_X, a_Y);
 }
 
-void BB::RenderBackend::CreateShader(const ShaderCreateInfo& t_ShaderInfo)
+uint64_t BB::RenderBackend::NextQueueFenceValue(const CommandQueueHandle a_Handle)
 {
+	return s_ApiFunc.nextQueueFenceValue(a_Handle);
+}
 
+uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
+{
+	return s_ApiFunc.nextFenceValue(a_Handle);
 }
 
 void BB::RenderBackend::DestroyBackend()
