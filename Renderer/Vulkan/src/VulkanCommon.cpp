@@ -607,27 +607,37 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 			s_VkBackendInst.frameCount);
 
 		//Also create the present semaphores, these are unique semaphores that handle the window integration API as they cannot use timeline semaphores.
-		a_SwapChain.imageAvailableSem = BBnewArr(
+		a_SwapChain.waitSyncs = BBnewArr(
 			s_VulkanAllocator,
 			s_VkBackendInst.frameCount,
-			VkSemaphore);
-		a_SwapChain.imageRenderFinishedSem = BBnewArr(
-			s_VulkanAllocator,
-			s_VkBackendInst.frameCount,
-			VkSemaphore);
+			FrameWaitSync);
 
 		VkSemaphoreCreateInfo t_SemInfo{};
 		t_SemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		//Used for the last semaphore created of a single frame struct.
+		VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
+		t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+		t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+		t_TimelineSemInfo.initialValue = 0;
 		for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
 		{
 			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
 				&t_SemInfo,
 				nullptr,
-				&a_SwapChain.imageAvailableSem[i]);
+				&a_SwapChain.waitSyncs[i].imageAvailableSem);
 			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
 				&t_SemInfo,
 				nullptr,
-				&a_SwapChain.imageRenderFinishedSem[i]);
+				&a_SwapChain.waitSyncs[i].imageRenderFinishedSem);
+
+			t_SemInfo.pNext = &t_TimelineSemInfo;
+			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+				&t_SemInfo,
+				nullptr,
+				&a_SwapChain.waitSyncs[i].frameTimelineSemaphore);
+			t_SemInfo.pNext = nullptr;
+			a_SwapChain.waitSyncs[i].frameWaitValue = 0;
 		}
 	}
 	else //Or recreate the swapchain.
@@ -1594,24 +1604,18 @@ void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Sta
 	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.swapChain.swapChain,
 		UINT64_MAX,
-		s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame],
+		s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageAvailableSem,
 		VK_NULL_HANDLE,
 		&s_VkBackendInst.imageIndex),
 		"Vulkan: failed to get next image.");
 
-	//VkSemaphore* t_TimelineSemaphores = BBnewArr(a_TempAllocator,
-	//	a_StartInfo.fenceCount,
-	//	VkSemaphore);
-
-	//for (size_t i = 0; i < a_StartInfo.fenceCount; i++)
-	//{
-	//	t_TimelineSemaphores[i] = reinterpret_cast<VkSemaphore>(a_StartInfo.fences[i].ptrHandle);
-	//}
-
 	//For now not wait for semaphores, may be required later.
-	//VkSemaphoreWaitInfo t_WaitInfo;
-	//t_WaitInfo.pSemaphores = t_TimelineSemaphores
-	//vkWaitSemaphores(s_VkBackendInst.device.logicalDevice,)
+	VkSemaphoreWaitInfo t_WaitInfo{};
+	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	t_WaitInfo.semaphoreCount = 1;
+	t_WaitInfo.pSemaphores = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameTimelineSemaphore;
+	t_WaitInfo.pValues = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameWaitValue;
+	vkWaitSemaphores(s_VkBackendInst.device.logicalDevice, &t_WaitInfo, 1000000000);
 }
 
 void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
@@ -1705,7 +1709,8 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 	//add 1 more to wait the binary semaphore for image presenting
 	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitQueueCount + 1;
 	//add 1 more to signal the binary semaphore for image presenting
-	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 1;
+	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
+	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 2;
 
 	VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
 		t_WaitSemCount + t_SignalSemCount,
@@ -1715,8 +1720,8 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 		uint64_t);
 
 	//SETTING THE WAIT
-	// 	//Set the wait semaphore so that it must wait until it can present.
-	t_Semaphores[0] = s_VkBackendInst.swapChain.imageAvailableSem[s_VkBackendInst.currentFrame];
+	//Set the wait semaphore so that it must wait until it can present.
+	t_Semaphores[0] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageAvailableSem;
 	t_SemValues[0] = 0;
 	//Get the semaphore from the queues.
 	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
@@ -1728,9 +1733,13 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	//SETTING THE SIGNAL
 	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount] = s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
+	t_Semaphores[t_WaitSemCount] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageRenderFinishedSem;
 	t_SemValues[t_WaitSemCount] = 0;
-	for (uint32_t i = 0; i < t_SignalSemCount - 1; i++)
+	//signal the binary semaphore to signal that the image is being worked on.
+	t_Semaphores[t_WaitSemCount + 1] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameTimelineSemaphore;
+	//Increment the semaphore by 1 for the next frame to get.
+	t_SemValues[t_WaitSemCount + 1] = ++s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameWaitValue;
+	for (uint32_t i = 0; i < t_SignalSemCount - 2; i++)
 	{
 		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
 			a_ExecuteInfo.signalQueues[i].ptrHandle)->timelineSemaphore;
@@ -1760,7 +1769,6 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 	t_SubmitInfo.pCommandBuffers = t_CmdBuffers;
 	t_SubmitInfo.pNext = &t_TimelineInfo;
 
-
 	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
 	VKASSERT(vkQueueSubmit(t_Queue.queue,
 		1,
@@ -1776,7 +1784,7 @@ FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameI
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.imageRenderFinishedSem[s_VkBackendInst.currentFrame];
+	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageRenderFinishedSem;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
 	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
@@ -1892,9 +1900,11 @@ void BB::VulkanDestroyBackend()
 		vkDestroyImageView(s_VkBackendInst.device.logicalDevice,
 			s_VkBackendInst.swapChain.imageViews[i], nullptr);
 		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.imageAvailableSem[i], nullptr);
+			s_VkBackendInst.swapChain.waitSyncs[i].frameTimelineSemaphore, nullptr);
 		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.imageRenderFinishedSem[i], nullptr);
+			s_VkBackendInst.swapChain.waitSyncs[i].imageAvailableSem, nullptr);
+		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
+			s_VkBackendInst.swapChain.waitSyncs[i].imageRenderFinishedSem, nullptr);
 	}
 
 	vkDestroySwapchainKHR(s_VkBackendInst.device.logicalDevice,
