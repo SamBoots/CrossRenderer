@@ -154,6 +154,35 @@ LibFuncPtr BB::Program::LibLoadFunc(const LibHandle a_Handle, const char* a_Func
 	return t_Func;
 }
 
+//char replaced with string view later on.
+OSFileHandle BB::Program::CreateOSFile(const char* a_FileName)
+{
+	FILE* t_CreatedFile = fopen(a_FileName, "W");
+	BB_ASSERT(t_CreatedFile != nullptr, "OS, failed to create file! This can be severe.");
+	return OSFileHandle(t_CreatedFile);
+}
+
+//char replaced with string view later on.
+OSFileHandle BB::Program::LoadOSFile(const char* a_FileName)
+{
+	FILE* t_CreatedFile = fopen(a_FileName, "W");
+	BB_WARNING(t_CreatedFile != nullptr,
+		"OS, failed to load file! This can be severe.",
+		WarningType::HIGH);
+	return OSFileHandle(t_CreatedFile);
+}
+
+//char replaced with string view later on.
+int BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const char* a_Text)
+{
+	return fputs(a_Text, reinterpret_cast<FILE*>(a_FileHandle.ptrHandle));
+}
+
+void BB::Program::CloseFile(const OSFileHandle a_FileHandle)
+{
+	fclose(reinterpret_cast<FILE*>(a_FileHandle.ptrHandle));
+}
+
 WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const char* a_WindowName)
 {
 	OSWindow t_ReturnWindow;

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "Common.h"
 #include "BBMemory.h"
+#include "BBString.h"
 
 ////// PROGRAM.h //////
 /// Program abstracts most OS calls and handles creation of windows,
@@ -14,6 +15,12 @@
 
 namespace BB
 {
+
+	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
+	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
+	using LibHandle = FrameworkHandle<struct LibHandleTag>;
+	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
+
 	using LibFuncPtr = void*;
 	namespace Program
 	{
@@ -57,6 +64,17 @@ namespace BB
 		void UnloadLib(const LibHandle a_Handle);
 		//Load dynamic library function
 		LibFuncPtr LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName);
+
+		//char replaced with string view later on.
+		//handle is 0 if it failed to create the file, it will assert on failure.
+		OSFileHandle CreateOSFile(const char* a_FileName);
+		//char replaced with string view later on.
+		//handle is 0 if it failed to load the file.
+		OSFileHandle LoadOSFile(const char* a_FileName);
+		//char replaced with string view later on.
+		int WriteToFile(const OSFileHandle a_FileHandle, const char* a_Text);
+
+		void CloseFile(const OSFileHandle a_FileHandle);
 
 		WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const char* a_WindowName);
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).

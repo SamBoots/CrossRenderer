@@ -35,9 +35,6 @@ namespace BB
 		inline bool operator !=(FrameworkHandle a_Rhs) const { return handle != a_Rhs.handle; }
 	};
 
-	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
-	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
-	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	struct Buffer
 	{
 		void* data;
