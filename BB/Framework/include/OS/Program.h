@@ -15,12 +15,6 @@
 
 namespace BB
 {
-
-	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
-	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
-	using LibHandle = FrameworkHandle<struct LibHandleTag>;
-	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
-
 	using LibFuncPtr = void*;
 	namespace Program
 	{

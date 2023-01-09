@@ -540,9 +540,7 @@ bool firstTimeTransfer = true;
 void BB::Render::EndFrame()
 {
 	RenderBackend::EndCommandList(t_RecordingTransfer);
-	//RenderBackend::EndCommandList(t_RecordingGraphics);
-
-
+	
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,
 		2,
