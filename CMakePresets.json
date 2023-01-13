@@ -1,5 +1,10 @@
 ﻿{
-  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "version": 3,
 
   "configurePresets": [
     {
@@ -14,40 +19,42 @@
       }
     },
     {
-      "name": "vulkan-win-debug",
+      "name": "vulkan-win",
       "inherits": "default-win",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "GRAPHICS_API": "Vulkan"
       }
     },
     {
-      "name": "vulkan-win-release",
+      "name": "directx12-win",
       "inherits": "default-win",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "GRAPHICS_API": "Vulkan"
-      }
-    },
-    {
-      "name": "directx12-win-debug",
-      "inherits": "default-win",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "GRAPHICS_API": "DirectX12"
       }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "DX12_debug",
+      "configurePreset": "directx12-win",
+      "configuration": "Debug"
     },
     {
-      "name": "directx12-win-release",
-      "inherits": "default-win",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "GRAPHICS_API": "DirectX12"
-      }
+      "name": "DX12_Release",
+      "configurePreset": "directx12-win",
+      "configuration": "Release"
+    },
+    {
+      "name": "VK_Debug",
+      "configurePreset": "vulkan-win",
+      "configuration": "Debug"
+    },
+    {
+      "name": "VK_Release",
+      "configurePreset": "vulkan-win",
+      "configuration": "Release"
     }
   ]
 }
