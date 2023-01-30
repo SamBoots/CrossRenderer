@@ -5,6 +5,9 @@ cmake_minimum_required (VERSION 3.8)
 project ("BB")
 set (CMAKE_CXX_STANDARD 17)
 
+# We force down the unicode
+add_definitions(-DUNICODE -D_UNICODE -_UNICODE -UNICODE)
+
 if (MSVC)
     # warning level 4 and all warnings as errors
     add_compile_definitions(PUBLIC /W4)

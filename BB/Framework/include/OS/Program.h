@@ -29,7 +29,7 @@ namespace BB
 
 		struct InitProgramInfo
 		{
-			const char* programName;
+			const wchar* programName;
 			const char* exePath;
 		};
 
@@ -50,10 +50,11 @@ namespace BB
 		const uint32_t LatestOSError();
 
 		//Reads an external file from path.
-		Buffer ReadFile(Allocator a_SysAllocator, const char* a_Path);
+		//Buffer.data will have a dynamic allocation from the given allocator.
+		Buffer ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path);
 
 		//Load a dynamic library
-		LibHandle LoadLib(const char* a_LibName);
+		LibHandle LoadLib(const wchar* a_LibName);
 		//Unload a dynamic library
 		void UnloadLib(const LibHandle a_Handle);
 		//Load dynamic library function
@@ -61,16 +62,18 @@ namespace BB
 
 		//char replaced with string view later on.
 		//handle is 0 if it failed to create the file, it will assert on failure.
-		OSFileHandle CreateOSFile(const char* a_FileName);
+		OSFileHandle CreateOSFile(const wchar* a_FileName);
 		//char replaced with string view later on.
 		//handle is 0 if it failed to load the file.
-		OSFileHandle LoadOSFile(const char* a_FileName);
+		OSFileHandle LoadOSFile(const wchar* a_FileName);
 		//char replaced with string view later on.
-		int WriteToFile(const OSFileHandle a_FileHandle, const char* a_Text);
+		void WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_Buffer);
+		//Get a file's size in bytes.
+		uint64_t GetOSFileSize(const OSFileHandle a_FileHandle);
 
-		void CloseFile(const OSFileHandle a_FileHandle);
+		void CloseOSFile(const OSFileHandle a_FileHandle);
 
-		WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const char* a_WindowName);
+		WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
 		//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
 		void* GetOSWindowHandle(const WindowHandle a_Handle);
 		void GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y);
@@ -88,7 +91,7 @@ namespace BB
 		bool ProcessMessages();
 
 		//Get the program name.
-		const char* ProgramName();
+		const wchar* ProgramName();
 		//Get the path where the project's exe file is located.
 		const char* ProgramPath();
 	}

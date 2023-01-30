@@ -40,6 +40,8 @@ namespace BB
 	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
 
+	using wchar = wchar_t;
+
 	struct Buffer
 	{
 		void* data;

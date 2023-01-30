@@ -1,7 +1,10 @@
 #include "Logger.h"
+#include "Program.h"
 #include <iostream>
 
 using namespace BB;
+
+static OSFileHandle s_DebugFile;
 
 static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Message, const char* a_WarningLevel)
 {
@@ -9,6 +12,11 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 		"\033 File: "<< a_FileName << 
 		" Line Number: " << a_Line << 
 		" The Message:" << "\n" << a_Message << "\n \n";
+}
+
+void Logger::SetDebugFile(const OSFileHandle a_FileHandle)
+{
+	s_DebugFile = a_FileHandle;
 }
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Message)

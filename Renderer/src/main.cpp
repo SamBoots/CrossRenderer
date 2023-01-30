@@ -27,7 +27,7 @@ int main(int argc, char** argv)
 
 	Program::InitProgramInfo t_ProgramInfo;
 	t_ProgramInfo.exePath = argv[0];
-	t_ProgramInfo.programName = "Crossrenderer";
+	t_ProgramInfo.programName = L"Crossrenderer";
 	Program::InitProgram(t_ProgramInfo);
 
 	int t_WindowWidth = 1200;
@@ -39,7 +39,7 @@ int main(int argc, char** argv)
 		200, 
 		t_WindowWidth,
 		t_WindowHeight,
-		"CrossRenderer");
+		L"CrossRenderer");
 
 	Program::SetCloseWindowPtr(WindowQuit);
 	Program::SetResizeEventPtr(WindowResize);
@@ -52,11 +52,11 @@ int main(int argc, char** argv)
 #ifdef USE_VULKAN
 	RenderAPI api = RenderAPI::VULKAN;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::Program::LoadLib("BB_VulkanDLL");
+	BB::LibHandle t_RenderDLL = BB::Program::LoadLib(L"BB_VulkanDLL");
 #elif USE_DIRECTX12
 	RenderAPI api = RenderAPI::DX12;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::Program::LoadLib("BB_DirectXDLL");
+	BB::LibHandle t_RenderDLL = BB::Program::LoadLib(L"BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);

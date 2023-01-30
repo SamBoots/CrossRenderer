@@ -3,9 +3,9 @@
 #include "Utils/Logger.h"
 
 #include <Windows.h>
+#include <fileapi.h>
 #include <memoryapi.h>
 #include <libloaderapi.h>
-#include <fstream>
 
 using namespace BB;
 using namespace BB::Program;
@@ -17,13 +17,13 @@ static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
 static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
 
 static const char* exePath;
-static const char* programName;
+static const wchar* programName;
 
 //The OS window for Windows.
 struct OSWindow
 {
 	HWND hwnd = nullptr;
-	const char* windowName = nullptr;
+	const wchar* windowName = nullptr;
 	HINSTANCE hInstance = nullptr;
 };
 
@@ -46,13 +46,14 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	break;
 	}
 
-	return DefWindowProc(a_Hwnd, a_Msg, a_WParam, a_LParam);
+	return DefWindowProcW(a_Hwnd, a_Msg, a_WParam, a_LParam);
 }
 
 bool BB::Program::InitProgram(const InitProgramInfo& a_InitProgramInfo)
 {
 	programName = a_InitProgramInfo.programName;
 	exePath = a_InitProgramInfo.exePath;
+
 	return true;
 }
 
@@ -91,45 +92,41 @@ const uint32_t BB::Program::LatestOSError()
 	DWORD t_ErrorMsg = GetLastError();
 	if (t_ErrorMsg == 0)
 		return 0;
-	LPSTR t_Message = nullptr;
+	LPWSTR t_Message = nullptr;
 
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&t_Message, 0, NULL);
+	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), t_Message, 0, NULL);
 
-	BB_WARNING(false, t_Message, WarningType::HIGH);
+	//BB_WARNING(false, t_Message, WarningType::HIGH);
 
 	LocalFree(t_Message);
 
 	return static_cast<uint32_t>(t_ErrorMsg);
 }
 
-Buffer BB::Program::ReadFile(Allocator a_SysAllocator, const char* a_Path)
+Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 {
 	Buffer t_FileBuffer;
 
-	std::ifstream t_File(a_Path, std::ios::ate | std::ios::binary);
+	OSFileHandle t_ReadFile = LoadOSFile(a_Path);
 
-	if (!t_File.is_open())
-	{
-		BB_WARNING(false, "Failed to readfile!", WarningType::HIGH);
-		t_FileBuffer.size = 0;
-		t_FileBuffer.data = nullptr;
-		return t_FileBuffer;
-	}
-
-	t_FileBuffer.size = static_cast<uint64_t>(t_File.tellg());
+	t_FileBuffer.size = GetOSFileSize(t_ReadFile);
 	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
 
-	t_File.seekg(0);
-	t_File.read(reinterpret_cast<char*>(t_FileBuffer.data), t_FileBuffer.size);
-	t_File.close();
+	ReadFile(reinterpret_cast<HANDLE>(t_ReadFile.ptrHandle),
+		t_FileBuffer.data,
+		t_FileBuffer.size,
+		NULL,
+		NULL);
+
+	CloseOSFile(t_ReadFile);
 
 	return t_FileBuffer;
 }
 
-LibHandle BB::Program::LoadLib(const char* a_LibName)
+LibHandle BB::Program::LoadLib(const wchar* a_LibName)
 {
-	HMODULE t_Mod = LoadLibrary(a_LibName);
+	HMODULE t_Mod = LoadLibraryW(a_LibName);
 	if (t_Mod == NULL)
 	{
 		Program::LatestOSError();
@@ -155,47 +152,91 @@ LibFuncPtr BB::Program::LibLoadFunc(const LibHandle a_Handle, const char* a_Func
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::Program::CreateOSFile(const char* a_FileName)
+OSFileHandle BB::Program::CreateOSFile(const wchar* a_FileName)
 {
-	FILE* t_CreatedFile = fopen(a_FileName, "W");
-	BB_ASSERT(t_CreatedFile != nullptr, "OS, failed to create file! This can be severe.");
+	HANDLE t_CreatedFile = CreateFileW(a_FileName,
+		GENERIC_WRITE | GENERIC_READ,
+		0,
+		NULL,
+		CREATE_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+		NULL);
+
+	if (t_CreatedFile == NULL)
+	{
+		Program::LatestOSError();
+		BB_WARNING(false, 
+			"OS, failed to create file! This can be severe.",
+			WarningType::HIGH);
+	}
+	
 	return OSFileHandle(t_CreatedFile);
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::Program::LoadOSFile(const char* a_FileName)
+OSFileHandle BB::Program::LoadOSFile(const wchar* a_FileName)
 {
-	FILE* t_CreatedFile = fopen(a_FileName, "W");
-	BB_WARNING(t_CreatedFile != nullptr,
-		"OS, failed to load file! This can be severe.",
-		WarningType::HIGH);
-	return OSFileHandle(t_CreatedFile);
+	HANDLE t_LoadedFile = CreateFileW(a_FileName,
+		GENERIC_WRITE | GENERIC_READ,
+		0,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
+
+	if (t_LoadedFile == NULL)
+	{
+		Program::LatestOSError();
+		BB_WARNING(false,
+			"OS, failed to load file! This can be severe.",
+			WarningType::HIGH);
+	}
+
+	return OSFileHandle(t_LoadedFile);
 }
 
 //char replaced with string view later on.
-int BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const char* a_Text)
+void BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_Buffer)
 {
-	return fputs(a_Text, reinterpret_cast<FILE*>(a_FileHandle.ptrHandle));
+	BOOL t_Error = WriteFile(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle),
+		a_Buffer.data,
+		a_Buffer.size,
+		NULL,
+		NULL);
+
+	if (t_Error == FALSE)
+	{
+		BB_WARNING(false,
+			"OS, failed to write to file!",
+			WarningType::HIGH);
+		LatestOSError();
+	}
 }
 
-void BB::Program::CloseFile(const OSFileHandle a_FileHandle)
+//Get a file's size in bytes.
+uint64_t BB::Program::GetOSFileSize(const OSFileHandle a_FileHandle)
 {
-	fclose(reinterpret_cast<FILE*>(a_FileHandle.ptrHandle));
+	return GetFileSize(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), NULL);
 }
 
-WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const char* a_WindowName)
+void BB::Program::CloseOSFile(const OSFileHandle a_FileHandle)
+{
+	CloseHandle(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle));
+}
+
+WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
 	OSWindow t_ReturnWindow;
 	t_ReturnWindow.windowName = a_WindowName;
 
-	WNDCLASS t_WndClass = {};
+	WNDCLASSW t_WndClass = {};
 	t_WndClass.lpszClassName = t_ReturnWindow.windowName;
 	t_WndClass.hInstance = t_ReturnWindow.hInstance;
-	t_WndClass.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-	t_WndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	t_WndClass.hIcon = LoadIconW(NULL, IDI_WINLOGO);
+	t_WndClass.hCursor = LoadCursorW(NULL, IDC_ARROW);
 	t_WndClass.lpfnWndProc = WindowProc;
 
-	RegisterClass(&t_WndClass);
+	RegisterClassW(&t_WndClass);
 	//DWORD t_Style = WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
 
 	DWORD t_Style;
@@ -286,7 +327,7 @@ bool BB::Program::ProcessMessages()
 	return true;
 }
 
-const char* BB::Program::ProgramName()
+const wchar* BB::Program::ProgramName()
 {
 	return programName;
 }
