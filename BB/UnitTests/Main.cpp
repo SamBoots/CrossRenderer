@@ -10,6 +10,7 @@
 #include "Framework/Slice_UTEST.h"
 #include "Framework/Slotmap_UTEST.h"
 #include "Framework/String_UTEST.h"
+#include "Framework/FileReadWrite_UTEST.h"
 
 #include "OS/Program.h"
 
@@ -18,11 +19,11 @@ int main()
 {
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
-	WindowHandle mainWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, "Unit Test Main Window");
+	WindowHandle mainWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, L"Unit Test Main Window");
 
-	WindowHandle childWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, "Unit Test Child Window 1");
+	WindowHandle childWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, L"Unit Test Child Window 1");
 
-	WindowHandle destroyWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, "Unit Test childWindow window");
+	WindowHandle destroyWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, L"Unit Test childWindow window");
 
 	bool hasWindows = true;
 	while (hasWindows)
