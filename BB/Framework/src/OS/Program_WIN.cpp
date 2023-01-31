@@ -185,6 +185,8 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_Fi
 	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
 	DWORD t_BytesRead = 0;
 
+	//TEMP SOLUTION
+	SetFilePointer(a_FileHandle.ptrHandle, 0, NULL, FILE_BEGIN);
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle),
 		t_FileBuffer.data,
 		t_FileBuffer.size,
