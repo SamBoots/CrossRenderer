@@ -239,7 +239,7 @@ static void DestroyVulkanDebug(VkInstance a_Instance, VkDebugUtilsMessengerEXT& 
 
 static SwapchainSupportDetails QuerySwapChainSupport(BB::Allocator a_TempAllocator, const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
 {
-	SwapchainSupportDetails t_SwapDetails;
+	SwapchainSupportDetails t_SwapDetails{};
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.capabilities);
 
@@ -532,7 +532,7 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
 	VkPresentModeKHR t_ChosenPresentMode = ChoosePresentMode(t_SwapchainDetails.presentModes, t_SwapchainDetails.presentModeCount);
-	VkExtent2D t_ChosenExtent;
+	VkExtent2D t_ChosenExtent{};
 	t_ChosenExtent.width = Math::clamp(t_SurfaceWidth,
 		t_SwapchainDetails.capabilities.minImageExtent.width,
 		t_SwapchainDetails.capabilities.maxImageExtent.width);
@@ -666,7 +666,7 @@ struct VulkanShaderResult
 //Creates VkPipelineShaderStageCreateInfo equal to the amount of ShaderCreateInfos in a_CreateInfo.
 static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevice a_Device, const Slice<BB::ShaderCreateInfo> a_CreateInfo)
 {
-	VulkanShaderResult t_ReturnResult;
+	VulkanShaderResult t_ReturnResult{};
 
 	t_ReturnResult.pipelineShaderStageInfo = BBnewArr(a_TempAllocator, a_CreateInfo.size(), VkPipelineShaderStageCreateInfo);
 	t_ReturnResult.shaderModules = BBnewArr(a_TempAllocator, a_CreateInfo.size(), VkShaderModule);
@@ -722,7 +722,7 @@ static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_Ren
 {
 	uint32_t t_UsedAttachments = 1;
 	//have enough space for the potentional depth buffer.
-	VkImageView t_AttachmentViews[2];
+	VkImageView t_AttachmentViews[2]{};
 
 	for (uint32_t i = 0; i < a_FramebufferCount; i++)
 	{
@@ -967,7 +967,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
-	VulkanFrameBuffer t_ReturnFrameBuffer;
+	VulkanFrameBuffer t_ReturnFrameBuffer{};
 	{
 		//First do the renderpass
 		VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
@@ -1144,7 +1144,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescrip
 
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
 {
-	VulkanPipeline t_ReturnPipeline;
+	VulkanPipeline t_ReturnPipeline{};
 
 	//Get dynamic state for the viewport and scissor.
 	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
@@ -1356,7 +1356,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 	return t_CmdAllocator; //Creates a handle from this.
 }
 
-CommandListHandle BB::VulkanCreateCommandList(Allocator a_TempAllocator, const RenderCommandListCreateInfo& a_CreateInfo)
+CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	BB_ASSERT(a_CreateInfo.commandAllocator.handle != NULL, "Sending a commandallocator handle that is null!");
 	return CommandListHandle(s_VkBackendInst.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
@@ -1475,7 +1475,7 @@ void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmd
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//quick cheat.
-	VkBuffer t_Buffers[12];
+	VkBuffer t_Buffers[12]{};
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
 		t_Buffers[i] = reinterpret_cast<VulkanBuffer*>(a_Buffers[i].ptrHandle)->buffer;
@@ -1503,7 +1503,7 @@ void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCm
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//quick cheat.
-	VkDescriptorSet t_Sets[4];
+	VkDescriptorSet t_Sets[4]{};
 	for (size_t i = 0; i < a_SetCount; i++)
 	{
 		t_Sets[i] = *reinterpret_cast<VkDescriptorSet*>(a_Sets[i].ptrHandle);
@@ -1750,7 +1750,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
 
-	VkTimelineSemaphoreSubmitInfo t_TimelineInfo;
+	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{};
 	t_TimelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 	t_TimelineInfo.waitSemaphoreValueCount = t_WaitSemCount;
 	t_TimelineInfo.pWaitSemaphoreValues = t_SemValues;
@@ -1758,7 +1758,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 	t_TimelineInfo.pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
 	t_TimelineInfo.pNext = nullptr;
 
-	VkSubmitInfo t_SubmitInfo;
+	VkSubmitInfo t_SubmitInfo{};
 	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	t_SubmitInfo.waitSemaphoreCount = t_WaitSemCount;
 	t_SubmitInfo.pWaitSemaphores = t_Semaphores;

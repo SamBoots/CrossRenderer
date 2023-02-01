@@ -58,7 +58,7 @@ CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCom
 
 CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
-	return s_ApiFunc.createCommandList(m_TempAllocator, a_CreateInfo);
+	return s_ApiFunc.createCommandList(a_CreateInfo);
 }
 
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)

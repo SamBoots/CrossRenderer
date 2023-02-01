@@ -95,6 +95,19 @@ DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_
 	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
 }
 
+DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, ID3D12CommandQueue* a_CommandQueue)
+{
+	m_Queue = a_CommandQueue;
+
+	DXASSERT(a_Device->CreateFence(0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&m_Fence)),
+		"DX12: Failed to create fence in command queue.");
+
+	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
+	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
+}
+
 DXCommandQueue::~DXCommandQueue()
 {
 	CloseHandle(m_FenceEvent);
@@ -169,12 +182,6 @@ DXCommandAllocator::DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMA
 
 DXCommandAllocator::~DXCommandAllocator()
 {
-	//Call the destructor before removing the pool memory.
-	for (size_t i = 0; i < m_ListSize; i++)
-	{
-		m_Lists.data()[i].~DXCommandList();
-	}
-
 	m_Lists.DestroyPool(s_DX12Allocator);
 	DXRelease(m_Allocator);
 }
@@ -194,7 +201,7 @@ DXCommandList* DXCommandAllocator::GetCommandList()
 	return m_Lists.Get();
 }
 
-DXCommandList::DXCommandList(ID3D12Device* a_Device, struct DXCommandAllocator& a_CmdAllocator)
+DXCommandList::DXCommandList(ID3D12Device* a_Device, DXCommandAllocator& a_CmdAllocator)
 	: m_CmdAllocator(a_CmdAllocator)
 {
 	DXASSERT(a_Device->CreateCommandList(0,
@@ -224,6 +231,12 @@ void DXCommandList::Close()
 	m_List->Close();
 	rtv = nullptr;
 }
+
+void DXCommandList::Free()
+{
+	m_CmdAllocator.FreeCommandList(this);
+}
+
 
 //Safely releases a type by setting it back to null
 void DXRelease(IUnknown* a_Obj)

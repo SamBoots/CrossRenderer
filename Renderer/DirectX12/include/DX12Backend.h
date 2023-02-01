@@ -1,4 +1,4 @@
-#include "BBMemory.h"
+#pragma once
 #include "RenderBackendCommon.h"
 
 namespace BB

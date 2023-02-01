@@ -1,5 +1,11 @@
 #pragma once
-#include "DX12HelperTypes.h"
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+#include <d3d12.h>
+#include <dxgi1_6.h>
+
+#include "RenderBackendCommon.h"
 
 namespace BB
 {
@@ -8,11 +14,10 @@ namespace BB
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
-	CommandQueueHandle DX12CreateCommandQueue();
+	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
-	RSemaphoreHandle DX12CreateSemaphore();
 	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_Info);
 
 	void DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
@@ -37,17 +42,18 @@ namespace BB
 	void DX12UnMemory(const RBufferHandle a_Handle);
 
 	void DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
-	void DX12ExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	void DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	//Special execute commands that also signals the binary semaphore for image presentation
+	void DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	FrameIndex DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
 	void DX12WaitDeviceReady();
 
 	void DX12DestroyFence(const RFenceHandle a_Handle);
-	void DX12DestroySemaphore(const RSemaphoreHandle a_Handle);
 	void DX12DestroyBuffer(const RBufferHandle a_Handle);
-	void DX12DestroyCommandList(const CommandListHandle a_Handle, const CommandAllocatorHandle a_CmdAllocatorHandle);
+	void DX12DestroyCommandList(const CommandListHandle a_Handle);
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
-	void DX12DestroycommandQueue(const CommandQueueHandle a_Handle);
+	void DX12DestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
 	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);

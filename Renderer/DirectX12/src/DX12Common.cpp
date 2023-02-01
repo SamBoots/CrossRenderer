@@ -1,5 +1,5 @@
-#include "DX12Backend.h"
 #include "DX12Common.h"
+#include "DX12HelperTypes.h"
 #include "D3D12MemAlloc.h"
 
 #include "Slotmap.h"
@@ -31,7 +31,7 @@ struct DX12Backend_inst
 	DX12Swapchain swapchain{};
 
 	D3D12MA::Allocator* DXMA;
-
+	ID3D12CommandQueue* directpresentqueue;
 
 	Slotmap<ID3D12RootSignature*> rootSignatures{ s_DX12Allocator };
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
@@ -94,12 +94,12 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 
 	IDXGISwapChain1* t_NewSwapchain;
 	DXASSERT(s_DX12BackendInst.factory->CreateSwapChainForHwnd(
-		s_DX12BackendInst.directQueue,
+		s_DX12BackendInst.directpresentqueue,
 		a_WindowHandle,
 		&t_SwapchainDesc,
 		nullptr,
 		nullptr,
-		&t_NewSwapchain), 
+		&t_NewSwapchain),
 		"DX12: Failed to create swapchain1");
 
 	DXASSERT(s_DX12BackendInst.factory->MakeWindowAssociation(a_WindowHandle,
@@ -222,13 +222,7 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	t_QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
-		IID_PPV_ARGS(&s_DX12BackendInst.directQueue)),
-		"DX12: Failed to create direct command queue");
-
-	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
-
-	DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
-		IID_PPV_ARGS(&s_DX12BackendInst.copyQueue)),
+		IID_PPV_ARGS(&s_DX12BackendInst.directpresentqueue)),
 		"DX12: Failed to create direct command queue");
 
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
@@ -243,10 +237,10 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 
 FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
-	DX12FrameBuffer frameBuffer;
+	DX12FrameBuffer frameBuffer{};
 
-	D3D12_VIEWPORT t_Viewport;
-	D3D12_RECT t_SurfaceRect;
+	D3D12_VIEWPORT t_Viewport{};
+	D3D12_RECT t_SurfaceRect{};
 
 	t_Viewport.TopLeftX = 0.0f;
 	t_Viewport.TopLeftY = 0.0f;
@@ -473,12 +467,28 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 	return PipelineHandle(s_DX12BackendInst.pipelines.emplace(t_PipelineState).handle);
 }
 
-CommandQueueHandle BB::DX12CreateCommandQueue()
+CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
-	//Create the command queue
-	DXCommandQueue* t_CmdQueue = new (s_DX12BackendInst.cmdQueues.Get())
-		DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT);
-	return CommandQueueHandle(t_CmdQueue);
+	switch (a_Info.queue)
+	{
+	case RENDER_QUEUE_TYPE::GRAPHICS:
+		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, s_DX12BackendInst.directpresentqueue));
+		break;
+	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_COPY));
+		break;
+	case RENDER_QUEUE_TYPE::COMPUTE:
+		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_COMPUTE));
+		break;
+	default:
+		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
+		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, s_DX12BackendInst.directpresentqueue));
+		break;
+	}
 }
 
 CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
@@ -562,11 +572,6 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	}
 
 	return RBufferHandle(t_Resource);
-}
-
-RSemaphoreHandle BB::DX12CreateSemaphore()
-{
-	//not sure what semaphores in DX12 are yet, don't think they have em the same way.
 }
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
@@ -727,9 +732,6 @@ void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a
 			a_CopyInfo.copyRegions[i].srcOffset,
 			a_CopyInfo.copyRegions[i].size);
 	}
-
-	ID3D12CommandList* t_CommandListSend[] = { t_CommandList->List() };
-	s_DX12BackendInst.copyQueue->ExecuteCommandLists(1, t_CommandListSend);
 }
 
 struct RenderBarriersInfo
@@ -786,7 +788,7 @@ void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Start
 
 }
 
-void DX12ExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
@@ -802,7 +804,7 @@ void DX12ExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a
 				a_ExecuteInfos[i].commands[j].ptrHandle)->List();
 		}
 
-		reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].executeQueue.ptrHandle)->ExecuteCommandlist(
+		reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->ExecuteCommandlist(
 			t_CommandLists,
 			a_ExecuteInfos[i].commandCount);
 
@@ -811,6 +813,32 @@ void DX12ExecuteCommands(Allocator a_TempAllocator, const ExecuteCommandsInfo* a
 		{
 			reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Reset();
 		}
+	}
+}
+
+//Special execute commands, not sure if DX12 needs anything special yet.
+void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
+{
+	ID3D12CommandList** t_CommandLists = BBnewArr(
+		a_TempAllocator,
+		a_ExecuteInfo.commandCount,
+		ID3D12CommandList*
+	);
+
+	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
+	{
+		t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
+			a_ExecuteInfo.commands[j].ptrHandle)->List();
+	}
+
+	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->ExecuteCommandlist(
+		t_CommandLists,
+		a_ExecuteInfo.commandCount);
+
+	//Now reset the command lists.
+	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
+	{
+		reinterpret_cast<DXCommandList*>(a_ExecuteInfo.commands[j].ptrHandle)->Reset();
 	}
 }
 
@@ -840,11 +868,6 @@ void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 	s_DX12BackendInst.fencePool.Free(reinterpret_cast<Fence*>(a_Handle.ptrHandle));
 }
 
-void BB::DX12DestroySemaphore(const RSemaphoreHandle a_Handle)
-{
-
-}
-
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
 	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
@@ -853,7 +876,7 @@ void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 	s_DX12BackendInst.renderResources.Free(t_Resource);
 }
 
-void BB::DX12DestroycommandQueue(const CommandQueueHandle a_Handle)
+void BB::DX12DestroyCommandQueue(const CommandQueueHandle a_Handle)
 {
 	reinterpret_cast<DXCommandQueue*>(a_Handle.ptrHandle)->~DXCommandQueue();
 }
@@ -864,9 +887,9 @@ void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 	reinterpret_cast<DXCommandAllocator*>(a_Handle.ptrHandle)->~DXCommandAllocator();
 }
 
-void BB::DX12DestroyCommandList(const CommandListHandle a_Handle, const CommandAllocatorHandle a_CmdAllocatorHandle)
+void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 {
-	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->FreeCommandList(reinterpret_cast<DXCommandList*>(a_Handle.ptrHandle));
+	reinterpret_cast<DXCommandList*>(a_Handle.ptrHandle)->Free();
 }
 
 void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
@@ -904,9 +927,6 @@ void BB::DX12DestroyBackend()
 	s_DX12BackendInst.swapchain.swapchain->SetFullscreenState(false, NULL);
 	s_DX12BackendInst.swapchain.swapchain->Release();
 	s_DX12BackendInst.swapchain.swapchain = nullptr;
-
-	s_DX12BackendInst.directQueue->Release();
-	s_DX12BackendInst.copyQueue->Release();
 
 	s_DX12BackendInst.DXMA->Release();
 	if (s_DX12BackendInst.device.debugDevice)

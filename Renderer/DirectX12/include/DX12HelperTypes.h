@@ -1,9 +1,5 @@
 #pragma once
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
-#include <d3d12.h>
-#include <dxgi1_6.h>
+#include "DX12Common.h"
 
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
@@ -14,11 +10,9 @@
 #define DXASSERT(a_HRESULT, a_Msg) a_HRESULT
 #endif //_DEBUG
 
-#include "RenderBackendCommon.h"
+using namespace BB;
 
 static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
-
-using namespace BB;
 
 namespace DXConv
 {
@@ -62,6 +56,7 @@ class DXCommandQueue
 {
 public:
 	DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType);
+	DXCommandQueue(ID3D12Device* a_Device, ID3D12CommandQueue* a_CommandQueue);
 	~DXCommandQueue();
 
 	uint64_t PollFenceValue();
@@ -91,7 +86,7 @@ private:
 	friend class DXCommandAllocator; //Allocator should have access to the QueueType.
 };
 
-struct DXCommandAllocator* a_CmdAllocator;
+struct DXCommandAllocator;
 
 class DXCommandList
 {
@@ -107,6 +102,9 @@ public:
 	void Reset(ID3D12PipelineState* a_PipeState = nullptr);
 	//Prefer to use this Close instead of List()->Close() for error testing purposes
 	void Close();
+
+	//Puts the commandlist back into the command allocator, does not delete the ID3D12GraphicsCommandList.
+	void Free();
 
 private:
 	union
