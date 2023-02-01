@@ -46,12 +46,12 @@ namespace BB
 	private:
 #ifdef _DEBUG
 		//Debug we can check it's current size.
-		size_t m_Size;
-		size_t m_Capacity;
+		size_t m_Size = 0;
+		size_t m_Capacity = 0;
 #endif // _DEBUG
 
 		void* m_Start = nullptr;
-		T** m_Pool;
+		T** m_Pool = nullptr;
 	};
 
 #ifdef _DEBUG

@@ -179,17 +179,15 @@ OSFileHandle BB::Program::LoadOSFile(const wchar* a_FileName)
 //Buffer.data will have a dynamic allocation from the given allocator.
 Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
 {
-	Buffer t_FileBuffer;
+	Buffer t_FileBuffer{};
 
 	t_FileBuffer.size = GetOSFileSize(a_FileHandle.ptrHandle);
 	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
 	DWORD t_BytesRead = 0;
 
-	//TEMP SOLUTION
-	SetFilePointer(a_FileHandle.ptrHandle, 0, NULL, FILE_BEGIN);
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle),
 		t_FileBuffer.data,
-		t_FileBuffer.size,
+		static_cast<DWORD>(t_FileBuffer.size),
 		&t_BytesRead,
 		NULL))
 	{
@@ -204,7 +202,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_Fi
 
 Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 {
-	Buffer t_FileBuffer;
+	Buffer t_FileBuffer{};
 	OSFileHandle t_ReadFile = LoadOSFile(a_Path);
 
 	t_FileBuffer.size = GetOSFileSize(t_ReadFile);
@@ -213,7 +211,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(t_ReadFile.ptrHandle),
 		t_FileBuffer.data,
-		t_FileBuffer.size,
+		static_cast<DWORD>(t_FileBuffer.size),
 		&t_BytesRead,
 		NULL))
 	{
@@ -234,7 +232,7 @@ void BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_B
 	DWORD t_BytesWriten = 0;
 	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle),
 		a_Buffer.data,
-		a_Buffer.size,
+		static_cast<const DWORD>(a_Buffer.size),
 		&t_BytesWriten,
 		NULL))
 	{
@@ -249,6 +247,20 @@ void BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_B
 uint64_t BB::Program::GetOSFileSize(const OSFileHandle a_FileHandle)
 {
 	return GetFileSize(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), NULL);
+}
+
+void BB::Program::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint)
+{
+	DWORD t_Err = SetFilePointer(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), a_Offset, NULL, static_cast<DWORD>(a_FileReadPoint));
+#ifdef DEBUG
+	if (t_Err == INVALID_SET_FILE_POINTER && 
+		LatestOSError() == ERROR_NEGATIVE_SEEK)
+	{
+		BB_WARNING(false,
+			"OS, Setting the file position failed by putting it in negative! WIN ERROR: ERROR_NEGATIVE_SEEK.",
+			WarningType::HIGH);
+	}
+#endif
 }
 
 void BB::Program::CloseOSFile(const OSFileHandle a_FileHandle)

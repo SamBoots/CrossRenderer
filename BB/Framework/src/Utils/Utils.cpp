@@ -250,7 +250,7 @@ namespace BB
 		{
 			__m128i loadLeft = _mm_loadu_si128(t_Left++);
 			__m128i loadRight = _mm_loadu_si128(t_Right++);
-			if (_mm_cmpestrc(loadLeft, a_Size, loadRight, a_Size, t_CmpMode))
+			if (_mm_cmpestrc(loadLeft, static_cast<int>(a_Size), loadRight, static_cast<int>(a_Size), static_cast<int>(t_CmpMode)))
 			{
 				return false;
 			}

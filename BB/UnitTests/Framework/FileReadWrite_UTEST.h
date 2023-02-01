@@ -87,8 +87,7 @@ TEST(Program_IO, Read_Write_Files_Same_File)
 	t_WriteBuffer.data = DOC_DATA;
 	BB::Program::WriteToFile(t_TestFile, t_WriteBuffer);
 
-	//Wait a second.
-
+	BB::Program::SetOSFilePosition(t_TestFile, 0, BB::Program::OS_FILE_READ_POINT::BEGIN);
 
 	BB::Buffer t_ReadBuffer = BB::Program::ReadOSFile(t_Allocator, t_TestFile);
 

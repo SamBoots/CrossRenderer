@@ -27,6 +27,20 @@ namespace BB
 			CHILD //This window does not have a menu bar.
 		};
 
+		//This should match the interger defines for the specific OS
+		enum class OS_FILE_READ_POINT : uint32_t
+		{
+#ifdef WIN32
+			BEGIN = 0,
+			CURRENT = 1,
+			END = 2
+#elif _LINUX //Need to test for linux
+			BEGIN = 0,
+			CURRENT = 1,
+			END = 2
+#endif
+		};
+
 		struct InitProgramInfo
 		{
 			const wchar* programName;
@@ -72,6 +86,8 @@ namespace BB
 		Buffer ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path);
 		//Get a file's size in bytes.
 		uint64_t GetOSFileSize(const OSFileHandle a_FileHandle);
+		//Set the file position, a_Offset can be 0 if you just want to move it to BEGIN or END.
+		void SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint);
 
 		void CloseOSFile(const OSFileHandle a_FileHandle);
 

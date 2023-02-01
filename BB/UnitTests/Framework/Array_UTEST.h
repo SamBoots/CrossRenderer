@@ -164,7 +164,7 @@ TEST(ArrayDataStructure, Array_emplace_back)
 	constexpr const size_t samples = initialSize;
 	//Unaligned big struct with a union to test the value.
 	struct size2593bytes { 
-		size2593bytes() {}
+		size2593bytes() { value = 0; }
 		size2593bytes(size_t a_Value) : value(a_Value) {}
 		union { char data[2593]; size_t value; }; 
 	};
@@ -262,7 +262,7 @@ TEST(ArrayDataStructure, Array_Object_Test)
 	//Unaligned big struct with a union to test the value.
 	struct size2593bytesObj
 	{
-		size2593bytesObj() {};
+		size2593bytesObj() { value = 0; };
 		size2593bytesObj(const size2593bytesObj& a_Rhs)
 		{
 			value = a_Rhs.value;
