@@ -23,7 +23,7 @@ void BB::Shader::InitShaderCompiler()
 	DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&shaderCompiler.library));
 }
 
-const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, const wchar_t* a_Entry, const RENDER_SHADER_STAGE a_ShaderType)
+const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, const wchar_t* a_Entry, const RENDER_SHADER_STAGE a_ShaderType, const RENDER_API a_RenderAPI)
 {
 	LPCWSTR shaderType;
 	switch (a_ShaderType)
@@ -36,14 +36,29 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 		break;
 	}
 
-	LPCWSTR pszArgs[] =
+	//Lots of arguments, since we will add some extra.
+	LPCWSTR t_ShaderCompileArgs[32] =
 	{
 		a_FullPath,
 		L"-E", a_Entry,		// Entry point.
 		L"-T", shaderType,	// Shader Type
-		L"-Zs",				// Enable debug
-		L"-spirv"
+		L"-Zs"				// Enable debug
 	};
+
+	uint32_t t_CompileArgCount = 6; //Current elements inside the standard shader compiler args
+
+	switch (a_RenderAPI)
+	{
+	case RENDER_API::VULKAN:
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"-spirv";
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"-D";
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"_VULKAN";
+		break;
+	case RENDER_API::DX12:
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"-D";
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"_DIRECTX12";
+		break;
+	}
 
 	IDxcBlobEncoding* t_SourceBlob;
 	shaderCompiler.utils->LoadFile(a_FullPath, nullptr, &t_SourceBlob);
@@ -57,8 +72,8 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 
 	t_HR = shaderCompiler.compiler->Compile(
 		&t_Source,
-		pszArgs,
-		_countof(pszArgs),
+		t_ShaderCompileArgs,
+		t_CompileArgCount,
 		nullptr,
 		IID_PPV_ARGS(&t_Result)
 	);

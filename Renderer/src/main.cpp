@@ -24,7 +24,6 @@ int main(int argc, char** argv)
 {
 	BB_LOG(argv[0]);
 
-
 	Program::InitProgramInfo t_ProgramInfo;
 	t_ProgramInfo.exePath = argv[0];
 	t_ProgramInfo.programName = L"Crossrenderer";
@@ -33,33 +32,33 @@ int main(int argc, char** argv)
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 
-	BB::WindowHandle t_MainWindow = BB::Program::CreateOSWindow(
-		BB::Program::OS_WINDOW_STYLE::MAIN, 
+	RenderInitInfo t_RenderInfo{};
+	t_RenderInfo.windowHandle = BB::Program::CreateOSWindow(
+		BB::Program::OS_WINDOW_STYLE::MAIN,
 		250,
-		200, 
+		200,
 		t_WindowWidth,
 		t_WindowHeight,
 		L"CrossRenderer");
-
+	//Set the pointers later since resize event gets called for some reason on window creation.
 	Program::SetCloseWindowPtr(WindowQuit);
 	Program::SetResizeEventPtr(WindowResize);
-
 #ifdef _DEBUG
-	bool debugRenderer = true;
+	t_RenderInfo.debug = true;
 #else
-	bool debugRenderer = false;
+	t_RenderInfo.debug = false;
 #endif //_DEBUG
 #ifdef USE_VULKAN
-	RenderAPI api = RenderAPI::VULKAN;
+	t_RenderInfo.renderAPI = RENDER_API::VULKAN;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::Program::LoadLib(L"BB_VulkanDLL");
+	t_RenderInfo.renderDll = BB::Program::LoadLib(L"BB_VulkanDLL");
 #elif USE_DIRECTX12
-	RenderAPI api = RenderAPI::DX12;
+	t_RenderInfo .renderAPI = RENDER_API::DX12;
 	//load DLL
-	BB::LibHandle t_RenderDLL = BB::Program::LoadLib(L"BB_DirectXDLL");
+	t_RenderInfo.renderDll = BB::Program::LoadLib(L"BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
-	Render::InitRenderer(t_MainWindow, t_RenderDLL, debugRenderer);
+	Render::InitRenderer(t_RenderInfo);
 	CameraBufferInfo info;
 	info.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
 		glm::vec3(0.0f, 0.0f, 0.0f),
@@ -124,7 +123,8 @@ int main(int argc, char** argv)
 		Render::StartFrame();
 	}
 
-	BB::Program::UnloadLib(t_RenderDLL);
+	//Move this to the renderer?
+	BB::Program::UnloadLib(t_RenderInfo.renderDll);
 
 	return 0;
 }

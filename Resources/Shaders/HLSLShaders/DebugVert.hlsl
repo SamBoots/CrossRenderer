@@ -1,13 +1,22 @@
 struct VSInput
 {
+#ifdef _VULKAN
     [[vk::location(0)]] float2 inPosition : POSITION0;
     [[vk::location(1)]] float3 inColor : COLOR0;
+#elif _DIRECTX12
+    float2 inPosition : POSITION0;
+    float3 inColor : COLOR0;
+#endif
 };
 
 struct VSOutput
 {
     float4 pos : SV_POSITION;   
+#ifdef _VULKAN
     [[vk::location(0)]] float3 fragColor : COLOR0;
+#elif _DIRECTX12
+    float3 fragColor : COLOR0;
+#endif
 };
 
 struct ModelInstance
@@ -30,7 +39,12 @@ struct BindlessIndices
     uint paddingTo64Bytes[15];
 };
 
-[[vk::push_constant]] BindlessIndices indices;
+#ifdef _VULKAN
+    [[vk::push_constant]] BindlessIndices indices;
+#elif _DIRECTX12
+
+#endif
+
 
 RWStructuredBuffer<ModelInstance> modelInstances : register(u1, space0);
 

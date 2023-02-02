@@ -19,6 +19,8 @@ struct RendererInst
 	uint32_t frameBufferAmount;
 	uint32_t modelMatrixMax = 10;
 
+	RENDER_API renderAPI = RENDER_API::NONE;
+
 	Slotmap<Model> models{ m_SystemAllocator };
 	Slotmap<DrawObject> drawObjects{ m_SystemAllocator };
 };
@@ -177,14 +179,14 @@ static void Draw3DFrame()
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 }
 
-void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug)
+void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 {
 	Shader::InitShaderCompiler();
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ m_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
 	//t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES); Now all these are included in STANDARD_VULKAN_INSTANCE
-	if (a_Debug)
+	if (a_InitInfo.debug)
 	{
 		t_Extensions.emplace_back(RENDER_EXTENSIONS::DEBUG);
 	}
@@ -194,15 +196,15 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	int t_WindowWidth;
 	int t_WindowHeight;
-	Program::GetWindowSize(a_WindowHandle, t_WindowWidth, t_WindowHeight);
+	Program::GetWindowSize(a_InitInfo.windowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)Program::LibLoadFunc(a_RenderLib, "GetRenderAPIFunctions");
+	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)Program::LibLoadFunc(a_InitInfo.renderDll, "GetRenderAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
-	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(Program::GetOSWindowHandle(a_WindowHandle));
+	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(Program::GetOSWindowHandle(a_InitInfo.windowHandle));
 	t_BackendCreateInfo.version = 2;
-	t_BackendCreateInfo.validationLayers = a_Debug;
+	t_BackendCreateInfo.validationLayers = a_InitInfo.debug;
 	t_BackendCreateInfo.appName = "TestName";
 	t_BackendCreateInfo.engineName = "TestEngine";
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
@@ -210,6 +212,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 
 	RenderBackend::InitBackend(t_BackendCreateInfo);
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
+	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
 
 	RenderFrameBufferCreateInfo t_FrameBufferCreateInfo;
 	//VkRenderpass info
@@ -292,11 +295,13 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_ShaderHandles[0] = Shader::CompileShader(
 		t_DX12ShaderPaths[0],
 		L"main",
-		RENDER_SHADER_STAGE::VERTEX);
+		RENDER_SHADER_STAGE::VERTEX,
+		s_RendererInst.renderAPI);
 	t_ShaderHandles[1] = Shader::CompileShader(
 		t_DX12ShaderPaths[1],
 		L"main",
-		RENDER_SHADER_STAGE::FRAGMENT_PIXEL);
+		RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
+		s_RendererInst.renderAPI);
 
 	Buffer t_ShaderBuffer;
 	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
@@ -309,7 +314,7 @@ void BB::Render::InitRenderer(const WindowHandle a_WindowHandle, const LibHandle
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 
 	//Constant buffer for indices.
-	ConstantBufferInfo a_ConstBufferInfo;
+	ConstantBufferInfo a_ConstBufferInfo{};
 	a_ConstBufferInfo.offset = 0;
 	a_ConstBufferInfo.size = 64;
 	a_ConstBufferInfo.stage = RENDER_SHADER_STAGE::VERTEX;

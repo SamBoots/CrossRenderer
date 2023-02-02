@@ -5,7 +5,7 @@ namespace BB
 {
 	namespace Render
 	{
-		void InitRenderer(const WindowHandle a_WindowHandle, const LibHandle a_RenderLib, const bool a_Debug);
+		void InitRenderer(const RenderInitInfo& a_InitInfo);
 		void DestroyRenderer();
 
 		void Update(const float a_DeltaTime);

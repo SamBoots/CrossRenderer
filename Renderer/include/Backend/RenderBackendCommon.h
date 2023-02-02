@@ -30,7 +30,7 @@ namespace BB
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
 
-	enum class RenderAPI
+	enum class RENDER_API
 	{
 		NONE, //None means that the renderer is destroyed or not initialized.
 		VULKAN,
@@ -149,6 +149,14 @@ namespace BB
 	{
 		NONE = 0,
 		CREATE_SIGNALED
+	};
+
+	struct RenderInitInfo
+	{
+		RENDER_API renderAPI = RENDER_API::NONE;
+		WindowHandle windowHandle = {};
+		LibHandle renderDll = {};
+		bool debug = false;
 	};
 
 	struct RenderBufferCreateInfo
