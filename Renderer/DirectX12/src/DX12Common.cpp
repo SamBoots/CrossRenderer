@@ -25,7 +25,8 @@ struct DX12Backend_inst
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
 
-	ID3D12DescriptorHeap* constantHeap;
+	DescriptorHeap* defaultHeap;
+	DescriptorHeap* uploadHeap;
 
 	DX12Device device{};
 	DX12Swapchain swapchain{};
@@ -37,13 +38,16 @@ struct DX12Backend_inst
 	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<DX12FrameBuffer> frameBuffers{ s_DX12Allocator };
 
+	Pool<DescriptorHeap> Descriptorheaps;
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXMAResource> renderResources;
-	Pool<Fence> fencePool;
+	Pool<ID3D12Fence> fencePool;
 
 	void CreatePools()
 	{
+		Descriptorheaps.CreatePool(s_DX12Allocator, 16);
+		cmdQueues.CreatePool(s_DX12Allocator, 4);
 		cmdAllocators.CreatePool(s_DX12Allocator, 16);
 		renderResources.CreatePool(s_DX12Allocator, 8);
 		fencePool.CreatePool(s_DX12Allocator, 16);
@@ -51,6 +55,8 @@ struct DX12Backend_inst
 
 	void DestroyPools()
 	{
+		Descriptorheaps.DestroyPool(s_DX12Allocator);
+		cmdQueues.DestroyPool(s_DX12Allocator);
 		cmdAllocators.DestroyPool(s_DX12Allocator);
 		renderResources.DestroyPool(s_DX12Allocator);
 		fencePool.DestroyPool(s_DX12Allocator);
@@ -227,6 +233,22 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
 
+	//Create the two main heaps.
+	s_DX12BackendInst.defaultHeap = 
+		new (s_DX12BackendInst.Descriptorheaps.Get())DescriptorHeap(
+			s_DX12BackendInst.device.logicalDevice,
+			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+			4096,
+			true);
+
+	s_DX12BackendInst.uploadHeap = 
+		new (s_DX12BackendInst.Descriptorheaps.Get())DescriptorHeap(
+			s_DX12BackendInst.device.logicalDevice,
+			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+			4096,
+			false);
+
+
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
 	t_BackendInfo.currentFrame = s_DX12BackendInst.currentFrame;
@@ -293,6 +315,8 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 {
 	if (a_Layout.ptrHandle != nullptr)
 	{
+
+
 		return RDescriptorHandle(a_Layout.ptrHandle);
 	}
 
@@ -324,23 +348,28 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 	}
 
 
-	D3D12_ROOT_DESCRIPTOR1* t_RootDescriptor = BBnewArr(
+	D3D12_DESCRIPTOR_RANGE1* t_DescRanges = BBnewArr(
 		a_TempAllocator,
 		a_CreateInfo.bufferBinds.size(),
-		D3D12_ROOT_DESCRIPTOR1);
+		D3D12_DESCRIPTOR_RANGE1);
 
+	t_RegisterSpace = 0;
 	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
 	{
-		t_RootDescriptor[i].RegisterSpace = 0; //We will keep this 0 for now.
-		t_RootDescriptor[i].ShaderRegister = t_RegisterSpace++;
-		t_RootDescriptor[i].Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+		t_DescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		t_DescRanges[i].RegisterSpace = 0; //We will keep this 0 for now.
+		t_DescRanges[i].NumDescriptors = 1;
+		t_DescRanges[i].OffsetInDescriptorsFromTableStart = i; //Set the descriptor handles to here!
+		t_DescRanges[i].BaseShaderRegister = t_RegisterSpace++;
+		t_DescRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
 	}
 
 	//Groups of GPU Resources
 	D3D12_ROOT_PARAMETER1 t_RootParameters[2]{};
-	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters[0].Descriptor = t_RootDescriptor[0];
+	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
+	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_DescRanges;
 
 	t_RootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	t_RootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
@@ -522,15 +551,12 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	t_ResourceDesc.SampleDesc.Quality = 0;
 	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
 	//t_AllocationDesc.HeapType = DXConv::HeapType(a_Info.memProperties);
 	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 	D3D12_RESOURCE_STATES t_States = D3D12_RESOURCE_STATE_COPY_DEST;
-
 	//if (a_Info.usage == RENDER_BUFFER_USAGE::STAGING)
 		t_States = D3D12_RESOURCE_STATE_GENERIC_READ;
-
 	DXASSERT(s_DX12BackendInst.DXMA->CreateResource(
 		&t_AllocationDesc,
 		&t_ResourceDesc,
@@ -576,10 +602,10 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	Fence* t_Fence = s_DX12BackendInst.fencePool.Get();
+	ID3D12Fence* t_Fence = s_DX12BackendInst.fencePool.Get();
 	s_DX12BackendInst.device.logicalDevice->CreateFence(0,
 		D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&t_Fence->fence));
+		IID_PPV_ARGS(&t_Fence));
 	return RFenceHandle(t_Fence);
 }
 
@@ -592,6 +618,7 @@ void BB::DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHa
 RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
+	t_CommandList->Reset();
 	return RecordingCommandListHandle(t_CommandList);
 }
 
@@ -864,8 +891,8 @@ void BB::DX12WaitDeviceReady()
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 {
-	reinterpret_cast<Fence*>(a_Handle.ptrHandle)->fence->Release();
-	s_DX12BackendInst.fencePool.Free(reinterpret_cast<Fence*>(a_Handle.ptrHandle));
+	DXRelease(reinterpret_cast<ID3D12Fence*>(a_Handle.ptrHandle));
+	s_DX12BackendInst.fencePool.Free(reinterpret_cast<ID3D12Fence*>(a_Handle.ptrHandle));
 }
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)

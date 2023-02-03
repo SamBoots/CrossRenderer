@@ -1,7 +1,9 @@
 #include "DX12HelperTypes.h"
 #include "Utils.h"
 
-const D3D12_RESOURCE_STATES DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
+using namespace BB;
+
+const D3D12_RESOURCE_STATES BB::DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
 {
 	switch (a_Usage)
 	{
@@ -24,7 +26,7 @@ const D3D12_RESOURCE_STATES DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_U
 	}
 }
 
-const D3D12_HEAP_TYPE DXConv::HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
+const D3D12_HEAP_TYPE BB::DXConv::HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
 {
 	switch (a_Properties)
 	{
@@ -41,7 +43,7 @@ const D3D12_HEAP_TYPE DXConv::HeapType(const RENDER_MEMORY_PROPERTIES a_Properti
 	}
 }
 
-const D3D12_COMMAND_LIST_TYPE DXConv::CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType)
+const D3D12_COMMAND_LIST_TYPE BB::DXConv::CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType)
 {
 	switch (a_RenderQueueType)
 	{
@@ -58,23 +60,11 @@ const D3D12_COMMAND_LIST_TYPE DXConv::CommandListType(const RENDER_QUEUE_TYPE a_
 	}
 }
 
-bool IsFenceComplete(const Fence a_Fence)
+//Safely releases a type by setting it back to null
+void BB::DXRelease(IUnknown* a_Obj)
 {
-	return a_Fence.fence->GetCompletedValue() >= a_Fence.fenceValue;
-}
-
-void WaitFence(const Fence a_Fence, const uint64_t a_FenceValue)
-{
-	if (a_Fence.fence->GetCompletedValue() < a_Fence.fenceValue)
-	{
-		HANDLE t_Event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
-		BB_ASSERT(t_Event, "DX12, failed to create a fence event.");
-
-		DXASSERT(a_Fence.fence->SetEventOnCompletion(a_FenceValue, t_Event),
-			"DX12, failed to set event on completion");
-
-		::CloseHandle(t_Event);
-	}
+	if (a_Obj)
+		a_Obj->Release();
 }
 
 DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType)
@@ -172,7 +162,6 @@ DXCommandAllocator::DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMA
 	m_Type = a_QueueType;
 	a_Device->CreateCommandAllocator(m_Type, IID_PPV_ARGS(&m_Allocator));
 	m_Lists.CreatePool(s_DX12Allocator, m_ListSize);
-
 	//pre-reserve the commandlists, doing it here so it becomes easy to make a cross-API renderer with vulkan.
 	for (size_t i = 0; i < m_ListSize; i++)
 	{
@@ -210,7 +199,7 @@ DXCommandList::DXCommandList(ID3D12Device* a_Device, DXCommandAllocator& a_CmdAl
 		nullptr,
 		IID_PPV_ARGS(&m_List)),
 		"DX12: Failed to allocate commandlist.");
-
+	m_List->Close();
 	//Caching variables just null.
 	rtv = nullptr;
 }
@@ -237,10 +226,57 @@ void DXCommandList::Free()
 	m_CmdAllocator.FreeCommandList(this);
 }
 
-
-//Safely releases a type by setting it back to null
-void DXRelease(IUnknown* a_Obj)
+DescriptorHeap::DescriptorHeap(ID3D12Device* a_Device,
+	D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
+	uint32_t a_DescriptorCount,
+	bool a_ShaderVisible)
 {
-	if (a_Obj)
-		a_Obj->Release();
+	m_HeapType = a_HeapType;
+	m_MaxDescriptors = a_DescriptorCount;
+
+	D3D12_DESCRIPTOR_HEAP_DESC t_HeapInfo;
+	t_HeapInfo.Type = a_HeapType;
+	t_HeapInfo.NumDescriptors = a_DescriptorCount;
+	t_HeapInfo.Flags = a_ShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	t_HeapInfo.NodeMask = 0;
+
+	DXASSERT(a_Device->CreateDescriptorHeap(&t_HeapInfo, IID_PPV_ARGS(&m_DescriptorHeap)),
+		"DX12, Failed to create descriptor heap.");
+
+	m_HeapCPUStart = m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+	if (a_ShaderVisible)
+	{
+		m_HeapGPUStart = m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+	}
+
+	m_IncrementSize = a_Device->GetDescriptorHandleIncrementSize(a_HeapType);
+	
+}
+
+DescriptorHeap::~DescriptorHeap()
+{
+	DXRelease(m_DescriptorHeap);
+	m_DescriptorHeap = nullptr;
+}
+
+DescriptorHeapHandle DescriptorHeap::Allocate(const uint32_t a_Count)
+{
+	DescriptorHeapHandle t_AllocHandle{};
+	BB_ASSERT((m_InUse + a_Count < m_MaxDescriptors),
+		"DX12, Descriptorheap has no more descriptors left!");
+
+	t_AllocHandle.cpuHandle.ptr = m_HeapCPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
+	t_AllocHandle.gpuHandle.ptr = m_HeapGPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
+	t_AllocHandle.heapIndex = m_InUse;
+	t_AllocHandle.count = a_Count;
+
+	m_InUse += a_Count;
+
+	return t_AllocHandle;
+}
+
+void DescriptorHeap::Reset()
+{
+	m_InUse = 0;
 }

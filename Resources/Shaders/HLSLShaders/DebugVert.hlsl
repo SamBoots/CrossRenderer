@@ -31,22 +31,22 @@ struct Camera
     float4x4 proj;
 };
 
-StructuredBuffer<Camera> cam : register(t0, space0);
-
 struct BindlessIndices
 {
     uint model;
+#ifdef _VULKAN
     uint paddingTo64Bytes[15];
+#endif
 };
 
 #ifdef _VULKAN
     [[vk::push_constant]] BindlessIndices indices;
 #elif _DIRECTX12
-
+    ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-
-RWStructuredBuffer<ModelInstance> modelInstances : register(u1, space0);
+StructuredBuffer<Camera> cam : register(t0, space0);
+StructuredBuffer<ModelInstance> modelInstances : register(t1, space0);
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {

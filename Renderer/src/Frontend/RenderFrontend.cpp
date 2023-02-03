@@ -274,7 +274,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{//IndexConstantBind
 		t_ConstantBinds[0].offset = 0;
 		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_ConstantBinds[0].size = 64;
+		t_ConstantBinds[0].size = sizeof(uint32_t); //max of 64 bytes.
 	}
 
 
@@ -316,7 +316,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	//Constant buffer for indices.
 	ConstantBufferInfo a_ConstBufferInfo{};
 	a_ConstBufferInfo.offset = 0;
-	a_ConstBufferInfo.size = 64;
+	a_ConstBufferInfo.size = sizeof(uint32_t);
 	a_ConstBufferInfo.stage = RENDER_SHADER_STAGE::VERTEX;
 
 	RenderPipelineCreateInfo t_PipelineCreateInfo{};

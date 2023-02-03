@@ -4,6 +4,8 @@
 #include <combaseapi.h>
 #include "../../../Libs/DXC/inc/dxcapi.h"
 
+//https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
+
 using namespace BB;
 using namespace BB::Shader;
 
@@ -42,10 +44,11 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 		a_FullPath,
 		L"-E", a_Entry,		// Entry point.
 		L"-T", shaderType,	// Shader Type
-		L"-Zs"				// Enable debug
+		L"-Zs",				// Enable debug
+		L"-Qstrip_debug",	// Strip out the debug and reflect info to keep the actual shader object small.
 	};
 
-	uint32_t t_CompileArgCount = 6; //Current elements inside the standard shader compiler args
+	uint32_t t_CompileArgCount = 7; //Current elements inside the standard shader compiler args
 
 	switch (a_RenderAPI)
 	{
@@ -55,6 +58,7 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 		t_ShaderCompileArgs[t_CompileArgCount++] = L"_VULKAN";
 		break;
 	case RENDER_API::DX12:
+		t_ShaderCompileArgs[t_CompileArgCount++] = L"-Qstrip_reflect"; //Qstrip_reflect is not supported by SPRIV, but is supported for normal DX12
 		t_ShaderCompileArgs[t_CompileArgCount++] = L"-D";
 		t_ShaderCompileArgs[t_CompileArgCount++] = L"_DIRECTX12";
 		break;
