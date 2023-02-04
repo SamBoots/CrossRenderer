@@ -22,23 +22,29 @@
 #include "Framework/FileReadWrite_UTEST.h"
 #pragma warning(default:6262)
 
+#include "BBMain.h"
 #include "OS/Program.h"
 
 using namespace BB;
-int main()
+int main(int argc, char** argv)
 {
+	BBInitInfo t_BBInitInfo;
+	t_BBInitInfo.exePath = argv[0];
+	t_BBInitInfo.programName = L"BB_UNIT_TEST";
+	InitBB(t_BBInitInfo);
+
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
-	WindowHandle mainWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, L"Unit Test Main Window");
+	WindowHandle mainWindow = CreateOSWindow(OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, L"Unit Test Main Window");
 
-	WindowHandle childWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, L"Unit Test Child Window 1");
+	WindowHandle childWindow = CreateOSWindow(OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, L"Unit Test Child Window 1");
 
-	WindowHandle destroyWindow = Program::CreateOSWindow(Program::OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, L"Unit Test childWindow window");
+	WindowHandle destroyWindow = CreateOSWindow(OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, L"Unit Test childWindow window");
 
 	bool hasWindows = true;
 	while (hasWindows)
 	{
-		hasWindows = Program::ProcessMessages();
+		hasWindows = ProcessMessages();
 	}
 
 	return 0;

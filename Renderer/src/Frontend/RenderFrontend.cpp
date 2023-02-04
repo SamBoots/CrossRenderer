@@ -196,13 +196,13 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	int t_WindowWidth;
 	int t_WindowHeight;
-	Program::GetWindowSize(a_InitInfo.windowHandle, t_WindowWidth, t_WindowHeight);
+	GetWindowSize(a_InitInfo.windowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)Program::LibLoadFunc(a_InitInfo.renderDll, "GetRenderAPIFunctions");
+	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)LibLoadFunc(a_InitInfo.renderDll, "GetRenderAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
-	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(Program::GetOSWindowHandle(a_InitInfo.windowHandle));
+	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(GetOSWindowHandle(a_InitInfo.windowHandle));
 	t_BackendCreateInfo.version = 2;
 	t_BackendCreateInfo.validationLayers = a_InitInfo.debug;
 	t_BackendCreateInfo.appName = "TestName";

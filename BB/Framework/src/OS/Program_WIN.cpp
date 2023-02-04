@@ -1,23 +1,20 @@
-#define WIN32_LEAN_AND_MEAN
+#include "BBGlobal.h"
 #include "Program.h"
 #include "Utils/Logger.h"
 
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <fileapi.h>
 #include <memoryapi.h>
 #include <libloaderapi.h>
 
 using namespace BB;
-using namespace BB::Program;
 
 void DefaultClose(WindowHandle a_WindowHandle) {}
 void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y) {}
 
 static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
 static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
-
-static const char* exePath;
-static const wchar* programName;
 
 //The OS window for Windows.
 struct OSWindow
@@ -49,45 +46,37 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	return DefWindowProcW(a_Hwnd, a_Msg, a_WParam, a_LParam);
 }
 
-bool BB::Program::InitProgram(const InitProgramInfo& a_InitProgramInfo)
-{
-	programName = a_InitProgramInfo.programName;
-	exePath = a_InitProgramInfo.exePath;
-
-	return true;
-}
-
-const size_t BB::Program::VirtualMemoryPageSize()
+const size_t BB::VirtualMemoryPageSize()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwPageSize;
 }
 
-const size_t BB::Program::VirtualMemoryMinimumAllocation()
+const size_t BB::VirtualMemoryMinimumAllocation()
 {
 	SYSTEM_INFO t_Info;
 	GetSystemInfo(&t_Info);
 	return t_Info.dwAllocationGranularity;
 }
 
-void* BB::Program::ReserveVirtualMemory(const size_t a_Size)
+void* BB::ReserveVirtualMemory(const size_t a_Size)
 {
 	return VirtualAlloc(nullptr, a_Size, MEM_RESERVE, PAGE_NOACCESS);
 }
 
-bool BB::Program::CommitVirtualMemory(void* a_Ptr, const size_t a_Size)
+bool BB::CommitVirtualMemory(void* a_Ptr, const size_t a_Size)
 {
 	void* t_Ptr = VirtualAlloc(a_Ptr, a_Size, MEM_COMMIT, PAGE_READWRITE);
 	return t_Ptr;
 }
 
-bool BB::Program::ReleaseVirtualMemory(void* a_Ptr)
+bool BB::ReleaseVirtualMemory(void* a_Ptr)
 {
 	return VirtualFree(a_Ptr, 0, MEM_RELEASE);
 }
 
-const uint32_t BB::Program::LatestOSError()
+const uint32_t BB::LatestOSError()
 {
 	DWORD t_ErrorMsg = GetLastError();
 	if (t_ErrorMsg == 0)
@@ -104,35 +93,35 @@ const uint32_t BB::Program::LatestOSError()
 	return static_cast<uint32_t>(t_ErrorMsg);
 }
 
-LibHandle BB::Program::LoadLib(const wchar* a_LibName)
+LibHandle BB::LoadLib(const wchar* a_LibName)
 {
 	HMODULE t_Mod = LoadLibraryW(a_LibName);
 	if (t_Mod == NULL)
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_ASSERT(false, "Failed to load .DLL");
 	}
 	return LibHandle(t_Mod);
 }
 
-void BB::Program::UnloadLib(const LibHandle a_Handle)
+void BB::UnloadLib(const LibHandle a_Handle)
 {
 	FreeLibrary(reinterpret_cast<HMODULE>(a_Handle.ptrHandle));
 }
 
-LibFuncPtr BB::Program::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
+LibFuncPtr BB::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
 {
 	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
 	if (t_Func == NULL)
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_ASSERT(false, "Failed to load function from .dll");
 	}
 	return t_Func;
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::Program::CreateOSFile(const wchar* a_FileName)
+OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 {
 	HANDLE t_CreatedFile = CreateFileW(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
@@ -144,7 +133,7 @@ OSFileHandle BB::Program::CreateOSFile(const wchar* a_FileName)
 
 	if (t_CreatedFile == INVALID_HANDLE_VALUE)
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_WARNING(false, 
 			"OS, failed to create file! This can be severe.",
 			WarningType::HIGH);
@@ -154,7 +143,7 @@ OSFileHandle BB::Program::CreateOSFile(const wchar* a_FileName)
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::Program::LoadOSFile(const wchar* a_FileName)
+OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
 {
 	HANDLE t_LoadedFile = CreateFileW(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
@@ -166,7 +155,7 @@ OSFileHandle BB::Program::LoadOSFile(const wchar* a_FileName)
 
 	if (t_LoadedFile == INVALID_HANDLE_VALUE)
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
 			WarningType::HIGH);
@@ -177,7 +166,7 @@ OSFileHandle BB::Program::LoadOSFile(const wchar* a_FileName)
 
 //Reads a loaded file.
 //Buffer.data will have a dynamic allocation from the given allocator.
-Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
+Buffer BB::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
 {
 	Buffer t_FileBuffer{};
 
@@ -191,7 +180,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_Fi
 		&t_BytesRead,
 		NULL))
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
 			WarningType::HIGH);
@@ -200,7 +189,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_Fi
 	return t_FileBuffer;
 }
 
-Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
+Buffer BB::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 {
 	Buffer t_FileBuffer{};
 	OSFileHandle t_ReadFile = LoadOSFile(a_Path);
@@ -215,7 +204,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 		&t_BytesRead,
 		NULL))
 	{
-		Program::LatestOSError();
+		LatestOSError();
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
 			WarningType::HIGH);
@@ -227,7 +216,7 @@ Buffer BB::Program::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 }
 
 //char replaced with string view later on.
-void BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_Buffer)
+void BB::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_Buffer)
 {
 	DWORD t_BytesWriten = 0;
 	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle),
@@ -236,20 +225,20 @@ void BB::Program::WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_B
 		&t_BytesWriten,
 		NULL))
 	{
+		LatestOSError();
 		BB_WARNING(false,
 			"OS, failed to write to file!",
 			WarningType::HIGH);
-		LatestOSError();
 	}
 }
 
 //Get a file's size in bytes.
-uint64_t BB::Program::GetOSFileSize(const OSFileHandle a_FileHandle)
+uint64_t BB::GetOSFileSize(const OSFileHandle a_FileHandle)
 {
 	return GetFileSize(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), NULL);
 }
 
-void BB::Program::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint)
+void BB::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint)
 {
 	DWORD t_Err = SetFilePointer(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), a_Offset, NULL, static_cast<DWORD>(a_FileReadPoint));
 #ifdef DEBUG
@@ -263,12 +252,12 @@ void BB::Program::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint3
 #endif
 }
 
-void BB::Program::CloseOSFile(const OSFileHandle a_FileHandle)
+void BB::CloseOSFile(const OSFileHandle a_FileHandle)
 {
 	CloseHandle(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle));
 }
 
-WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
+WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
 	OSWindow t_ReturnWindow;
 	t_ReturnWindow.windowName = a_WindowName;
@@ -309,7 +298,7 @@ WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const in
 	t_ReturnWindow.hwnd = CreateWindowEx(
 		0,
 		t_ReturnWindow.windowName,
-		programName,
+		g_ProgramName,
 		t_Style,
 		t_Rect.left,
 		t_Rect.top,
@@ -324,12 +313,12 @@ WindowHandle BB::Program::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const in
 	return WindowHandle(t_ReturnWindow.hwnd);
 }
 
-void* BB::Program::GetOSWindowHandle(const WindowHandle a_Handle)
+void* BB::GetOSWindowHandle(const WindowHandle a_Handle)
 {
 	return reinterpret_cast<HWND>(a_Handle.handle);
 }
 
-void BB::Program::GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y)
+void BB::GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y)
 {
 	RECT t_Rect;
 	GetClientRect(reinterpret_cast<HWND>(a_Handle.handle), &t_Rect);
@@ -338,27 +327,27 @@ void BB::Program::GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y)
 	a_Y = t_Rect.bottom;
 }
 
-void BB::Program::DirectDestroyOSWindow(const WindowHandle a_Handle)
+void BB::DirectDestroyOSWindow(const WindowHandle a_Handle)
 {
 	DestroyWindow(reinterpret_cast<HWND>(a_Handle.ptrHandle));
 }
 
-void BB::Program::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
+void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
 {
 	sPFN_CloseEvent = a_Func;
 }
 
-void BB::Program::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
+void BB::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
 {
 	sPFN_ResizeEvent = a_Func;
 }
 
-void BB::Program::ExitApp()
+void BB::ExitApp()
 {
 	exit(EXIT_SUCCESS);
 }
 
-bool BB::Program::ProcessMessages()
+bool BB::ProcessMessages()
 {
 	MSG t_Msg{};
 
@@ -369,14 +358,4 @@ bool BB::Program::ProcessMessages()
 	}
 
 	return true;
-}
-
-const wchar* BB::Program::ProgramName()
-{
-	return programName;
-}
-
-const char* BB::Program::ProgramPath()
-{
-	return exePath;
 }

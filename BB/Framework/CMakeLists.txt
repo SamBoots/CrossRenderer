@@ -30,6 +30,8 @@ add_library (BBFramework
 "include/OS/Program.h" 
 "include/Common.h"
 "include/BBMemory.h" 
+"include/BBMain.h" 
+"include/BBGlobal.h" 
 
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/BackingAllocator.cpp" 
@@ -37,7 +39,8 @@ add_library (BBFramework
 "src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
-"src/BBMemory.cpp")
+"src/BBMemory.cpp"
+"src/BBMain.cpp")
 
 #Include library
 target_include_directories(BBFramework PUBLIC

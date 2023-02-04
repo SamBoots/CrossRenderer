@@ -1,3 +1,4 @@
+#include "BBMain.h"
 #include "OS/Program.h"
 #include "Frontend/RenderFrontend.h"
 
@@ -22,27 +23,26 @@ LinearAllocator_t m_ScopeAllocator{2 * kbSize};
 
 int main(int argc, char** argv)
 {
+	BBInitInfo t_BBInitInfo;
+	t_BBInitInfo.exePath = argv[0];
+	t_BBInitInfo.programName = L"Crossrenderer";
+	InitBB(t_BBInitInfo);
 	BB_LOG(argv[0]);
-
-	Program::InitProgramInfo t_ProgramInfo;
-	t_ProgramInfo.exePath = argv[0];
-	t_ProgramInfo.programName = L"Crossrenderer";
-	Program::InitProgram(t_ProgramInfo);
 
 	int t_WindowWidth = 1200;
 	int t_WindowHeight = 800;
 
 	RenderInitInfo t_RenderInfo{};
-	t_RenderInfo.windowHandle = BB::Program::CreateOSWindow(
-		BB::Program::OS_WINDOW_STYLE::MAIN,
+	t_RenderInfo.windowHandle = BB::CreateOSWindow(
+		BB::OS_WINDOW_STYLE::MAIN,
 		250,
 		200,
 		t_WindowWidth,
 		t_WindowHeight,
 		L"CrossRenderer");
 	//Set the pointers later since resize event gets called for some reason on window creation.
-	Program::SetCloseWindowPtr(WindowQuit);
-	Program::SetResizeEventPtr(WindowResize);
+	SetCloseWindowPtr(WindowQuit);
+	SetResizeEventPtr(WindowResize);
 #ifdef _DEBUG
 	t_RenderInfo.debug = true;
 #else
@@ -51,11 +51,11 @@ int main(int argc, char** argv)
 #ifdef USE_VULKAN
 	t_RenderInfo.renderAPI = RENDER_API::VULKAN;
 	//load DLL
-	t_RenderInfo.renderDll = BB::Program::LoadLib(L"BB_VulkanDLL");
+	t_RenderInfo.renderDll = BB::LoadLib(L"BB_VulkanDLL");
 #elif USE_DIRECTX12
 	t_RenderInfo .renderAPI = RENDER_API::DX12;
 	//load DLL
-	t_RenderInfo.renderDll = BB::Program::LoadLib(L"BB_DirectXDLL");
+	t_RenderInfo.renderDll = BB::LoadLib(L"BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_RenderInfo);
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
 	while (!t_Quit)
 	{
-		Program::ProcessMessages();
+		ProcessMessages();
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 	}
 
 	//Move this to the renderer?
-	BB::Program::UnloadLib(t_RenderInfo.renderDll);
+	BB::UnloadLib(t_RenderInfo.renderDll);
 
 	return 0;
 }
