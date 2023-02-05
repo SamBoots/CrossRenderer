@@ -27,6 +27,7 @@ namespace BB
 		//Use BB_EXCEPTION for better use.
 		void Log_Exception(const char* a_FileName, int a_Line, const char* a_Message);
 		//Use BB_ASSERT for better use.
+		//IT DOES NOT ASSERT, BB_ASSERT DOES
 		void Log_Error(const char* a_FileName, int a_Line, const char* a_Message);
 	}
 }

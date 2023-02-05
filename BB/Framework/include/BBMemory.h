@@ -3,8 +3,7 @@
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
 
-#include <iostream>
-
+#include <type_traits>
 
 template <typename T>
 struct MacroType { typedef T type; }; //I hate C++.
@@ -111,14 +110,12 @@ namespace BB
 			switch (t_HasError)
 			{
 			case BB::BOUNDRY_ERROR::FRONT:
-				std::cout << "Memory Boundry overwritten at front accured in file: " << t_AllocLog->file << "\n on line: "
-					<< t_AllocLog->line << "\n";
-				BB_ASSERT(false, "");
+				//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
+				Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "Memory Boundry overwritten at the front of memory block.");
 				break;
 			case BB::BOUNDRY_ERROR::BACK:
-				std::cout << "Memory Boundry overwritten at back accured in file: " << t_AllocLog->file << "\n on line: "
-					<< t_AllocLog->line << "\n";
-				BB_ASSERT(false, "");
+				//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
+				Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "Memory Boundry overwritten at the back of memory block.");
 				break;
 			}
 
@@ -156,8 +153,13 @@ namespace BB
 			AllocationLog* t_FrontLog = frontLog;
 			while (t_FrontLog != nullptr)
 			{
-				std::cout << "Memory leak accured in file: " << t_FrontLog->file << "\n on line: " 
-					<< t_FrontLog->line << "\n leak size: " << t_FrontLog->allocSize << "\n";
+				//reserve 9 extra spaces for the line number and \0.
+				char t_DebugMsg[]{ "Memory leak accured in logged file's line! Leak size: 000000000" };
+				sprintf_s(t_DebugMsg + sizeof(t_DebugMsg) - 9, 8, "%d", t_FrontLog->allocSize);
+				t_DebugMsg[sizeof(t_DebugMsg) - 1] = '\0';
+				Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, t_DebugMsg);
+
+
 				t_FrontLog = t_FrontLog->prev;
 			}
 #endif //_DEBUG

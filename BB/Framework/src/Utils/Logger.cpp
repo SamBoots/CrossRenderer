@@ -7,7 +7,7 @@ using namespace BB;
 static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Message, const char* a_WarningLevel)
 {
 	constexpr const char LOG_MESSAGE_FILE_0[]{ "File: " };
-	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ " Line Number: " };
+	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\r\nLine Number: " };
 	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\r\nThe Message: " };
 
 	//Format the message
@@ -92,4 +92,5 @@ void Logger::Log_Exception(const char* a_FileName, int a_Line, const char* a_Mes
 void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Message)
 {
 	Log_to_Console(a_FileName, a_Line, a_Message, "Critical Error: ");
+
 }
