@@ -1,7 +1,6 @@
 #include "BBGlobal.h"
 #include "Logger.h"
 #include "Program.h"
-#include <iostream>
 
 using namespace BB;
 
@@ -10,13 +9,6 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 	constexpr const char LOG_MESSAGE_FILE_0[]{ "File: " };
 	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ " Line Number: " };
 	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\r\nThe Message: " };
-
-	std::cout << a_WarningLevel <<
-		"File: " << a_FileName <<
-		" Line Number: " << a_Line <<
-		" The Message:" << "\n" << a_Message << "\n \n";
-
-	//Use the BB local allocator for this, the one from BBGlobal.h?
 
 	//Format the message
 	char t_String[1024]{};
@@ -62,7 +54,9 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 	Buffer t_LogBuffer{};
 	t_LogBuffer.data = t_String;
 	t_LogBuffer.size = t_StringSize;
+
 	WriteToFile(g_LogFile, t_LogBuffer);
+	WriteToConsole(t_String, t_StringSize);
 }
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Message)

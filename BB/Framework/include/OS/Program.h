@@ -59,6 +59,9 @@ namespace BB
 	//Load dynamic library function
 	LibFuncPtr LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName);
 
+	//Write to the standard C++ console if it's available.
+	void WriteToConsole(const char* a_String, uint32_t a_StrLength);
+
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
 	OSFileHandle CreateOSFile(const wchar* a_FileName);

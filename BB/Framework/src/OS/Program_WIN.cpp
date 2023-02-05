@@ -120,6 +120,23 @@ LibFuncPtr BB::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
 	return t_Func;
 }
 
+void BB::WriteToConsole(const char* a_String, uint32_t a_StrLength)
+{
+	DWORD t_Written = 0;
+	//Maybe check if a console is available, it could be null.
+	if (FALSE == WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE),
+		a_String,
+		a_StrLength,
+		&t_Written,
+		NULL))
+	{
+		BB_WARNING(false,
+			"OS, failed to write to console! This can be severe.",
+			WarningType::HIGH);
+		LatestOSError();
+	}
+}
+
 //char replaced with string view later on.
 OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 {
@@ -204,10 +221,10 @@ Buffer BB::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 		&t_BytesRead,
 		NULL))
 	{
-		LatestOSError();
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
 			WarningType::HIGH);
+		LatestOSError();
 	}
 
 	CloseOSFile(t_ReadFile);
