@@ -359,7 +359,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 		t_DescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		t_DescRanges[i].RegisterSpace = 0; //We will keep this 0 for now.
 		t_DescRanges[i].NumDescriptors = 1;
-		t_DescRanges[i].OffsetInDescriptorsFromTableStart = i; //Set the descriptor handles to here!
+		t_DescRanges[i].OffsetInDescriptorsFromTableStart = static_cast<UINT>(i); //Set the descriptor handles to here!
 		t_DescRanges[i].BaseShaderRegister = t_RegisterSpace++;
 		t_DescRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
 	}
@@ -368,7 +368,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescripto
 	D3D12_ROOT_PARAMETER1 t_RootParameters[2]{};
 	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = a_CreateInfo.bufferBinds.size();
+	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = static_cast<UINT>(a_CreateInfo.bufferBinds.size());
 	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_DescRanges;
 
 	t_RootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -502,7 +502,7 @@ CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
-			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, s_DX12BackendInst.directpresentqueue));
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12BackendInst.directpresentqueue));
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
 		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
@@ -515,7 +515,7 @@ CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo
 	default:
 		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
 		return CommandQueueHandle(new (s_DX12BackendInst.cmdQueues.Get())
-			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, s_DX12BackendInst.directpresentqueue));
+			DXCommandQueue(s_DX12BackendInst.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12BackendInst.directpresentqueue));
 		break;
 	}
 }
@@ -587,7 +587,7 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	if (a_Info.data != nullptr)
 	{
 		void* t_MappedPtr;
-		D3D12_RANGE t_ReadRange;
+		D3D12_RANGE t_ReadRange{};
 		t_ReadRange.Begin = 0;
 		t_ReadRange.End = 0;
 
@@ -648,7 +648,7 @@ void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(t_Framebuffer.rtvHeap->GetCPUDescriptorHandleForHeapStart());
-	rtvHandle.ptr = rtvHandle.ptr + (s_DX12BackendInst.currentFrame * 
+	rtvHandle.ptr = rtvHandle.ptr + static_cast<size_t>(s_DX12BackendInst.currentFrame * 
 		s_DX12BackendInst.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
 	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);

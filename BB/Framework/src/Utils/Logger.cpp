@@ -12,7 +12,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 
 	//Format the message
 	char t_String[1024]{};
-	uint32_t t_StringSize = 0;
+	size_t t_StringSize = 0;
 	{ 	//Start with the warning level
 		size_t t_WarnMesgSize = strnlen_s(a_WarningLevel, 64);
 		Memory::Copy(t_String, a_WarningLevel, t_WarnMesgSize);
@@ -56,7 +56,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 	t_LogBuffer.size = t_StringSize;
 
 	WriteToFile(g_LogFile, t_LogBuffer);
-	WriteToConsole(t_String, t_StringSize);
+	WriteToConsole(t_String, static_cast<uint32_t>(t_StringSize));
 }
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Message)

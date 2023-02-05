@@ -336,7 +336,7 @@ namespace BB
 
 		for (uint32_t i = m_Capacity; i < a_NewCapacity; ++i)
 		{
-			t_NewIdArr[i] = static_cast<uint64_t>(i + 1);
+			t_NewIdArr[i] = static_cast<uint64_t>(i) + 1;
 		}
 
 		this->~Slotmap();

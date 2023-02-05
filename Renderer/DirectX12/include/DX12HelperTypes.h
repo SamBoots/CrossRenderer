@@ -60,7 +60,7 @@ namespace BB
 	{
 	public:
 		DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType);
-		DXCommandQueue(ID3D12Device* a_Device, ID3D12CommandQueue* a_CommandQueue);
+		DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
 		~DXCommandQueue();
 
 		uint64_t PollFenceValue();
@@ -90,7 +90,7 @@ namespace BB
 		friend class DXCommandAllocator; //Allocator should have access to the QueueType.
 	};
 
-	struct DXCommandAllocator;
+	class DXCommandAllocator;
 
 	class DXCommandList
 	{

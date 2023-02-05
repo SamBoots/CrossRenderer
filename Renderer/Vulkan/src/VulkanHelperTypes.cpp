@@ -6,7 +6,7 @@ using namespace BB;
 
 VulkanQueueDeviceInfo BB::FindQueueIndex(VkQueueFamilyProperties* a_QueueProperties, uint32_t a_FamilyPropertyCount, VkQueueFlags a_QueueFlags)
 {
-	VulkanQueueDeviceInfo t_ReturnInfo;
+	VulkanQueueDeviceInfo t_ReturnInfo{};
 
 	//Find specialized compute queue.
 	if ((a_QueueFlags & VK_QUEUE_COMPUTE_BIT) == a_QueueFlags)
@@ -52,4 +52,5 @@ VulkanQueueDeviceInfo BB::FindQueueIndex(VkQueueFamilyProperties* a_QueuePropert
 	}
 
 	BB_ASSERT(false, "Vulkan: Failed to find required queue.");
+	return t_ReturnInfo;
 }

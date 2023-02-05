@@ -72,6 +72,7 @@ DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Type = a_CommandType;
 	t_QueueDesc.NodeMask = 0;
+	m_QueueType = a_CommandType;
 	DXASSERT(a_Device->CreateCommandQueue(&t_QueueDesc, 
 		IID_PPV_ARGS(&m_Queue)),
 		"DX12: Failed to create queue.");
@@ -83,12 +84,15 @@ DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_
 
 	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
 	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
+
+	m_LastCompleteValue = 0;
+	m_NextFenceValue = 1;
 }
 
-DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, ID3D12CommandQueue* a_CommandQueue)
+DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
 {
 	m_Queue = a_CommandQueue;
-
+	m_QueueType = a_CommandType;
 	DXASSERT(a_Device->CreateFence(0,
 		D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&m_Fence)),
@@ -96,6 +100,9 @@ DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, ID3D12CommandQueue* a_Com
 
 	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
 	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
+
+	m_LastCompleteValue = 0;
+	m_NextFenceValue = 1;
 }
 
 DXCommandQueue::~DXCommandQueue()

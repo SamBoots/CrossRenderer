@@ -38,12 +38,11 @@ namespace BB
 		const TRANSFORM_STATE GetState() const { return m_State; };
 		glm::mat4 CreateModelMatrix();
 	private:
-		//48 bytes class
-		glm::vec3 m_Pos;
-		glm::quat m_Rot;
-		glm::vec3 m_Scale;
-		TRANSFORM_STATE m_State = TRANSFORM_STATE::NOT_USED;
-		uint32_t m_MatrixOffset;
+		//44 bytes class
+		glm::vec3 m_Pos; //12
+		glm::quat m_Rot; //28
+		glm::vec3 m_Scale; //40
+		TRANSFORM_STATE m_State = TRANSFORM_STATE::NOT_USED; //44
 	};
 
 	using TransformHandle = FrameworkHandle<struct TransformHandleTag>;

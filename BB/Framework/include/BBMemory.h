@@ -111,11 +111,13 @@ namespace BB
 			{
 			case BB::BOUNDRY_ERROR::FRONT:
 				//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-				Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "Memory Boundry overwritten at the front of memory block.");
+				Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line), 
+					"Memory Boundry overwritten at the front of memory block.");
 				break;
 			case BB::BOUNDRY_ERROR::BACK:
 				//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-				Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "Memory Boundry overwritten at the back of memory block.");
+				Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line), 
+					"Memory Boundry overwritten at the back of memory block.");
 				break;
 			}
 
@@ -155,9 +157,10 @@ namespace BB
 			{
 				//reserve 9 extra spaces for the line number and \0.
 				char t_DebugMsg[]{ "Memory leak accured in logged file's line! Leak size: 000000000" };
-				sprintf_s(t_DebugMsg + sizeof(t_DebugMsg) - 9, 8, "%d", t_FrontLog->allocSize);
+				sprintf_s(t_DebugMsg + sizeof(t_DebugMsg) - 9, 8, "%d", static_cast<int>(t_FrontLog->allocSize));
 				t_DebugMsg[sizeof(t_DebugMsg) - 1] = '\0';
-				Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, t_DebugMsg);
+				Logger::Log_Error(t_FrontLog->file, 
+					static_cast<int>(t_FrontLog->line), t_DebugMsg);
 
 
 				t_FrontLog = t_FrontLog->prev;
