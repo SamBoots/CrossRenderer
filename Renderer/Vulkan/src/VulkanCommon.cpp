@@ -1801,9 +1801,10 @@ uint64_t BB::VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle)
 	return reinterpret_cast<VulkanCommandQueue*>(a_Handle.ptrHandle)->nextSemValue;
 }
 
+//NOT IMPLEMENTED YET.
 uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
 {
-	return 0;//return reinterpret_cast<VkSemaphore*>(a_Handle.ptrHandle)->nextSemValue;
+	return 0; //return reinterpret_cast<VkSemaphore*>(a_Handle.ptrHandle)->nextSemValue;
 }
 
 void BB::VulkanWaitDeviceReady()

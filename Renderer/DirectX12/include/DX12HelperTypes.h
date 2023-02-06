@@ -145,8 +145,6 @@ namespace BB
 		uint32_t count{};
 	};
 
-
-
 	class DescriptorHeap
 	{
 	public:
