@@ -12,7 +12,7 @@ namespace BB
 	//Functions
 	BackendInfo DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-	RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+	RDescriptorHandle DX12CreateDescriptor(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo);
 	PipelineHandle DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -47,6 +47,9 @@ namespace BB
 	void DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	FrameIndex DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
 
+	uint64_t DX12NextQueueFenceValue(const CommandQueueHandle a_Handle);
+	uint64_t DX12NextFenceValue(const RFenceHandle a_Handle);
+
 	void DX12WaitDeviceReady();
 
 	void DX12DestroyFence(const RFenceHandle a_Handle);
@@ -56,7 +59,6 @@ namespace BB
 	void DX12DestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
 	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
-	void DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 	void DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 	void DX12DestroyBackend();
 }

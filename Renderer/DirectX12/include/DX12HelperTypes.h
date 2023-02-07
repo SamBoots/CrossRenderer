@@ -1,5 +1,6 @@
 #pragma once
 #include "DX12Common.h"
+#include "D3D12MemAlloc.h"
 
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
@@ -54,6 +55,24 @@ namespace BB
 		ID3D12DescriptorHeap* rtvHeap;
 		D3D12_VIEWPORT viewport;
 		D3D12_RECT surfaceRect;
+	};
+
+	class DXResource
+	{
+	public:
+		DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_InitialState, const D3D12_HEAP_TYPE a_HeapType, const uint64_t a_Size);
+		~DXResource();
+
+		ID3D12Resource* GetResource() const { return m_Resource; };
+
+	private:
+		ID3D12Resource* m_Resource;
+		D3D12MA::Allocation* m_Allocation;
+		DX12BufferView m_View;
+
+		D3D12_RESOURCE_STATES m_CurrentState;
+		//Debug info
+		D3D12_RESOURCE_STATES m_PreviousState;
 	};
 
 	class DXCommandQueue

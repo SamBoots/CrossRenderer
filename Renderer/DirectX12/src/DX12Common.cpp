@@ -1,6 +1,5 @@
 #include "DX12Common.h"
 #include "DX12HelperTypes.h"
-#include "D3D12MemAlloc.h"
 
 #include "Slotmap.h"
 #include "Pool.h"
@@ -9,13 +8,6 @@
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
 using namespace BB;
-
-struct DXMAResource
-{
-	D3D12MA::Allocation* allocation;
-	ID3D12Resource* resource;
-	DX12BufferView view;
-};
 
 struct DescriptorGroup
 {
@@ -47,7 +39,7 @@ struct DX12Backend_inst
 	Pool<DescriptorGroup> descriptorGroups;
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
-	Pool<DXMAResource> renderResources;
+	Pool<DXResource> renderResources;
 	Pool<ID3D12Fence> fencePool;
 
 	void CreatePools()
@@ -319,13 +311,8 @@ FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const Ren
 	return FrameBufferHandle(s_DX12B.frameBuffers.insert(frameBuffer).handle);
 }
 
-RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	if (a_Layout.ptrHandle != nullptr)
-	{
-		return RDescriptorHandle(a_Layout.ptrHandle);
-	}
-
 	DescriptorGroup t_DescGroup{};
 
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
@@ -436,7 +423,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 
 	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
-	t_PsoDesc.pRootSignature = reinterpret_cast<ID3D12RootSignature*>(a_CreateInfo.descLayoutHandles[0].ptrHandle);
+	t_PsoDesc.pRootSignature = reinterpret_cast<DescriptorGroup*>(a_CreateInfo.descHandle[0].ptrHandle)->rootsig;
 
 	for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
 	{
@@ -547,33 +534,6 @@ CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	DXMAResource* t_Resource = s_DX12B.renderResources.Get();
-
-	D3D12_RESOURCE_DESC t_ResourceDesc = {};
-	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	t_ResourceDesc.Alignment = 0;
-	t_ResourceDesc.Width = a_Info.size;
-	t_ResourceDesc.Height = 1;
-	t_ResourceDesc.DepthOrArraySize = 1;
-	t_ResourceDesc.MipLevels = 1;
-	t_ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-	t_ResourceDesc.SampleDesc.Count = 1;
-	t_ResourceDesc.SampleDesc.Quality = 0;
-	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
-	//t_AllocationDesc.HeapType = DXConv::HeapType(a_Info.memProperties);
-	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
-	D3D12_RESOURCE_STATES t_States = D3D12_RESOURCE_STATE_COPY_DEST;
-	//if (a_Info.usage == RENDER_BUFFER_USAGE::STAGING)
-		t_States = D3D12_RESOURCE_STATE_GENERIC_READ;
-	DXASSERT(s_DX12B.DXMA->CreateResource(
-		&t_AllocationDesc,
-		&t_ResourceDesc,
-		t_States,
-		NULL,
-		&t_Resource->allocation,
-		IID_PPV_ARGS(&t_Resource->resource)),
-		"DX12: Failed to create resource using D3D12 Memory Allocator");
 
 	switch (a_Info.usage)
 	{
@@ -698,7 +658,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	{
 		t_Views[i] = reinterpret_cast<DXMAResource*>(a_Buffers[i].ptrHandle)->view.vertexView;
 	}
-
+	
 	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
 }
 
@@ -713,7 +673,7 @@ void BB::DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdH
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	
-	t_CommandList->List()->SetGraphicsRootSignature(reinterpret_cast<ID3D12RootSignature*>(a_Sets[0].ptrHandle));
+	t_CommandList->List()->SetGraphicsRootSignature(reinterpret_cast<DescriptorGroup*>(a_Sets[0].ptrHandle)->rootsig);
 }
 
 void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -722,7 +682,7 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 
 	BB_ASSERT(a_Size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
 	const UINT t_Dwords = a_Size / sizeof(uint32_t);
-	t_CommandList->List()->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
+	t_CommandList->List()->SetGraphicsRoot32BitConstants(1, t_Dwords, a_Data, a_Offset);
 }
 
 void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
@@ -886,6 +846,17 @@ FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInf
 	return s_DX12B.currentFrame;
 }
 
+uint64_t BB::DX12NextQueueFenceValue(const CommandQueueHandle a_Handle)
+{
+	return reinterpret_cast<DXCommandQueue*>(a_Handle.ptrHandle)->GetNextFenceValue();
+}
+
+//TO BE IMPLEMENTED.
+uint64_t BB::DX12NextFenceValue(const RFenceHandle a_Handle)
+{
+	return 0;
+}
+
 void BB::DX12WaitDeviceReady()
 {
 	//const UINT64 fenceV = s_DX12BackendInst.fenceValue;
@@ -946,11 +917,6 @@ void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)
 	t_FrameBuffer.rtvHeap->Release();
 
 	s_DX12B.frameBuffers.erase(a_Handle.handle);
-}
-
-void BB::DX12DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle)
-{
-	reinterpret_cast<ID3D12RootSignature*>(a_Handle.ptrHandle)->Release();
 }
 
 void BB::DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle)

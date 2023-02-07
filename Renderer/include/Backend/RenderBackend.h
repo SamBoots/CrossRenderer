@@ -10,7 +10,7 @@ namespace BB
 		const FrameIndex GetCurrentFrameBufferIndex();
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		RDescriptorHandle CreateDescriptor(RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+		RDescriptorHandle CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
@@ -52,7 +52,6 @@ namespace BB
 		void WaitGPUReady();
 
 		void DestroyBackend();
-		void DestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle);
 		void DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);

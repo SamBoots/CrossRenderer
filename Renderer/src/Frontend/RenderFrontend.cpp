@@ -32,7 +32,6 @@ struct PerFrameInfo
 	RBufferHandle perFrameBuffer;
 	RBufferHandle perFrameTransferBuffer;
 	void* transferBufferPtr;
-	RDescriptorLayoutHandle perFrameDescriptorLayout;
 	RDescriptorHandle perFrameDescriptor;
 };
 
@@ -279,9 +278,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 
 
-	s_PerFrameInfo.perFrameDescriptorLayout.ptrHandle = nullptr;
 	s_PerFrameInfo.perFrameDescriptor = RenderBackend::CreateDescriptor(
-		s_PerFrameInfo.perFrameDescriptorLayout,
 		t_DescriptorCreateInfo);
 
 
@@ -322,7 +319,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	RenderPipelineCreateInfo t_PipelineCreateInfo{};
 	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
 	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
-	t_PipelineCreateInfo.descLayoutHandles = &s_PerFrameInfo.perFrameDescriptorLayout;
+	t_PipelineCreateInfo.descHandle = &s_PerFrameInfo.perFrameDescriptor;
 	t_PipelineCreateInfo.descLayoutCount = 1;
 	t_PipelineCreateInfo.constantBuffers = &a_ConstBufferInfo;
 	t_PipelineCreateInfo.constantBufferCount = 1;
@@ -395,7 +392,6 @@ void BB::Render::DestroyRenderer()
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_PerFrameInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);
-	RenderBackend::DestroyDescriptorSetLayout(s_PerFrameInfo.perFrameDescriptorLayout);
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);

@@ -47,7 +47,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
-	a_FuncCreateInfo.destroyDescriptorLayout = VulkanDestroyDescriptorSetLayout;
 	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptorSet;
 	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;

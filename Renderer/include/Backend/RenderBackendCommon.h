@@ -15,7 +15,6 @@ namespace BB
 	
 	//Common handles
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
-	using RDescriptorLayoutHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 
 	//Index is the start index, Index 
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
@@ -280,7 +279,7 @@ namespace BB
 		//Required for Vulkan
 		Slice<BB::ShaderCreateInfo> shaderCreateInfos{};
 		//Use the layouts to a maximum of RENDER_DESCRIPTOR_BINDING
-		RDescriptorLayoutHandle* descLayoutHandles;
+		RDescriptorHandle* descHandle;
 		uint32_t descLayoutCount;
 		ConstantBufferInfo* constantBuffers;
 		uint32_t constantBufferCount;
@@ -356,7 +355,7 @@ namespace BB
 
 	//construction
 	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RDescriptorHandle	(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo);
+	typedef RDescriptorHandle	(*PFN_RenderAPICreateDescriptor)(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo);
 	typedef PipelineHandle		(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	typedef FrameBufferHandle	(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandQueueHandle(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
@@ -401,7 +400,6 @@ namespace BB
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
-	typedef void (*PFN_RenderAPIDestroyDescriptorLayout)(const RDescriptorLayoutHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFrameBuffer)(const FrameBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
@@ -457,7 +455,6 @@ namespace BB
 
 		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyDescriptor destroyDescriptor;
-		PFN_RenderAPIDestroyDescriptorLayout destroyDescriptorLayout;
 		PFN_RenderAPIDestroyFrameBuffer destroyFrameBuffer;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;
 		PFN_RenderAPIDestroyCommandQueue destroyCommandQueue;

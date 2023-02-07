@@ -67,6 +67,39 @@ void BB::DXRelease(IUnknown* a_Obj)
 		a_Obj->Release();
 }
 
+DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const D3D12_RESOURCE_STATES a_InitialState, const D3D12_HEAP_TYPE a_HeapType, const uint64_t a_Size)
+{
+	D3D12_RESOURCE_DESC t_ResourceDesc = {};
+	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	t_ResourceDesc.Alignment = 0;
+	t_ResourceDesc.Width = a_Size;
+	t_ResourceDesc.Height = 1;
+	t_ResourceDesc.DepthOrArraySize = 1;
+	t_ResourceDesc.MipLevels = 1;
+	t_ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	t_ResourceDesc.SampleDesc.Count = 1;
+	t_ResourceDesc.SampleDesc.Quality = 0;
+	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
+	t_AllocationDesc.HeapType = a_HeapType;
+
+	DXASSERT(a_ResourceAllocator->CreateResource(
+		&t_AllocationDesc,
+		&t_ResourceDesc,
+		a_InitialState,
+		NULL,
+		&m_Allocation,
+		IID_PPV_ARGS(&m_Resource)),
+		"DX12: Failed to create resource using D3D12 Memory Allocator");
+}
+
+DXResource::~DXResource()
+{
+	m_Resource->Release();
+	m_Allocation->Release();
+}
+
 DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType)
 {
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
