@@ -67,7 +67,7 @@ void BB::DXRelease(IUnknown* a_Obj)
 		a_Obj->Release();
 }
 
-DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const D3D12_RESOURCE_STATES a_InitialState, const D3D12_HEAP_TYPE a_HeapType, const uint64_t a_Size)
+DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size)
 {
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
 	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -82,16 +82,60 @@ DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const D3D12_RESO
 	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
-	t_AllocationDesc.HeapType = a_HeapType;
+
+	switch (a_MemProperties)
+	{
+	case RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL:
+		t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+		break;
+	case RENDER_MEMORY_PROPERTIES::HOST_VISIBLE:
+		t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+		break;
+	}
+	
+
+	switch (a_BufferUsage)
+	{
+	case RENDER_BUFFER_USAGE::VERTEX:
+		m_CurrentState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+		break;
+	case RENDER_BUFFER_USAGE::INDEX:
+		m_CurrentState = D3D12_RESOURCE_STATE_INDEX_BUFFER;
+		break;
+	case RENDER_BUFFER_USAGE::STAGING:
+		m_CurrentState = D3D12_RESOURCE_STATE_GENERIC_READ;
+		BB_ASSERT(t_AllocationDesc.HeapType == D3D12_HEAP_TYPE_UPLOAD,
+			"DX12, tries to make an upload resource but the heap type is not upload!");
+		break;
+	}
 
 	DXASSERT(a_ResourceAllocator->CreateResource(
 		&t_AllocationDesc,
 		&t_ResourceDesc,
-		a_InitialState,
+		m_CurrentState,
 		NULL,
 		&m_Allocation,
 		IID_PPV_ARGS(&m_Resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
+
+
+	switch (a_BufferUsage)
+	{
+	case RENDER_BUFFER_USAGE::VERTEX:
+		m_View.vertexView.BufferLocation = m_Resource->GetGPUVirtualAddress();
+		m_View.vertexView.StrideInBytes = sizeof(Vertex);
+		m_View.vertexView.SizeInBytes = static_cast<UINT>(a_Size);
+		break;
+	case RENDER_BUFFER_USAGE::INDEX:
+		m_View.indexView.BufferLocation = m_Resource->GetGPUVirtualAddress();
+		m_View.indexView.Format = DXGI_FORMAT_R32_UINT;
+		m_View.indexView.SizeInBytes = static_cast<UINT>(a_Size);
+		break;
+	default:
+		m_View.constantView.BufferLocation = m_Resource->GetGPUVirtualAddress();
+		m_View.constantView.SizeInBytes = static_cast<UINT>(a_Size);
+		break;
+	}
 }
 
 DXResource::~DXResource()

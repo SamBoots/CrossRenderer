@@ -523,6 +523,7 @@ CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocat
 		DXCommandAllocator(s_DX12B.device.logicalDevice,
 			DXConv::CommandListType(a_CreateInfo.queueType),
 			a_CreateInfo.commandListCount);
+
 	return CommandAllocatorHandle(t_CmdAllocator);
 }
 
@@ -533,25 +534,8 @@ CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
-	DXMAResource* t_Resource = s_DX12B.renderResources.Get();
-
-	switch (a_Info.usage)
-	{
-	case RENDER_BUFFER_USAGE::VERTEX:
-		t_Resource->view.vertexView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
-		t_Resource->view.vertexView.StrideInBytes = sizeof(Vertex);
-		t_Resource->view.vertexView.SizeInBytes = static_cast<UINT>(a_Info.size);
-		break;
-	case RENDER_BUFFER_USAGE::INDEX:
-		t_Resource->view.indexView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
-		t_Resource->view.indexView.Format = DXGI_FORMAT_R32_UINT;
-		t_Resource->view.indexView.SizeInBytes = static_cast<UINT>(a_Info.size);
-		break;
-	default:
-		t_Resource->view.constantView.BufferLocation = t_Resource->resource->GetGPUVirtualAddress();
-		t_Resource->view.constantView.SizeInBytes = static_cast<UINT>(a_Info.size);
-		break;
-	}
+	DXResource* t_Resource = new (s_DX12B.renderResources.Get())
+		DXResource(s_DX12B.DXMA, a_Info.usage, a_Info.memProperties, a_Info.size);
 
 	if (a_Info.data != nullptr)
 	{
@@ -560,10 +544,10 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 		t_ReadRange.Begin = 0;
 		t_ReadRange.End = 0;
 
-		DXASSERT(t_Resource->resource->Map(0, nullptr, &t_MappedPtr),
+		DXASSERT(t_Resource->GetResource()->Map(0, nullptr, &t_MappedPtr),
 			"DX12: failed to map memory to resource.");
 		memcpy(t_MappedPtr, a_Info.data, a_Info.size);
-		t_Resource->resource->Unmap(0, nullptr);
+		t_Resource->GetResource()->Unmap(0, nullptr);
 	}
 
 	return RBufferHandle(t_Resource);
@@ -656,7 +640,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	D3D12_VERTEX_BUFFER_VIEW t_Views[12]{};
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
-		t_Views[i] = reinterpret_cast<DXMAResource*>(a_Buffers[i].ptrHandle)->view.vertexView;
+		t_Views[i] = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetView().vertexView;
 	}
 	
 	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
@@ -665,7 +649,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->List()->IASetIndexBuffer(&reinterpret_cast<DXMAResource*>(a_Buffer.ptrHandle)->view.indexView);
+	t_CommandList->List()->IASetIndexBuffer(&reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetView().indexView);
 }
 
 
@@ -702,29 +686,29 @@ void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, 
 
 void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
-	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
+	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
 	void* t_MapData;
 
-	DXASSERT(t_Resource->resource->Map(0, NULL, &t_MapData),
+	DXASSERT(t_Resource->GetResource()->Map(0, NULL, &t_MapData),
 		"DX12: Failed to map resource.");
 
 	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
 
-	t_Resource->resource->Unmap(0, NULL);
+	t_Resource->GetResource()->Unmap(0, NULL);
 }
 
 void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CopyInfo.transferCommandHandle.ptrHandle);
 
-	ID3D12Resource* t_DestResource = reinterpret_cast<DXMAResource*>(a_CopyInfo.dst.ptrHandle)->resource;
+	ID3D12Resource* t_DestResource = reinterpret_cast<DXResource*>(a_CopyInfo.dst.ptrHandle)->GetResource();
 
 	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
 	{
 		t_CommandList->List()->CopyBufferRegion(
 			t_DestResource,
 			a_CopyInfo.copyRegions[i].dstOffset,
-			reinterpret_cast<DXMAResource*>(a_CopyInfo.src.handle)->resource,
+			reinterpret_cast<DXResource*>(a_CopyInfo.src.handle)->GetResource(),
 			a_CopyInfo.copyRegions[i].srcOffset,
 			a_CopyInfo.copyRegions[i].size);
 	}
@@ -753,7 +737,7 @@ void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHa
 	{
 		t_ResourceBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		t_ResourceBarriers[i].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		t_ResourceBarriers[i].Transition.pResource = reinterpret_cast<DXMAResource*>(a_Info.barriers[i].buffer.ptrHandle)->resource;
+		t_ResourceBarriers[i].Transition.pResource = reinterpret_cast<DXResource*>(a_Info.barriers[i].buffer.ptrHandle)->GetResource();
 		t_ResourceBarriers[i].Transition.StateBefore = DXConv::ResourceStates(a_Info.barriers[i].previous);
 		t_ResourceBarriers[i].Transition.StateAfter = DXConv::ResourceStates(a_Info.barriers[i].next);
 		t_ResourceBarriers[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -766,17 +750,17 @@ void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHa
 
 void* BB::DX12MapMemory(const RBufferHandle a_Handle)
 {
-	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
+	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
 	void* t_MapData;
-	DXASSERT(t_Resource->resource->Map(0, NULL, &t_MapData),
+	DXASSERT(t_Resource->GetResource()->Map(0, NULL, &t_MapData),
 		"DX12: Failed to map resource.");
 	return t_MapData;
 }
 
 void BB::DX12UnMemory(const RBufferHandle a_Handle)
 {
-	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
-	t_Resource->resource->Unmap(0, NULL);
+	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
+	t_Resource->GetResource()->Unmap(0, NULL);
 }
 
 void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
@@ -877,10 +861,9 @@ void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
-	DXMAResource* t_Resource = reinterpret_cast<DXMAResource*>(a_Handle.ptrHandle);
-	t_Resource->resource->Release();
-	t_Resource->allocation->Release();
+	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
 	s_DX12B.renderResources.Free(t_Resource);
+	t_Resource->~DXResource();
 }
 
 void BB::DX12DestroyCommandQueue(const CommandQueueHandle a_Handle)

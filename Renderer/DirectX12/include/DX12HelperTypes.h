@@ -60,10 +60,12 @@ namespace BB
 	class DXResource
 	{
 	public:
-		DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_InitialState, const D3D12_HEAP_TYPE a_HeapType, const uint64_t a_Size);
+		DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size);
 		~DXResource();
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
+
+		const DX12BufferView& GetView() const { return m_View; }
 
 	private:
 		ID3D12Resource* m_Resource;
