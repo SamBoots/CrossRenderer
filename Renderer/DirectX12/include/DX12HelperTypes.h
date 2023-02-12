@@ -64,8 +64,9 @@ namespace BB
 		~DXResource();
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
-
 		const DX12BufferView& GetView() const { return m_View; }
+
+		const D3D12_RESOURCE_STATES GetState() const { return m_CurrentState; }
 
 	private:
 		ID3D12Resource* m_Resource;
@@ -73,8 +74,6 @@ namespace BB
 		DX12BufferView m_View;
 
 		D3D12_RESOURCE_STATES m_CurrentState;
-		//Debug info
-		D3D12_RESOURCE_STATES m_PreviousState;
 	};
 
 	class DXCommandQueue
@@ -158,12 +157,17 @@ namespace BB
 		friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
 	};
 
+	class DescriptorHeap;
+
 	struct DescriptorHeapHandle
 	{
+		ID3D12DescriptorHeap* heap;
 		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle{};
-		D3D12_GPU_DESCRIPTOR_HANDLE cpuHandle{};
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
 		uint32_t heapIndex{};
 		uint32_t count{};
+		uint32_t incrementSize{};
+
 	};
 
 	class DescriptorHeap
@@ -179,7 +183,7 @@ namespace BB
 		D3D12_CPU_DESCRIPTOR_HANDLE GetCPUStartPtr() const { return m_HeapCPUStart; }
 		D3D12_GPU_DESCRIPTOR_HANDLE GetGPUStartPtr() const { return m_HeapGPUStart; }
 		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
-		ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
+		const ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
 
 	private:
 		ID3D12DescriptorHeap* m_DescriptorHeap;
@@ -187,7 +191,7 @@ namespace BB
 		D3D12_CPU_DESCRIPTOR_HANDLE m_HeapCPUStart;
 		D3D12_GPU_DESCRIPTOR_HANDLE m_HeapGPUStart;
 		uint32_t m_MaxDescriptors;
-		uint32_t m_InUse;
+		uint32_t m_InUse = 0;
 		uint32_t m_IncrementSize;
 	};
 }

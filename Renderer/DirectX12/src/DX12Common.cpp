@@ -13,6 +13,18 @@ struct DescriptorGroup
 {
 	DescriptorHeapHandle heapHandle{};
 	ID3D12RootSignature* rootsig{};
+
+
+	struct RootDescriptor {
+		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
+		UINT rootIndex{};
+	}; 
+	uint32_t rootCBVCount = 0;
+	uint32_t rootSRVCount = 0;
+	uint32_t rootUAVCount = 0;
+	RootDescriptor rootCBV[4];
+	RootDescriptor rootSRV[4];
+	RootDescriptor rootUAV[4];
 };
 
 struct DX12Backend_inst
@@ -315,6 +327,10 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, const Rend
 {
 	DescriptorGroup t_DescGroup{};
 
+	UINT t_CBVReg = 0;
+	UINT t_SRVReg = 0;
+	UINT t_UAVReg = 0;
+
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
 	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
@@ -322,59 +338,80 @@ RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, const Rend
 		D3D12_FEATURE_ROOT_SIGNATURE,
 		&t_FeatureData, sizeof(t_FeatureData))))
 	{
-		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 	}
-
-	D3D12_ROOT_CONSTANTS* t_RootConstants = BBnewArr(
+	D3D12_ROOT_PARAMETER1* t_RootParameters = BBnewArr(
 		a_TempAllocator,
-		a_CreateInfo.constantBinds.size(),
-		D3D12_ROOT_CONSTANTS);
+		a_CreateInfo.constantBinds.size() +
+		a_CreateInfo.bufferBinds.size() +
+		a_CreateInfo.ImageBinds.size(), 
+		D3D12_ROOT_PARAMETER1);
 
-	UINT t_RegisterSpace = 0;
+	size_t t_RootParameterNum = 0;
+
 	for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
 	{
 		BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
 		const UINT t_Dwords = a_CreateInfo.constantBinds[i].size / sizeof(uint32_t);
-		t_RootConstants[i].Num32BitValues = t_Dwords;
-		t_RootConstants[i].ShaderRegister = t_RegisterSpace++;
-		t_RootConstants[i].RegisterSpace = 0; //We will just keep this 0 for now.
+
+		t_RootParameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		t_RootParameters[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+
+		t_RootParameters[i].Constants.Num32BitValues = t_Dwords;
+		t_RootParameters[i].Constants.ShaderRegister = t_CBVReg++;
+		t_RootParameters[i].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
 	}
 
+	t_RootParameterNum += a_CreateInfo.constantBinds.size();
 
-	D3D12_DESCRIPTOR_RANGE1* t_DescRanges = BBnewArr(
-		a_TempAllocator,
-		a_CreateInfo.bufferBinds.size(),
-		D3D12_DESCRIPTOR_RANGE1);
-
-	t_DescGroup.heapHandle = s_DX12B.defaultHeap->Allocate(static_cast<uint32_t>(a_CreateInfo.bufferBinds.size()));
-	t_RegisterSpace = 0;
 	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
 	{
-		t_DescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		t_DescRanges[i].RegisterSpace = 0; //We will keep this 0 for now.
-		t_DescRanges[i].NumDescriptors = 1;
-		t_DescRanges[i].OffsetInDescriptorsFromTableStart = t_DescGroup.heapHandle.heapIndex + static_cast<UINT>(i);
-		t_DescRanges[i].BaseShaderRegister = t_RegisterSpace++;
-		t_DescRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+		switch (a_CreateInfo.bufferBinds[i].type)
+		{
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
+			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_CBVReg;
+
+			t_DescGroup.rootCBV[t_DescGroup.rootCBVCount].rootIndex = t_RootParameterNum + i;
+			t_DescGroup.rootCBV[t_DescGroup.rootCBVCount].virtAddress = 
+				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_DescGroup.rootCBVCount;
+			++t_CBVReg;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
+			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_SRVReg;
+
+			t_DescGroup.rootSRV[t_DescGroup.rootSRVCount].rootIndex = t_RootParameterNum + i;
+			t_DescGroup.rootSRV[t_DescGroup.rootSRVCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_DescGroup.rootSRVCount;
+			++t_SRVReg;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
+			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_UAVReg;
+
+			t_DescGroup.rootUAV[t_DescGroup.rootUAVCount].rootIndex = t_RootParameterNum + i;
+			t_DescGroup.rootUAV[t_DescGroup.rootUAVCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_DescGroup.rootUAVCount;
+			++t_UAVReg;
+			break;
+		}	
 	}
 
-	//Groups of GPU Resources
-	D3D12_ROOT_PARAMETER1 t_RootParameters[2]{};
-	t_RootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	t_RootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters[0].DescriptorTable.NumDescriptorRanges = static_cast<UINT>(a_CreateInfo.bufferBinds.size());
-	t_RootParameters[0].DescriptorTable.pDescriptorRanges = t_DescRanges;
-
-	t_RootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	t_RootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-	t_RootParameters[1].Constants = t_RootConstants[0];
+	t_RootParameterNum += a_CreateInfo.bufferBinds.size();
 
 	//Overall Layout
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc{};
 	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 	t_RootSignatureDesc.Desc_1_1.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	t_RootSignatureDesc.Desc_1_1.NumParameters = 2;
+	t_RootSignatureDesc.Desc_1_1.NumParameters = t_RootParameterNum;
 	t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
 	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
 	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
@@ -617,21 +654,22 @@ void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//// Indicate that the back buffer will now be used to present.
-	D3D12_RESOURCE_BARRIER presentBarrier;
-	presentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	presentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	presentBarrier.Transition.pResource = t_CommandList->rtv;
-	presentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	presentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	presentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	D3D12_RESOURCE_BARRIER t_PresentBarrier;
+	t_PresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	t_PresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	t_PresentBarrier.Transition.pResource = t_CommandList->rtv;
+	t_PresentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	t_PresentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	t_PresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList->List()->ResourceBarrier(1, &presentBarrier);
+	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
 }
 
 void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->List()->SetPipelineState(s_DX12B.pipelines.find(a_Pipeline.handle));
+	t_CommandList->List()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -656,8 +694,29 @@ void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHand
 void BB::DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	
+	DescriptorGroup* t_DescGroup = reinterpret_cast<DescriptorGroup*>(a_Sets[0].ptrHandle);
+
 	t_CommandList->List()->SetGraphicsRootSignature(reinterpret_cast<DescriptorGroup*>(a_Sets[0].ptrHandle)->rootsig);
+
+	size_t t_OffsetCount = 0;
+	for (size_t i = 0; i < t_DescGroup->rootCBVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootConstantBufferView(
+			t_DescGroup->rootCBV[i].rootIndex,
+			t_DescGroup->rootCBV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
+	for (size_t i = 0; i < t_DescGroup->rootSRVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootShaderResourceView(
+			t_DescGroup->rootSRV[i].rootIndex,
+			t_DescGroup->rootSRV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
+	for (size_t i = 0; i < t_DescGroup->rootUAVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
+			t_DescGroup->rootUAV[i].rootIndex,
+			t_DescGroup->rootUAV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
 }
 
 void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -666,7 +725,7 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 
 	BB_ASSERT(a_Size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
 	const UINT t_Dwords = a_Size / sizeof(uint32_t);
-	t_CommandList->List()->SetGraphicsRoot32BitConstants(1, t_Dwords, a_Data, a_Offset);
+	t_CommandList->List()->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
 }
 
 void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)

@@ -47,10 +47,9 @@ namespace BB
 
 	enum class DESCRIPTOR_BUFFER_TYPE : uint32_t
 	{
-		UNIFORM_BUFFER,
-		STORAGE_BUFFER,
-		UNIFORM_BUFFER_DYNAMIC,
-		STORAGE_BUFFER_DYNAMIC,
+		READONLY_CONSTANT, //CBV or uniform buffer
+		READONLY_BUFFER, //SRV or Storage buffer
+		READWRITE, //UAV or write storage buffer(?)
 		INPUT_ATTACHMENT
 	};
 

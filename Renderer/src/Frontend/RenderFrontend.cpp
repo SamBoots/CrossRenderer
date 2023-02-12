@@ -257,7 +257,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
+		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[0].buffer = s_PerFrameInfo.perFrameBuffer;
 		t_BufferBinds[0].bufferOffset = 0;
 		t_BufferBinds[0].bufferSize = sizeof(CameraBufferInfo);
@@ -265,7 +265,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{//ModelBind
 		t_BufferBinds[1].binding = 1;
 		t_BufferBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC;
+		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
 		t_BufferBinds[1].bufferOffset = 0;
 		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;

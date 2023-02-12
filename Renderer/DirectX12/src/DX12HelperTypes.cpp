@@ -97,10 +97,10 @@ DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUF
 	switch (a_BufferUsage)
 	{
 	case RENDER_BUFFER_USAGE::VERTEX:
-		m_CurrentState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+		m_CurrentState = D3D12_RESOURCE_STATE_COMMON;
 		break;
 	case RENDER_BUFFER_USAGE::INDEX:
-		m_CurrentState = D3D12_RESOURCE_STATE_INDEX_BUFFER;
+		m_CurrentState = D3D12_RESOURCE_STATE_COMMON;
 		break;
 	case RENDER_BUFFER_USAGE::STAGING:
 		m_CurrentState = D3D12_RESOURCE_STATE_GENERIC_READ;
@@ -317,7 +317,7 @@ DescriptorHeap::DescriptorHeap(ID3D12Device* a_Device,
 {
 	m_HeapType = a_HeapType;
 	m_MaxDescriptors = a_DescriptorCount;
-
+	m_HeapGPUStart = {};
 	D3D12_DESCRIPTOR_HEAP_DESC t_HeapInfo;
 	t_HeapInfo.Type = a_HeapType;
 	t_HeapInfo.NumDescriptors = a_DescriptorCount;
@@ -350,8 +350,10 @@ DescriptorHeapHandle DescriptorHeap::Allocate(const uint32_t a_Count)
 	BB_ASSERT((m_InUse + a_Count < m_MaxDescriptors),
 		"DX12, Descriptorheap has no more descriptors left!");
 
+	t_AllocHandle.heap = m_DescriptorHeap;
 	t_AllocHandle.cpuHandle.ptr = m_HeapCPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
 	t_AllocHandle.gpuHandle.ptr = m_HeapGPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
+	t_AllocHandle.incrementSize = m_IncrementSize;
 	t_AllocHandle.heapIndex = m_InUse;
 	t_AllocHandle.count = a_Count;
 
