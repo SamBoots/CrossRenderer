@@ -837,6 +837,13 @@ void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_Exe
 			ID3D12CommandList*
 		);
 
+		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].waitQueueCount; queueIndex++)
+		{
+			DXCommandQueue* t_WaitQueue = reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].waitQueues[queueIndex].ptrHandle);
+			reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->InsertWaitQueueFence(
+				*t_WaitQueue, a_ExecuteInfos[i].waitValues[queueIndex]);
+		}
+
 		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
 			t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
@@ -850,7 +857,8 @@ void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_Exe
 		//Now reset the command lists.
 		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
-			reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Reset();
+			//reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Reset();
+			//reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Close();
 		}
 	}
 }
@@ -864,6 +872,13 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 		ID3D12CommandList*
 	);
 
+	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.waitQueueCount; queueIndex++)
+	{
+		DXCommandQueue* t_WaitQueue = reinterpret_cast<DXCommandQueue*>(a_ExecuteInfo.waitQueues[queueIndex].ptrHandle);
+		reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->InsertWaitQueueFence(
+			*t_WaitQueue, a_ExecuteInfo.waitValues[queueIndex]);
+	}
+
 	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
 	{
 		t_CommandLists[j] = reinterpret_cast<DXCommandList*>(
@@ -874,10 +889,12 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 		t_CommandLists,
 		a_ExecuteInfo.commandCount);
 
+
+
 	//Now reset the command lists.
 	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
 	{
-		reinterpret_cast<DXCommandList*>(a_ExecuteInfo.commands[j].ptrHandle)->Reset();
+		//reinterpret_cast<DXCommandList*>(a_ExecuteInfo.commands[j].ptrHandle)->Reset();
 	}
 }
 

@@ -433,7 +433,7 @@ void BB::Render::SetView(const glm::mat4& a_View)
 void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
 {
 	a_MatrixSpace = s_RendererInst.modelMatrixMax;
-	return Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(glm::mat4) * 2);
+	return Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(CameraBufferInfo));
 }
 
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
