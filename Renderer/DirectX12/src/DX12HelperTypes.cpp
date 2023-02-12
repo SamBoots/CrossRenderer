@@ -236,6 +236,10 @@ void DXCommandQueue::InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, con
 void DXCommandQueue::ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount)
 {
 	m_Queue->ExecuteCommandLists(a_CommandListCount, a_CommandLists);
+}
+
+void DXCommandQueue::SignalQueue()
+{
 	m_Queue->Signal(m_Fence, m_NextFenceValue);
 	++m_NextFenceValue;
 }

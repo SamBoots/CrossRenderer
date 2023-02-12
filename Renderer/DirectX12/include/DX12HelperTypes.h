@@ -94,6 +94,7 @@ namespace BB
 		void InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
 
 		void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
+		void SignalQueue();
 
 		ID3D12CommandQueue* GetQueue() const { return m_Queue; }
 		ID3D12Fence* GetFence() const { return m_Fence; }

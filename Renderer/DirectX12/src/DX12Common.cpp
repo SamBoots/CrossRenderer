@@ -854,6 +854,11 @@ void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_Exe
 			t_CommandLists,
 			a_ExecuteInfos[i].commandCount);
 
+		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].signalQueueCount; queueIndex++)
+		{
+			reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].signalQueues[queueIndex].ptrHandle)->SignalQueue();
+		}
+
 		//Now reset the command lists.
 		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
@@ -888,6 +893,11 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->ExecuteCommandlist(
 		t_CommandLists,
 		a_ExecuteInfo.commandCount);
+
+	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.signalQueueCount; queueIndex++)
+	{
+		reinterpret_cast<DXCommandQueue*>(a_ExecuteInfo.signalQueues[queueIndex].ptrHandle)->SignalQueue();
+	}
 
 
 
