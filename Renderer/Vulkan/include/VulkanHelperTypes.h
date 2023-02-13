@@ -77,16 +77,10 @@ namespace BB
 		{
 			switch (a_Type)
 			{
-			case BB::DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER:
-				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				break;
-			case BB::DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER:
-				return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-				break;
-			case BB::DESCRIPTOR_BUFFER_TYPE::UNIFORM_BUFFER_DYNAMIC:
+			case BB::DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 				break;
-			case BB::DESCRIPTOR_BUFFER_TYPE::STORAGE_BUFFER_DYNAMIC:
+			case BB::DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
 				return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 				break;
 			case BB::DESCRIPTOR_BUFFER_TYPE::INPUT_ATTACHMENT:
@@ -268,6 +262,11 @@ namespace BB
 
 	struct VulkanPipeline
 	{
+		VkDescriptorSet sets[4];
+		uint32_t setCount;
+
+		VkDescriptorSetLayout setLayout;
+
 		VkPipeline pipeline;
 		VkPipelineLayout layout;
 	};

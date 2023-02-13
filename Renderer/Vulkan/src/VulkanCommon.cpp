@@ -1023,235 +1023,211 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer).handle);
 }
 
-RDescriptorHandle BB::VulkanCreateDescriptor(Allocator a_TempAllocator, RDescriptorLayoutHandle& a_Layout, const RenderDescriptorCreateInfo& a_CreateInfo)
-{
-	constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
-
-	VkDescriptorSetLayout t_SetLayout;
-	size_t t_BindCount = a_CreateInfo.bufferBinds.size() + a_CreateInfo.ImageBinds.size();
-
-	if (a_Layout.ptrHandle == nullptr) //Create the layout if we do not supply one, do check if we already have it however.
-	{
-		//setup vulkan structs.
-		VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
-			a_TempAllocator,
-			t_BindCount,
-			VkDescriptorSetLayoutBinding);
-
-		//Create all the bindings for Buffers
-		for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
-		{
-			//Create the Bindings.
-			t_Bindings[i].binding = a_CreateInfo.bufferBinds[i].binding;
-			t_Bindings[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-			t_Bindings[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBinds[i].type);
-			t_Bindings[i].pImmutableSamplers = nullptr;
-			t_Bindings[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.bufferBinds[i].stage);
-		}
-
-		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
-		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		t_LayoutInfo.pBindings = t_Bindings;
-		t_LayoutInfo.bindingCount = static_cast<uint32_t>(t_BindCount);
-
-		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
-			&t_LayoutInfo, nullptr, &t_SetLayout),
-			"Vulkan: Failed to create a descriptorsetlayout.");
-
-		a_Layout.ptrHandle = t_SetLayout;
-	}
-	else //Take our existing layout.
-	{
-		t_SetLayout = reinterpret_cast<VkDescriptorSetLayout>(a_Layout.ptrHandle);
-	}
-
-	VkWriteDescriptorSet* t_Writes = BBnewArr(
-		a_TempAllocator,
-		t_BindCount,
-		VkWriteDescriptorSet);
-
-	//Create all the writes for Buffers
-	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
-	{
-		//Setup buffer specific info.
-		VkDescriptorBufferInfo t_BufferInfo{};
-
-		t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_CreateInfo.bufferBinds[i].buffer.handle)->buffer;
-		t_BufferInfo.offset = a_CreateInfo.bufferBinds[i].bufferOffset;
-		t_BufferInfo.range = a_CreateInfo.bufferBinds[i].bufferSize;
-
-		//Create the descriptorwrite.
-		t_Writes[i] = {};
-		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].dstBinding = a_CreateInfo.bufferBinds[i].binding;
-		t_Writes[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBinds[i].type);
-		t_Writes[i].pBufferInfo = &t_BufferInfo;
-	}
-
-	//Create all the bindings for Images
-	for (size_t i = a_CreateInfo.bufferBinds.size(); i < t_BindCount; i++)
-	{
-
-	}
-
-
-	VkDescriptorSetAllocateInfo t_AllocInfo = {};
-	t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	t_AllocInfo.pSetLayouts = &t_SetLayout;
-	//Lmao creat pool
-	t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
-
-	t_AllocInfo.descriptorSetCount = STANDARD_DESCRIPTORSET_COUNT;
-
-	VkDescriptorSet* t_pSet = s_VkBackendInst.descriptorSets.Get();
-
-	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
-		&t_AllocInfo,
-		t_pSet);
-	bool t_NeedReallocate = false;
-
-	switch (t_AllocResult)
-	{
-	case VK_SUCCESS: //Just continue
-	case VK_ERROR_FRAGMENTED_POOL: //Implement checking later.
-	case VK_ERROR_OUT_OF_POOL_MEMORY:
-		//need a new pool.
-		t_NeedReallocate = true;
-		break;
-
-	default:
-		BB_ASSERT(false, "Vulkan: Something went very badly with vkAllocateDescriptorSets");
-		break;
-	}
-
-
-	//Now write to the descriptorset.
-	for (size_t i = 0; i < t_BindCount; i++)
-	{
-		t_Writes[i].dstSet = *t_pSet;
-	}
-
-	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice, 
-		static_cast<uint32_t>(t_BindCount),
-		t_Writes,
-		0,
-		nullptr);
-
-	return RDescriptorHandle(t_pSet);
-}
-
 PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
 {
 	VulkanPipeline t_ReturnPipeline{};
+	size_t t_BindCount = a_CreateInfo.bufferBinds.size() + a_CreateInfo.ImageBinds.size();
 
-	//Get dynamic state for the viewport and scissor.
-	VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
-	t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	t_DynamicPipeCreateInfo.dynamicStateCount = 2;
-	t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
+	{ //Descriptor and layout creation.
+		constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
 
-	VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
-		s_VkBackendInst.device.logicalDevice,
-		a_CreateInfo.shaderCreateInfos);
+		{ //Create the layout if we do not supply one, do check if we already have it however.
+			//setup vulkan structs.
+			VkDescriptorSetLayoutBinding* t_Bindings = BBnewArr(
+				a_TempAllocator,
+				t_BindCount,
+				VkDescriptorSetLayoutBinding);
 
-	//Set viewport to nullptr and let the commandbuffer handle it via 
-	VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
-		1,
-		nullptr,
-		1,
-		nullptr);
+			//Create all the bindings for Buffers
+			for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
+			{
+				//Create the Bindings.
+				t_Bindings[i].binding = a_CreateInfo.bufferBinds[i].binding;
+				t_Bindings[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+				t_Bindings[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBinds[i].type);
+				t_Bindings[i].pImmutableSamplers = nullptr;
+				t_Bindings[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.bufferBinds[i].stage);
+			}
 
-	auto t_BindingDescription = VertexBindingDescription();
-	auto t_AttributeDescription = VertexAttributeDescriptions();
-	VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
-		1,
-		&t_BindingDescription,
-		static_cast<uint32_t>(t_AttributeDescription.size()),
-		t_AttributeDescription.data());
-	VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
-		VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-		VK_FALSE);
-	VkPipelineRasterizationStateCreateInfo t_Rasterizer = VkInit::PipelineRasterizationStateCreateInfo(
-		VK_FALSE,
-		VK_FALSE,
-		VK_FALSE,
-		VK_POLYGON_MODE_FILL,
-		VK_CULL_MODE_BACK_BIT,
-		VK_FRONT_FACE_CLOCKWISE);
-	VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
-		VK_FALSE,
-		VK_SAMPLE_COUNT_1_BIT);
-	VkPipelineDepthStencilStateCreateInfo t_DepthStencil = VkInit::PipelineDepthStencilStateCreateInfo(
-		VK_TRUE,
-		VK_TRUE,
-		VK_FALSE,
-		VK_FALSE,
-		VK_COMPARE_OP_LESS);
-	VkPipelineColorBlendAttachmentState t_ColorblendAttachment = VkInit::PipelineColorBlendAttachmentState(
-		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-		VK_FALSE);
-	VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
-		VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
+			VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
+			t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			t_LayoutInfo.pBindings = t_Bindings;
+			t_LayoutInfo.bindingCount = static_cast<uint32_t>(t_BindCount);
 
-	//lets get the layouts.
-	VkDescriptorSetLayout* t_DescLayouts = BBnewArr(a_TempAllocator,
-		a_CreateInfo.descLayoutCount,
-		VkDescriptorSetLayout);
-	for (uint32_t i = 0; i < a_CreateInfo.descLayoutCount; i++)
-		t_DescLayouts[i] = reinterpret_cast<VkDescriptorSetLayout>(a_CreateInfo.descLayoutHandles->ptrHandle);
-		
-	VkPushConstantRange* t_PushConstants = BBnewArr(a_TempAllocator,
-		a_CreateInfo.constantBufferCount,
-		VkPushConstantRange);
-	for (uint32_t i = 0; i < a_CreateInfo.descLayoutCount; i++)
-	{
-		t_PushConstants[i].offset = a_CreateInfo.constantBuffers[i].offset;
-		t_PushConstants[i].size = a_CreateInfo.constantBuffers[i].size;
-		t_PushConstants[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.constantBuffers[i].stage);
-	}
+			//Do some algorithm to see if I already made a descriptorlayout like this one.
+			VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+				&t_LayoutInfo, nullptr, &t_ReturnPipeline.setLayout),
+				"Vulkan: Failed to create a descriptorsetlayout.");
+		}
 
-	t_ReturnPipeline.layout = CreatePipelineLayout(
-		BB::Slice<VkDescriptorSetLayout>(t_DescLayouts, a_CreateInfo.descLayoutCount), 
-		BB::Slice<VkPushConstantRange>(t_PushConstants, a_CreateInfo.constantBufferCount));
+		VkWriteDescriptorSet* t_Writes = BBnewArr(
+			a_TempAllocator,
+			t_BindCount,
+			VkWriteDescriptorSet);
 
-	VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
-	t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
-	t_PipeCreateInfo.pViewportState = &t_ViewportState;
-	t_PipeCreateInfo.pVertexInputState = &t_VertexInput;
-	t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
-	t_PipeCreateInfo.pRasterizationState = &t_Rasterizer;
-	t_PipeCreateInfo.pMultisampleState = &t_MultiSampling;
-	t_PipeCreateInfo.pDepthStencilState = &t_DepthStencil;
-	t_PipeCreateInfo.pColorBlendState = &t_ColorBlending;
+		//Create all the writes for Buffers
+		for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
+		{
+			//Setup buffer specific info.
+			VkDescriptorBufferInfo t_BufferInfo{};
 
-	t_PipeCreateInfo.pStages = t_ShaderCreateResult.pipelineShaderStageInfo;
-	t_PipeCreateInfo.stageCount = 2;
-	t_PipeCreateInfo.layout = t_ReturnPipeline.layout;
-	t_PipeCreateInfo.renderPass = s_VkBackendInst.frameBuffers[a_CreateInfo.framebufferHandle.handle].renderPass;
-	t_PipeCreateInfo.subpass = 0;
-	//Optimalization for later.
-	t_PipeCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-	t_PipeCreateInfo.basePipelineIndex = -1;
+			t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_CreateInfo.bufferBinds[i].buffer.handle)->buffer;
+			t_BufferInfo.offset = a_CreateInfo.bufferBinds[i].bufferOffset;
+			t_BufferInfo.range = a_CreateInfo.bufferBinds[i].bufferSize;
 
-	VKASSERT(vkCreateGraphicsPipelines(s_VkBackendInst.device.logicalDevice,
-		VK_NULL_HANDLE,
-		1,
-		&t_PipeCreateInfo,
-		nullptr,
-		&t_ReturnPipeline.pipeline),
-		"Vulkan: Failed to create graphics Pipeline.");
+			//Create the descriptorwrite.
+			t_Writes[i] = {};
+			t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			t_Writes[i].dstBinding = a_CreateInfo.bufferBinds[i].binding;
+			t_Writes[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+			t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_CreateInfo.bufferBinds[i].type);
+			t_Writes[i].pBufferInfo = &t_BufferInfo;
+		}
 
-	for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
-	{
-		vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
-			t_ShaderCreateResult.shaderModules[i],
+
+		VkDescriptorSetAllocateInfo t_AllocInfo = {};
+		t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		t_AllocInfo.pSetLayouts = &t_ReturnPipeline.setLayout;
+		//Lmao creat pool
+		t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
+
+		t_AllocInfo.descriptorSetCount = STANDARD_DESCRIPTORSET_COUNT;
+
+		VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+			&t_AllocInfo,
+			t_ReturnPipeline.sets);
+		bool t_NeedReallocate = false;
+
+		switch (t_AllocResult)
+		{
+		case VK_SUCCESS: //Just continue
+		case VK_ERROR_FRAGMENTED_POOL: //Implement checking later.
+		case VK_ERROR_OUT_OF_POOL_MEMORY:
+			//need a new pool.
+			t_NeedReallocate = true;
+			break;
+
+		default:
+			BB_ASSERT(false, "Vulkan: Something went very badly with vkAllocateDescriptorSets");
+			break;
+		}
+
+
+		//Now write to the descriptorset.
+		for (size_t i = 0; i < t_BindCount; i++)
+		{
+			t_Writes[i].dstSet = *t_ReturnPipeline.sets;
+		}
+
+		vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+			static_cast<uint32_t>(t_BindCount),
+			t_Writes,
+			0,
 			nullptr);
+
+		t_ReturnPipeline.setCount = 1;
 	}
 
+	{ //pipeline creation
+	//Get dynamic state for the viewport and scissor.
+		VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+		VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
+		t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		t_DynamicPipeCreateInfo.dynamicStateCount = 2;
+		t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
+
+		VulkanShaderResult t_ShaderCreateResult = CreateShaderModules(a_TempAllocator,
+			s_VkBackendInst.device.logicalDevice,
+			a_CreateInfo.shaderCreateInfos);
+
+		//Set viewport to nullptr and let the commandbuffer handle it via 
+		VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
+			1,
+			nullptr,
+			1,
+			nullptr);
+
+		auto t_BindingDescription = VertexBindingDescription();
+		auto t_AttributeDescription = VertexAttributeDescriptions();
+		VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
+			1,
+			&t_BindingDescription,
+			static_cast<uint32_t>(t_AttributeDescription.size()),
+			t_AttributeDescription.data());
+		VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
+			VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			VK_FALSE);
+		VkPipelineRasterizationStateCreateInfo t_Rasterizer = VkInit::PipelineRasterizationStateCreateInfo(
+			VK_FALSE,
+			VK_FALSE,
+			VK_FALSE,
+			VK_POLYGON_MODE_FILL,
+			VK_CULL_MODE_BACK_BIT,
+			VK_FRONT_FACE_CLOCKWISE);
+		VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
+			VK_FALSE,
+			VK_SAMPLE_COUNT_1_BIT);
+		VkPipelineDepthStencilStateCreateInfo t_DepthStencil = VkInit::PipelineDepthStencilStateCreateInfo(
+			VK_TRUE,
+			VK_TRUE,
+			VK_FALSE,
+			VK_FALSE,
+			VK_COMPARE_OP_LESS);
+		VkPipelineColorBlendAttachmentState t_ColorblendAttachment = VkInit::PipelineColorBlendAttachmentState(
+			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+			VK_FALSE);
+		VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
+			VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
+
+		VkPushConstantRange* t_PushConstants = BBnewArr(a_TempAllocator,
+			a_CreateInfo.constantBinds.size(),
+			VkPushConstantRange);
+		for (uint32_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
+		{
+			t_PushConstants[i].offset = a_CreateInfo.constantBinds[i].offset;
+			t_PushConstants[i].size = a_CreateInfo.constantBinds[i].size;
+			t_PushConstants[i].stageFlags = VKConv::ShaderStageBits(a_CreateInfo.constantBinds[i].stage);
+		}
+
+		t_ReturnPipeline.layout = CreatePipelineLayout(
+			BB::Slice<VkDescriptorSetLayout>(&t_ReturnPipeline.setLayout, 1),
+			BB::Slice<VkPushConstantRange>(t_PushConstants, a_CreateInfo.constantBinds.size()));
+
+		VkGraphicsPipelineCreateInfo t_PipeCreateInfo{};
+		t_PipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		t_PipeCreateInfo.pDynamicState = &t_DynamicPipeCreateInfo;
+		t_PipeCreateInfo.pViewportState = &t_ViewportState;
+		t_PipeCreateInfo.pVertexInputState = &t_VertexInput;
+		t_PipeCreateInfo.pInputAssemblyState = &t_InputAssembly;
+		t_PipeCreateInfo.pRasterizationState = &t_Rasterizer;
+		t_PipeCreateInfo.pMultisampleState = &t_MultiSampling;
+		t_PipeCreateInfo.pDepthStencilState = &t_DepthStencil;
+		t_PipeCreateInfo.pColorBlendState = &t_ColorBlending;
+
+		t_PipeCreateInfo.pStages = t_ShaderCreateResult.pipelineShaderStageInfo;
+		t_PipeCreateInfo.stageCount = 2;
+		t_PipeCreateInfo.layout = t_ReturnPipeline.layout;
+		t_PipeCreateInfo.renderPass = s_VkBackendInst.frameBuffers[a_CreateInfo.framebufferHandle.handle].renderPass;
+		t_PipeCreateInfo.subpass = 0;
+		//Optimalization for later.
+		t_PipeCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+		t_PipeCreateInfo.basePipelineIndex = -1;
+
+		VKASSERT(vkCreateGraphicsPipelines(s_VkBackendInst.device.logicalDevice,
+			VK_NULL_HANDLE,
+			1,
+			&t_PipeCreateInfo,
+			nullptr,
+			&t_ReturnPipeline.pipeline),
+			"Vulkan: Failed to create graphics Pipeline.");
+
+		for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
+		{
+			vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
+				t_ShaderCreateResult.shaderModules[i],
+				nullptr);
+		}
+	}
 
 	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline).handle);
 }
@@ -1457,7 +1433,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	vkCmdEndRenderPass(t_Cmdlist->Buffer());
 }
 
-void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1468,6 +1444,15 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 		t_Pipeline.pipeline);
 
 	t_Cmdlist->currentPipelineLayout = t_Pipeline.layout;
+
+	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
+		0,
+		t_Pipeline.setCount,
+		t_Pipeline.sets,
+		a_DynamicOffsetCount,
+		a_DynamicOffsets);
 }
 
 void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -1496,27 +1481,6 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 		reinterpret_cast<VulkanBuffer*>(a_Buffer.ptrHandle)->buffer,
 		a_Offset,
 		VK_INDEX_TYPE_UINT32);
-}
-
-void BB::VulkanBindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
-{
-	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-
-	//quick cheat.
-	VkDescriptorSet t_Sets[4]{};
-	for (size_t i = 0; i < a_SetCount; i++)
-	{
-		t_Sets[i] = *reinterpret_cast<VkDescriptorSet*>(a_Sets[i].ptrHandle);
-	}
-
-	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
-		a_FirstSet,
-		a_SetCount,
-		t_Sets,
-		a_DynamicOffsetCount,
-		a_DynamicOffsets);
 }
 
 void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -1865,22 +1829,14 @@ void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
 
 void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 {
+	VulkanPipeline& t_Pipeline = s_VkBackendInst.pipelines[a_Handle.handle];
+
 	vkDestroyPipeline(s_VkBackendInst.device.logicalDevice,
-		s_VkBackendInst.pipelines[a_Handle.handle].pipeline,
+		t_Pipeline.pipeline,
 		nullptr);
-}
-
-void BB::VulkanDestroyDescriptorSetLayout(const RDescriptorLayoutHandle a_Handle)
-{
 	vkDestroyDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
-		reinterpret_cast<VkDescriptorSetLayout>(a_Handle.ptrHandle),
+		t_Pipeline.setLayout,
 		nullptr);
-	//Delete it from the hashmap.
-}
-
-void BB::VulkanDestroyDescriptorSet(const RDescriptorHandle a_Handle)
-{
-	//Nothing to do here.
 }
 
 void BB::VulkanDestroyBackend()
