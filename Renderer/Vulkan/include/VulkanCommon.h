@@ -13,6 +13,11 @@ namespace BB
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
+
+	PipelineBuilderHandle InitializePipelineBuilder();
+
+
+
 	void VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);

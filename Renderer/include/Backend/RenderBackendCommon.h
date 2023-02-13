@@ -17,6 +17,7 @@ namespace BB
 	using FrameBufferHandle = FrameworkHandle<struct FrameBufferHandleTag>;
 
 	//Index is the start index, Index 
+	using PipelineBuilderHandle = FrameworkHandle<struct PipelineBuilderHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
@@ -240,38 +241,21 @@ namespace BB
 		RENDER_SHADER_STAGE stage;
 	};
 
-	struct RenderPipelineCreateInfo
+	struct ConstantBind
 	{
-		struct ConstantBind
-		{
-			uint32_t offset;
-			uint32_t size;
-			RENDER_SHADER_STAGE stage;
-		};
+		uint32_t offset;
+		uint32_t size;
+		RENDER_SHADER_STAGE stage;
+	};
 
-		struct BufferBind
-		{
-			RBufferHandle buffer;
-			uint64_t bufferSize;
-			uint64_t bufferOffset;
-			uint32_t binding;
-			DESCRIPTOR_BUFFER_TYPE type;
-			RENDER_SHADER_STAGE stage;
-		};
-
-		struct ImageBind
-		{
-			uint32_t binding;
-			DESCRIPTOR_IMAGE_TYPE type;
-			RENDER_SHADER_STAGE stage;
-		};
-
-		BB::Slice<ConstantBind> constantBinds;
-		BB::Slice<BufferBind> bufferBinds;
-		BB::Slice<ImageBind> ImageBinds;
-
-		FrameBufferHandle framebufferHandle{};
-		Slice<BB::ShaderCreateInfo> shaderCreateInfos{};
+	struct BufferBind
+	{
+		RBufferHandle buffer;
+		uint64_t bufferSize;
+		uint64_t bufferOffset;
+		uint32_t binding;
+		DESCRIPTOR_BUFFER_TYPE type;
+		RENDER_SHADER_STAGE stage;
 	};
 
 	struct RenderFrameBufferCreateInfo
