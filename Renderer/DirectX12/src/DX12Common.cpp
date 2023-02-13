@@ -31,9 +31,12 @@ struct DX12Backend_inst
 {
 	FrameIndex currentFrame = 0;
 	UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
+	DXFence* frameFences; //Equal amount of fences to backBufferCount.
 
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
+
+	
 
 	DescriptorHeap* defaultHeap;
 	DescriptorHeap* uploadHeap;
@@ -52,7 +55,7 @@ struct DX12Backend_inst
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXResource> renderResources;
-	Pool<ID3D12Fence> fencePool;
+	Pool<DXFence> fencePool;
 
 	void CreatePools()
 	{
@@ -131,35 +134,6 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	s_DX12B.swapchain.swapchain = (IDXGISwapChain3*)t_NewSwapchain;
 
 	s_DX12B.currentFrame = s_DX12B.swapchain.swapchain->GetCurrentBackBufferIndex();
-
-	//D3D12_DESCRIPTOR_HEAP_DESC t_RtvHeapDesc = {};
-	//t_RtvHeapDesc.NumDescriptors = s_DX12BackendInst.backBufferCount;
-
-	//t_RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	//t_RtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	//DXASSERT(s_DX12BackendInst.device.logicalDevice->CreateDescriptorHeap(
-	//	&t_RtvHeapDesc, IID_PPV_ARGS(&s_DX12BackendInst.swapchain.rtvHeap)),
-	//	"DX12: Failed to create descriptor heap for swapchain.");
-
-
-	//D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = 
-	//	s_DX12BackendInst.swapchain.rtvHeap->GetCPUDescriptorHandleForHeapStart();
-
-	//s_DX12BackendInst.swapchain.renderTargets = BBnewArr(s_DX12Allocator, s_DX12BackendInst.backBufferCount, ID3D12Resource*);
-
-	//// Create a RTV for each frame.
-	//for (UINT i = 0; i < s_DX12BackendInst.backBufferCount; i++)
-	//{
-	//	DXASSERT(s_DX12BackendInst.swapchain.swapchain->GetBuffer(i,
-	//		IID_PPV_ARGS(&s_DX12BackendInst.swapchain.renderTargets[i])),
-	//		"DX12: Failed to get swapchain buffer.");
-
-	//	s_DX12BackendInst.device.logicalDevice->CreateRenderTargetView(
-	//		s_DX12BackendInst.swapchain.renderTargets[i], 
-	//		nullptr, 
-	//		rtvHandle);
-	//	rtvHandle.ptr += (1 * s_DX12BackendInst.swapchain.rtvDescriptorSize);
-	//}
 }
 
 
@@ -260,6 +234,15 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 			4096,
 			false);
 
+
+	s_DX12B.frameFences = BBnewArr(s_DX12Allocator,
+		s_DX12B.backBufferCount,
+		DXFence);
+
+	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
+	{
+		new (&s_DX12B.frameFences[i]) DXFence(s_DX12B.device.logicalDevice);
+	}
 
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
@@ -592,11 +575,7 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	ID3D12Fence* t_Fence = s_DX12B.fencePool.Get();
-	s_DX12B.device.logicalDevice->CreateFence(0,
-		D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&t_Fence));
-	return RFenceHandle(t_Fence);
+	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(s_DX12B.device.logicalDevice));
 }
 
 
@@ -638,7 +617,7 @@ void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(t_Framebuffer.rtvHeap->GetCPUDescriptorHandleForHeapStart());
-	rtvHandle.ptr = rtvHandle.ptr + static_cast<size_t>(s_DX12B.currentFrame * 
+	rtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * 
 		s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
 	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
@@ -786,27 +765,6 @@ struct RenderBarriersInfo
 	uint32_t barrierCount;
 };
 
-void DX12ResourceBarrier(Allocator a_TempAllocator, const RecordingCommandListHandle a_RecordingCmdHandle, const RenderBarriersInfo& a_Info)
-{
-	D3D12_RESOURCE_BARRIER* t_ResourceBarriers = BBnewArr(a_TempAllocator, 
-		a_Info.barrierCount,
-		D3D12_RESOURCE_BARRIER);
-
-	for (size_t i = 0; i < a_Info.barrierCount; i++)
-	{
-		t_ResourceBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		t_ResourceBarriers[i].Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		t_ResourceBarriers[i].Transition.pResource = reinterpret_cast<DXResource*>(a_Info.barriers[i].buffer.ptrHandle)->GetResource();
-		t_ResourceBarriers[i].Transition.StateBefore = DXConv::ResourceStates(a_Info.barriers[i].previous);
-		t_ResourceBarriers[i].Transition.StateAfter = DXConv::ResourceStates(a_Info.barriers[i].next);
-		t_ResourceBarriers[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	}
-
-	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->List()->ResourceBarrier(a_Info.barrierCount, t_ResourceBarriers);
-}
-
-
 void* BB::DX12MapMemory(const RBufferHandle a_Handle)
 {
 	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
@@ -824,7 +782,7 @@ void BB::DX12UnMemory(const RBufferHandle a_Handle)
 
 void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
 {
-
+	s_DX12B.frameFences[s_DX12B.currentFrame].WaitIdle();
 }
 
 void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
@@ -898,8 +856,8 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 	{
 		reinterpret_cast<DXCommandQueue*>(a_ExecuteInfo.signalQueues[queueIndex].ptrHandle)->SignalQueue();
 	}
-
-
+	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->SignalQueue(
+		s_DX12B.frameFences[s_DX12B.currentFrame]);
 
 	//Now reset the command lists.
 	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
@@ -924,7 +882,7 @@ uint64_t BB::DX12NextQueueFenceValue(const CommandQueueHandle a_Handle)
 //TO BE IMPLEMENTED.
 uint64_t BB::DX12NextFenceValue(const RFenceHandle a_Handle)
 {
-	return 0;
+	return reinterpret_cast<DXFence*>(a_Handle.ptrHandle)->GetNextFenceValue();
 }
 
 void BB::DX12WaitDeviceReady()
@@ -941,8 +899,9 @@ void BB::DX12WaitDeviceReady()
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 {
-	DXRelease(reinterpret_cast<ID3D12Fence*>(a_Handle.ptrHandle));
-	s_DX12B.fencePool.Free(reinterpret_cast<ID3D12Fence*>(a_Handle.ptrHandle));
+	DXFence* t_Fence = reinterpret_cast<DXFence*>(a_Handle.ptrHandle);
+	s_DX12B.fencePool.Free(t_Fence);
+	t_Fence->~DXFence();
 }
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)

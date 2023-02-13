@@ -67,6 +67,54 @@ void BB::DXRelease(IUnknown* a_Obj)
 		a_Obj->Release();
 }
 
+DXFence::DXFence(ID3D12Device* a_Device)
+{
+	DXASSERT(a_Device->CreateFence(0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&m_Fence)),
+		"DX12: Failed to create fence.");
+
+	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
+	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
+
+	m_LastCompleteValue = 0;
+	m_NextFenceValue = 1;
+}
+
+DXFence::~DXFence()
+{
+	CloseHandle(m_FenceEvent);
+	DXRelease(m_Fence);
+}
+
+uint64_t DXFence::PollFenceValue()
+{
+	m_LastCompleteValue = BB::Math::Max(m_LastCompleteValue, m_Fence->GetCompletedValue());
+	return m_LastCompleteValue;
+}
+
+bool DXFence::IsFenceComplete(const uint64_t a_FenceValue)
+{
+	if (a_FenceValue > m_LastCompleteValue)
+	{
+		PollFenceValue();
+	}
+
+	return a_FenceValue <= m_LastCompleteValue;
+}
+
+void DXFence::WaitFenceCPU(const uint64_t a_FenceValue)
+{
+	if (IsFenceComplete(a_FenceValue))
+	{
+		return;
+	}
+
+	m_Fence->SetEventOnCompletion(a_FenceValue, m_FenceEvent);
+	WaitForSingleObjectEx(m_FenceEvent, INFINITE, false);
+	m_LastCompleteValue = a_FenceValue;
+}
+
 DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size)
 {
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
@@ -145,6 +193,7 @@ DXResource::~DXResource()
 }
 
 DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType)
+	: m_Fence(a_Device)
 {
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Type = a_CommandType;
@@ -153,74 +202,23 @@ DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_
 	DXASSERT(a_Device->CreateCommandQueue(&t_QueueDesc, 
 		IID_PPV_ARGS(&m_Queue)),
 		"DX12: Failed to create queue.");
-
-	DXASSERT(a_Device->CreateFence(0, 
-		D3D12_FENCE_FLAG_NONE, 
-		IID_PPV_ARGS(&m_Fence)),
-		"DX12: Failed to create fence in command queue.");
-
-	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
-	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
-
-	m_LastCompleteValue = 0;
-	m_NextFenceValue = 1;
 }
 
 DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
+	: m_Fence(a_Device)
 {
 	m_Queue = a_CommandQueue;
 	m_QueueType = a_CommandType;
-	DXASSERT(a_Device->CreateFence(0,
-		D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&m_Fence)),
-		"DX12: Failed to create fence in command queue.");
-
-	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
-	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
-
-	m_LastCompleteValue = 0;
-	m_NextFenceValue = 1;
 }
 
 DXCommandQueue::~DXCommandQueue()
 {
-	CloseHandle(m_FenceEvent);
-
 	DXRelease(m_Queue);
-	DXRelease(m_Fence);
-}
-
-uint64_t DXCommandQueue::PollFenceValue()
-{
-	m_LastCompleteValue = BB::Math::Max(m_LastCompleteValue, m_Fence->GetCompletedValue());
-	return m_LastCompleteValue;
-}
-
-bool DXCommandQueue::IsFenceComplete(const uint64_t a_FenceValue)
-{
-	if (a_FenceValue > m_LastCompleteValue)
-	{
-		PollFenceValue();
-	}
-
-	return a_FenceValue <= m_LastCompleteValue;
-}
-
-void DXCommandQueue::WaitFenceCPU(const uint64_t a_FenceValue)
-{
-	if (IsFenceComplete(a_FenceValue))
-	{
-		return;
-	}
-
-	m_Fence->SetEventOnCompletion(a_FenceValue, m_FenceEvent);
-	WaitForSingleObjectEx(m_FenceEvent, INFINITE, false);
-	m_LastCompleteValue = a_FenceValue;
 }
 
 void DXCommandQueue::InsertWait(const uint64_t a_FenceValue)
 {
-	m_Queue->Wait(m_Fence, a_FenceValue);
+	m_Queue->Wait(m_Fence.m_Fence, a_FenceValue);
 }
 
 void DXCommandQueue::InsertWaitQueue(const DXCommandQueue& a_WaitQueue)
@@ -240,8 +238,14 @@ void DXCommandQueue::ExecuteCommandlist(ID3D12CommandList** a_CommandLists, cons
 
 void DXCommandQueue::SignalQueue()
 {
-	m_Queue->Signal(m_Fence, m_NextFenceValue);
-	++m_NextFenceValue;
+	m_Queue->Signal(m_Fence.m_Fence, m_Fence.m_NextFenceValue);
+	++m_Fence.m_NextFenceValue;
+}
+
+void DXCommandQueue::SignalQueue(DXFence& a_Fence)
+{
+	m_Queue->Signal(a_Fence.m_Fence, a_Fence.m_NextFenceValue);
+	++a_Fence.m_NextFenceValue;
 }
 
 DXCommandAllocator::DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount)

@@ -57,6 +57,30 @@ namespace BB
 		D3D12_RECT surfaceRect;
 	};
 
+	class DXFence
+	{
+	public:
+		DXFence(ID3D12Device* a_Device);
+		~DXFence();
+
+		uint64_t PollFenceValue();
+		bool IsFenceComplete(const uint64_t a_FenceValue);
+
+		void WaitFenceCPU(const uint64_t a_FenceValue);
+		void WaitIdle() { WaitFenceCPU(m_NextFenceValue - 1); }
+
+		ID3D12Fence* GetFence() const { return m_Fence; }
+		uint64_t GetNextFenceValue() const { return m_NextFenceValue; }
+
+	private:
+		ID3D12Fence* m_Fence;
+		uint64_t m_NextFenceValue;
+		uint64_t m_LastCompleteValue;
+		HANDLE m_FenceEvent;
+
+		friend class DXCommandQueue; //Commandqueue handles the Fence in a special way.
+	};
+
 	class DXResource
 	{
 	public:
@@ -83,11 +107,23 @@ namespace BB
 		DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
 		~DXCommandQueue();
 
-		uint64_t PollFenceValue();
-		bool IsFenceComplete(const uint64_t a_FenceValue);
+		uint64_t PollFenceValue()
+		{
+			return m_Fence.PollFenceValue();
+		}
+		bool IsFenceComplete(const uint64_t a_FenceValue)
+		{
+			IsFenceComplete(a_FenceValue);
+		}
 
-		void WaitFenceCPU(const uint64_t a_FenceValue);
-		void WaitIdle() { WaitFenceCPU(m_NextFenceValue - 1); }
+		void WaitFenceCPU(const uint64_t a_FenceValue)
+		{
+			m_Fence.WaitFenceCPU(a_FenceValue);
+		};
+		void WaitIdle() 
+		{ 
+			m_Fence.WaitIdle(); 
+		}
 
 		void InsertWait(const uint64_t a_FenceValue);
 		void InsertWaitQueue(const DXCommandQueue& a_WaitQueue);
@@ -95,18 +131,17 @@ namespace BB
 
 		void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
 		void SignalQueue();
+		//Signal another fence with a queue.
+		void SignalQueue(DXFence& a_Fence);
 
 		ID3D12CommandQueue* GetQueue() const { return m_Queue; }
-		ID3D12Fence* GetFence() const { return m_Fence; }
-		uint64_t GetNextFenceValue() const { return m_NextFenceValue; }
+		ID3D12Fence* GetFence() const { return m_Fence.m_Fence; }
+		uint64_t GetNextFenceValue() const { return m_Fence.m_NextFenceValue; }
 
 	private:
 		ID3D12CommandQueue* m_Queue;
 		D3D12_COMMAND_LIST_TYPE m_QueueType;
-		ID3D12Fence* m_Fence;
-		uint64_t m_NextFenceValue;
-		uint64_t m_LastCompleteValue;
-		HANDLE m_FenceEvent;
+		DXFence m_Fence;
 
 		friend class DXCommandAllocator; //Allocator should have access to the QueueType.
 	};
