@@ -193,8 +193,7 @@ namespace BB
 		friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
 	};
 
-	class DescriptorHeap;
-
+	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
 	struct DescriptorHeapHandle
 	{
 		ID3D12DescriptorHeap* heap;
@@ -229,5 +228,26 @@ namespace BB
 		uint32_t m_MaxDescriptors;
 		uint32_t m_InUse = 0;
 		uint32_t m_IncrementSize;
+	};
+
+	//Maybe create a class and a builder for this?
+	struct DXPipeline
+	{
+		//Optmize Rootsignature and pipelinestate to cache them somewhere and reuse them.
+		ID3D12PipelineState* pipelineState;
+		ID3D12RootSignature* rootsig{};
+
+		DescriptorHeapHandle heapHandle{};
+
+		struct RootDescriptor {
+			D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
+			UINT rootIndex{};
+		};
+		uint32_t rootCBVCount = 0;
+		uint32_t rootSRVCount = 0;
+		uint32_t rootUAVCount = 0;
+		RootDescriptor rootCBV[4];
+		RootDescriptor rootSRV[4];
+		RootDescriptor rootUAV[4];
 	};
 }

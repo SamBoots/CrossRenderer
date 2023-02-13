@@ -9,24 +9,6 @@
 
 using namespace BB;
 
-struct DescriptorGroup
-{
-	DescriptorHeapHandle heapHandle{};
-	ID3D12RootSignature* rootsig{};
-
-
-	struct RootDescriptor {
-		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
-		UINT rootIndex{};
-	}; 
-	uint32_t rootCBVCount = 0;
-	uint32_t rootSRVCount = 0;
-	uint32_t rootUAVCount = 0;
-	RootDescriptor rootCBV[4];
-	RootDescriptor rootSRV[4];
-	RootDescriptor rootUAV[4];
-};
-
 struct DX12Backend_inst
 {
 	FrameIndex currentFrame = 0;
@@ -35,8 +17,6 @@ struct DX12Backend_inst
 
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
-
-	
 
 	DescriptorHeap* defaultHeap;
 	DescriptorHeap* uploadHeap;
@@ -47,11 +27,10 @@ struct DX12Backend_inst
 	D3D12MA::Allocator* DXMA;
 	ID3D12CommandQueue* directpresentqueue;
 
-	Slotmap<ID3D12PipelineState*> pipelines{ s_DX12Allocator };
 	Slotmap<DX12FrameBuffer> frameBuffers{ s_DX12Allocator };
 
 	Pool<DescriptorHeap> Descriptorheaps;
-	Pool<DescriptorGroup> descriptorGroups;
+	Pool<DXPipeline> pipelinePool;
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXResource> renderResources;
@@ -60,7 +39,7 @@ struct DX12Backend_inst
 	void CreatePools()
 	{
 		Descriptorheaps.CreatePool(s_DX12Allocator, 16);
-		descriptorGroups.CreatePool(s_DX12Allocator, 4);
+		pipelinePool.CreatePool(s_DX12Allocator, 4);
 		cmdQueues.CreatePool(s_DX12Allocator, 4);
 		cmdAllocators.CreatePool(s_DX12Allocator, 16);
 		renderResources.CreatePool(s_DX12Allocator, 8);
@@ -70,7 +49,7 @@ struct DX12Backend_inst
 	void DestroyPools()
 	{
 		Descriptorheaps.DestroyPool(s_DX12Allocator);
-		descriptorGroups.DestroyPool(s_DX12Allocator);
+		pipelinePool.DestroyPool(s_DX12Allocator);
 		cmdQueues.DestroyPool(s_DX12Allocator);
 		cmdAllocators.DestroyPool(s_DX12Allocator);
 		renderResources.DestroyPool(s_DX12Allocator);
@@ -306,210 +285,208 @@ FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const Ren
 	return FrameBufferHandle(s_DX12B.frameBuffers.insert(frameBuffer).handle);
 }
 
-RDescriptorHandle BB::DX12CreateDescriptor(Allocator a_TempAllocator, const RenderDescriptorCreateInfo& a_CreateInfo)
-{
-	DescriptorGroup t_DescGroup{};
-
-	UINT t_CBVReg = 0;
-	UINT t_SRVReg = 0;
-	UINT t_UAVReg = 0;
-
-	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
-	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-
-	if (FAILED(s_DX12B.device.logicalDevice->CheckFeatureSupport(
-		D3D12_FEATURE_ROOT_SIGNATURE,
-		&t_FeatureData, sizeof(t_FeatureData))))
-	{
-		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
-	}
-	D3D12_ROOT_PARAMETER1* t_RootParameters = BBnewArr(
-		a_TempAllocator,
-		a_CreateInfo.constantBinds.size() +
-		a_CreateInfo.bufferBinds.size() +
-		a_CreateInfo.ImageBinds.size(), 
-		D3D12_ROOT_PARAMETER1);
-
-	size_t t_RootParameterNum = 0;
-
-	for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
-	{
-		BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
-		const UINT t_Dwords = a_CreateInfo.constantBinds[i].size / sizeof(uint32_t);
-
-		t_RootParameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		t_RootParameters[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-
-		t_RootParameters[i].Constants.Num32BitValues = t_Dwords;
-		t_RootParameters[i].Constants.ShaderRegister = t_CBVReg++;
-		t_RootParameters[i].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
-	}
-
-	t_RootParameterNum += a_CreateInfo.constantBinds.size();
-
-	for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
-	{
-		switch (a_CreateInfo.bufferBinds[i].type)
-		{
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
-			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_CBVReg;
-
-			t_DescGroup.rootCBV[t_DescGroup.rootCBVCount].rootIndex = t_RootParameterNum + i;
-			t_DescGroup.rootCBV[t_DescGroup.rootCBVCount].virtAddress = 
-				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_DescGroup.rootCBVCount;
-			++t_CBVReg;
-			break;
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
-			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_SRVReg;
-
-			t_DescGroup.rootSRV[t_DescGroup.rootSRVCount].rootIndex = t_RootParameterNum + i;
-			t_DescGroup.rootSRV[t_DescGroup.rootSRVCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_DescGroup.rootSRVCount;
-			++t_SRVReg;
-			break;
-		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
-			t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-			t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_UAVReg;
-
-			t_DescGroup.rootUAV[t_DescGroup.rootUAVCount].rootIndex = t_RootParameterNum + i;
-			t_DescGroup.rootUAV[t_DescGroup.rootUAVCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_DescGroup.rootUAVCount;
-			++t_UAVReg;
-			break;
-		}	
-	}
-
-	t_RootParameterNum += a_CreateInfo.bufferBinds.size();
-
-	//Overall Layout
-	D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc{};
-	t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_RootSignatureDesc.Desc_1_1.Flags =
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	t_RootSignatureDesc.Desc_1_1.NumParameters = t_RootParameterNum;
-	t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
-	t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
-	t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
-
-	ID3DBlob* t_Signature;
-	ID3DBlob* t_Error;
-
-	D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
-		&t_Signature, &t_Error);
-
-	if (t_Error != nullptr)
-	{
-		BB_LOG((const char*)t_Error->GetBufferPointer());
-		BB_ASSERT(false, "DX12: error creating root signature, details are above.");
-		t_Error->Release();
-	}
-
-	DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
-		t_Signature->GetBufferPointer(),
-		t_Signature->GetBufferSize(),
-		IID_PPV_ARGS(&t_DescGroup.rootsig)),
-		"DX12: Failed to create root signature.");
-
-	t_DescGroup.rootsig->SetName(L"Hello Triangle Root Signature");
-
-	if (t_Signature != nullptr)
-		t_Signature->Release();
-
-	DescriptorGroup* t_PoolGroup = s_DX12B.descriptorGroups.Get();
-	*t_PoolGroup = t_DescGroup;
-
-	return RDescriptorHandle(t_PoolGroup);
-}
-
 PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
 {
-	ID3D12PipelineState* t_PipelineState;
+	DXPipeline t_Pipeline{};
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC t_PsoDesc = {};
-
-	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
-
-	t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
-
-	t_PsoDesc.pRootSignature = reinterpret_cast<DescriptorGroup*>(a_CreateInfo.descHandle[0].ptrHandle)->rootsig;
-
-	for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
 	{
-		switch (a_CreateInfo.shaderCreateInfos[i].shaderStage)
+		UINT t_CBVReg = 0;
+		UINT t_SRVReg = 0;
+		UINT t_UAVReg = 0;
+
+		D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
+		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+		if (FAILED(s_DX12B.device.logicalDevice->CheckFeatureSupport(
+			D3D12_FEATURE_ROOT_SIGNATURE,
+			&t_FeatureData, sizeof(t_FeatureData))))
 		{
-		case RENDER_SHADER_STAGE::VERTEX:
-			t_PsoDesc.VS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
-			t_PsoDesc.VS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
-			break;
-		case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
-			t_PsoDesc.PS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
-			t_PsoDesc.PS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
-			break;
-		default:
-			BB_ASSERT(false, "DX12: unsupported shaderstage.")
-			break;
+			BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 		}
+		D3D12_ROOT_PARAMETER1* t_RootParameters = BBnewArr(
+			a_TempAllocator,
+			a_CreateInfo.constantBinds.size() +
+			a_CreateInfo.bufferBinds.size() +
+			a_CreateInfo.ImageBinds.size(),
+			D3D12_ROOT_PARAMETER1);
+
+		size_t t_RootParameterNum = 0;
+
+		for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
+		{
+			BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
+			const UINT t_Dwords = a_CreateInfo.constantBinds[i].size / sizeof(uint32_t);
+
+			t_RootParameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+			t_RootParameters[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+
+			t_RootParameters[i].Constants.Num32BitValues = t_Dwords;
+			t_RootParameters[i].Constants.ShaderRegister = t_CBVReg++;
+			t_RootParameters[i].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
+		}
+
+		t_RootParameterNum += a_CreateInfo.constantBinds.size();
+
+		for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
+		{
+			switch (a_CreateInfo.bufferBinds[i].type)
+			{
+			case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
+				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_CBVReg;
+
+				t_Pipeline.rootCBV[t_Pipeline.rootCBVCount].rootIndex = t_RootParameterNum + i;
+				t_Pipeline.rootCBV[t_Pipeline.rootCBVCount].virtAddress =
+					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+				++t_Pipeline.rootCBVCount;
+				++t_CBVReg;
+				break;
+			case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
+				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_SRVReg;
+
+				t_Pipeline.rootSRV[t_Pipeline.rootSRVCount].rootIndex = t_RootParameterNum + i;
+				t_Pipeline.rootSRV[t_Pipeline.rootSRVCount].virtAddress =
+					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+				++t_Pipeline.rootSRVCount;
+				++t_SRVReg;
+				break;
+			case DESCRIPTOR_BUFFER_TYPE::READWRITE:
+				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_UAVReg;
+
+				t_Pipeline.rootUAV[t_Pipeline.rootUAVCount].rootIndex = t_RootParameterNum + i;
+				t_Pipeline.rootUAV[t_Pipeline.rootUAVCount].virtAddress =
+					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+				++t_Pipeline.rootUAVCount;
+				++t_UAVReg;
+				break;
+			}
+		}
+
+		t_RootParameterNum += a_CreateInfo.bufferBinds.size();
+
+		//Overall Layout
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc{};
+		t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		t_RootSignatureDesc.Desc_1_1.Flags =
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		t_RootSignatureDesc.Desc_1_1.NumParameters = t_RootParameterNum;
+		t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
+		t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
+		t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
+
+		ID3DBlob* t_Signature;
+		ID3DBlob* t_Error;
+
+		D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
+			&t_Signature, &t_Error);
+
+		if (t_Error != nullptr)
+		{
+			BB_LOG((const char*)t_Error->GetBufferPointer());
+			BB_ASSERT(false, "DX12: error creating root signature, details are above.");
+			t_Error->Release();
+		}
+
+		DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
+			t_Signature->GetBufferPointer(),
+			t_Signature->GetBufferSize(),
+			IID_PPV_ARGS(&t_Pipeline.rootsig)),
+			"DX12: Failed to create root signature.");
+
+		t_Pipeline.rootsig->SetName(L"Hello Triangle Root Signature");
+
+		if (t_Signature != nullptr)
+			t_Signature->Release();
 	}
 
-	D3D12_RASTERIZER_DESC t_RasterDesc;
-	t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-	t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-	t_RasterDesc.FrontCounterClockwise = FALSE;
-	t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-	t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-	t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-	t_RasterDesc.DepthClipEnable = TRUE;
-	t_RasterDesc.MultisampleEnable = FALSE;
-	t_RasterDesc.AntialiasedLineEnable = FALSE;
-	t_RasterDesc.ForcedSampleCount = 0;
-	t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-	t_PsoDesc.RasterizerState = t_RasterDesc;
-	t_PsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	//create rootsignature
+	{
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC t_PsoDesc = {};
 
-	D3D12_BLEND_DESC t_BlendDesc;
-	t_BlendDesc.AlphaToCoverageEnable = FALSE;
-	t_BlendDesc.IndependentBlendEnable = FALSE;
-	const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
-		FALSE,
-		FALSE,
-		D3D12_BLEND_ONE,
-		D3D12_BLEND_ZERO,
-		D3D12_BLEND_OP_ADD,
-		D3D12_BLEND_ONE,
-		D3D12_BLEND_ZERO,
-		D3D12_BLEND_OP_ADD,
-		D3D12_LOGIC_OP_NOOP,
-		D3D12_COLOR_WRITE_ENABLE_ALL,
-	};
-	for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-		t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
-	t_PsoDesc.BlendState = t_BlendDesc;
+		D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
+			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
 
-	t_PsoDesc.DepthStencilState.DepthEnable = FALSE;
-	t_PsoDesc.DepthStencilState.StencilEnable = FALSE;
-	t_PsoDesc.SampleMask = UINT_MAX;
+		t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
-	t_PsoDesc.NumRenderTargets = 1;
-	t_PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	t_PsoDesc.SampleDesc.Count = 1;
+		t_PsoDesc.pRootSignature = t_Pipeline.rootsig;
 
-	DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
-		&t_PsoDesc, IID_PPV_ARGS(&t_PipelineState)),
-		"DX12: Failed to create graphics pipeline");
+		for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
+		{
+			switch (a_CreateInfo.shaderCreateInfos[i].shaderStage)
+			{
+			case RENDER_SHADER_STAGE::VERTEX:
+				t_PsoDesc.VS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
+				t_PsoDesc.VS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
+				break;
+			case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
+				t_PsoDesc.PS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
+				t_PsoDesc.PS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
+				break;
+			default:
+				BB_ASSERT(false, "DX12: unsupported shaderstage.")
+					break;
+			}
+		}
 
-	return PipelineHandle(s_DX12B.pipelines.emplace(t_PipelineState).handle);
+		D3D12_RASTERIZER_DESC t_RasterDesc;
+		t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+		t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+		t_RasterDesc.FrontCounterClockwise = FALSE;
+		t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+		t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+		t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+		t_RasterDesc.DepthClipEnable = TRUE;
+		t_RasterDesc.MultisampleEnable = FALSE;
+		t_RasterDesc.AntialiasedLineEnable = FALSE;
+		t_RasterDesc.ForcedSampleCount = 0;
+		t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+		t_PsoDesc.RasterizerState = t_RasterDesc;
+		t_PsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+		D3D12_BLEND_DESC t_BlendDesc;
+		t_BlendDesc.AlphaToCoverageEnable = FALSE;
+		t_BlendDesc.IndependentBlendEnable = FALSE;
+		const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
+			FALSE,
+			FALSE,
+			D3D12_BLEND_ONE,
+			D3D12_BLEND_ZERO,
+			D3D12_BLEND_OP_ADD,
+			D3D12_BLEND_ONE,
+			D3D12_BLEND_ZERO,
+			D3D12_BLEND_OP_ADD,
+			D3D12_LOGIC_OP_NOOP,
+			D3D12_COLOR_WRITE_ENABLE_ALL,
+		};
+		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+			t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+		t_PsoDesc.BlendState = t_BlendDesc;
+
+		t_PsoDesc.DepthStencilState.DepthEnable = FALSE;
+		t_PsoDesc.DepthStencilState.StencilEnable = FALSE;
+		t_PsoDesc.SampleMask = UINT_MAX;
+
+		t_PsoDesc.NumRenderTargets = 1;
+		t_PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		t_PsoDesc.SampleDesc.Count = 1;
+
+		DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
+			&t_PsoDesc, IID_PPV_ARGS(&t_Pipeline.pipelineState)),
+			"DX12: Failed to create graphics pipeline");
+	}
+
+	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
+	*t_ReturnPipeline = t_Pipeline;
+
+	return PipelineHandle(t_ReturnPipeline);
 }
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
@@ -644,11 +621,35 @@ void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle
 	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
 }
 
-void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->List()->SetPipelineState(s_DX12B.pipelines.find(a_Pipeline.handle));
+	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Pipeline.ptrHandle);
+
+	t_CommandList->List()->SetPipelineState(t_Pipeline->pipelineState);
 	t_CommandList->List()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	t_CommandList->List()->SetGraphicsRootSignature(t_Pipeline->rootsig);
+
+	size_t t_OffsetCount = 0;
+	for (size_t i = 0; i < t_Pipeline->rootCBVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootConstantBufferView(
+			t_Pipeline->rootCBV[i].rootIndex,
+			t_Pipeline->rootCBV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
+	for (size_t i = 0; i < t_Pipeline->rootSRVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootShaderResourceView(
+			t_Pipeline->rootSRV[i].rootIndex,
+			t_Pipeline->rootSRV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
+	for (size_t i = 0; i < t_Pipeline->rootUAVCount; i++)
+	{
+		t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
+			t_Pipeline->rootUAV[i].rootIndex,
+			t_Pipeline->rootUAV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
+	}
 }
 
 void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -667,35 +668,6 @@ void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHand
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->List()->IASetIndexBuffer(&reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetView().indexView);
-}
-
-
-void BB::DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
-{
-	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	DescriptorGroup* t_DescGroup = reinterpret_cast<DescriptorGroup*>(a_Sets[0].ptrHandle);
-
-	t_CommandList->List()->SetGraphicsRootSignature(reinterpret_cast<DescriptorGroup*>(a_Sets[0].ptrHandle)->rootsig);
-
-	size_t t_OffsetCount = 0;
-	for (size_t i = 0; i < t_DescGroup->rootCBVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootConstantBufferView(
-			t_DescGroup->rootCBV[i].rootIndex,
-			t_DescGroup->rootCBV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
-	for (size_t i = 0; i < t_DescGroup->rootSRVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootShaderResourceView(
-			t_DescGroup->rootSRV[i].rootIndex,
-			t_DescGroup->rootSRV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
-	for (size_t i = 0; i < t_DescGroup->rootUAVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
-			t_DescGroup->rootUAV[i].rootIndex,
-			t_DescGroup->rootUAV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
 }
 
 void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -929,8 +901,9 @@ void BB::DX12DestroyCommandList(const CommandListHandle a_Handle)
 
 void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 {
-	s_DX12B.pipelines.find(a_Handle.handle)->Release();
-	s_DX12B.pipelines.erase(a_Handle.handle);
+	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Handle.ptrHandle);
+	DXRelease(t_Pipeline->pipelineState);
+	DXRelease(t_Pipeline->rootsig);
 }
 
 void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)
@@ -945,11 +918,6 @@ void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)
 	t_FrameBuffer.rtvHeap->Release();
 
 	s_DX12B.frameBuffers.erase(a_Handle.handle);
-}
-
-void BB::DX12DestroyDescriptorSet(const RDescriptorHandle a_Handle)
-{
-
 }
 
 void BB::DX12DestroyBackend()

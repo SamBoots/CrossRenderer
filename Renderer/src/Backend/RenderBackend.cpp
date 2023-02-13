@@ -31,11 +31,6 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_BackendInfo = s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
-{
-	return s_ApiFunc.createDescriptor(m_TempAllocator, a_CreateInfo);
-}
-
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createFrameBuffer(m_TempAllocator, a_CreateInfo);
@@ -116,9 +111,9 @@ void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_Record
 	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
-void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
-	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
+	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline, a_DynamicOffsetCount, a_DynamicOffsets);
 }
 
 void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -129,11 +124,6 @@ void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_Rec
 void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
-}
-
-void BB::RenderBackend::BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
-{
-	s_ApiFunc.bindDescriptor(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_Sets, a_DynamicOffsetCount, a_DynamicOffsets);
 }
 
 void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
@@ -199,11 +189,6 @@ uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
 void BB::RenderBackend::DestroyBackend()
 {
 	s_ApiFunc.destroyBackend();
-}
-
-void BB::RenderBackend::DestroyDescriptorSet(const RDescriptorHandle a_Handle)
-{
-	s_ApiFunc.destroyDescriptor(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)

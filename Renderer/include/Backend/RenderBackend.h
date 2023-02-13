@@ -10,7 +10,6 @@ namespace BB
 		const FrameIndex GetCurrentFrameBufferIndex();
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		RDescriptorHandle CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
@@ -29,10 +28,10 @@ namespace BB
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 		void EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
-		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-		void BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+		//void BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 		void BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data);
 
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
@@ -52,7 +51,6 @@ namespace BB
 		void WaitGPUReady();
 
 		void DestroyBackend();
-		void DestroyDescriptorSet(const RDescriptorHandle a_Handle);
 		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
 		void DestroyCommandQueue(const CommandQueueHandle a_Handle);
