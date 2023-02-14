@@ -221,27 +221,6 @@ namespace BB
 		VkPipelineShaderStageCreateInfo* pipelineShaderStageInfo;
 	};
 
-	struct PipelineBuildInfo
-	{
-		//temporary allocator, this gets removed when we are finished building.
-		TemporaryAllocator buildAllocator{ s_VulkanAllocator };
-
-		VkGraphicsPipelineCreateInfo pipeInfo{};
-
-		VkPushConstantRange* pushConstants{};
-		uint32_t pushConstantCount = 0;
-
-		struct DescriptorInfo
-		{
-			VkDescriptorSetLayoutBinding* bufferBindings{};
-			VkWriteDescriptorSet* writes{};
-
-			uint32_t bufferCount = 0;
-		};
-		DescriptorInfo descriptorInfo;
-		VulkanShaderResult shaderInfo;
-	};
-
 	struct FramebufferAttachment
 	{
 		VkImage image;

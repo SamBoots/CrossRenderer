@@ -6,18 +6,19 @@ namespace BB
 	//Functions
 	BackendInfo VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
-	PipelineHandle VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
-
-	PipelineBuilderHandle InitializePipelineBuilder();
-
-
-
+	//PipelineBuilder
+	PipelineBuilderHandle VulkanPipelineBuilderInit(const FrameBufferHandle a_Handle);
+	void VulkanPipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds);
+	void VulkanPipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds);
+	void VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+	PipelineHandle VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle);
+	
 	void VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);

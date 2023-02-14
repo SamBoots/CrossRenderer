@@ -328,7 +328,7 @@ namespace BB
 
 	//construction
 	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
-	typedef PipelineHandle		(*PFN_RenderAPICreatePipeline)(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo);
+
 	typedef FrameBufferHandle	(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandQueueHandle(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -336,9 +336,17 @@ namespace BB
 	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 	typedef RFenceHandle		(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
-	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
+	//PipelineBuilder
+	typedef PipelineBuilderHandle(*PFN_RenderAPIPipelineBuilderInit)(const FrameBufferHandle a_Handle);
+	typedef void				(*PFN_RenderAPIPipelineBuilderBindConstants)(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds);
+	typedef void				(*PFN_RenderAPIPipelineBuilderBindBuffers)(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds);
+	typedef void				(*PFN_RenderAPIPipelineBuilderBindShaders)(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+	typedef PipelineHandle		(*PFN_RenderAPIBuildPipeline)(const PipelineBuilderHandle a_Handle);
+
+
 
 	//Commandlist handling
+	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
 	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIStartRenderPass)(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
@@ -383,12 +391,17 @@ namespace BB
 	struct RenderAPIFunctions
 	{
 		PFN_RenderAPICreateBackend createBackend;
-		PFN_RenderAPICreatePipeline createPipeline;
 		PFN_RenderAPICreateFrameBuffer createFrameBuffer;
 		PFN_RenderAPICreateCommandQueue createCommandQueue;
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
+
+		PFN_RenderAPIPipelineBuilderInit PipelineBuilderInit;
+		PFN_RenderAPIPipelineBuilderBindConstants PipelineBuilderBindConstants;
+		PFN_RenderAPIPipelineBuilderBindBuffers PipelineBuilderBindBuffers;
+		PFN_RenderAPIPipelineBuilderBindShaders PipelineBuilderBindShaders;
+		PFN_RenderAPIBuildPipeline PipelineBuilderBuildPipeline;
 
 		PFN_RenderAPICreateFence createFence;
 

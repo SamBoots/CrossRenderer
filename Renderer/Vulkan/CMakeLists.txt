@@ -28,7 +28,6 @@ set (Vulkan_DLL_Source
 "include/VulkanInitializers.h"
 "include/VulkanCommon.h")
 
-
 #Add source to this project's executable.
 add_library (BB_VulkanDLL SHARED ${Vulkan_DLL_Source})
 

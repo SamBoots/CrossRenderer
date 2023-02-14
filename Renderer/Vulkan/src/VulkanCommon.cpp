@@ -97,6 +97,27 @@ private:
 	VkDescriptorPool descriptorPool;
 };
 
+struct PipelineBuildInfo
+{
+	//temporary allocator, this gets removed when we are finished building.
+	TemporaryAllocator buildAllocator{ s_VulkanAllocator };
+
+	VkGraphicsPipelineCreateInfo pipeInfo{};
+
+	VkPushConstantRange* pushConstants{};
+	uint32_t pushConstantCount = 0;
+
+	struct DescriptorInfo
+	{
+		VkDescriptorSetLayoutBinding* bufferBindings{};
+		VkWriteDescriptorSet* writes{};
+
+		uint32_t bufferCount = 0;
+	};
+	DescriptorInfo descriptorInfo;
+	VulkanShaderResult shaderInfo;
+};
+
 using PipelineLayoutHash = uint64_t;
 struct VulkanBackend_inst
 {
@@ -968,11 +989,6 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer).handle);
 }
 
-PipelineHandle BB::VulkanCreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
-{
-
-}
-
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	VulkanCommandQueue* t_Queue = s_VkBackendInst.cmdQueues.Get();
@@ -1099,16 +1115,18 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 	return RFenceHandle(t_TimelineSem);
 }
 
-PipelineBuilderHandle PipelineBuilderInit(const FrameBufferHandle a_Handle)
+PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const FrameBufferHandle a_Handle)
 {
 	PipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, PipelineBuildInfo);
 	//Get the renderpass from the Framebuffer.
 	t_BuildInfo->pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	t_BuildInfo->pipeInfo.renderPass = s_VkBackendInst.frameBuffers[a_Handle.index].renderPass;
 	t_BuildInfo->pipeInfo.subpass = 0;
+
+	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
+void BB::VulkanPipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
 {
 	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
 
@@ -1127,9 +1145,12 @@ void PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB
 
 constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
 
-void PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
+void BB::VulkanPipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
 {
 	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+
+	t_BuildInfo->descriptorInfo.bufferCount = a_BufferBinds.size();
+
 
 	t_BuildInfo->descriptorInfo.bufferBindings = BBnewArr(
 		t_BuildInfo->buildAllocator,
@@ -1147,6 +1168,8 @@ void PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::
 		t_BuildInfo->buildAllocator,
 		a_BufferBinds.size(),
 		VkDescriptorBufferInfo);
+
+	
 
 	for (size_t i = 0; i < a_BufferBinds.size(); i++)
 	{
@@ -1170,7 +1193,7 @@ void PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::
 	}
 }
 
-void PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
+void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
 	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
 
@@ -1183,7 +1206,7 @@ void PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slic
 	t_BuildInfo->pipeInfo.stageCount = a_ShaderInfo.size();
 }
 
-PipelineHandle BuildPipeline(const PipelineBuilderHandle a_Handle)
+PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	VulkanPipeline t_ReturnPipeline{};
 	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);

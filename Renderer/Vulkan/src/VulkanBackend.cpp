@@ -6,13 +6,18 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
-	a_FuncCreateInfo.createPipeline = VulkanCreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
+
+	a_FuncCreateInfo.PipelineBuilderInit = VulkanPipelineBuilderInit;
+	a_FuncCreateInfo.PipelineBuilderBindConstants = VulkanPipelineBuilderBindConstants;
+	a_FuncCreateInfo.PipelineBuilderBindBuffers = VulkanPipelineBuilderBindBuffers;
+	a_FuncCreateInfo.PipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
+	a_FuncCreateInfo.PipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;

@@ -247,46 +247,11 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PerFrameBuffer.data = nullptr;
 	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
+	PipelineBuilder t_BasicPipe{ t_FrameBuffer };
 
-	const wchar_t* t_DX12ShaderPaths[2];
-	t_DX12ShaderPaths[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
-	t_DX12ShaderPaths[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+	FixedArray<ConstantBind, 1> t_ConstantBinds;
+	FixedArray<BufferBind, 2> t_BufferBinds;
 
-	Shader::ShaderCodeHandle t_ShaderHandles[2];
-	t_ShaderHandles[0] = Shader::CompileShader(
-		t_DX12ShaderPaths[0],
-		L"main",
-		RENDER_SHADER_STAGE::VERTEX,
-		s_RendererInst.renderAPI);
-	t_ShaderHandles[1] = Shader::CompileShader(
-		t_DX12ShaderPaths[1],
-		L"main",
-		RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
-		s_RendererInst.renderAPI);
-
-	Buffer t_ShaderBuffer;
-	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
-	ShaderCreateInfo t_ShaderBuffers[2];
-	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
-	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-
-	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
-	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
-	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-
-	//Constant buffer for indices.
-	ConstantBufferInfo a_ConstBufferInfo{};
-	a_ConstBufferInfo.offset = 0;
-	a_ConstBufferInfo.size = sizeof(uint32_t);
-	a_ConstBufferInfo.stage = RENDER_SHADER_STAGE::VERTEX;
-
-	RenderPipelineCreateInfo t_PipelineCreateInfo{};
-	FixedArray<RenderPipelineCreateInfo::BufferBind, 2> t_BufferBinds;
-	t_PipelineCreateInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
-	FixedArray<RenderPipelineCreateInfo::ImageBind, 0> t_ImageBinds;
-	t_PipelineCreateInfo.ImageBinds = BB::Slice(t_ImageBinds.data(), t_ImageBinds.size());
-	FixedArray<RenderPipelineCreateInfo::ConstantBind, 1> t_ConstantBinds;
-	t_PipelineCreateInfo.constantBinds = BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size());
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
@@ -309,10 +274,38 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ConstantBinds[0].size = sizeof(uint32_t); //max of 64 bytes.
 	}
 
-	t_PipelineCreateInfo.framebufferHandle = t_FrameBuffer;
-	t_PipelineCreateInfo.shaderCreateInfos = BB::Slice(t_ShaderBuffers, 2);
+	t_BasicPipe.BindConstants(BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size()));
+	t_BasicPipe.BindBuffers(BB::Slice(t_BufferBinds.data(), t_BufferBinds.size()));
 
-	t_Pipeline = RenderBackend::CreatePipeline(t_PipelineCreateInfo);
+	const wchar_t* t_ShaderPath[2];
+	t_ShaderPath[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
+	t_ShaderPath[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+
+	Shader::ShaderCodeHandle t_ShaderHandles[2];
+	t_ShaderHandles[0] = Shader::CompileShader(
+		t_ShaderPath[0],
+		L"main",
+		RENDER_SHADER_STAGE::VERTEX,
+		s_RendererInst.renderAPI);
+	t_ShaderHandles[1] = Shader::CompileShader(
+		t_ShaderPath[1],
+		L"main",
+		RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
+		s_RendererInst.renderAPI);
+
+	Buffer t_ShaderBuffer;
+	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
+	ShaderCreateInfo t_ShaderBuffers[2];
+	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
+	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+
+	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
+	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
+	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+
+	t_BasicPipe.BindShaders(BB::Slice(t_ShaderBuffers, 2));
+
+	t_Pipeline = t_BasicPipe.BuildPipeline();
 
 #pragma endregion //PipelineCreation
 

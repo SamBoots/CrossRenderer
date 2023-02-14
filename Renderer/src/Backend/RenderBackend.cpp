@@ -13,6 +13,41 @@ static RenderAPIFunctions s_ApiFunc;
 
 static BackendInfo s_BackendInfo;
 
+
+PipelineBuilder::PipelineBuilder(const FrameBufferHandle a_Handle)
+{
+	m_BuilderHandle = s_ApiFunc.PipelineBuilderInit(a_Handle);
+}
+
+PipelineBuilder::~PipelineBuilder()
+{
+	BB_ASSERT(m_BuilderHandle.handle == 0, "Unfinished pipeline destructed! Big memory leak and improper graphics API usage.");
+}
+
+void PipelineBuilder::BindConstants(const BB::Slice<ConstantBind> a_ConstantBinds)
+{
+	s_ApiFunc.PipelineBuilderBindConstants(m_BuilderHandle, a_ConstantBinds);
+}
+
+void PipelineBuilder::BindBuffers(const BB::Slice<BufferBind> a_BufferBinds)
+{
+	s_ApiFunc.PipelineBuilderBindBuffers(m_BuilderHandle, a_BufferBinds);
+}
+
+void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
+{
+	s_ApiFunc.PipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
+}
+
+PipelineHandle PipelineBuilder::BuildPipeline()
+{
+	//Buildpipeline will also destroy the builder information. 
+	const PipelineHandle t_ReturnHandle = s_ApiFunc.PipelineBuilderBuildPipeline(m_BuilderHandle);
+	m_BuilderHandle.handle = 0; //Set the handle to 0 to indicate we can safely destruct the class.
+	return t_ReturnHandle;
+}
+
+
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
 {
 	return s_BackendInfo.framebufferCount;
@@ -34,11 +69,6 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createFrameBuffer(m_TempAllocator, a_CreateInfo);
-}
-
-PipelineHandle BB::RenderBackend::CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo)
-{
-	return s_ApiFunc.createPipeline(m_TempAllocator, a_CreateInfo);
 }
 
 CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)

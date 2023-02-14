@@ -4,6 +4,22 @@
 
 namespace BB
 {
+	class PipelineBuilder
+	{
+	public:
+		PipelineBuilder(const FrameBufferHandle a_Handle);
+		~PipelineBuilder();
+		
+		void BindConstants(const BB::Slice<ConstantBind> a_ConstantBinds);
+		void BindBuffers(const BB::Slice<BufferBind> a_BufferBinds);
+		void BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+		PipelineHandle BuildPipeline();
+
+	private:
+		PipelineBuilderHandle m_BuilderHandle;
+	};
+
+
 	namespace RenderBackend
 	{
 		const uint32_t GetFrameBufferAmount();
@@ -11,7 +27,6 @@ namespace BB
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
 		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
-		PipelineHandle CreatePipeline(const RenderPipelineCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
