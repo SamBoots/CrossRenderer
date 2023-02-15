@@ -15,6 +15,7 @@ struct PipelineBuildInfo
 {
 	//temporary allocator, this gets removed when we are finished building.
 	TemporaryAllocator buildAllocator{ s_DX12Allocator };
+	DXPipeline buildPipeline;
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC PSOdesc{};
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
@@ -23,13 +24,7 @@ struct PipelineBuildInfo
 	UINT regSRV = 0;
 	UINT regUAV = 0;
 
-	UINT rootCBVCount = 0;
-	RootDescriptor rootCBV[4]{};
-	RootDescriptor rootSRV[4]{};
-	RootDescriptor rootUAV[4]{};
-
 	uint32_t rootParameterCount = 0;
-
 	//Use this as if it always picks constants
 	D3D12_ROOT_PARAMETER1* rootConstants{};
 	uint32_t rootConstantCount = 0;
@@ -448,25 +443,26 @@ void BB::DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, co
 		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
 			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regCBV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
+			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = 0;
 
-			t_BuildInfo->rootCBV[t_BuildInfo->rootCBVCount].rootIndex = t_ParamIndex;
-			t_BuildInfo->rootCBV[t_BuildInfo->rootCBVCount].virtAddress =
+			t_BuildInfo->buildPipeline.rootCBV[t_BuildInfo->buildPipeline.rootCBVCount].rootIndex = t_ParamIndex;
+			t_BuildInfo->buildPipeline.rootCBV[t_BuildInfo->buildPipeline.rootCBVCount].virtAddress =
 				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
 
 			//We do not increment the register since the root constants are also CBV.
-			++t_BuildInfo->rootCBVCount;
+			++t_BuildInfo->buildPipeline.rootCBVCount;
 			++t_BuildInfo->regCBV;
 			break;
 		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
 			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regSRV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
+			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = a_BufferBinds[i].binding;
+			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = 0;
 
-			t_BuildInfo->rootSRV[t_BuildInfo->regSRV].rootIndex = t_ParamIndex;
-			t_BuildInfo->rootSRV[t_BuildInfo->regSRV].virtAddress =
+			t_BuildInfo->buildPipeline.rootSRV[t_BuildInfo->regSRV].rootIndex = t_ParamIndex;
+			t_BuildInfo->buildPipeline.rootSRV[t_BuildInfo->regSRV].virtAddress =
 				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
 
+			++t_BuildInfo->buildPipeline.rootSRVCount;
 			++t_BuildInfo->regSRV;
 			break;
 		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
@@ -474,10 +470,11 @@ void BB::DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, co
 			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regUAV;
 			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
 
-			t_BuildInfo->rootUAV[t_BuildInfo->regUAV].rootIndex = t_ParamIndex;
-			t_BuildInfo->rootUAV[t_BuildInfo->regUAV].virtAddress =
+			t_BuildInfo->buildPipeline.rootUAV[t_BuildInfo->regUAV].rootIndex = t_ParamIndex;
+			t_BuildInfo->buildPipeline.rootUAV[t_BuildInfo->regUAV].virtAddress =
 				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
 
+			++t_BuildInfo->buildPipeline.rootUAVCount;
 			++t_BuildInfo->regUAV;
 			break;
 		}
@@ -512,7 +509,6 @@ void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, co
 PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
-	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
 
 	{
 		D3D12_ROOT_PARAMETER1* t_Parameters = BBnewArr(
@@ -554,16 +550,16 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 		DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
 			t_Signature->GetBufferPointer(),
 			t_Signature->GetBufferSize(),
-			IID_PPV_ARGS(&t_ReturnPipeline->rootSig)),
+			IID_PPV_ARGS(&t_BuildInfo->buildPipeline.rootSig)),
 			"DX12: Failed to create root signature.");
 
-		t_ReturnPipeline->rootSig->SetName(L"Hello Triangle Root Signature");
+		t_BuildInfo->buildPipeline.rootSig->SetName(L"Hello Triangle Root Signature");
 
 		if (t_Signature != nullptr)
 			t_Signature->Release();
 	}
 
-	t_BuildInfo->PSOdesc.pRootSignature = t_ReturnPipeline->rootSig;
+	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
 
 	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -618,8 +614,12 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 
 
 	DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
-		&t_BuildInfo->PSOdesc, IID_PPV_ARGS(&t_ReturnPipeline->pipelineState)),
+		&t_BuildInfo->PSOdesc, IID_PPV_ARGS(&t_BuildInfo->buildPipeline.pipelineState)),
 		"DX12: Failed to create graphics pipeline");
+
+
+	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
+	*t_ReturnPipeline = t_BuildInfo->buildPipeline;
 
 	return PipelineHandle(t_ReturnPipeline);
 }
