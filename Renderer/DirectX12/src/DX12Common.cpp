@@ -19,11 +19,24 @@ struct PipelineBuildInfo
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC PSOdesc{};
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
 
-	D3D12_ROOT_CONSTANTS* constants;
-	uint32_t constantCount;
+	UINT regCBV = 0;
+	UINT regSRV = 0;
+	UINT regUAV = 0;
 
-	D3D12_ROOT_DESCRIPTOR* rootDescriptors;
-	uint32_t rootdescriptorCount;
+	UINT rootCBVCount = 0;
+	RootDescriptor rootCBV[4]{};
+	RootDescriptor rootSRV[4]{};
+	RootDescriptor rootUAV[4]{};
+
+	uint32_t rootParameterCount = 0;
+
+	//Use this as if it always picks constants
+	D3D12_ROOT_PARAMETER1* rootConstants{};
+	uint32_t rootConstantCount = 0;
+
+	//Use this as if it always picks root descriptors
+	D3D12_ROOT_PARAMETER1* rootDescriptors{};
+	uint32_t rootDescriptorCount = 0;
 };
 
 struct DX12Backend_inst
@@ -302,127 +315,6 @@ FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const Ren
 	return FrameBufferHandle(s_DX12B.frameBuffers.insert(frameBuffer).handle);
 }
 
-PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPipelineCreateInfo& a_CreateInfo)
-{
-	DXPipeline t_Pipeline{};
-
-	{
-		UINT t_CBVReg = 0;
-		UINT t_SRVReg = 0;
-		UINT t_UAVReg = 0;
-
-
-		D3D12_ROOT_PARAMETER1* t_RootParameters = BBnewArr(
-			a_TempAllocator,
-			a_CreateInfo.constantBinds.size() +
-			a_CreateInfo.bufferBinds.size() +
-			a_CreateInfo.ImageBinds.size(),
-			D3D12_ROOT_PARAMETER1);
-
-		size_t t_RootParameterNum = 0;
-
-		for (size_t i = 0; i < a_CreateInfo.constantBinds.size(); i++)
-		{
-			BB_ASSERT(a_CreateInfo.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
-			const UINT t_Dwords = a_CreateInfo.constantBinds[i].size / sizeof(uint32_t);
-
-			t_RootParameters[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-			t_RootParameters[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-
-			t_RootParameters[i].Constants.Num32BitValues = t_Dwords;
-			t_RootParameters[i].Constants.ShaderRegister = t_CBVReg++;
-			t_RootParameters[i].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
-		}
-
-		t_RootParameterNum += a_CreateInfo.constantBinds.size();
-
-		for (size_t i = 0; i < a_CreateInfo.bufferBinds.size(); i++)
-		{
-			switch (a_CreateInfo.bufferBinds[i].type)
-			{
-			case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
-				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_CBVReg;
-
-				t_Pipeline.rootCBV[t_Pipeline.rootCBVCount].rootIndex = t_RootParameterNum + i;
-				t_Pipeline.rootCBV[t_Pipeline.rootCBVCount].virtAddress =
-					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-				++t_Pipeline.rootCBVCount;
-				++t_CBVReg;
-				break;
-			case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
-				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_SRVReg;
-
-				t_Pipeline.rootSRV[t_Pipeline.rootSRVCount].rootIndex = t_RootParameterNum + i;
-				t_Pipeline.rootSRV[t_Pipeline.rootSRVCount].virtAddress =
-					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-				++t_Pipeline.rootSRVCount;
-				++t_SRVReg;
-				break;
-			case DESCRIPTOR_BUFFER_TYPE::READWRITE:
-				t_RootParameters[i + t_RootParameterNum].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-				t_RootParameters[i + t_RootParameterNum].Descriptor.ShaderRegister = t_UAVReg;
-
-				t_Pipeline.rootUAV[t_Pipeline.rootUAVCount].rootIndex = t_RootParameterNum + i;
-				t_Pipeline.rootUAV[t_Pipeline.rootUAVCount].virtAddress =
-					reinterpret_cast<DXResource*>(a_CreateInfo.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-				++t_Pipeline.rootUAVCount;
-				++t_UAVReg;
-				break;
-			}
-		}
-
-		t_RootParameterNum += a_CreateInfo.bufferBinds.size();
-
-		//Overall Layout
-
-		t_RootSignatureDesc.Desc_1_1.NumParameters = t_RootParameterNum;
-		t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
-
-
-		ID3DBlob* t_Signature;
-		ID3DBlob* t_Error;
-
-		D3D12SerializeVersionedRootSignature(&t_RootSignatureDesc,
-			&t_Signature, &t_Error);
-
-		if (t_Error != nullptr)
-		{
-			BB_LOG((const char*)t_Error->GetBufferPointer());
-			BB_ASSERT(false, "DX12: error creating root signature, details are above.");
-			t_Error->Release();
-		}
-
-		DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
-			t_Signature->GetBufferPointer(),
-			t_Signature->GetBufferSize(),
-			IID_PPV_ARGS(&t_Pipeline.rootsig)),
-			"DX12: Failed to create root signature.");
-
-		t_Pipeline.rootsig->SetName(L"Hello Triangle Root Signature");
-
-		if (t_Signature != nullptr)
-			t_Signature->Release();
-	}
-
-	//create rootsignature
-	{
-
-		t_PsoDesc.pRootSignature = t_Pipeline.rootsig;
-
-
-	}
-
-	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
-	*t_ReturnPipeline = t_Pipeline;
-
-	return PipelineHandle(t_ReturnPipeline);
-}
-
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	switch (a_Info.queue)
@@ -508,33 +400,107 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const FrameBufferHandle a_Hand
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	t_BuildInfo->rootSigDesc.Desc_1_1.NumStaticSamplers = 0;
 	t_BuildInfo->rootSigDesc.Desc_1_1.pStaticSamplers = nullptr;
+
+	return PipelineBuilderHandle(t_BuildInfo);
 }
 
 void BB::DX12PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
 {
+	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	t_BuildInfo->rootConstantCount = static_cast<uint32_t>(a_ConstantBinds.size());
+	t_BuildInfo->rootConstants = BBnewArr(
+		t_BuildInfo->buildAllocator,
+		t_BuildInfo->rootConstantCount,
+		D3D12_ROOT_PARAMETER1);
 
+	for (size_t i = 0; i < a_ConstantBinds.size(); i++)
+	{
+		size_t t_ParamIndex = t_BuildInfo->rootParameterCount + i;
+		BB_ASSERT(a_ConstantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
+		const UINT t_Dwords = a_ConstantBinds[i].size / sizeof(uint32_t);
+
+		t_BuildInfo->rootConstants[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		t_BuildInfo->rootConstants[t_ParamIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+
+		t_BuildInfo->rootConstants[t_ParamIndex].Constants.Num32BitValues = t_Dwords;
+		t_BuildInfo->rootConstants[t_ParamIndex].Constants.ShaderRegister = t_BuildInfo->regCBV++;
+		t_BuildInfo->rootConstants[t_ParamIndex].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
+	}
+
+	//not sure if this raises the root? Test first!
+	t_BuildInfo->rootParameterCount += static_cast<uint32_t>(a_ConstantBinds.size());
 }
 
 void BB::DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
 {
+	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	t_BuildInfo->rootDescriptorCount = static_cast<uint32_t>(a_BufferBinds.size());
+	t_BuildInfo->rootDescriptors = BBnewArr(
+		t_BuildInfo->buildAllocator,
+		t_BuildInfo->rootDescriptorCount,
+		D3D12_ROOT_PARAMETER1);
 
+	for (size_t i = 0; i < a_BufferBinds.size(); i++)
+	{
+		size_t t_ParamIndex = t_BuildInfo->rootParameterCount + i;
+		switch (a_BufferBinds[i].type)
+		{
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
+			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regCBV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
+
+			t_BuildInfo->rootCBV[t_BuildInfo->rootCBVCount].rootIndex = t_ParamIndex;
+			t_BuildInfo->rootCBV[t_BuildInfo->rootCBVCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			//We do not increment the register since the root constants are also CBV.
+			++t_BuildInfo->rootCBVCount;
+			++t_BuildInfo->regCBV;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
+			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regSRV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
+
+			t_BuildInfo->rootSRV[t_BuildInfo->regSRV].rootIndex = t_ParamIndex;
+			t_BuildInfo->rootSRV[t_BuildInfo->regSRV].virtAddress =
+				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_BuildInfo->regSRV;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
+			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regUAV;
+			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
+
+			t_BuildInfo->rootUAV[t_BuildInfo->regUAV].rootIndex = t_ParamIndex;
+			t_BuildInfo->rootUAV[t_BuildInfo->regUAV].virtAddress =
+				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_BuildInfo->regUAV;
+			break;
+		}
+	}
+
+	t_BuildInfo->rootParameterCount += static_cast<uint32_t>(a_BufferBinds.size());
 }
 
 void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
-	PipelineBuildInfo* t_PipeInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	for (size_t i = 0; i < a_ShaderInfo.size(); i++)
 	{
 		switch (a_ShaderInfo[i].shaderStage)
 		{
 		case RENDER_SHADER_STAGE::VERTEX:
-			t_PipeInfo->PSOdesc.VS.BytecodeLength = a_ShaderInfo[i].buffer.size;
-			t_PipeInfo->PSOdesc.VS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
+			t_BuildInfo->PSOdesc.VS.BytecodeLength = a_ShaderInfo[i].buffer.size;
+			t_BuildInfo->PSOdesc.VS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
 			break;
 		case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
-			t_PipeInfo->PSOdesc.PS.BytecodeLength = a_ShaderInfo[i].buffer.size;
-			t_PipeInfo->PSOdesc.PS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
+			t_BuildInfo->PSOdesc.PS.BytecodeLength = a_ShaderInfo[i].buffer.size;
+			t_BuildInfo->PSOdesc.PS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
 			break;
 		default:
 			BB_ASSERT(false, "DX12: unsupported shaderstage.")
@@ -545,68 +511,114 @@ void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, co
 
 PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
-	PipelineBuildInfo* t_PipeInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
 	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
 
 	{
-		D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
-			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-			{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
+		D3D12_ROOT_PARAMETER1* t_Parameters = BBnewArr(
+			t_BuildInfo->buildAllocator,
+			t_BuildInfo->rootParameterCount,
+			D3D12_ROOT_PARAMETER1);
 
-		t_PipeInfo->PSOdesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
-	}
-	{
-		D3D12_BLEND_DESC t_BlendDesc;
-		t_BlendDesc.AlphaToCoverageEnable = FALSE;
-		t_BlendDesc.IndependentBlendEnable = FALSE;
-		const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
-			FALSE,
-			FALSE,
-			D3D12_BLEND_ONE,
-			D3D12_BLEND_ZERO,
-			D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE,
-			D3D12_BLEND_ZERO,
-			D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL,
-		};
-		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-			t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
-		t_PipeInfo->PSOdesc.BlendState = t_BlendDesc;
-	}
-	{
-		D3D12_RASTERIZER_DESC t_RasterDesc{};
-		t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-		t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-		t_RasterDesc.FrontCounterClockwise = FALSE;
-		t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-		t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-		t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-		t_RasterDesc.DepthClipEnable = TRUE;
-		t_RasterDesc.MultisampleEnable = FALSE;
-		t_RasterDesc.AntialiasedLineEnable = FALSE;
-		t_RasterDesc.ForcedSampleCount = 0;
-		t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
-		t_PipeInfo->PSOdesc.RasterizerState = t_RasterDesc;
-		t_PipeInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		for (size_t i = 0; i < t_BuildInfo->rootConstantCount; i++)
+		{
+			t_Parameters[i] = t_BuildInfo->rootConstants[i];
+		}
+
+		uint32_t t_ParameterOffset = t_BuildInfo->rootConstantCount;
+
+		for (size_t i = 0; i < t_BuildInfo->rootDescriptorCount; i++)
+		{
+			t_Parameters[i + t_ParameterOffset] = t_BuildInfo->rootDescriptors[i];
+		}
+
+		t_ParameterOffset += t_BuildInfo->rootDescriptorCount;
+
+		t_BuildInfo->rootSigDesc.Desc_1_1.NumParameters = t_BuildInfo->rootParameterCount;
+		t_BuildInfo->rootSigDesc.Desc_1_1.pParameters = t_Parameters;
+
+		ID3DBlob* t_Signature;
+		ID3DBlob* t_Error;
+
+		D3D12SerializeVersionedRootSignature(&t_BuildInfo->rootSigDesc,
+			&t_Signature, &t_Error);
+
+		if (t_Error != nullptr)
+		{
+			BB_LOG((const char*)t_Error->GetBufferPointer());
+			BB_ASSERT(false, "DX12: error creating root signature, details are above.");
+			t_Error->Release();
+		}
+
+		DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
+			t_Signature->GetBufferPointer(),
+			t_Signature->GetBufferSize(),
+			IID_PPV_ARGS(&t_ReturnPipeline->rootSig)),
+			"DX12: Failed to create root signature.");
+
+		t_ReturnPipeline->rootSig->SetName(L"Hello Triangle Root Signature");
+
+		if (t_Signature != nullptr)
+			t_Signature->Release();
 	}
 
-	{
+	t_BuildInfo->PSOdesc.pRootSignature = t_ReturnPipeline->rootSig;
 
-		t_PipeInfo->PSOdesc.DepthStencilState.DepthEnable = FALSE;
-		t_PipeInfo->PSOdesc.DepthStencilState.StencilEnable = FALSE;
-		t_PipeInfo->PSOdesc.SampleMask = UINT_MAX;
-		t_PipeInfo->PSOdesc.NumRenderTargets = 1;
-		t_PipeInfo->PSOdesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		t_PipeInfo->PSOdesc.SampleDesc.Count = 1;
-	}
+	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
+
+	t_BuildInfo->PSOdesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
+
+
+	D3D12_BLEND_DESC t_BlendDesc;
+	t_BlendDesc.AlphaToCoverageEnable = FALSE;
+	t_BlendDesc.IndependentBlendEnable = FALSE;
+	const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
+		FALSE,
+		FALSE,
+		D3D12_BLEND_ONE,
+		D3D12_BLEND_ZERO,
+		D3D12_BLEND_OP_ADD,
+		D3D12_BLEND_ONE,
+		D3D12_BLEND_ZERO,
+		D3D12_BLEND_OP_ADD,
+		D3D12_LOGIC_OP_NOOP,
+		D3D12_COLOR_WRITE_ENABLE_ALL,
+	};
+	for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+		t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+	t_BuildInfo->PSOdesc.BlendState = t_BlendDesc;
+
+
+	D3D12_RASTERIZER_DESC t_RasterDesc{};
+	t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+	t_RasterDesc.FrontCounterClockwise = FALSE;
+	t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+	t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+	t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+	t_RasterDesc.DepthClipEnable = TRUE;
+	t_RasterDesc.MultisampleEnable = FALSE;
+	t_RasterDesc.AntialiasedLineEnable = FALSE;
+	t_RasterDesc.ForcedSampleCount = 0;
+	t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+	t_BuildInfo->PSOdesc.RasterizerState = t_RasterDesc;
+	t_BuildInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	t_BuildInfo->PSOdesc.DepthStencilState.DepthEnable = FALSE;
+	t_BuildInfo->PSOdesc.DepthStencilState.StencilEnable = FALSE;
+	t_BuildInfo->PSOdesc.SampleMask = UINT_MAX;
+	t_BuildInfo->PSOdesc.NumRenderTargets = 1;
+	t_BuildInfo->PSOdesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	t_BuildInfo->PSOdesc.SampleDesc.Count = 1;
+
 
 	DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
-		&t_PipeInfo->PSOdesc, IID_PPV_ARGS(&t_ReturnPipeline->pipelineState)),
+		&t_BuildInfo->PSOdesc, IID_PPV_ARGS(&t_ReturnPipeline->pipelineState)),
 		"DX12: Failed to create graphics pipeline");
 
 	return PipelineHandle(t_ReturnPipeline);
@@ -686,7 +698,7 @@ void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle,
 	t_CommandList->List()->SetPipelineState(t_Pipeline->pipelineState);
 	t_CommandList->List()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	t_CommandList->List()->SetGraphicsRootSignature(t_Pipeline->rootsig);
+	t_CommandList->List()->SetGraphicsRootSignature(t_Pipeline->rootSig);
 
 	size_t t_OffsetCount = 0;
 	for (size_t i = 0; i < t_Pipeline->rootCBVCount; i++)
@@ -960,7 +972,7 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 {
 	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Handle.ptrHandle);
 	DXRelease(t_Pipeline->pipelineState);
-	DXRelease(t_Pipeline->rootsig);
+	DXRelease(t_Pipeline->rootSig);
 }
 
 void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)

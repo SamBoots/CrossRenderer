@@ -14,13 +14,18 @@ void TempResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
-	a_FuncCreateInfo.createPipeline = DX12CreatePipeline;
 	a_FuncCreateInfo.createFrameBuffer = DX12CreateFrameBuffer; //DX12CreateFrameBuffer
 	a_FuncCreateInfo.createCommandQueue = DX12CreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = DX12CreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = DX12CreateCommandList;
 	a_FuncCreateInfo.createBuffer = DX12CreateBuffer;
 	a_FuncCreateInfo.createFence = DX12CreateFence;
+
+	a_FuncCreateInfo.PipelineBuilderInit = DX12PipelineBuilderInit;
+	a_FuncCreateInfo.PipelineBuilderBindConstants = DX12PipelineBuilderBindConstants;
+	a_FuncCreateInfo.PipelineBuilderBindBuffers = DX12PipelineBuilderBindBuffers;
+	a_FuncCreateInfo.PipelineBuilderBindShaders = DX12PipelineBuilderBindShaders;
+	a_FuncCreateInfo.PipelineBuilderBuildPipeline = DX12PipelineBuildPipeline;
 
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;

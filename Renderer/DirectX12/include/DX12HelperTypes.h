@@ -230,19 +230,21 @@ namespace BB
 		uint32_t m_IncrementSize;
 	};
 
+	struct RootDescriptor 
+	{
+		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
+		UINT rootIndex{};
+	};
+
 	//Maybe create a class and a builder for this?
 	struct DXPipeline
 	{
 		//Optmize Rootsignature and pipelinestate to cache them somewhere and reuse them.
 		ID3D12PipelineState* pipelineState;
-		ID3D12RootSignature* rootsig{};
+		ID3D12RootSignature* rootSig{};
 
 		DescriptorHeapHandle heapHandle{};
 
-		struct RootDescriptor {
-			D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
-			UINT rootIndex{};
-		};
 		uint32_t rootCBVCount = 0;
 		uint32_t rootSRVCount = 0;
 		uint32_t rootUAVCount = 0;
