@@ -5,9 +5,26 @@
 #include "Pool.h"
 #include "BBString.h"
 
+#include "TemporaryAllocator.h"
+
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
 using namespace BB;
+
+struct PipelineBuildInfo
+{
+	//temporary allocator, this gets removed when we are finished building.
+	TemporaryAllocator buildAllocator{ s_DX12Allocator };
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC PSOdesc{};
+	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
+
+	D3D12_ROOT_CONSTANTS* constants;
+	uint32_t constantCount;
+
+	D3D12_ROOT_DESCRIPTOR* rootDescriptors;
+	uint32_t rootdescriptorCount;
+};
 
 struct DX12Backend_inst
 {
@@ -294,15 +311,7 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 		UINT t_SRVReg = 0;
 		UINT t_UAVReg = 0;
 
-		D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
-		t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
-		if (FAILED(s_DX12B.device.logicalDevice->CheckFeatureSupport(
-			D3D12_FEATURE_ROOT_SIGNATURE,
-			&t_FeatureData, sizeof(t_FeatureData))))
-		{
-			BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
-		}
 		D3D12_ROOT_PARAMETER1* t_RootParameters = BBnewArr(
 			a_TempAllocator,
 			a_CreateInfo.constantBinds.size() +
@@ -370,14 +379,10 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 		t_RootParameterNum += a_CreateInfo.bufferBinds.size();
 
 		//Overall Layout
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC t_RootSignatureDesc{};
-		t_RootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		t_RootSignatureDesc.Desc_1_1.Flags =
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
 		t_RootSignatureDesc.Desc_1_1.NumParameters = t_RootParameterNum;
 		t_RootSignatureDesc.Desc_1_1.pParameters = t_RootParameters;
-		t_RootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
-		t_RootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
+
 
 		ID3DBlob* t_Signature;
 		ID3DBlob* t_Error;
@@ -406,81 +411,10 @@ PipelineHandle BB::DX12CreatePipeline(Allocator a_TempAllocator, const RenderPip
 
 	//create rootsignature
 	{
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC t_PsoDesc = {};
-
-		D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
-			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-			{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
-
-		t_PsoDesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
 
 		t_PsoDesc.pRootSignature = t_Pipeline.rootsig;
 
-		for (size_t i = 0; i < a_CreateInfo.shaderCreateInfos.size(); i++)
-		{
-			switch (a_CreateInfo.shaderCreateInfos[i].shaderStage)
-			{
-			case RENDER_SHADER_STAGE::VERTEX:
-				t_PsoDesc.VS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
-				t_PsoDesc.VS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
-				break;
-			case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
-				t_PsoDesc.PS.BytecodeLength = a_CreateInfo.shaderCreateInfos[i].buffer.size;
-				t_PsoDesc.PS.pShaderBytecode = a_CreateInfo.shaderCreateInfos[i].buffer.data;
-				break;
-			default:
-				BB_ASSERT(false, "DX12: unsupported shaderstage.")
-					break;
-			}
-		}
 
-		D3D12_RASTERIZER_DESC t_RasterDesc;
-		t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-		t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-		t_RasterDesc.FrontCounterClockwise = FALSE;
-		t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-		t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-		t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-		t_RasterDesc.DepthClipEnable = TRUE;
-		t_RasterDesc.MultisampleEnable = FALSE;
-		t_RasterDesc.AntialiasedLineEnable = FALSE;
-		t_RasterDesc.ForcedSampleCount = 0;
-		t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-		t_PsoDesc.RasterizerState = t_RasterDesc;
-		t_PsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-
-		D3D12_BLEND_DESC t_BlendDesc;
-		t_BlendDesc.AlphaToCoverageEnable = FALSE;
-		t_BlendDesc.IndependentBlendEnable = FALSE;
-		const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
-			FALSE,
-			FALSE,
-			D3D12_BLEND_ONE,
-			D3D12_BLEND_ZERO,
-			D3D12_BLEND_OP_ADD,
-			D3D12_BLEND_ONE,
-			D3D12_BLEND_ZERO,
-			D3D12_BLEND_OP_ADD,
-			D3D12_LOGIC_OP_NOOP,
-			D3D12_COLOR_WRITE_ENABLE_ALL,
-		};
-		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-			t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
-		t_PsoDesc.BlendState = t_BlendDesc;
-
-		t_PsoDesc.DepthStencilState.DepthEnable = FALSE;
-		t_PsoDesc.DepthStencilState.StencilEnable = FALSE;
-		t_PsoDesc.SampleMask = UINT_MAX;
-
-		t_PsoDesc.NumRenderTargets = 1;
-		t_PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		t_PsoDesc.SampleDesc.Count = 1;
-
-		DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
-			&t_PsoDesc, IID_PPV_ARGS(&t_Pipeline.pipelineState)),
-			"DX12: Failed to create graphics pipeline");
 	}
 
 	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
@@ -553,6 +487,129 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
 	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(s_DX12B.device.logicalDevice));
+}
+
+//PipelineBuilder
+PipelineBuilderHandle BB::DX12PipelineBuilderInit(const FrameBufferHandle a_Handle)
+{
+	PipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, PipelineBuildInfo);
+
+	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
+	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+	if (FAILED(s_DX12B.device.logicalDevice->CheckFeatureSupport(
+		D3D12_FEATURE_ROOT_SIGNATURE,
+		&t_FeatureData, sizeof(t_FeatureData))))
+	{
+		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
+	}
+	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	t_BuildInfo->rootSigDesc.Desc_1_1.NumStaticSamplers = 0;
+	t_BuildInfo->rootSigDesc.Desc_1_1.pStaticSamplers = nullptr;
+}
+
+void BB::DX12PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
+{
+
+}
+
+void BB::DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
+{
+
+}
+
+void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
+{
+	PipelineBuildInfo* t_PipeInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+
+	for (size_t i = 0; i < a_ShaderInfo.size(); i++)
+	{
+		switch (a_ShaderInfo[i].shaderStage)
+		{
+		case RENDER_SHADER_STAGE::VERTEX:
+			t_PipeInfo->PSOdesc.VS.BytecodeLength = a_ShaderInfo[i].buffer.size;
+			t_PipeInfo->PSOdesc.VS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
+			break;
+		case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
+			t_PipeInfo->PSOdesc.PS.BytecodeLength = a_ShaderInfo[i].buffer.size;
+			t_PipeInfo->PSOdesc.PS.pShaderBytecode = a_ShaderInfo[i].buffer.data;
+			break;
+		default:
+			BB_ASSERT(false, "DX12: unsupported shaderstage.")
+				break;
+		}
+	}
+}
+
+PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
+{
+	PipelineBuildInfo* t_PipeInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
+
+	{
+		D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
+			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+			{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
+
+		t_PipeInfo->PSOdesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
+	}
+	{
+		D3D12_BLEND_DESC t_BlendDesc;
+		t_BlendDesc.AlphaToCoverageEnable = FALSE;
+		t_BlendDesc.IndependentBlendEnable = FALSE;
+		const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
+			FALSE,
+			FALSE,
+			D3D12_BLEND_ONE,
+			D3D12_BLEND_ZERO,
+			D3D12_BLEND_OP_ADD,
+			D3D12_BLEND_ONE,
+			D3D12_BLEND_ZERO,
+			D3D12_BLEND_OP_ADD,
+			D3D12_LOGIC_OP_NOOP,
+			D3D12_COLOR_WRITE_ENABLE_ALL,
+		};
+		for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+			t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
+		t_PipeInfo->PSOdesc.BlendState = t_BlendDesc;
+	}
+	{
+		D3D12_RASTERIZER_DESC t_RasterDesc{};
+		t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+		t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+		t_RasterDesc.FrontCounterClockwise = FALSE;
+		t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+		t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+		t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+		t_RasterDesc.DepthClipEnable = TRUE;
+		t_RasterDesc.MultisampleEnable = FALSE;
+		t_RasterDesc.AntialiasedLineEnable = FALSE;
+		t_RasterDesc.ForcedSampleCount = 0;
+		t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+		t_PipeInfo->PSOdesc.RasterizerState = t_RasterDesc;
+		t_PipeInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	}
+
+	{
+
+		t_PipeInfo->PSOdesc.DepthStencilState.DepthEnable = FALSE;
+		t_PipeInfo->PSOdesc.DepthStencilState.StencilEnable = FALSE;
+		t_PipeInfo->PSOdesc.SampleMask = UINT_MAX;
+		t_PipeInfo->PSOdesc.NumRenderTargets = 1;
+		t_PipeInfo->PSOdesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		t_PipeInfo->PSOdesc.SampleDesc.Count = 1;
+	}
+
+	DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
+		&t_PipeInfo->PSOdesc, IID_PPV_ARGS(&t_ReturnPipeline->pipelineState)),
+		"DX12: Failed to create graphics pipeline");
+
+	return PipelineHandle(t_ReturnPipeline);
 }
 
 
