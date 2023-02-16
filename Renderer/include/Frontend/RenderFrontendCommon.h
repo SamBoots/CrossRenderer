@@ -34,10 +34,8 @@ namespace BB
 		PipelineHandle pipelineHandle{};
 
 		RBufferHandle vertexBuffer{};
-		RDeviceBufferView vertexBufferView{};
 
 		RBufferHandle indexBuffer{};
-		RDeviceBufferView indexBufferView{};
 		uint32_t indexCount = 0;
 
 		RBufferHandle uniformBuffer;

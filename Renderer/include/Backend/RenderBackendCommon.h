@@ -157,18 +157,91 @@ namespace BB
 		bool debug = false;
 	};
 
+	struct RenderAPIFunctions;
+	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
+
+	struct RenderBackendCreateInfo
+	{
+		PFN_RenderGetAPIFunctions getApiFuncPtr;
+		Slice<RENDER_EXTENSIONS> extensions{};
+		Slice<RENDER_EXTENSIONS> deviceExtensions{};
+#ifdef _WIN32
+		HWND hwnd{};
+#endif //_WIN32
+		const char* appName{};
+		const char* engineName{};
+		uint32_t windowWidth{};
+		uint32_t windowHeight{};
+		int version{};
+		bool validationLayers{};
+	};
+
+	struct RenderFrameBufferCreateInfo
+	{
+		RENDER_LOAD_OP colorLoadOp{};
+		RENDER_STORE_OP colorStoreOp{};
+		RENDER_IMAGE_LAYOUT colorInitialLayout{};
+		RENDER_IMAGE_LAYOUT colorFinalLayout{};
+		uint32_t width{};
+		uint32_t height{};
+
+		//RGBA
+		float clearColor[4]{};
+	};
+
+	struct RenderCommandQueueCreateInfo
+	{
+		RENDER_QUEUE_TYPE queue;
+		RENDER_FENCE_FLAGS flags;
+	};
+
+	struct RenderCommandAllocatorCreateInfo
+	{
+		RENDER_QUEUE_TYPE queueType;
+		uint32_t commandListCount;
+	};
+
+	struct RenderCommandListCreateInfo
+	{
+		CommandAllocatorHandle commandAllocator;
+	};
+
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
 		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
-
 	};
+
+
+	struct RenderImageCreateInfo
+	{
+		// The width in texels.
+		uint32_t width = 0;
+		// The height in texels.
+		uint32_t height = 0;
+
+		uint32_t arrayLayers = 0;
+		RENDER_IMAGE_TYPE type;
+		RENDER_IMAGE_USAGE usage;
+		// The format of the image's texels.
+		RENDER_IMAGE_FORMAT format;
+
+		RENDER_IMAGE_VIEWTYPE viewtype;
+	};
+
 
 	struct FenceCreateInfo
 	{
 		RENDER_FENCE_FLAGS flags;
+	};
+
+	struct StartFrameInfo
+	{
+		RFenceHandle imageWait;
+		RFenceHandle* fences;
+		uint32_t fenceCount;
 	};
 
 	struct RenderCopyBufferInfo
@@ -187,51 +260,15 @@ namespace BB
 		uint64_t CopyRegionCount;
 	};
 
-	struct RDeviceBufferView
+	struct PresentFrameInfo
 	{
-		uint32_t size{};
-		uint32_t offset{};
-	};
 
-	struct RenderImageCreateInfo
-	{
-		// The width in texels.
-		uint32_t width = 0;
-		// The height in texels.
-		uint32_t height = 0;
-
-		uint32_t arrayLayers = 0;
-		RENDER_IMAGE_TYPE type;
-		RENDER_IMAGE_USAGE usage;
-		// The format of the image's texels.
-		RENDER_IMAGE_FORMAT format;
-
-		RENDER_IMAGE_VIEWTYPE viewtype;
 	};
 
 	struct ShaderCreateInfo
 	{
 		Buffer buffer{};
 		RENDER_SHADER_STAGE shaderStage{};
-	};
-
-	struct RenderAPIFunctions;
-	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
-
-	struct RenderBackendCreateInfo
-	{
-		PFN_RenderGetAPIFunctions getApiFuncPtr;
-		Slice<RENDER_EXTENSIONS> extensions{};
-		Slice<RENDER_EXTENSIONS> deviceExtensions{};
-#ifdef _WIN32
-		HWND hwnd{};
-#endif //_WIN32
-		const char* appName{};
-		const char* engineName{};
-		uint32_t windowWidth{};
-		uint32_t windowHeight{};
-		int version{};
-		bool validationLayers{};
 	};
 
 	struct ConstantBufferInfo
@@ -258,33 +295,6 @@ namespace BB
 		RENDER_SHADER_STAGE stage;
 	};
 
-	struct RenderFrameBufferCreateInfo
-	{
-		RENDER_LOAD_OP colorLoadOp{};
-		RENDER_STORE_OP colorStoreOp{};
-		RENDER_IMAGE_LAYOUT colorInitialLayout{};
-		RENDER_IMAGE_LAYOUT colorFinalLayout{};
-		uint32_t width{};
-		uint32_t height{};
-	};
-
-	struct RenderCommandQueueCreateInfo
-	{
-		RENDER_QUEUE_TYPE queue;
-		RENDER_FENCE_FLAGS flags;
-	};
-
-	struct RenderCommandAllocatorCreateInfo
-	{
-		RENDER_QUEUE_TYPE queueType;
-		uint32_t commandListCount;
-	};
-
-	struct RenderCommandListCreateInfo
-	{
-		CommandAllocatorHandle commandAllocator;
-	};
-
 	struct ExecuteCommandsInfo
 	{
 		CommandListHandle* commands;
@@ -302,18 +312,6 @@ namespace BB
 		uint64_t* signalValues;
 	};
 
-	struct StartFrameInfo
-	{
-		RFenceHandle imageWait;
-		RFenceHandle* fences;
-		uint32_t fenceCount;
-	};
-
-	struct PresentFrameInfo
-	{
-
-	};
-
 	struct Vertex
 	{
 		float pos[2]{};
@@ -328,7 +326,6 @@ namespace BB
 
 	//construction
 	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
-
 	typedef FrameBufferHandle	(*PFN_RenderAPICreateFrameBuffer)(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	typedef CommandQueueHandle(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);

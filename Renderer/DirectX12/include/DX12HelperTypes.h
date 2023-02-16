@@ -55,6 +55,7 @@ namespace BB
 		ID3D12DescriptorHeap* rtvHeap;
 		D3D12_VIEWPORT viewport;
 		D3D12_RECT surfaceRect;
+		float clearColor[4];
 	};
 
 	class DXFence

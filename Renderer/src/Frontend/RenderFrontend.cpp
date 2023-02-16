@@ -219,6 +219,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
 	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
 	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+	t_FrameBufferCreateInfo.clearColor[0] = 1.0f;
+	t_FrameBufferCreateInfo.clearColor[1] = 0.0f;
+	t_FrameBufferCreateInfo.clearColor[2] = 0.0f;
+	t_FrameBufferCreateInfo.clearColor[3] = 1.0f;
 
 	//VkFrameBuffer info
 	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(t_WindowWidth);
@@ -437,7 +441,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_VertexInfo.data = nullptr;
 
 		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
-		t_Model.vertexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
@@ -463,7 +466,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_IndexInfo.data = nullptr;
 
 		t_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexInfo);
-		t_Model.indexBufferView;
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;

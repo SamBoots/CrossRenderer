@@ -221,16 +221,6 @@ namespace BB
 		VkPipelineShaderStageCreateInfo* pipelineShaderStageInfo;
 	};
 
-	struct FramebufferAttachment
-	{
-		VkImage image;
-		VkDeviceMemory memory;
-		VkImageView view;
-		VkFormat format;
-		VkImageSubresourceRange subresourceRange;
-		VkAttachmentDescription description;
-	};
-
 	struct SwapchainSupportDetails
 	{
 		VkSurfaceCapabilitiesKHR capabilities;
@@ -284,6 +274,7 @@ namespace BB
 		uint32_t height;
 		VkFramebuffer* frameBuffers;
 		VkRenderPass renderPass;
+		VkClearValue clearValue;
 	};
 
 	struct VulkanDevice

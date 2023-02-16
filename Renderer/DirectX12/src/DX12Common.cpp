@@ -263,6 +263,11 @@ FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const Ren
 	D3D12_VIEWPORT t_Viewport{};
 	D3D12_RECT t_SurfaceRect{};
 
+	for (size_t i = 0; i < 4; i++)
+	{
+		frameBuffer.clearColor[i] = a_FramebufferCreateInfo.clearColor[i];
+	}
+
 	t_Viewport.TopLeftX = 0.0f;
 	t_Viewport.TopLeftY = 0.0f;
 	t_Viewport.Width = static_cast<float>(a_FramebufferCreateInfo.width);
@@ -667,11 +672,10 @@ void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 		s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
 	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-	const float clearColor[] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
 	t_CommandList->List()->RSSetViewports(1, &t_Framebuffer.viewport);
 	t_CommandList->List()->RSSetScissorRects(1, &t_Framebuffer.surfaceRect);
-	t_CommandList->List()->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	t_CommandList->List()->ClearRenderTargetView(rtvHandle, t_Framebuffer.clearColor, 0, nullptr);
 }
 
 void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)

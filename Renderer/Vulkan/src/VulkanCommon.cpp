@@ -934,6 +934,12 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
 {
 	VulkanFrameBuffer t_ReturnFrameBuffer{};
+	
+	for (size_t i = 0; i < 4; i++)
+	{
+		t_ReturnFrameBuffer.clearValue.color.float32[i] = a_FramebufferCreateInfo.clearColor[i];
+	}
+
 	{
 		//First do the renderpass
 		VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
@@ -1399,8 +1405,6 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
 
-	VkClearValue t_ClearValue = { {{0.0f, 1.0f, 0.0f, 1.0f}} };
-
 	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
 		t_FrameBuffer.renderPass,
 		t_FrameBuffer.frameBuffers[s_VkBackendInst.currentFrame],
@@ -1408,7 +1412,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 			0,
 			s_VkBackendInst.swapChain.extent),
 		1,
-		&t_ClearValue);
+		&t_FrameBuffer.clearValue);
 
 	vkCmdBeginRenderPass(t_Cmdlist->Buffer(),
 		&t_RenderPassBegin,
