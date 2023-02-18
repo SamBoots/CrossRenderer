@@ -13,11 +13,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
-	a_FuncCreateInfo.PipelineBuilderInit = VulkanPipelineBuilderInit;
+	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
 	a_FuncCreateInfo.PipelineBuilderBindConstants = VulkanPipelineBuilderBindConstants;
 	a_FuncCreateInfo.PipelineBuilderBindBuffers = VulkanPipelineBuilderBindBuffers;
-	a_FuncCreateInfo.PipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
-	a_FuncCreateInfo.PipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
+	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
+	a_FuncCreateInfo.pipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;

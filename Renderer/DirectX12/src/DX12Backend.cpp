@@ -14,18 +14,18 @@ void TempResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
-	a_FuncCreateInfo.createFrameBuffer = DX12CreateFrameBuffer; //DX12CreateFrameBuffer
+	a_FuncCreateInfo.createFrameBuffer = DX12CreateFrameBuffer;
+	a_FuncCreateInfo.createBindingSet = DX12CreateBindingSet;
 	a_FuncCreateInfo.createCommandQueue = DX12CreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = DX12CreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = DX12CreateCommandList;
 	a_FuncCreateInfo.createBuffer = DX12CreateBuffer;
 	a_FuncCreateInfo.createFence = DX12CreateFence;
 
-	a_FuncCreateInfo.PipelineBuilderInit = DX12PipelineBuilderInit;
-	a_FuncCreateInfo.PipelineBuilderBindConstants = DX12PipelineBuilderBindConstants;
-	a_FuncCreateInfo.PipelineBuilderBindBuffers = DX12PipelineBuilderBindBuffers;
-	a_FuncCreateInfo.PipelineBuilderBindShaders = DX12PipelineBuilderBindShaders;
-	a_FuncCreateInfo.PipelineBuilderBuildPipeline = DX12PipelineBuildPipeline;
+	a_FuncCreateInfo.pipelineBuilderInit = DX12PipelineBuilderInit;
+	a_FuncCreateInfo.pipelineBuilderBindBindingSet = DX12PipelineBuilderBindBindingSet;
+	a_FuncCreateInfo.pipelineBuilderBindShaders = DX12PipelineBuilderBindShaders;
+	a_FuncCreateInfo.pipelineBuilderBuildPipeline = DX12PipelineBuildPipeline;
 
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
@@ -35,7 +35,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bindPipeline = DX12BindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = DX12BindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = DX12BindIndexBuffer;
-	//a_FuncCreateInfo.bindDescriptor = DX12BindDescriptorSets;
+	a_FuncCreateInfo.bindBindingSet = DX12BindBindingSets;
 	a_FuncCreateInfo.bindConstant = DX12BindConstant;
 
 	a_FuncCreateInfo.drawVertex = DX12DrawVertex;
@@ -46,7 +46,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.mapMemory = DX12MapMemory;
 	a_FuncCreateInfo.unmapMemory = DX12UnMemory;
 
-	a_FuncCreateInfo.resizeWindow = TempResizeWindow;//DX12ResizeWindow;
+	a_FuncCreateInfo.resizeWindow = TempResizeWindow;
 
 	a_FuncCreateInfo.startFrame = DX12StartFrame;
 	a_FuncCreateInfo.executeCommands = DX12ExecuteCommands;
@@ -59,7 +59,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;
-	a_FuncCreateInfo.destroyFrameBuffer = DX12DestroyFramebuffer; //DX12DestroyFramebuffer;
+	a_FuncCreateInfo.destroyFrameBuffer = DX12DestroyFramebuffer;
+	a_FuncCreateInfo.destroyBindingSet = DX12DestroyBindingSet;
 	a_FuncCreateInfo.destroyPipeline = DX12DestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = DX12DestroyCommandQueue;
 	a_FuncCreateInfo.destroyCommandAllocator = DX12DestroyCommandAllocator;

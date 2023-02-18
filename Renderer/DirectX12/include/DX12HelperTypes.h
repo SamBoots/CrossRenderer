@@ -148,6 +148,7 @@ namespace BB
 	};
 
 	class DXCommandAllocator;
+	struct DXPipeline;
 
 	class DXCommandList
 	{
@@ -157,6 +158,7 @@ namespace BB
 
 		//Possible caching for efficiency, might go for specific commandlist types.
 		ID3D12Resource* rtv;
+		DXPipeline* boundPipeline;
 
 		ID3D12GraphicsCommandList* List() const { return m_List; }
 		//Commandlist holds the allocator info, so use this instead of List()->Reset
@@ -231,10 +233,35 @@ namespace BB
 		uint32_t m_IncrementSize;
 	};
 
+	struct RootConstant
+	{
+		uint32_t dwordCount;
+		UINT rootIndex{};
+	};
+
 	struct RootDescriptor 
 	{
 		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
 		UINT rootIndex{};
+	};
+
+	//This somewhat represents a vkDescriptorSet.
+	struct BindingSet
+	{
+		//Maximum of 4 bindings.
+		UINT shaderSpace = 0;
+
+		uint32_t rootConstantCount = 0;
+		RootConstant rootConstant[4];
+
+		uint32_t cbvCount = 0;
+		uint32_t srvCount = 0;
+		uint32_t uavCount = 0;
+		RootDescriptor rootCBV[4];
+		RootDescriptor rootSRV[4];
+		RootDescriptor rootUAV[4];
+
+		DescriptorHeapHandle heapHandle{};
 	};
 
 	//Maybe create a class and a builder for this?
@@ -244,13 +271,7 @@ namespace BB
 		ID3D12PipelineState* pipelineState;
 		ID3D12RootSignature* rootSig{};
 
-		DescriptorHeapHandle heapHandle{};
-
-		uint32_t rootCBVCount = 0;
-		uint32_t rootSRVCount = 0;
-		uint32_t rootUAVCount = 0;
-		RootDescriptor rootCBV[4];
-		RootDescriptor rootSRV[4];
-		RootDescriptor rootUAV[4];
+		//Each index indicates the start paramindex for a binding.
+		UINT rootParamBindingOffset[BINDING_MAX]{};
 	};
 }

@@ -16,7 +16,7 @@ static BackendInfo s_BackendInfo;
 
 PipelineBuilder::PipelineBuilder(const FrameBufferHandle a_Handle)
 {
-	m_BuilderHandle = s_ApiFunc.PipelineBuilderInit(a_Handle);
+	m_BuilderHandle = s_ApiFunc.pipelineBuilderInit(a_Handle);
 }
 
 PipelineBuilder::~PipelineBuilder()
@@ -24,25 +24,20 @@ PipelineBuilder::~PipelineBuilder()
 	BB_ASSERT(m_BuilderHandle.handle == 0, "Unfinished pipeline destructed! Big memory leak and improper graphics API usage.");
 }
 
-void PipelineBuilder::BindConstants(const BB::Slice<ConstantBind> a_ConstantBinds)
+void PipelineBuilder::BindBindingSet(const RBindingSetHandle a_Handle)
 {
-	s_ApiFunc.PipelineBuilderBindConstants(m_BuilderHandle, a_ConstantBinds);
-}
-
-void PipelineBuilder::BindBuffers(const BB::Slice<BufferBind> a_BufferBinds)
-{
-	s_ApiFunc.PipelineBuilderBindBuffers(m_BuilderHandle, a_BufferBinds);
+	s_ApiFunc.pipelineBuilderBindBindingSet(m_BuilderHandle, a_Handle);
 }
 
 void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
-	s_ApiFunc.PipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
+	s_ApiFunc.pipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
 }
 
 PipelineHandle PipelineBuilder::BuildPipeline()
 {
 	//Buildpipeline will also destroy the builder information. 
-	const PipelineHandle t_ReturnHandle = s_ApiFunc.PipelineBuilderBuildPipeline(m_BuilderHandle);
+	const PipelineHandle t_ReturnHandle = s_ApiFunc.pipelineBuilderBuildPipeline(m_BuilderHandle);
 	m_BuilderHandle.handle = 0; //Set the handle to 0 to indicate we can safely destruct the class.
 	return t_ReturnHandle;
 }
@@ -69,6 +64,11 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createFrameBuffer(m_TempAllocator, a_CreateInfo);
+}
+
+RBindingSetHandle BB::RenderBackend::CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
+{
+	return s_ApiFunc.createBindingSet(a_Info);
 }
 
 CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
@@ -141,9 +141,9 @@ void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_Record
 	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
-void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
-	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline, a_DynamicOffsetCount, a_DynamicOffsets);
+	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
 }
 
 void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -156,9 +156,15 @@ void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
 }
 
-void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+void BB::RenderBackend::BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
-	s_ApiFunc.bindConstant(a_RecordingCmdHandle, a_Stage, a_Offset, a_Size, a_Data);
+	s_ApiFunc.bindBindingSet(a_RecordingCmdHandle, a_Sets, a_SetCount, a_DynamicOffsetCount, a_DynamicOffsets);
+}
+
+void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+{
+	BB_WARNING(a_DwordCount * sizeof(uint32_t) < 128, "Constant size is bigger then 128, this might not work on all hardware for Vulkan!", WarningType::HIGH);
+	s_ApiFunc.bindConstant(a_RecordingCmdHandle, a_Set, a_ConstantIndex, a_DwordCount, a_Offset, a_Data);
 }
 
 void BB::RenderBackend::DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
@@ -224,6 +230,11 @@ void BB::RenderBackend::DestroyBackend()
 void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyFrameBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBindingSet(const RBindingSetHandle a_Handle)
+{
+	s_ApiFunc.destroyBindingSet(a_Handle);
 }
 
 void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)

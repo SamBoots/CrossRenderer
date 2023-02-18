@@ -11,7 +11,7 @@
 
 using namespace BB;
 
-struct PipelineBuildInfo
+struct DXPipelineBuildInfo
 {
 	//temporary allocator, this gets removed when we are finished building.
 	TemporaryAllocator buildAllocator{ s_DX12Allocator };
@@ -24,14 +24,10 @@ struct PipelineBuildInfo
 	UINT regSRV = 0;
 	UINT regUAV = 0;
 
-	uint32_t rootParameterCount = 0;
+	//Maximum of 4 bindings.
+	uint32_t rootParamCount = 0;
 	//Use this as if it always picks constants
-	D3D12_ROOT_PARAMETER1* rootConstants{};
-	uint32_t rootConstantCount = 0;
-
-	//Use this as if it always picks root descriptors
-	D3D12_ROOT_PARAMETER1* rootDescriptors{};
-	uint32_t rootDescriptorCount = 0;
+	D3D12_ROOT_PARAMETER1* rootParams{};
 };
 
 struct DX12Backend_inst
@@ -55,6 +51,7 @@ struct DX12Backend_inst
 	Slotmap<DX12FrameBuffer> frameBuffers{ s_DX12Allocator };
 
 	Pool<DescriptorHeap> Descriptorheaps;
+	Pool<BindingSet> bindingSetPool;
 	Pool<DXPipeline> pipelinePool;
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
@@ -65,6 +62,7 @@ struct DX12Backend_inst
 	{
 		Descriptorheaps.CreatePool(s_DX12Allocator, 16);
 		pipelinePool.CreatePool(s_DX12Allocator, 4);
+		bindingSetPool.CreatePool(s_DX12Allocator, 16);
 		cmdQueues.CreatePool(s_DX12Allocator, 4);
 		cmdAllocators.CreatePool(s_DX12Allocator, 16);
 		renderResources.CreatePool(s_DX12Allocator, 8);
@@ -75,6 +73,7 @@ struct DX12Backend_inst
 	{
 		Descriptorheaps.DestroyPool(s_DX12Allocator);
 		pipelinePool.DestroyPool(s_DX12Allocator);
+		bindingSetPool.DestroyPool(s_DX12Allocator);
 		cmdQueues.DestroyPool(s_DX12Allocator);
 		cmdAllocators.DestroyPool(s_DX12Allocator);
 		renderResources.DestroyPool(s_DX12Allocator);
@@ -315,6 +314,57 @@ FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const Ren
 	return FrameBufferHandle(s_DX12B.frameBuffers.insert(frameBuffer).handle);
 }
 
+RBindingSetHandle BB::DX12CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
+{
+	BindingSet* t_BindingSet = s_DX12B.bindingSetPool.Get();
+	*t_BindingSet = {};
+
+	t_BindingSet->shaderSpace = static_cast<uint32_t>(a_Info.bindingSet);
+	size_t t_ParamIndex = 0;
+
+	for (size_t i = 0; i < a_Info.constantBinds.size(); i++)
+	{
+		BB_ASSERT(a_Info.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
+		const UINT t_Dwords = a_Info.constantBinds[i].size / sizeof(uint32_t);
+
+		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].rootIndex = t_ParamIndex++;
+		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].dwordCount = t_Dwords;
+		t_BindingSet->rootConstantCount++;
+	}
+
+	//Go through all the buffers.
+	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+	{
+		switch (a_Info.bufferBinds[i].type)
+		{
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
+			t_BindingSet->rootCBV[t_BindingSet->cbvCount].rootIndex = 
+			t_BindingSet->rootCBV[t_BindingSet->cbvCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			//We do not increment the register since the root constants are also CBV.
+			++t_BindingSet->cbvCount;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
+			t_BindingSet->rootSRV[t_BindingSet->srvCount].rootIndex = t_ParamIndex++;
+			t_BindingSet->rootSRV[t_BindingSet->srvCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_BindingSet->srvCount;
+			break;
+		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
+			t_BindingSet->rootUAV[t_BindingSet->uavCount].rootIndex = t_ParamIndex++;
+			t_BindingSet->rootUAV[t_BindingSet->uavCount].virtAddress =
+				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+
+			++t_BindingSet->uavCount;
+			break;
+		}
+	}
+
+	return RBindingSetHandle(t_BindingSet);
+}
+
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	switch (a_Info.queue)
@@ -384,7 +434,8 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 //PipelineBuilder
 PipelineBuilderHandle BB::DX12PipelineBuilderInit(const FrameBufferHandle a_Handle)
 {
-	PipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, PipelineBuildInfo);
+	constexpr size_t MAXIMUM_ROOT_PARAMETERS = 64;
+	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo);
 
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
 	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
@@ -401,96 +452,68 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const FrameBufferHandle a_Hand
 	t_BuildInfo->rootSigDesc.Desc_1_1.NumStaticSamplers = 0;
 	t_BuildInfo->rootSigDesc.Desc_1_1.pStaticSamplers = nullptr;
 
+	t_BuildInfo->rootParams = BBnewArr(
+		t_BuildInfo->buildAllocator,
+		MAXIMUM_ROOT_PARAMETERS,
+		D3D12_ROOT_PARAMETER1);
+
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void BB::DX12PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
+void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
-	t_BuildInfo->rootConstantCount = static_cast<uint32_t>(a_ConstantBinds.size());
-	t_BuildInfo->rootConstants = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		t_BuildInfo->rootConstantCount,
-		D3D12_ROOT_PARAMETER1);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_BindingSetHandle.ptrHandle);
 
-	for (size_t i = 0; i < a_ConstantBinds.size(); i++)
+	size_t t_ParamIndex = t_BuildInfo->rootParamCount;
+	t_BuildInfo->buildPipeline.rootParamBindingOffset[t_BindingSet->shaderSpace] = t_ParamIndex;
+
+	for (size_t i = 0; i < t_BindingSet->rootConstantCount; i++)
 	{
-		size_t t_ParamIndex = t_BuildInfo->rootParameterCount + i;
-		BB_ASSERT(a_ConstantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
-		const UINT t_Dwords = a_ConstantBinds[i].size / sizeof(uint32_t);
 
-		t_BuildInfo->rootConstants[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		t_BuildInfo->rootConstants[t_ParamIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		t_BuildInfo->rootParams[t_ParamIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
 
-		t_BuildInfo->rootConstants[t_ParamIndex].Constants.Num32BitValues = t_Dwords;
-		t_BuildInfo->rootConstants[t_ParamIndex].Constants.ShaderRegister = t_BuildInfo->regCBV++;
-		t_BuildInfo->rootConstants[t_ParamIndex].Constants.RegisterSpace = 0; //We will just keep this 0 for now.
+		t_BuildInfo->rootParams[t_ParamIndex].Constants.Num32BitValues = t_BindingSet->rootConstant[i].dwordCount;
+		t_BuildInfo->rootParams[t_ParamIndex].Constants.ShaderRegister = t_BuildInfo->regCBV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Constants.RegisterSpace = t_BindingSet->shaderSpace;
+
+		++t_ParamIndex;
 	}
 
-	//not sure if this raises the root? Test first!
-	t_BuildInfo->rootParameterCount += static_cast<uint32_t>(a_ConstantBinds.size());
-}
-
-void BB::DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
-{
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
-	t_BuildInfo->rootDescriptorCount = static_cast<uint32_t>(a_BufferBinds.size());
-	t_BuildInfo->rootDescriptors = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		t_BuildInfo->rootDescriptorCount,
-		D3D12_ROOT_PARAMETER1);
-
-	for (size_t i = 0; i < a_BufferBinds.size(); i++)
+	for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
 	{
-		size_t t_ParamIndex = t_BuildInfo->rootParameterCount + i;
-		switch (a_BufferBinds[i].type)
-		{
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
-			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regCBV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = 0;
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regCBV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
 
-			t_BuildInfo->buildPipeline.rootCBV[t_BuildInfo->buildPipeline.rootCBVCount].rootIndex = t_ParamIndex;
-			t_BuildInfo->buildPipeline.rootCBV[t_BuildInfo->buildPipeline.rootCBVCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			//We do not increment the register since the root constants are also CBV.
-			++t_BuildInfo->buildPipeline.rootCBVCount;
-			++t_BuildInfo->regCBV;
-			break;
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
-			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = a_BufferBinds[i].binding;
-			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = 0;
-
-			t_BuildInfo->buildPipeline.rootSRV[t_BuildInfo->regSRV].rootIndex = t_ParamIndex;
-			t_BuildInfo->buildPipeline.rootSRV[t_BuildInfo->regSRV].virtAddress =
-				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_BuildInfo->buildPipeline.rootSRVCount;
-			++t_BuildInfo->regSRV;
-			break;
-		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
-			t_BuildInfo->rootDescriptors[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.ShaderRegister = t_BuildInfo->regUAV;
-			t_BuildInfo->rootDescriptors[i].Descriptor.RegisterSpace = a_BufferBinds[i].binding;
-
-			t_BuildInfo->buildPipeline.rootUAV[t_BuildInfo->regUAV].rootIndex = t_ParamIndex;
-			t_BuildInfo->buildPipeline.rootUAV[t_BuildInfo->regUAV].virtAddress =
-				reinterpret_cast<DXResource*>(a_BufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_BuildInfo->buildPipeline.rootUAVCount;
-			++t_BuildInfo->regUAV;
-			break;
-		}
+		++t_ParamIndex;
 	}
 
-	t_BuildInfo->rootParameterCount += static_cast<uint32_t>(a_BufferBinds.size());
+	for (size_t i = 0; i < t_BindingSet->srvCount; i++)
+	{
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regSRV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
+
+		++t_ParamIndex;
+	}
+
+	for (size_t i = 0; i < t_BindingSet->uavCount; i++)
+	{
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regUAV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
+
+		++t_ParamIndex;
+	}
+
+	t_BuildInfo->rootParamCount = t_ParamIndex;
 }
 
 void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	for (size_t i = 0; i < a_ShaderInfo.size(); i++)
 	{
@@ -513,31 +536,11 @@ void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, co
 
 PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	{
-		D3D12_ROOT_PARAMETER1* t_Parameters = BBnewArr(
-			t_BuildInfo->buildAllocator,
-			t_BuildInfo->rootParameterCount,
-			D3D12_ROOT_PARAMETER1);
-
-
-		for (size_t i = 0; i < t_BuildInfo->rootConstantCount; i++)
-		{
-			t_Parameters[i] = t_BuildInfo->rootConstants[i];
-		}
-
-		uint32_t t_ParameterOffset = t_BuildInfo->rootConstantCount;
-
-		for (size_t i = 0; i < t_BuildInfo->rootDescriptorCount; i++)
-		{
-			t_Parameters[i + t_ParameterOffset] = t_BuildInfo->rootDescriptors[i];
-		}
-
-		t_ParameterOffset += t_BuildInfo->rootDescriptorCount;
-
-		t_BuildInfo->rootSigDesc.Desc_1_1.NumParameters = t_BuildInfo->rootParameterCount;
-		t_BuildInfo->rootSigDesc.Desc_1_1.pParameters = t_Parameters;
+		t_BuildInfo->rootSigDesc.Desc_1_1.NumParameters = t_BuildInfo->rootParamCount;
+		t_BuildInfo->rootSigDesc.Desc_1_1.pParameters = t_BuildInfo->rootParams;
 
 		ID3DBlob* t_Signature;
 		ID3DBlob* t_Error;
@@ -626,6 +629,8 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	DXPipeline* t_ReturnPipeline = s_DX12B.pipelinePool.Get();
 	*t_ReturnPipeline = t_BuildInfo->buildPipeline;
 
+	BBfree(s_DX12Allocator, t_BuildInfo);
+
 	return PipelineHandle(t_ReturnPipeline);
 }
 
@@ -694,35 +699,16 @@ void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle
 	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
 }
 
-void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Pipeline.ptrHandle);
 
+	t_CommandList->boundPipeline = t_Pipeline;
 	t_CommandList->List()->SetPipelineState(t_Pipeline->pipelineState);
 	t_CommandList->List()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	t_CommandList->List()->SetGraphicsRootSignature(t_Pipeline->rootSig);
-
-	size_t t_OffsetCount = 0;
-	for (size_t i = 0; i < t_Pipeline->rootCBVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootConstantBufferView(
-			t_Pipeline->rootCBV[i].rootIndex,
-			t_Pipeline->rootCBV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
-	for (size_t i = 0; i < t_Pipeline->rootSRVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootShaderResourceView(
-			t_Pipeline->rootSRV[i].rootIndex,
-			t_Pipeline->rootSRV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
-	for (size_t i = 0; i < t_Pipeline->rootUAVCount; i++)
-	{
-		t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
-			t_Pipeline->rootUAV[i].rootIndex,
-			t_Pipeline->rootUAV[i].virtAddress + a_DynamicOffsets[t_OffsetCount++]);
-	}
 }
 
 void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -732,6 +718,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
 		t_Views[i] = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetView().vertexView;
+		t_Views[i].BufferLocation += a_BufferOffsets[i];
 	}
 	
 	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
@@ -740,16 +727,54 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	t_CommandList->List()->IASetIndexBuffer(&reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetView().indexView);
+	D3D12_INDEX_BUFFER_VIEW t_View = reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetView().indexView;
+	t_View.BufferLocation += a_Offset;
+	t_CommandList->List()->IASetIndexBuffer(&t_View);
 }
 
-void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+void BB::DX12BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	BB_ASSERT(a_Size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
-	const UINT t_Dwords = a_Size / sizeof(uint32_t);
-	t_CommandList->List()->SetGraphicsRoot32BitConstants(0, t_Dwords, a_Data, a_Offset);
+	for (size_t i = 0; i < a_SetCount; i++)
+	{
+		const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Sets[i].ptrHandle);
+		const uint32_t t_StartBindingIndex =
+			t_CommandList->boundPipeline->rootParamBindingOffset[t_BindingSet->shaderSpace];
+
+		//TODO: dynamic offsets not simulate how vulkan does it yet. No issue for now since everything in vulkan has a dynamic offset.
+		for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
+		{
+			t_CommandList->List()->SetGraphicsRootConstantBufferView(
+				t_BindingSet->rootCBV[i].rootIndex + t_StartBindingIndex,
+				t_BindingSet->rootCBV[i].virtAddress + a_DynamicOffsets[i]);
+		}
+		for (size_t i = 0; i < t_BindingSet->srvCount; i++)
+		{
+			t_CommandList->List()->SetGraphicsRootShaderResourceView(
+				t_BindingSet->rootSRV[i].rootIndex + t_StartBindingIndex,
+				t_BindingSet->rootSRV[i].virtAddress + a_DynamicOffsets[i]);
+		}
+		for (size_t i = 0; i < t_BindingSet->uavCount; i++)
+		{
+			t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
+				t_BindingSet->rootUAV[i].rootIndex + t_StartBindingIndex,
+				t_BindingSet->rootUAV[i].virtAddress + a_DynamicOffsets[i]);
+		}
+	}
+	
+}
+
+void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+{
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Set.ptrHandle);
+	const uint32_t t_StartBindingIndex = t_CommandList->boundPipeline->rootParamBindingOffset[t_BindingSet->shaderSpace];
+
+	t_CommandList->List()->SetGraphicsRoot32BitConstants(t_BindingSet->rootConstant[a_ConstantIndex].rootIndex + t_StartBindingIndex,
+		a_DwordCount,
+		a_Data,
+		a_Offset);
 }
 
 void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
@@ -861,13 +886,6 @@ void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_Exe
 		{
 			reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].signalQueues[queueIndex].ptrHandle)->SignalQueue();
 		}
-
-		//Now reset the command lists.
-		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
-		{
-			//reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Reset();
-			//reinterpret_cast<DXCommandList*>(a_ExecuteInfos[i].commands[j].ptrHandle)->Close();
-		}
 	}
 }
 
@@ -903,12 +921,6 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 	}
 	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->SignalQueue(
 		s_DX12B.frameFences[s_DX12B.currentFrame]);
-
-	//Now reset the command lists.
-	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
-	{
-		//reinterpret_cast<DXCommandList*>(a_ExecuteInfo.commands[j].ptrHandle)->Reset();
-	}
 }
 
 FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
@@ -977,6 +989,13 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Handle.ptrHandle);
 	DXRelease(t_Pipeline->pipelineState);
 	DXRelease(t_Pipeline->rootSig);
+}
+
+void BB::DX12DestroyBindingSet(const RBindingSetHandle a_Handle)
+{
+	BindingSet* t_Set = reinterpret_cast<BindingSet*>(a_Handle.ptrHandle);
+	*t_Set = { 0 };
+	s_DX12B.bindingSetPool.Free(t_Set);
 }
 
 void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)

@@ -105,6 +105,8 @@ RecordingCommandListHandle t_RecordingGraphics;
 RecordingCommandListHandle t_RecordingTransfer;
 
 RFenceHandle t_SwapchainFence[3];
+
+RBindingSetHandle t_BindingSet;
 PipelineHandle t_Pipeline;
 
 UploadBuffer* t_UploadBuffer;
@@ -139,11 +141,8 @@ static void Draw3DFrame()
 	uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
-	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle, 2, t_DynOffSets);
-
-	
-	//RenderBackend::BindDescriptorSets(t_RecordingGraphics, 0, 1, &s_PerFrameInfo.perFrameDescriptor, 2, t_DynOffSets);
-
+	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
+	RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
 
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
@@ -155,12 +154,13 @@ static void Draw3DFrame()
 		{
 			t_CurrentModel = t_It->modelHandle;
 			t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
-			RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle, 2, t_DynOffSets);
+			RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
+			RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
 			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
 			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model.indexBuffer, 0);
 		}
 
-		RenderBackend::BindConstant(t_RecordingGraphics, RENDER_SHADER_STAGE::VERTEX, 0, sizeof(uint32_t), &t_It->transformHandle.index);
+		RenderBackend::BindConstant(t_RecordingGraphics, t_BindingSet, 0, 1, 0, &t_It->transformHandle.index);
 		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 		{
 			for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
@@ -258,6 +258,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
+		t_BufferBinds[0].bindingSpace = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
 		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[0].buffer = s_PerFrameInfo.perFrameBuffer;
@@ -266,6 +267,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 	{//ModelBind
 		t_BufferBinds[1].binding = 1;
+		t_BufferBinds[0].bindingSpace = 0;
 		t_BufferBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
 		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
@@ -273,13 +275,18 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 	}
 	{//IndexConstantBind
+		t_ConstantBinds[0].binding = 0;
+		t_ConstantBinds[0].bindingSpace = 0;
 		t_ConstantBinds[0].offset = 0;
 		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
 		t_ConstantBinds[0].size = sizeof(uint32_t); //max of 64 bytes.
 	}
-
-	t_BasicPipe.BindConstants(BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size()));
-	t_BasicPipe.BindBuffers(BB::Slice(t_BufferBinds.data(), t_BufferBinds.size()));
+	RenderBindingSetCreateInfo t_BindingSetInfo{};
+	t_BindingSetInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+	t_BindingSetInfo.constantBinds = BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size());
+	t_BindingSetInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
+	t_BindingSet = RenderBackend::CreateBindingSet(t_BindingSetInfo);
+	t_BasicPipe.BindBindingSet(t_BindingSet);
 
 	const wchar_t* t_ShaderPath[2];
 	t_ShaderPath[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";

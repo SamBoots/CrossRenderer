@@ -97,7 +97,7 @@ private:
 	VkDescriptorPool descriptorPool;
 };
 
-struct PipelineBuildInfo
+struct DXPipelineBuildInfo
 {
 	//temporary allocator, this gets removed when we are finished building.
 	TemporaryAllocator buildAllocator{ s_VulkanAllocator };
@@ -133,11 +133,12 @@ struct VulkanBackend_inst
 	VulkanSwapChain swapChain{};
 	VmaAllocator vma{};
 	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
-	Slotmap<VulkanPipeline> pipelines{ s_VulkanAllocator };
+
 	Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
 
 	Pool<VulkanCommandQueue> cmdQueues;
 	Pool<VkCommandAllocator> cmdAllocators;
+	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> renderBuffers;
 	Pool<VkDescriptorSet> descriptorSets;
 
@@ -150,6 +151,7 @@ struct VulkanBackend_inst
 	{
 		cmdQueues.CreatePool(s_VulkanAllocator, 8);
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
+		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		renderBuffers.CreatePool(s_VulkanAllocator, 16);
 		descriptorSets.CreatePool(s_VulkanAllocator, 16);
 	}
@@ -158,6 +160,7 @@ struct VulkanBackend_inst
 	{
 		cmdQueues.DestroyPool(s_VulkanAllocator);
 		cmdAllocators.DestroyPool(s_VulkanAllocator);
+		pipelinePool.DestroyPool(s_VulkanAllocator);
 		renderBuffers.DestroyPool(s_VulkanAllocator);
 		descriptorSets.DestroyPool(s_VulkanAllocator);
 	}
@@ -1123,7 +1126,7 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 
 PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const FrameBufferHandle a_Handle)
 {
-	PipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, PipelineBuildInfo);
+	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, DXPipelineBuildInfo);
 	//Get the renderpass from the Framebuffer.
 	t_BuildInfo->pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	t_BuildInfo->pipeInfo.renderPass = s_VkBackendInst.frameBuffers[a_Handle.index].renderPass;
@@ -1134,7 +1137,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const FrameBufferHandle a_Ha
 
 void BB::VulkanPipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	t_BuildInfo->pushConstants = BBnewArr(
 		t_BuildInfo->buildAllocator,
@@ -1153,7 +1156,7 @@ constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, 
 
 void BB::VulkanPipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	t_BuildInfo->descriptorInfo.bufferCount = a_BufferBinds.size();
 
@@ -1201,7 +1204,7 @@ void BB::VulkanPipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, 
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	t_BuildInfo->shaderInfo = CreateShaderModules(
 		t_BuildInfo->buildAllocator,
@@ -1214,8 +1217,8 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 
 PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
-	VulkanPipeline t_ReturnPipeline{};
-	PipelineBuildInfo* t_BuildInfo = reinterpret_cast<PipelineBuildInfo*>(a_Handle.ptrHandle);
+	VulkanPipeline t_Pipeline{};
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 	
 	{ //FOR NOW WE BUILD 1 DESCRIPTORSET!
 		{ //Create the descriptorSet layout.
@@ -1226,13 +1229,13 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
-				&t_LayoutInfo, nullptr, &t_ReturnPipeline.setLayout),
+				&t_LayoutInfo, nullptr, &t_Pipeline.setLayout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 
 		VkDescriptorSetAllocateInfo t_AllocInfo = {};
 		t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		t_AllocInfo.pSetLayouts = &t_ReturnPipeline.setLayout;
+		t_AllocInfo.pSetLayouts = &t_Pipeline.setLayout;
 		//Lmao creat pool
 		t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
 
@@ -1240,7 +1243,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 
 		VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice,
 			&t_AllocInfo,
-			t_ReturnPipeline.sets);
+			t_Pipeline.sets);
 		bool t_NeedReallocate = false;
 
 		switch (t_AllocResult)
@@ -1260,7 +1263,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		//Now write to the descriptorset.
 		for (uint32_t i = 0; i < t_BuildInfo->descriptorInfo.bufferCount; i++)
 		{
-			t_BuildInfo->descriptorInfo.writes[i].dstSet = *t_ReturnPipeline.sets;
+			t_BuildInfo->descriptorInfo.writes[i].dstSet = *t_Pipeline.sets;
 		}
 
 		vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice,
@@ -1269,16 +1272,16 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 			0,
 			nullptr);
 
-		t_ReturnPipeline.setCount = 1;
+		t_Pipeline.setCount = 1;
 	}
 
 	{
 		//layout
-		t_ReturnPipeline.layout = CreatePipelineLayout(
-			BB::Slice<VkDescriptorSetLayout>(&t_ReturnPipeline.setLayout, 1),
+		t_Pipeline.layout = CreatePipelineLayout(
+			BB::Slice<VkDescriptorSetLayout>(&t_Pipeline.setLayout, 1),
 			BB::Slice<VkPushConstantRange>(t_BuildInfo->pushConstants, t_BuildInfo->pushConstantCount));
 
-		t_BuildInfo->pipeInfo.layout = t_ReturnPipeline.layout;
+		t_BuildInfo->pipeInfo.layout = t_Pipeline.layout;
 	}
 
 	{ //Create the pipeline.
@@ -1350,7 +1353,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 			1,
 			&t_BuildInfo->pipeInfo,
 			nullptr,
-			&t_ReturnPipeline.pipeline),
+			&t_Pipeline.pipeline),
 			"Vulkan: Failed to create graphics Pipeline.");
 
 		for (uint32_t i = 0; i < t_BuildInfo->pipeInfo.stageCount; i++)
@@ -1361,7 +1364,12 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		}
 	}
 
-	return PipelineHandle(s_VkBackendInst.pipelines.emplace(t_ReturnPipeline).handle);
+	VulkanPipeline* t_ReturnPipeline = s_VkBackendInst.pipelinePool.Get();
+	*t_ReturnPipeline = t_Pipeline;
+
+	BBfree(s_VulkanAllocator, t_BuildInfo);
+
+	return PipelineHandle(t_ReturnPipeline);
 }
 
 
@@ -1443,20 +1451,20 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	const VulkanPipeline t_Pipeline = s_VkBackendInst.pipelines[a_Pipeline.handle];
+	const VulkanPipeline* t_Pipeline = reinterpret_cast<VulkanPipeline*>(a_Pipeline.handle);
 
 	vkCmdBindPipeline(t_Cmdlist->Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		t_Pipeline.pipeline);
+		t_Pipeline->pipeline);
 
-	t_Cmdlist->currentPipelineLayout = t_Pipeline.layout;
+	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
 
 	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
 		0,
-		t_Pipeline.setCount,
-		t_Pipeline.sets,
+		t_Pipeline->setCount,
+		t_Pipeline->sets,
 		a_DynamicOffsetCount,
 		a_DynamicOffsets);
 }
@@ -1492,8 +1500,6 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	constexpr size_t MINIMUM_PUSHCONSTANT_SIZE = 128;
-	BB_WARNING(a_Size < MINIMUM_PUSHCONSTANT_SIZE, "Vulkan: Push constant size is bigger then 128, this might not work on all hardware!", WarningType::HIGH);
 
 	vkCmdPushConstants(t_Cmdlist->Buffer(),
 		t_Cmdlist->currentPipelineLayout,
@@ -1884,13 +1890,13 @@ void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
 
 void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 {
-	VulkanPipeline& t_Pipeline = s_VkBackendInst.pipelines[a_Handle.handle];
+	VulkanPipeline* t_Pipeline = reinterpret_cast<VulkanPipeline*>(a_Handle.handle);
 
 	vkDestroyPipeline(s_VkBackendInst.device.logicalDevice,
-		t_Pipeline.pipeline,
+		t_Pipeline->pipeline,
 		nullptr);
 	vkDestroyDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
-		t_Pipeline.setLayout,
+		t_Pipeline->setLayout,
 		nullptr);
 }
 

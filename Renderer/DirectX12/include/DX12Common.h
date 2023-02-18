@@ -12,6 +12,8 @@ namespace BB
 	//Functions
 	BackendInfo DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
 	FrameBufferHandle DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
+	//Can also do images here later.
+	RBindingSetHandle DX12CreateBindingSet(const RenderBindingSetCreateInfo& a_Info);
 	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -20,8 +22,7 @@ namespace BB
 
 	//PipelineBuilder
 	PipelineBuilderHandle DX12PipelineBuilderInit(const FrameBufferHandle a_Handle);
-	void DX12PipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds);
-	void DX12PipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds);
+	void DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle);
 	void DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
 	PipelineHandle DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle);
 
@@ -32,11 +33,11 @@ namespace BB
 	
 	void DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
 	void DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
-	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	//void DX12BindDescriptorSets(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_FirstSet, const uint32_t a_SetCount, const RDescriptorHandle* a_Sets, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
-	void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data);
+	void DX12BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data);
 
 	void DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	void DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
@@ -63,6 +64,7 @@ namespace BB
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void DX12DestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
+	void DX12DestroyBindingSet(const RBindingSetHandle a_Handle);
 	void DX12DestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void DX12DestroyBackend();
 }
