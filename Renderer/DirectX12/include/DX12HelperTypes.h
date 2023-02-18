@@ -249,7 +249,7 @@ namespace BB
 	struct BindingSet
 	{
 		//Maximum of 4 bindings.
-		UINT shaderSpace = 0;
+		RENDER_BINDING_SET shaderSpace = {};
 
 		uint32_t rootConstantCount = 0;
 		RootConstant rootConstant[4];

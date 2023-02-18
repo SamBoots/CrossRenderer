@@ -258,7 +258,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
-		t_BufferBinds[0].bindingSpace = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
 		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[0].buffer = s_PerFrameInfo.perFrameBuffer;
@@ -267,7 +266,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 	{//ModelBind
 		t_BufferBinds[1].binding = 1;
-		t_BufferBinds[0].bindingSpace = 0;
 		t_BufferBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
 		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
 		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
@@ -276,10 +274,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 	{//IndexConstantBind
 		t_ConstantBinds[0].binding = 0;
-		t_ConstantBinds[0].bindingSpace = 0;
-		t_ConstantBinds[0].offset = 0;
 		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_ConstantBinds[0].size = sizeof(uint32_t); //max of 64 bytes.
+		t_ConstantBinds[0].dwordCount = 1; //We store one 32 bit value
 	}
 	RenderBindingSetCreateInfo t_BindingSetInfo{};
 	t_BindingSetInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;

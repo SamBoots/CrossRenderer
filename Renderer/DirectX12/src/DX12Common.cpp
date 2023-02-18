@@ -319,16 +319,13 @@ RBindingSetHandle BB::DX12CreateBindingSet(const RenderBindingSetCreateInfo& a_I
 	BindingSet* t_BindingSet = s_DX12B.bindingSetPool.Get();
 	*t_BindingSet = {};
 
-	t_BindingSet->shaderSpace = static_cast<uint32_t>(a_Info.bindingSet);
+	t_BindingSet->shaderSpace = a_Info.bindingSet;
 	size_t t_ParamIndex = 0;
 
 	for (size_t i = 0; i < a_Info.constantBinds.size(); i++)
 	{
-		BB_ASSERT(a_Info.constantBinds[i].size % sizeof(uint32_t) == 0, "DX12: BindConstant a_size is not a multiple of 32!");
-		const UINT t_Dwords = a_Info.constantBinds[i].size / sizeof(uint32_t);
-
 		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].rootIndex = t_ParamIndex++;
-		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].dwordCount = t_Dwords;
+		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].dwordCount = a_Info.constantBinds[i].dwordCount;
 		t_BindingSet->rootConstantCount++;
 	}
 
@@ -466,7 +463,7 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_BindingSetHandle.ptrHandle);
 
 	size_t t_ParamIndex = t_BuildInfo->rootParamCount;
-	t_BuildInfo->buildPipeline.rootParamBindingOffset[t_BindingSet->shaderSpace] = t_ParamIndex;
+	t_BuildInfo->buildPipeline.rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = t_ParamIndex;
 
 	for (size_t i = 0; i < t_BindingSet->rootConstantCount; i++)
 	{
@@ -476,7 +473,7 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 
 		t_BuildInfo->rootParams[t_ParamIndex].Constants.Num32BitValues = t_BindingSet->rootConstant[i].dwordCount;
 		t_BuildInfo->rootParams[t_ParamIndex].Constants.ShaderRegister = t_BuildInfo->regCBV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Constants.RegisterSpace = t_BindingSet->shaderSpace;
+		t_BuildInfo->rootParams[t_ParamIndex].Constants.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
 	}
@@ -485,7 +482,7 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regCBV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
 	}
@@ -494,7 +491,7 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regSRV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
 	}
@@ -503,7 +500,7 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regUAV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = t_BindingSet->shaderSpace;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
 	}
@@ -740,7 +737,7 @@ void BB::DX12BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHand
 	{
 		const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Sets[i].ptrHandle);
 		const uint32_t t_StartBindingIndex =
-			t_CommandList->boundPipeline->rootParamBindingOffset[t_BindingSet->shaderSpace];
+			t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)];
 
 		//TODO: dynamic offsets not simulate how vulkan does it yet. No issue for now since everything in vulkan has a dynamic offset.
 		for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
@@ -769,7 +766,7 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Set.ptrHandle);
-	const uint32_t t_StartBindingIndex = t_CommandList->boundPipeline->rootParamBindingOffset[t_BindingSet->shaderSpace];
+	const uint32_t t_StartBindingIndex = t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)];
 
 	t_CommandList->List()->SetGraphicsRoot32BitConstants(t_BindingSet->rootConstant[a_ConstantIndex].rootIndex + t_StartBindingIndex,
 		a_DwordCount,
@@ -994,7 +991,7 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 void BB::DX12DestroyBindingSet(const RBindingSetHandle a_Handle)
 {
 	BindingSet* t_Set = reinterpret_cast<BindingSet*>(a_Handle.ptrHandle);
-	*t_Set = { 0 };
+	*t_Set = {}; //zero it for safety
 	s_DX12B.bindingSetPool.Free(t_Set);
 }
 

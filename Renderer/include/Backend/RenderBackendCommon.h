@@ -164,9 +164,9 @@ namespace BB
 	struct ConstantBind
 	{
 		uint32_t binding; //binding space or shader register.
-		uint32_t bindingSpace; //vkDescriptorSet or registerspace
-		uint32_t offset;
-		uint32_t size;
+		uint32_t dwordCount;
+
+		//find a way to make this relevant for directx12, maybe exclude shader stages?
 		RENDER_SHADER_STAGE stage;
 	};
 
@@ -176,7 +176,6 @@ namespace BB
 		uint64_t bufferSize;
 		uint64_t bufferOffset;
 		uint32_t binding; //binding space or shader register.
-		uint32_t bindingSpace; //vkDescriptorSet or registerspace
 		DESCRIPTOR_BUFFER_TYPE type;
 		RENDER_SHADER_STAGE stage;
 	};
