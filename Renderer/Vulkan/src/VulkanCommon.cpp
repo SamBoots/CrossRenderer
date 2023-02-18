@@ -103,19 +103,12 @@ struct DXPipelineBuildInfo
 	TemporaryAllocator buildAllocator{ s_VulkanAllocator };
 
 	VkGraphicsPipelineCreateInfo pipeInfo{};
-
-	VkPushConstantRange* pushConstants{};
-	uint32_t pushConstantCount = 0;
-
-	struct DescriptorInfo
-	{
-		VkDescriptorSetLayoutBinding* bufferBindings{};
-		VkWriteDescriptorSet* writes{};
-
-		uint32_t bufferCount = 0;
-	};
-	DescriptorInfo descriptorInfo;
 	VulkanShaderResult shaderInfo;
+
+	uint32_t layoutCount;
+	VkDescriptorSetLayout layout[BINDING_MAX];
+	uint32_t constantRangeCount;
+	VkPushConstantRange constantRanges[BINDING_MAX]; //Can be more, but for now no good solution for this.
 };
 
 using PipelineLayoutHash = uint64_t;
@@ -140,7 +133,7 @@ struct VulkanBackend_inst
 	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> renderBuffers;
-	Pool<VkDescriptorSet> descriptorSets;
+	Pool<VulkanBindingSet> bindingSetPool;
 
 	//OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
@@ -153,7 +146,7 @@ struct VulkanBackend_inst
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		renderBuffers.CreatePool(s_VulkanAllocator, 16);
-		descriptorSets.CreatePool(s_VulkanAllocator, 16);
+		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
 	}
 
 	void DestroyPools()
@@ -162,7 +155,7 @@ struct VulkanBackend_inst
 		cmdAllocators.DestroyPool(s_VulkanAllocator);
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		renderBuffers.DestroyPool(s_VulkanAllocator);
-		descriptorSets.DestroyPool(s_VulkanAllocator);
+		bindingSetPool.DestroyPool(s_VulkanAllocator);
 	}
 };
 static VulkanBackend_inst s_VkBackendInst;
@@ -998,6 +991,117 @@ FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const R
 	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer).handle);
 }
 
+RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
+{
+	constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
+
+	VulkanBindingSet* t_BindingSet = s_VkBackendInst.bindingSetPool.Get();
+	*t_BindingSet = {}; //set to 0
+
+	uint32_t t_PushConstantOffset = 0;
+	for (size_t i = 0; i < a_Info.constantBinds.size(); i++)
+	{
+		t_BindingSet->pushConstants[i].shaderStage = VKConv::ShaderStageBits(a_Info.constantBinds[i].stage);
+		t_BindingSet->pushConstants[i].offset = t_PushConstantOffset;
+		t_PushConstantOffset += (a_Info.constantBinds[i].dwordCount * sizeof(uint32_t));
+	}
+
+	t_BindingSet->pushConstantCount = static_cast<uint32_t>(a_Info.constantBinds.size());
+
+	VkDescriptorSetLayoutBinding* t_BufferBindings = BBnewArr(
+		s_VulkanAllocator,
+		a_Info.bufferBinds.size(),
+		VkDescriptorSetLayoutBinding);
+
+	VkWriteDescriptorSet* t_Writes = BBnewArr(
+		s_VulkanAllocator,
+		a_Info.bufferBinds.size(),
+		VkWriteDescriptorSet);
+
+	//Setup buffer specific info.
+	VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
+		s_VulkanAllocator,
+		a_Info.bufferBinds.size(),
+		VkDescriptorBufferInfo);
+
+	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+	{
+		t_BufferBindings[i].binding = a_Info.bufferBinds[i].binding;
+		t_BufferBindings[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_BufferBindings[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+		t_BufferBindings[i].pImmutableSamplers = nullptr;
+		t_BufferBindings[i].stageFlags = VKConv::ShaderStageBits(a_Info.bufferBinds[i].stage);
+
+		//Setup the buffer Info.
+		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info.bufferBinds[i].buffer.handle)->buffer;
+		t_BufferInfos[i].offset = a_Info.bufferBinds[i].bufferOffset;
+		t_BufferInfos[i].range = a_Info.bufferBinds[i].bufferSize;
+
+		t_Writes[i] = {};
+		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[i].dstBinding = a_Info.bufferBinds[i].binding;
+		t_Writes[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+		t_Writes[i].pBufferInfo = &t_BufferInfos[i];
+	}
+
+	{ //Create the descriptorSet layout.
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
+		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		t_LayoutInfo.pBindings = t_BufferBindings;
+		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bufferBinds.size());
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+			&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+			"Vulkan: Failed to create a descriptorsetlayout.");
+	}
+
+	VkDescriptorSetAllocateInfo t_AllocInfo = {};
+	t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	t_AllocInfo.pSetLayouts = &t_BindingSet->setLayout;
+	t_AllocInfo.descriptorSetCount = STANDARD_DESCRIPTORSET_COUNT;
+	//Lmao creat pool
+	t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
+
+	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+		&t_AllocInfo,
+		&t_BindingSet->set);
+	bool t_NeedReallocate = false;
+
+	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+	{
+		t_Writes[i].dstSet = t_BindingSet->set;
+	}
+
+	switch (t_AllocResult)
+	{
+	case VK_SUCCESS: //Just continue
+	case VK_ERROR_FRAGMENTED_POOL: //Implement checking later.
+	case VK_ERROR_OUT_OF_POOL_MEMORY:
+		//need a new pool.
+		t_NeedReallocate = true;
+		break;
+
+	default:
+		BB_ASSERT(false, "Vulkan: Something went very badly with vkAllocateDescriptorSets");
+		break;
+	}
+
+	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+		static_cast<uint32_t>(a_Info.bufferBinds.size()),
+		t_Writes,
+		0,
+		nullptr);
+
+	BBfreeArr(s_VulkanAllocator, t_BufferBindings);
+	BBfreeArr(s_VulkanAllocator, t_Writes);
+	BBfreeArr(s_VulkanAllocator, t_BufferInfos);
+
+	return RBindingSetHandle(t_BindingSet);
+
+}
+
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	VulkanCommandQueue* t_Queue = s_VkBackendInst.cmdQueues.Get();
@@ -1135,71 +1239,22 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const FrameBufferHandle a_Ha
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void BB::VulkanPipelineBuilderBindConstants(const PipelineBuilderHandle a_Handle, const BB::Slice<ConstantBind> a_ConstantBinds)
+void BB::VulkanPipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle)
 {
+	constexpr uint32_t MAX_PUSHCONSTANTSIZE = 128;
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_BindingSetHandle.ptrHandle);
 
-	t_BuildInfo->pushConstants = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		a_ConstantBinds.size(),
-		VkPushConstantRange);
-	t_BuildInfo->pushConstantCount = a_ConstantBinds.size();
-	for (uint32_t i = 0; i < a_ConstantBinds.size(); i++)
+	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = t_Set->setLayout;
+
+	for (uint32_t i = 0; i < t_Set->pushConstantCount; i++)
 	{
-		t_BuildInfo->pushConstants[i].offset = a_ConstantBinds[i].offset;
-		t_BuildInfo->pushConstants[i].size = a_ConstantBinds[i].size;
-		t_BuildInfo->pushConstants[i].stageFlags = VKConv::ShaderStageBits(a_ConstantBinds[i].stage);
+		t_BuildInfo->constantRanges[i].offset = t_Set->pushConstants[i].offset;
+		t_BuildInfo->constantRanges[i].stageFlags = t_Set->pushConstants[i].shaderStage;
+		t_BuildInfo->constantRanges[i].size = MAX_PUSHCONSTANTSIZE;
 	}
-}
 
-constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
-
-void BB::VulkanPipelineBuilderBindBuffers(const PipelineBuilderHandle a_Handle, const BB::Slice<BufferBind> a_BufferBinds)
-{
-	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
-
-	t_BuildInfo->descriptorInfo.bufferCount = a_BufferBinds.size();
-
-
-	t_BuildInfo->descriptorInfo.bufferBindings = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		a_BufferBinds.size(),
-		VkDescriptorSetLayoutBinding);
-
-	t_BuildInfo->descriptorInfo.writes = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		a_BufferBinds.size(),
-		VkWriteDescriptorSet);
-
-
-	//Setup buffer specific info.
-	VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
-		t_BuildInfo->buildAllocator,
-		a_BufferBinds.size(),
-		VkDescriptorBufferInfo);
-
-	
-
-	for (size_t i = 0; i < a_BufferBinds.size(); i++)
-	{
-		t_BuildInfo->descriptorInfo.bufferBindings[i].binding = a_BufferBinds[i].binding;
-		t_BuildInfo->descriptorInfo.bufferBindings[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_BuildInfo->descriptorInfo.bufferBindings[i].descriptorType = VKConv::DescriptorBufferType(a_BufferBinds[i].type);
-		t_BuildInfo->descriptorInfo.bufferBindings[i].pImmutableSamplers = nullptr;
-		t_BuildInfo->descriptorInfo.bufferBindings[i].stageFlags = VKConv::ShaderStageBits(a_BufferBinds[i].stage);
-
-		//Setup the buffer Info.
-		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_BufferBinds[i].buffer.handle)->buffer;
-		t_BufferInfos[i].offset = a_BufferBinds[i].bufferOffset;
-		t_BufferInfos[i].range = a_BufferBinds[i].bufferSize;
-
-		t_BuildInfo->descriptorInfo.writes[i] = {};
-		t_BuildInfo->descriptorInfo.writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_BuildInfo->descriptorInfo.writes[i].dstBinding = a_BufferBinds[i].binding;
-		t_BuildInfo->descriptorInfo.writes[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_BuildInfo->descriptorInfo.writes[i].descriptorType = VKConv::DescriptorBufferType(a_BufferBinds[i].type);
-		t_BuildInfo->descriptorInfo.writes[i].pBufferInfo = &t_BufferInfos[i];
-	}
+	t_BuildInfo->constantRangeCount = t_Set->pushConstantCount;
 }
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
@@ -1219,67 +1274,12 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 {
 	VulkanPipeline t_Pipeline{};
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
-	
-	{ //FOR NOW WE BUILD 1 DESCRIPTORSET!
-		{ //Create the descriptorSet layout.
-			VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
-			t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			t_LayoutInfo.pBindings = t_BuildInfo->descriptorInfo.bufferBindings;
-			t_LayoutInfo.bindingCount = t_BuildInfo->descriptorInfo.bufferCount;
-
-			//Do some algorithm to see if I already made a descriptorlayout like this one.
-			VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
-				&t_LayoutInfo, nullptr, &t_Pipeline.setLayout),
-				"Vulkan: Failed to create a descriptorsetlayout.");
-		}
-
-		VkDescriptorSetAllocateInfo t_AllocInfo = {};
-		t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		t_AllocInfo.pSetLayouts = &t_Pipeline.setLayout;
-		//Lmao creat pool
-		t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
-
-		t_AllocInfo.descriptorSetCount = STANDARD_DESCRIPTORSET_COUNT;
-
-		VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice,
-			&t_AllocInfo,
-			t_Pipeline.sets);
-		bool t_NeedReallocate = false;
-
-		switch (t_AllocResult)
-		{
-		case VK_SUCCESS: //Just continue
-		case VK_ERROR_FRAGMENTED_POOL: //Implement checking later.
-		case VK_ERROR_OUT_OF_POOL_MEMORY:
-			//need a new pool.
-			t_NeedReallocate = true;
-			break;
-
-		default:
-			BB_ASSERT(false, "Vulkan: Something went very badly with vkAllocateDescriptorSets");
-			break;
-		}
-
-		//Now write to the descriptorset.
-		for (uint32_t i = 0; i < t_BuildInfo->descriptorInfo.bufferCount; i++)
-		{
-			t_BuildInfo->descriptorInfo.writes[i].dstSet = *t_Pipeline.sets;
-		}
-
-		vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice,
-			static_cast<uint32_t>(t_BuildInfo->descriptorInfo.bufferCount),
-			t_BuildInfo->descriptorInfo.writes,
-			0,
-			nullptr);
-
-		t_Pipeline.setCount = 1;
-	}
 
 	{
 		//layout
 		t_Pipeline.layout = CreatePipelineLayout(
-			BB::Slice<VkDescriptorSetLayout>(&t_Pipeline.setLayout, 1),
-			BB::Slice<VkPushConstantRange>(t_BuildInfo->pushConstants, t_BuildInfo->pushConstantCount));
+			BB::Slice<VkDescriptorSetLayout>(t_BuildInfo->layout, t_BuildInfo->layoutCount),
+			BB::Slice<VkPushConstantRange>(t_BuildInfo->constantRanges, t_BuildInfo->constantRangeCount));
 
 		t_BuildInfo->pipeInfo.layout = t_Pipeline.layout;
 	}
@@ -1447,7 +1447,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	vkCmdEndRenderPass(t_Cmdlist->Buffer());
 }
 
-void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1458,15 +1458,6 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 		t_Pipeline->pipeline);
 
 	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
-
-	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
-		0,
-		t_Pipeline->setCount,
-		t_Pipeline->sets,
-		a_DynamicOffsetCount,
-		a_DynamicOffsets);
 }
 
 void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -1497,15 +1488,38 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 		VK_INDEX_TYPE_UINT32);
 }
 
-void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_SHADER_STAGE a_Stage, const uint32_t a_Offset, const uint32_t a_Size, const void* a_Data)
+void BB::VulkanBindBindingSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VkDescriptorSet t_BindSets[4]{};
 
+	for (uint32_t i = 0; i < a_SetCount; i++)
+	{
+		t_BindSets[i] = reinterpret_cast<VulkanBindingSet*>(a_Sets[i].ptrHandle)->set;
+	}
+
+	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
+		static_cast<uint32_t>(reinterpret_cast<VulkanBindingSet*>(a_Sets[0].ptrHandle)->bindingSet),
+		a_SetCount,
+		t_BindSets,
+		a_DynamicOffsetCount,
+		a_DynamicOffsets);
+}
+
+void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+{
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	const VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Set.ptrHandle);
+	BB_ASSERT(a_ConstantIndex < t_Set->pushConstantCount, "Vulkan: push constant index points to an index that does not exist!");
+	
 	vkCmdPushConstants(t_Cmdlist->Buffer(),
 		t_Cmdlist->currentPipelineLayout,
-		VKConv::ShaderStageBits(a_Stage),
+		t_Set->pushConstants[a_ConstantIndex].shaderStage,
+		//VKConv::ShaderStageBits(a_Stage),
 		a_Offset,
-		a_Size,
+		a_DwordCount * sizeof(uint32_t), //we do Dword count to help dx12 more.
 		a_Data);
 }
 
@@ -1886,6 +1900,14 @@ void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
 	vkDestroyRenderPass(s_VkBackendInst.device.logicalDevice,
 		s_VkBackendInst.frameBuffers[a_Handle.handle].renderPass,
 		nullptr);
+}
+
+void BB::VulkanDestroyBindingSet(const RBindingSetHandle a_Handle)
+{
+	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Handle.ptrHandle);
+	*t_Set = {}; //zero it for safety
+	//maybe store the sets? For now we just get new ones.
+	s_VkBackendInst.bindingSetPool.Free(t_Set);
 }
 
 void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)

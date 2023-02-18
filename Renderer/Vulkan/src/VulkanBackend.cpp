@@ -7,6 +7,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
 	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
+	a_FuncCreateInfo.createBindingSet = VulkanCreateBindingSet;
 	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
@@ -14,8 +15,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
-	a_FuncCreateInfo.PipelineBuilderBindConstants = VulkanPipelineBuilderBindConstants;
-	a_FuncCreateInfo.PipelineBuilderBindBuffers = VulkanPipelineBuilderBindBuffers;
+	a_FuncCreateInfo.pipelineBuilderBindBindingSet = VulkanPipelineBuilderBindBindingSet;
 	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
 	a_FuncCreateInfo.pipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
@@ -27,7 +27,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
-	//a_FuncCreateInfo.bindDescriptor = VulkanBindDescriptorSets;
+	a_FuncCreateInfo.bindBindingSet = VulkanBindBindingSets;
 	a_FuncCreateInfo.bindConstant = VulkanBindConstant;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
@@ -52,6 +52,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
 	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
+	a_FuncCreateInfo.destroyBindingSet = VulkanDestroyBindingSet;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = VulkanDestroyCommandQueue;
 	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;

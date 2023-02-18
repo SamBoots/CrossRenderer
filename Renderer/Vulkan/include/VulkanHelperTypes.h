@@ -306,7 +306,6 @@ namespace BB
 
 	VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_QueueProperties, uint32_t a_FamilyPropertyCount, VkQueueFlags a_QueueFlags);
 
-
 	struct VulkanCommandQueue
 	{
 		VkQueue queue;
@@ -314,5 +313,22 @@ namespace BB
 		VkSemaphore timelineSemaphore;
 		uint64_t nextSemValue;
 		uint64_t lastCompleteValue;
+	};
+
+	struct VulkanConstant
+	{
+		VkShaderStageFlags shaderStage;
+		uint32_t offset;
+	};
+
+	struct VulkanBindingSet
+	{
+		//Maximum of 4 bindings.
+		RENDER_BINDING_SET bindingSet = {};
+		VkDescriptorSet set;
+		VkDescriptorSetLayout setLayout;
+
+		uint32_t pushConstantCount = 0;
+		VulkanConstant pushConstants[4];
 	};
 }

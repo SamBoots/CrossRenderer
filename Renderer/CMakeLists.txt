@@ -50,10 +50,10 @@ target_include_directories(Renderer PUBLIC
 ${glm_SOURCE_DIR}
 )
 
-#add_subdirectory("Vulkan")
+add_subdirectory("Vulkan")
 add_subdirectory("DirectX12")
 
-#add_dependencies(Renderer BB_VulkanDLL)
+add_dependencies(Renderer BB_VulkanDLL)
 add_dependencies(Renderer BB_DirectXDLL)
 
 add_custom_command(TARGET Renderer POST_BUILD
