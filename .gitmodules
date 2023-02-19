@@ -1,0 +1,3 @@
+[submodule "Libs/cgltf"]
+	path = Libs/cgltf
+	url = https://github.com/jkuhlmann/cgltf.git
