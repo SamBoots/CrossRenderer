@@ -34,7 +34,7 @@ namespace BB
 		FixedArray<VkVertexInputAttributeDescription, 2> t_AttributeDescriptions;
 		t_AttributeDescriptions[0].binding = 0;
 		t_AttributeDescriptions[0].location = 0;
-		t_AttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		t_AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		t_AttributeDescriptions[0].offset = offsetof(Vertex, pos);
 
 		t_AttributeDescriptions[1].binding = 0;

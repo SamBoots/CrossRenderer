@@ -1,10 +1,10 @@
 struct VSInput
 {
 #ifdef _VULKAN
-    [[vk::location(0)]] float2 inPosition : POSITION0;
+    [[vk::location(0)]] float3 inPosition : POSITION0;
     [[vk::location(1)]] float3 inColor : COLOR0;
 #elif _DIRECTX12
-    float2 inPosition : POSITION0;
+    float3 inPosition : POSITION0;
     float3 inColor : COLOR0;
 #endif
 };

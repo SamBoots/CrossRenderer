@@ -81,10 +81,10 @@ int main(int argc, char** argv)
 	Render::SetView(info.view);
 
 	Vertex t_Vertex[4];
-	t_Vertex[0] = { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} };
-	t_Vertex[1] = { {0.5f, -0.5f}, {0.0f, 1.0f, 0.0f} };
-	t_Vertex[2] = { {0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} };
-	t_Vertex[3] = { {-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f} };
+	t_Vertex[0] = { {-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f} };
+	t_Vertex[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f} };
+	t_Vertex[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f} };
+	t_Vertex[3] = { {-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f} };
 
 	const uint32_t t_Indices[] = {
 	0, 1, 2, 2, 3, 0
