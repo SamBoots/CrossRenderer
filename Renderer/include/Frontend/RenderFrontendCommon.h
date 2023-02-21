@@ -43,6 +43,9 @@ namespace BB
 		Node* linearNodes = nullptr;
 		uint32_t nodeCount = 0;
 		uint32_t linearNodeCount = 0;
+
+		Mesh* meshes;
+		uint32_t meshCount;
 	};
 
 	struct CreateRawModelInfo

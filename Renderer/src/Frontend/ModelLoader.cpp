@@ -42,6 +42,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 	size_t t_IndexCount = 0;
 	size_t t_VertexCount = 0;
 	size_t t_NodeCount = t_Data->nodes_count;
+	size_t t_MeshCount = t_Data->meshes_count;
 
 	//Get the node count.
 	for (size_t nodeIndex = 0; nodeIndex < t_Data->nodes_count; nodeIndex++)
@@ -73,6 +74,10 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 
 	}
 
+	Model::Mesh* t_Meshes = BBnewArr(
+		a_SystemAllocator,
+		t_MeshCount,
+		Model::Mesh);
 	Model::Node* t_Nodes = BBnewArr(
 		a_SystemAllocator,
 		t_NodeCount,
@@ -89,7 +94,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 	uint32_t t_CurrentIndex = 0;
 	uint32_t t_CurrentVertex = 0;
 
-	for (size_t meshIndex = 0; meshIndex < t_Data->meshes_count; meshIndex++)
+	for (size_t meshIndex = 0; meshIndex < t_MeshCount; meshIndex++)
 	{
 		const cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
 		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
