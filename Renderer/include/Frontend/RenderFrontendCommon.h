@@ -21,6 +21,7 @@ namespace BB
 		{
 			Primitive* primitives = nullptr;
 			uint32_t primitiveCount = 0;
+			uint32_t uniformBufferOffset = 0; //Offset for it's translate data.
 		};
 
 		struct Node
@@ -34,9 +35,7 @@ namespace BB
 		PipelineHandle pipelineHandle{};
 
 		RBufferHandle vertexBuffer{};
-
 		RBufferHandle indexBuffer{};
-		uint32_t indexCount = 0;
 
 		RBufferHandle uniformBuffer;
 
