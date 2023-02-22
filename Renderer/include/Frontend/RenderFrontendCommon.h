@@ -19,17 +19,15 @@ namespace BB
 
 		struct Mesh
 		{
-			Primitive* primitives = nullptr;
+			uint32_t primitiveOffset = 0;
 			uint32_t primitiveCount = 0;
-			uint32_t uniformBufferOffset = 0; //Offset for it's translate data.
 		};
 
 		struct Node
 		{
-			Node* parent = nullptr;
-			Mesh* mesh = nullptr;
 			Model::Node* childeren = nullptr;
 			uint32_t childCount = 0;
+			uint32_t meshIndex = 0;
 		};
 
 		PipelineHandle pipelineHandle{};
@@ -44,8 +42,11 @@ namespace BB
 		uint32_t nodeCount = 0;
 		uint32_t linearNodeCount = 0;
 
-		Mesh* meshes;
-		uint32_t meshCount;
+		Mesh* meshes = nullptr;
+		uint32_t meshCount = 0;
+
+		Primitive* primitives = nullptr;
+		uint32_t primitiveCount = 0;
 	};
 
 	struct CreateRawModelInfo
@@ -66,5 +67,30 @@ namespace BB
 	{
 		RModelHandle modelHandle;
 		TransformHandle transformHandle;
+	};
+
+	struct UploadBufferChunk
+	{
+		void* memory;
+		uint64_t offset;
+	};
+
+	class UploadBuffer
+	{
+	public:
+		UploadBuffer(const uint64_t a_Size);
+		~UploadBuffer();
+
+		UploadBufferChunk Alloc(const uint64_t a_Size);
+		void Clear();
+
+		const RBufferHandle Buffer() const { return buffer; }
+
+	private:
+		RBufferHandle buffer;
+		const uint64_t size;
+		uint64_t offset;
+		void* start;
+		void* position;
 	};
 }

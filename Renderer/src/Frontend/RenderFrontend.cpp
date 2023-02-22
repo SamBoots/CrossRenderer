@@ -11,6 +11,43 @@
 using namespace BB;
 using namespace BB::Render;
 
+UploadBuffer::UploadBuffer(const uint64_t a_Size)
+	: size(a_Size)
+{
+	RenderBufferCreateInfo t_UploadBufferInfo;
+	t_UploadBufferInfo.size = size;
+	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_UploadBufferInfo.data = nullptr;
+	buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
+
+	offset = 0;
+	start = RenderBackend::MapMemory(buffer);
+	position = start;
+}
+
+UploadBuffer::~UploadBuffer()
+{
+	RenderBackend::UnmapMemory(buffer);
+	RenderBackend::DestroyBuffer(buffer);
+}
+
+UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
+{
+	UploadBufferChunk t_Chunk;
+	t_Chunk.memory = position;
+	t_Chunk.offset = offset;
+	position = Pointer::Add(position, a_Size);
+	offset += a_Size;
+	return t_Chunk;
+}
+
+void UploadBuffer::Clear()
+{
+	offset = 0;
+	position = start;
+}
+
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
 static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
@@ -32,62 +69,6 @@ struct PerFrameInfo
 	RBufferHandle perFrameBuffer;
 	RBufferHandle perFrameTransferBuffer;
 	void* transferBufferPtr;
-};
-
-struct UploadBufferChunk
-{
-	void* memory;
-	uint64_t offset;
-};
-
-class UploadBuffer
-{
-public:
-	UploadBuffer(const uint64_t a_Size)
-		:	size(a_Size)
-	{
-		RenderBufferCreateInfo t_UploadBufferInfo;
-		t_UploadBufferInfo.size = size;
-		t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-		t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-		t_UploadBufferInfo.data = nullptr;
-		buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
-
-		offset = 0;
-		start = RenderBackend::MapMemory(buffer);
-		position = start;
-	}
-
-	~UploadBuffer()
-	{
-		RenderBackend::UnmapMemory(buffer);
-		RenderBackend::DestroyBuffer(buffer);
-	}
-
-	UploadBufferChunk Alloc(const uint64_t a_Size)
-	{
-		UploadBufferChunk t_Chunk;
-		t_Chunk.memory = position;
-		t_Chunk.offset = offset;
-		position = Pointer::Add(position, a_Size);
-		offset += a_Size;
-		return t_Chunk;
-	}
-
-	void Clear()
-	{
-		offset = 0;
-		position = start;
-	}
-
-	const RBufferHandle Buffer() const { return buffer; }
-
-private:
-	RBufferHandle buffer;
-	const uint64_t size;
-	uint64_t offset;
-	void* start;
-	void* position;
 };
 
 FrameBufferHandle t_FrameBuffer;
@@ -163,12 +144,16 @@ static void Draw3DFrame()
 		RenderBackend::BindConstant(t_RecordingGraphics, t_BindingSet, 0, 1, 0, &t_It->transformHandle.index);
 		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
 		{
-			for (size_t j = 0; j < t_Model.linearNodes[i].mesh->primitiveCount; j++)
+			const Model::Node& t_Node = t_Model.linearNodes[i];
+			const Model::Mesh& t_Mesh = t_Model.meshes[t_Node.meshIndex];
+
+			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
 			{
+				const Model::Primitive& t_Prim = t_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
 				RenderBackend::DrawIndexed(t_RecordingGraphics,
-					t_Model.linearNodes[i].mesh->primitives[j].indexCount,
+					t_Prim.indexCount,
 					1,
-					t_Model.linearNodes[i].mesh->primitives[j].indexStart,
+					t_Prim.indexStart,
 					0,
 					0);
 			}
@@ -484,15 +469,19 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	}
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
-	t_Model.nodes = t_Model.linearNodes;
-
-	t_Model.linearNodes->mesh = BBnew(m_SystemAllocator, Model::Mesh);
-	t_Model.linearNodes->mesh->primitiveCount = 1;
-	t_Model.linearNodes->mesh->primitives = BBnew(m_SystemAllocator, Model::Primitive);
-	t_Model.linearNodes->mesh->primitives->indexStart = 0;
-	t_Model.linearNodes->mesh->primitives->indexCount = static_cast<uint32_t>(a_CreateInfo.indices.size());
 	t_Model.linearNodeCount = 1;
+	t_Model.nodes = t_Model.linearNodes;
 	t_Model.nodeCount = 1;
+
+	t_Model.primitives = BBnewArr(m_SystemAllocator, 1, Model::Primitive);
+	t_Model.primitiveCount = 1;
+	t_Model.primitives->indexStart = 0;
+	t_Model.primitives->indexCount = static_cast<uint32_t>(a_CreateInfo.indices.size());
+
+	t_Model.meshCount = 1;
+	t_Model.meshes = BBnewArr(m_SystemAllocator, 1, Model::Mesh);
+	t_Model.meshes->primitiveCount = 1;
+	t_Model.meshes->primitiveOffset = 0;
 
 	return RModelHandle(s_RendererInst.models.insert(t_Model).handle);
 }
