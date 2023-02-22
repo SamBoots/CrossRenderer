@@ -1,6 +1,5 @@
 #include "ModelLoader.h"
 #include "Logger.h"
-#include "RenderFrontendCommon.h"
 #include "RenderBackend.h"
 
 #define CGLTF_IMPLEMENTATION
@@ -10,7 +9,7 @@ using namespace BB;
 
 static void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 {
-	void* t_Data = a_Accessor->buffer_view->data;
+	void* t_Data = a_Accessor->buffer_view->buffer->data;
 	t_Data = Pointer::Add(t_Data, a_Accessor->buffer_view->offset);
 	t_Data = Pointer::Add(t_Data, a_Accessor->offset);
 	return t_Data;
@@ -27,10 +26,10 @@ static size_t GetChildNodeCount(const cgltf_node& a_Node)
 }
 
 //Maybe use own allocators for this?
-void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Path)
+void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model & a_Model, UploadBuffer & a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path)
 {
 	cgltf_options t_Options = {};
-	cgltf_data* t_Data{};
+	cgltf_data* t_Data = {0};
 
 	cgltf_result t_ParseResult = cgltf_parse_file(&t_Options, a_Path, &t_Data);
 
@@ -43,6 +42,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 	size_t t_VertexCount = 0;
 	size_t t_NodeCount = t_Data->nodes_count;
 	size_t t_MeshCount = t_Data->meshes_count;
+	size_t t_PrimitiveCount = 0;
 
 	//Get the node count.
 	for (size_t nodeIndex = 0; nodeIndex < t_Data->nodes_count; nodeIndex++)
@@ -57,6 +57,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 		cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
 		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
 		{
+			++t_PrimitiveCount;
 			cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
 			t_IndexCount += t_Mesh.primitives[meshIndex].indices->count;
 
@@ -65,43 +66,56 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 				cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
 				if (t_Attribute.type = cgltf_attribute_type_position)
 				{
-					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position type is not a vec3!");
+					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3 || cgltf_type_vec4, "GLTF position type is not a vec3!");
 					++t_VertexCount;
 				}
 			}
 		}
-
-
 	}
 
+	//Maybe allocate this all in one go
 	Model::Mesh* t_Meshes = BBnewArr(
 		a_SystemAllocator,
 		t_MeshCount,
 		Model::Mesh);
+	Model::Primitive* t_Primitives = BBnewArr(
+		a_SystemAllocator,
+		t_PrimitiveCount,
+		Model::Primitive);
 	Model::Node* t_Nodes = BBnewArr(
 		a_SystemAllocator,
 		t_NodeCount,
 		Model::Node);
+
+	//Temporary stuff
 	uint32_t* t_Indices = BBnewArr(
-		a_SystemAllocator,
+		a_TempAllocator,
 		t_IndexCount,
 		uint32_t);
 	Vertex* t_Vertices = BBnewArr(
-		a_SystemAllocator,
+		a_TempAllocator,
 		t_VertexCount,
 		Vertex);
 
 	uint32_t t_CurrentIndex = 0;
 	uint32_t t_CurrentVertex = 0;
+	uint32_t t_CurrentPrimitive = 0;
 
 	for (size_t meshIndex = 0; meshIndex < t_MeshCount; meshIndex++)
 	{
 		const cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
+		Model::Mesh& t_ModelMesh = t_Meshes[meshIndex];
+		t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
+		t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
+
 		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
 		{
 			const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+			Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
+			t_MeshPrimitive.indexCount = t_Primitive.indices->count;
+			t_MeshPrimitive.indexStart = t_CurrentIndex;
+
 			void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
-			
 			if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
 			{
 				for (size_t i = 0; i < t_Primitive.indices->count; i++)
@@ -124,8 +138,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 				switch (t_Attribute.type)
 				{
 				case cgltf_attribute_type_position:
-
-					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position attribute is not a vec3!");
+					//BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position attribute is not a vec3!");
 					float* t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
 					
 					t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
@@ -139,7 +152,57 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, const char* a_Pa
 		}
 	}
 
+	//get it all in GPU buffers now.
+	{
+		size_t t_VertexBufferSize = t_VertexCount * sizeof(Vertex);
+
+		UploadBufferChunk t_VertChunk = a_UploadBuffer.Alloc(t_VertexBufferSize);
+		memcpy(t_VertChunk.memory, t_Vertices, t_VertexBufferSize);
+
+		RenderBufferCreateInfo t_VertBuffer{};
+		t_VertBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_VertBuffer.size = t_VertexBufferSize;
+		t_VertBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
+		a_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertBuffer);
+
+		RenderCopyBufferInfo t_CopyInfo;
+		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
+		t_CopyInfo.src = a_UploadBuffer.Buffer();
+		t_CopyInfo.dst = a_Model.vertexBuffer;
+		t_CopyInfo.CopyRegionCount = 1;
+		t_CopyInfo.copyRegions = BBnewArr(a_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
+		t_CopyInfo.copyRegions->srcOffset = t_VertChunk.offset;
+		t_CopyInfo.copyRegions->dstOffset = 0;
+		t_CopyInfo.copyRegions->size = t_VertexBufferSize;
+
+		RenderBackend::CopyBuffer(t_CopyInfo);
+	}
+
+	{
+		size_t t_IndexBufferSize = t_IndexCount * sizeof(uint32_t);
+
+		UploadBufferChunk t_IndexChunk = a_UploadBuffer.Alloc(t_IndexBufferSize);
+		memcpy(t_IndexChunk.memory, t_Vertices, t_IndexBufferSize);
+
+		RenderBufferCreateInfo t_IndexBuffer;
+		t_IndexBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_IndexBuffer.size = t_IndexBufferSize;
+		t_IndexBuffer.usage = RENDER_BUFFER_USAGE::INDEX;
+		t_IndexBuffer.data = t_Indices;
+		a_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexBuffer);
+
+		RenderCopyBufferInfo t_CopyInfo;
+		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
+		t_CopyInfo.src = a_UploadBuffer.Buffer();
+		t_CopyInfo.dst = a_Model.indexBuffer;
+		t_CopyInfo.CopyRegionCount = 1;
+		t_CopyInfo.copyRegions = BBnewArr(a_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
+		t_CopyInfo.copyRegions->srcOffset = t_IndexChunk.offset;
+		t_CopyInfo.copyRegions->dstOffset = 0;
+		t_CopyInfo.copyRegions->size = t_IndexBufferSize;
+
+		RenderBackend::CopyBuffer(t_CopyInfo);
+	}
+
 	cgltf_free(t_Data);
-	BBfreeArr(a_SystemAllocator, t_Indices);
-	BBfreeArr(a_SystemAllocator, t_Vertices);
 }

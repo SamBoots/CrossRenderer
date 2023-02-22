@@ -71,6 +71,7 @@ int main(int argc, char** argv)
 	uint32_t t_MatrixSize;
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
 	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
+
 	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 0));
 	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
 
@@ -94,14 +95,20 @@ int main(int argc, char** argv)
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
 
+	LoadModelInfo t_LoadInfo{};
+	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
+	t_LoadInfo.path = "../Resources/Models/cube.gltf";
+	
+
 	//Start frame before we upload.
 	Render::StartFrame();
 
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
+	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_Model, 
 		t_TransHandle1);
-	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
+	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_gltfCube,
 		t_TransHandle2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();

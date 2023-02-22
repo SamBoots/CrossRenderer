@@ -56,6 +56,17 @@ namespace BB
 		PipelineHandle pipeline;
 	};
 
+	enum class MODEL_TYPE
+	{
+		GLTF
+	};
+
+	struct LoadModelInfo
+	{
+		const char* path;
+		MODEL_TYPE modelType;
+	};
+
 	struct CameraBufferInfo
 	{
 		glm::mat4 view;

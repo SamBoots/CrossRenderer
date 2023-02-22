@@ -6,6 +6,7 @@
 
 #include "Storage/Slotmap.h"
 #include "OS/Program.h"
+#include "ModelLoader.h"
 
 
 using namespace BB;
@@ -118,38 +119,45 @@ static void Draw3DFrame()
 	RenderBackend::StartRenderPass(t_RecordingGraphics, t_FrameBuffer);
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
-	Model& t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
+	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
 	uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
-	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
+	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 	RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
 
 	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model.indexBuffer, 0);
+	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
+	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexBuffer, 0);
 
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
 		if (t_CurrentModel != t_It->modelHandle)
 		{
 			t_CurrentModel = t_It->modelHandle;
-			t_Model = s_RendererInst.models.find(t_CurrentModel.handle);
-			RenderBackend::BindPipeline(t_RecordingGraphics, t_Model.pipelineHandle);
-			RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
-			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model.vertexBuffer, t_BufferOffsets, 1);
-			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model.indexBuffer, 0);
+			Model* t_NewModel = &s_RendererInst.models.find(t_CurrentModel.handle);
+
+			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
+			{
+				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
+				RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
+			}
+
+			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
+			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexBuffer, 0);
+
+			t_Model = t_NewModel;
 		}
 
 		RenderBackend::BindConstant(t_RecordingGraphics, t_BindingSet, 0, 1, 0, &t_It->transformHandle.index);
-		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
+		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
-			const Model::Node& t_Node = t_Model.linearNodes[i];
-			const Model::Mesh& t_Mesh = t_Model.meshes[t_Node.meshIndex];
+			const Model::Node& t_Node = t_Model->linearNodes[i];
+			const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
 
 			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
 			{
-				const Model::Primitive& t_Prim = t_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+				const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
 				RenderBackend::DrawIndexed(t_RecordingGraphics,
 					t_Prim.indexCount,
 					1,
@@ -483,6 +491,27 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_Model.meshes->primitiveCount = 1;
 	t_Model.meshes->primitiveOffset = 0;
 
+	return RModelHandle(s_RendererInst.models.insert(t_Model).handle);
+}
+
+RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
+{
+	Model t_Model;
+
+	t_Model.pipelineHandle = t_Pipeline;
+
+	switch (a_LoadInfo.modelType)
+	{
+	case BB::MODEL_TYPE::GLTF:
+		LoadglTFModel(m_TempAllocator,
+			m_SystemAllocator,
+			t_Model,
+			*t_UploadBuffer,
+			t_RecordingTransfer,
+			a_LoadInfo.path);
+		break;
+	}
+	
 	return RModelHandle(s_RendererInst.models.insert(t_Model).handle);
 }
 

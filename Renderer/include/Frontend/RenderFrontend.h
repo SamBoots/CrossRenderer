@@ -14,6 +14,7 @@ namespace BB
 		void* GetMatrixBufferSpace(uint32_t& a_MatrixSpace);
 
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
+		RModelHandle LoadModel(const LoadModelInfo& a_LoadInfo);
 		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
 		void DestroyDrawObject(const DrawObjectHandle a_Handle);
 
