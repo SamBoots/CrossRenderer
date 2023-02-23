@@ -270,15 +270,6 @@ namespace BB
 		VkPipelineLayout layout;
 	};
 
-	struct VulkanFrameBuffer
-	{
-		uint32_t width;
-		uint32_t height;
-		VkFramebuffer* frameBuffers;
-		VkRenderPass renderPass;
-		VkClearValue clearValue;
-	};
-
 	struct VulkanDevice
 	{
 		VkDevice logicalDevice;

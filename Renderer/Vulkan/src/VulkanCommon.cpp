@@ -129,8 +129,6 @@ struct VulkanBackend_inst
 	VmaAllocator vma{};
 	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
 
-	Slotmap<VulkanFrameBuffer> frameBuffers{ s_VulkanAllocator };
-
 	Pool<VulkanCommandQueue> cmdQueues;
 	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
@@ -735,33 +733,6 @@ static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> 
 	return t_NewLayout;
 }
 
-static void CreateFrameBuffers(VkFramebuffer* a_FrameBuffers, VkRenderPass a_RenderPass, uint32_t a_Width, uint32_t a_Height, uint32_t a_FramebufferCount)
-{
-	uint32_t t_UsedAttachments = 1;
-	//have enough space for the potentional depth buffer.
-	VkImageView t_AttachmentViews[2]{};
-
-	for (uint32_t i = 0; i < a_FramebufferCount; i++)
-	{
-		t_AttachmentViews[0] = s_VkBackendInst.swapChain.imageViews[i];
-
-		VkFramebufferCreateInfo t_FramebufferInfo = VkInit::FramebufferCreateInfo();
-		t_FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		t_FramebufferInfo.renderPass = a_RenderPass;
-		t_FramebufferInfo.attachmentCount = t_UsedAttachments;
-		t_FramebufferInfo.pAttachments = t_AttachmentViews;
-		t_FramebufferInfo.width = a_Width;
-		t_FramebufferInfo.height = a_Height;
-		t_FramebufferInfo.layers = 1;
-
-		VKASSERT(vkCreateFramebuffer(s_VkBackendInst.device.logicalDevice,
-			&t_FramebufferInfo,
-			nullptr,
-			&a_FrameBuffers[i]),
-			"Vulkan: Failed to create Framebuffer");
-	}
-}
-
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	VulkanBuffer* t_Buffer = s_VkBackendInst.renderBuffers.Get();
@@ -931,70 +902,6 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 	t_BackendInfo.framebufferCount = s_VkBackendInst.frameCount;
 
 	return t_BackendInfo;
-}
-
-FrameBufferHandle BB::VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
-{
-	VulkanFrameBuffer t_ReturnFrameBuffer{};
-	
-	for (size_t i = 0; i < 4; i++)
-	{
-		t_ReturnFrameBuffer.clearValue.color.float32[i] = a_FramebufferCreateInfo.clearColor[i];
-	}
-
-	{
-		//First do the renderpass
-		VkAttachmentDescription t_ColorAttachment = VkInit::AttachmentDescription(
-			s_VkBackendInst.swapChain.imageFormat,
-			VK_SAMPLE_COUNT_1_BIT,
-			VKConv::LoadOP(a_FramebufferCreateInfo.colorLoadOp),
-			VKConv::StoreOp(a_FramebufferCreateInfo.colorStoreOp),
-			VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			VKConv::ImageLayout(a_FramebufferCreateInfo.colorInitialLayout),
-			VKConv::ImageLayout(a_FramebufferCreateInfo.colorFinalLayout));
-		VkAttachmentReference t_ColorAttachmentRef = VkInit::AttachmentReference(
-			0,
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-
-		VkSubpassDescription t_Subpass = VkInit::SubpassDescription(
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			1,
-			&t_ColorAttachmentRef,
-			nullptr);
-		VkSubpassDependency t_Dependency = VkInit::SubpassDependancy(
-			VK_SUBPASS_EXTERNAL,
-			0,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			0,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-		VkRenderPassCreateInfo t_RenderPassInfo = VkInit::RenderPassCreateInfo(
-			1, &t_ColorAttachment, 1, &t_Subpass, 0, nullptr);
-
-		VKASSERT(vkCreateRenderPass(s_VkBackendInst.device.logicalDevice,
-			&t_RenderPassInfo,
-			nullptr,
-			&t_ReturnFrameBuffer.renderPass),
-			"Vulkan: Failed to create graphics Pipeline.");
-	}
-
-	{
-		t_ReturnFrameBuffer.width = a_FramebufferCreateInfo.width;
-		t_ReturnFrameBuffer.height = a_FramebufferCreateInfo.height;
-		t_ReturnFrameBuffer.frameBuffers = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkFramebuffer);
-		CreateFrameBuffers(
-			t_ReturnFrameBuffer.frameBuffers,
-			t_ReturnFrameBuffer.renderPass,
-			t_ReturnFrameBuffer.width,
-			t_ReturnFrameBuffer.height,
-			s_VkBackendInst.frameCount
-			);
-	}
-
-	return FrameBufferHandle(s_VkBackendInst.frameBuffers.emplace(t_ReturnFrameBuffer).handle);
 }
 
 RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
@@ -1234,13 +1141,20 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 	return RFenceHandle(t_TimelineSem);
 }
 
-PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const FrameBufferHandle a_Handle)
+PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
 {
+	VkPipelineRenderingCreateInfo t_PipelineRendering{};
+	t_PipelineRendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	t_PipelineRendering.colorAttachmentCount = 1;
+	t_PipelineRendering.pColorAttachmentFormats = &s_VkBackendInst.swapChain.imageFormat;
+	t_PipelineRendering.pNext = nullptr;
+
 	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, DXPipelineBuildInfo);
 	//Get the renderpass from the Framebuffer.
 	t_BuildInfo->pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	t_BuildInfo->pipeInfo.renderPass = s_VkBackendInst.frameBuffers[a_Handle.index].renderPass;
 	t_BuildInfo->pipeInfo.subpass = 0;
+	t_BuildInfo->pipeInfo.renderPass = nullptr; //We not using em anymore! Dynamic rendering enabled.
+	t_BuildInfo->pipeInfo.pNext = &t_PipelineRendering;
 
 	return PipelineBuilderHandle(t_BuildInfo);
 }
@@ -1414,23 +1328,53 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 		"Vulkan: Error when trying to end commandbuffer!");
 }
 
-void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
+void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	VulkanFrameBuffer& t_FrameBuffer = s_VkBackendInst.frameBuffers[a_Framebuffer.handle];
 
-	VkRenderPassBeginInfo t_RenderPassBegin = VkInit::RenderPassBeginInfo(
-		t_FrameBuffer.renderPass,
-		t_FrameBuffer.frameBuffers[s_VkBackendInst.currentFrame],
-		VkInit::Rect2D(0,
-			0,
-			s_VkBackendInst.swapChain.extent),
+	VkImageMemoryBarrier t_PresentBarrier{};
+	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
+	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
+	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
+	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
+	t_PresentBarrier.subresourceRange.layerCount = 1;
+	t_PresentBarrier.subresourceRange.baseMipLevel = 0;
+	t_PresentBarrier.subresourceRange.levelCount = 1;
+
+	vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
 		1,
-		&t_FrameBuffer.clearValue);
+		&t_PresentBarrier);
 
-	vkCmdBeginRenderPass(t_Cmdlist->Buffer(),
-		&t_RenderPassBegin,
-		VK_SUBPASS_CONTENTS_INLINE);
+	VkRenderingAttachmentInfo t_RenderColorAttach{};
+	t_RenderColorAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	t_RenderColorAttach.loadOp = VKConv::LoadOP(a_RenderInfo.colorLoadOp);
+	t_RenderColorAttach.storeOp = VKConv::StoreOp(a_RenderInfo.colorStoreOp);
+	t_RenderColorAttach.imageLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout); //Get the layout after the memory barrier.
+	t_RenderColorAttach.imageView = s_VkBackendInst.swapChain.imageViews[s_VkBackendInst.currentFrame];
+	t_RenderColorAttach.clearValue.color.float32[0] = a_RenderInfo.clearColor[0];
+	t_RenderColorAttach.clearValue.color.float32[1] = a_RenderInfo.clearColor[1];
+	t_RenderColorAttach.clearValue.color.float32[2] = a_RenderInfo.clearColor[2];
+	t_RenderColorAttach.clearValue.color.float32[3] = a_RenderInfo.clearColor[3];
+
+	VkRenderingInfo t_RenderInfo{};
+	t_RenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	t_RenderInfo.renderArea = VkInit::Rect2D(0, 0, s_VkBackendInst.swapChain.extent);
+	t_RenderInfo.layerCount = 1;
+	t_RenderInfo.pColorAttachments = &t_RenderColorAttach;
+	t_RenderInfo.colorAttachmentCount = 1;
+	t_RenderInfo.pNext = nullptr;
+
+	vkCmdBeginRendering(t_Cmdlist->Buffer(), &t_RenderInfo);
 
 	VkViewport t_Viewport{};
 	t_Viewport.x = 0.0f;
@@ -1447,10 +1391,33 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
-void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	vkCmdEndRenderPass(t_Cmdlist->Buffer());
+	vkCmdEndRendering(t_Cmdlist->Buffer());
+
+	VkImageMemoryBarrier t_PresentBarrier{};
+	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	t_PresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_EndInfo.colorInitialLayout);
+	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_EndInfo.colorFinalLayout);
+	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
+	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
+	t_PresentBarrier.subresourceRange.layerCount = 1;
+	t_PresentBarrier.subresourceRange.baseMipLevel = 0;
+	t_PresentBarrier.subresourceRange.levelCount = 1;
+
+	vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&t_PresentBarrier);
 }
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -1596,22 +1563,6 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 {
 	VulkanWaitDeviceReady();
 
-	//Recreate framebuffers.
-	for (auto t_It = s_VkBackendInst.frameBuffers.begin();
-		t_It < s_VkBackendInst.frameBuffers.end(); t_It++)
-	{
-		VulkanFrameBuffer& t_FrameBuffer = *t_It;
-		t_FrameBuffer.width = a_X;
-		t_FrameBuffer.height = a_Y;
-
-		for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
-		{
-			vkDestroyFramebuffer(s_VkBackendInst.device.logicalDevice,
-				t_FrameBuffer.frameBuffers[i],
-				nullptr);
-		}
-	}
-
 	for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
 	{
 		vkDestroyImageView(s_VkBackendInst.device.logicalDevice,
@@ -1628,18 +1579,6 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 		a_X,
 		a_Y,
 		true);
-
-	//Recreate framebuffers.
-	for (auto t_It = s_VkBackendInst.frameBuffers.begin();
-		t_It < s_VkBackendInst.frameBuffers.end(); t_It++)
-	{
-		VulkanFrameBuffer& t_FrameBuffer = *t_It;
-		CreateFrameBuffers(t_FrameBuffer.frameBuffers,
-			t_FrameBuffer.renderPass,
-			a_X,
-			a_Y,
-			s_VkBackendInst.frameCount);
-	}
 }
 
 void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
@@ -1890,22 +1829,6 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 	VulkanCommandList& a_List = s_VkBackendInst.commandLists[a_Handle.handle];
 	a_List.cmdAllocator->FreeCommandList(a_List); //Place back in the freelist.
 	s_VkBackendInst.commandLists.erase(a_Handle.handle);
-}
-
-void BB::VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle)
-{
-	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
-	{
-		vkDestroyFramebuffer(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.frameBuffers[a_Handle.handle].frameBuffers[i],
-			nullptr);
-	}
-	BBfree(s_VulkanAllocator,
-		s_VkBackendInst.frameBuffers[a_Handle.handle].frameBuffers);
-
-	vkDestroyRenderPass(s_VkBackendInst.device.logicalDevice,
-		s_VkBackendInst.frameBuffers[a_Handle.handle].renderPass,
-		nullptr);
 }
 
 void BB::VulkanDestroyBindingSet(const RBindingSetHandle a_Handle)

@@ -128,6 +128,7 @@ namespace BB
 		GENERAL,
 		TRANSFER_SRC,
 		TRANSFER_DST,
+		COLOR_ATTACHMENT_OPTIMAL,
 		PRESENT
 	};
 
@@ -206,19 +207,6 @@ namespace BB
 		bool validationLayers{};
 	};
 
-	struct RenderFrameBufferCreateInfo
-	{
-		RENDER_LOAD_OP colorLoadOp{};
-		RENDER_STORE_OP colorStoreOp{};
-		RENDER_IMAGE_LAYOUT colorInitialLayout{};
-		RENDER_IMAGE_LAYOUT colorFinalLayout{};
-		uint32_t width{};
-		uint32_t height{};
-
-		//RGBA
-		float clearColor[4]{};
-	};
-
 	struct RenderBindingSetCreateInfo
 	{
 		RENDER_BINDING_SET bindingSet;
@@ -268,7 +256,6 @@ namespace BB
 		RENDER_IMAGE_VIEWTYPE viewtype;
 	};
 
-
 	struct FenceCreateInfo
 	{
 		RENDER_FENCE_FLAGS flags;
@@ -297,7 +284,34 @@ namespace BB
 		uint64_t CopyRegionCount;
 	};
 
+	struct StartRenderingInfo
+	{
+		RENDER_LOAD_OP colorLoadOp{};
+		RENDER_STORE_OP colorStoreOp{};
+		RENDER_IMAGE_LAYOUT colorInitialLayout{};
+		RENDER_IMAGE_LAYOUT colorFinalLayout{};
+
+		//RGBA
+		float clearColor[4]{};
+	};
+
+	struct EndRenderingInfo
+	{
+		RENDER_LOAD_OP colorLoadOp{};
+		RENDER_STORE_OP colorStoreOp{};
+		RENDER_IMAGE_LAYOUT colorInitialLayout{};
+		RENDER_IMAGE_LAYOUT colorFinalLayout{};
+
+		//RGBA
+		float clearColor[4]{};
+	};
+
 	struct PresentFrameInfo
+	{
+
+	};
+
+	struct PipelineInitInfo
 	{
 
 	};

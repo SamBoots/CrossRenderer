@@ -5,7 +5,6 @@ namespace BB
 {
 	//Functions
 	BackendInfo VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
-	FrameBufferHandle VulkanCreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo);
 	//Can also do images here later.
 	RBindingSetHandle VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a_Info);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
@@ -15,7 +14,7 @@ namespace BB
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
 	//PipelineBuilder
-	PipelineBuilderHandle VulkanPipelineBuilderInit(const FrameBufferHandle a_Handle);
+	PipelineBuilderHandle VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
 	void VulkanPipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle);
 	void VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
 	PipelineHandle VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle);
@@ -24,8 +23,8 @@ namespace BB
 
 	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
-	void VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
-	void VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
+	void VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
+	void VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -58,7 +57,6 @@ namespace BB
 	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void VulkanDestroyCommandList(const CommandListHandle a_Handle);
-	void VulkanDestroyFramebuffer(const FrameBufferHandle a_Handle);
 	void VulkanDestroyBindingSet(const RBindingSetHandle a_Handle);
 	void VulkanDestroyPipeline(const PipelineHandle a_Handle);
 	void VulkanDestroyBackend();

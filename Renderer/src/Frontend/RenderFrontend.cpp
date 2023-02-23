@@ -210,7 +210,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
 	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	t_FrameBufferCreateInfo.clearColor[0] = 1.0f;
 	t_FrameBufferCreateInfo.clearColor[1] = 0.0f;
 	t_FrameBufferCreateInfo.clearColor[2] = 0.0f;
