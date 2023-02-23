@@ -195,7 +195,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(GetOSWindowHandle(a_InitInfo.windowHandle));
-	t_BackendCreateInfo.version = 2;
 	t_BackendCreateInfo.validationLayers = a_InitInfo.debug;
 	t_BackendCreateInfo.appName = "TestName";
 	t_BackendCreateInfo.engineName = "TestEngine";

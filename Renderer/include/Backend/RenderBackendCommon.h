@@ -203,7 +203,6 @@ namespace BB
 		const char* engineName{};
 		uint32_t windowWidth{};
 		uint32_t windowHeight{};
-		int version{};
 		bool validationLayers{};
 	};
 

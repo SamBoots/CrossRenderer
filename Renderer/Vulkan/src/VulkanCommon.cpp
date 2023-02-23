@@ -1,8 +1,10 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1002000 // Vulkan 1.2
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
+
+constexpr int VULKAN_VERSION = 3;
 
 #include "VulkanInitializers.h"
 #include "Storage/Hashmap.h"
@@ -455,11 +457,16 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	t_TimelineSemFeatures.timelineSemaphore = VK_TRUE;
 	t_TimelineSemFeatures.pNext = nullptr;
 
-	VkPhysicalDeviceShaderDrawParametersFeatures t_ShaderDrawFeatures = {};
+	VkPhysicalDeviceShaderDrawParametersFeatures t_ShaderDrawFeatures{};
 	t_ShaderDrawFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
 	t_ShaderDrawFeatures.pNext = nullptr;
 	t_ShaderDrawFeatures.shaderDrawParameters = VK_TRUE;
 	t_ShaderDrawFeatures.pNext = &t_TimelineSemFeatures;
+
+	VkPhysicalDeviceDynamicRenderingFeatures t_DynamicRendering{};
+	t_DynamicRendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+	t_DynamicRendering.dynamicRendering = VK_TRUE;
+	t_DynamicRendering.pNext = &t_ShaderDrawFeatures;
 
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -469,8 +476,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
-	t_CreateInfo.pNext = &t_ShaderDrawFeatures;
-
+	t_CreateInfo.pNext = &t_DynamicRendering;
 
 	VKASSERT(vkCreateDevice(s_VkBackendInst.device.physicalDevice, 
 		&t_CreateInfo, 
@@ -831,9 +837,9 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 		t_AppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		t_AppInfo.pApplicationName = a_CreateInfo.appName;
 		t_AppInfo.pEngineName = a_CreateInfo.engineName;
-		t_AppInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, a_CreateInfo.version, 0);
-		t_AppInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, a_CreateInfo.version, 0);
-		t_AppInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, a_CreateInfo.version, 0);
+		t_AppInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
+		t_AppInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
+		t_AppInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 
 		VkInstanceCreateInfo t_InstanceCreateInfo{};
 		t_InstanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -908,7 +914,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 	t_VkFunctions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
 
 	VmaAllocatorCreateInfo t_AllocatorCreateInfo = {};
-	t_AllocatorCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, a_CreateInfo.version, 0);
+	t_AllocatorCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 	t_AllocatorCreateInfo.physicalDevice = s_VkBackendInst.device.physicalDevice;
 	t_AllocatorCreateInfo.device = s_VkBackendInst.device.logicalDevice;
 	t_AllocatorCreateInfo.instance = s_VkBackendInst.instance;

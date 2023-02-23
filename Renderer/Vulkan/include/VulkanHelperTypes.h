@@ -190,13 +190,15 @@ namespace BB
 				switch (a_Extensions[i])
 				{
 				case BB::RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE:
-					t_Result.extensions[t_Result.count++] = "VK_KHR_surface";
-					t_Result.extensions[t_Result.count++] = "VK_KHR_win32_surface";
+					t_Result.extensions[t_Result.count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
 					t_Result.extensions[t_Result.count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
 					break;
 				case BB::RENDER_EXTENSIONS::STANDARD_VULKAN_DEVICE:
 					t_Result.extensions[t_Result.count++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 					t_Result.extensions[t_Result.count++] = VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME;
+					
 					break;
 				case BB::RENDER_EXTENSIONS::DEBUG:
 					t_Result.extensions[t_Result.count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
