@@ -7,7 +7,7 @@ namespace BB
 	class PipelineBuilder
 	{
 	public:
-		PipelineBuilder(const FrameBufferHandle a_Handle);
+		PipelineBuilder(const PipelineInitInfo& a_InitInfo);
 		~PipelineBuilder();
 		
 		void BindBindingSet(const RBindingSetHandle a_Handle);
@@ -25,7 +25,6 @@ namespace BB
 		const FrameIndex GetCurrentFrameBufferIndex();
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		FrameBufferHandle CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo);
 		RBindingSetHandle CreateBindingSet(const RenderBindingSetCreateInfo& a_Info);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -41,8 +40,8 @@ namespace BB
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
-		void StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer);
-		void EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle);
+		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -66,7 +65,6 @@ namespace BB
 		void WaitGPUReady();
 
 		void DestroyBackend();
-		void DestroyFrameBuffer(const FrameBufferHandle a_Handle);
 		void DestroyBindingSet(const RBindingSetHandle a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
 		void DestroyCommandQueue(const CommandQueueHandle a_Handle);

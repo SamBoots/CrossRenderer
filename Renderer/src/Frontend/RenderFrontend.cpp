@@ -72,8 +72,6 @@ struct PerFrameInfo
 	void* transferBufferPtr;
 };
 
-FrameBufferHandle t_FrameBuffer;
-
 CommandQueueHandle t_GraphicsQueue;
 CommandQueueHandle t_TransferQueue;
 
@@ -115,8 +113,19 @@ static void Draw3DFrame()
 
 	RenderBackend::CopyBuffer(t_CopyInfo);
 
+	StartRenderingInfo t_StartRenderInfo;
+	//VkRenderpass info
+	t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
+	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
+	t_StartRenderInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	t_StartRenderInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	t_StartRenderInfo.clearColor[0] = 1.0f;
+	t_StartRenderInfo.clearColor[1] = 0.0f;
+	t_StartRenderInfo.clearColor[2] = 0.0f;
+	t_StartRenderInfo.clearColor[3] = 1.0f;
+
 	//Record rendering commands.
-	RenderBackend::StartRenderPass(t_RecordingGraphics, t_FrameBuffer);
+	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
@@ -167,7 +176,12 @@ static void Draw3DFrame()
 			}
 		}
 	}
-	RenderBackend::EndRenderPass(t_RecordingGraphics);
+
+	EndRenderingInfo t_EndRenderingInfo{};
+	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
+	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+
+	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 }
 
@@ -205,23 +219,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
 	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
 
-	RenderFrameBufferCreateInfo t_FrameBufferCreateInfo;
-	//VkRenderpass info
-	t_FrameBufferCreateInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
-	t_FrameBufferCreateInfo.colorStoreOp = RENDER_STORE_OP::STORE;
-	t_FrameBufferCreateInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	t_FrameBufferCreateInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	t_FrameBufferCreateInfo.clearColor[0] = 1.0f;
-	t_FrameBufferCreateInfo.clearColor[1] = 0.0f;
-	t_FrameBufferCreateInfo.clearColor[2] = 0.0f;
-	t_FrameBufferCreateInfo.clearColor[3] = 1.0f;
-
-	//VkFrameBuffer info
-	t_FrameBufferCreateInfo.width = static_cast<uint32_t>(t_WindowWidth);
-	t_FrameBufferCreateInfo.height = static_cast<uint32_t>(t_WindowHeight);
-
-	t_FrameBuffer = RenderBackend::CreateFrameBuffer(t_FrameBufferCreateInfo);
-
 
 #pragma region PipelineCreation
 	const uint64_t t_PerFrameBufferSingleFrame = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
@@ -243,7 +240,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PerFrameBuffer.data = nullptr;
 	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
-	PipelineBuilder t_BasicPipe{ t_FrameBuffer };
+	PipelineInitInfo t_PipeInitInfo{};
+
+	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 
 	FixedArray<ConstantBind, 1> t_ConstantBinds;
 	FixedArray<BufferBind, 2> t_BufferBinds;
@@ -376,7 +375,6 @@ void BB::Render::DestroyRenderer()
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
-	RenderBackend::DestroyFrameBuffer(t_FrameBuffer);
 	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
 	{
 		RenderBackend::DestroyCommandList(t_GraphicCommands[i]);

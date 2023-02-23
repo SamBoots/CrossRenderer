@@ -6,7 +6,6 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
-	a_FuncCreateInfo.createFrameBuffer = VulkanCreateFrameBuffer;
 	a_FuncCreateInfo.createBindingSet = VulkanCreateBindingSet;
 	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
@@ -22,8 +21,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
-	a_FuncCreateInfo.startRenderPass = VulkanStartRenderPass;
-	a_FuncCreateInfo.endRenderPass = VulkanEndRenderPass;
+	a_FuncCreateInfo.startRendering = VulkanStartRenderPass;
+	a_FuncCreateInfo.endRendering = VulkanEndRenderPass;
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
@@ -51,7 +50,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
-	a_FuncCreateInfo.destroyFrameBuffer = VulkanDestroyFramebuffer;
 	a_FuncCreateInfo.destroyBindingSet = VulkanDestroyBindingSet;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = VulkanDestroyCommandQueue;

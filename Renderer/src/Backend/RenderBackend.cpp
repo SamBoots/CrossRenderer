@@ -12,11 +12,12 @@ static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 static RenderAPIFunctions s_ApiFunc;
 
 static BackendInfo s_BackendInfo;
+void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 
-
-PipelineBuilder::PipelineBuilder(const FrameBufferHandle a_Handle)
+PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
-	m_BuilderHandle = s_ApiFunc.pipelineBuilderInit(a_Handle);
+	m_BuilderHandle = s_ApiFunc.pipelineBuilderInit(a_InitInfo);
 }
 
 PipelineBuilder::~PipelineBuilder()
@@ -59,11 +60,6 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
 
 	s_BackendInfo = s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
-}
-
-FrameBufferHandle BB::RenderBackend::CreateFrameBuffer(const RenderFrameBufferCreateInfo& a_CreateInfo)
-{
-	return s_ApiFunc.createFrameBuffer(m_TempAllocator, a_CreateInfo);
 }
 
 RBindingSetHandle BB::RenderBackend::CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
@@ -121,14 +117,14 @@ RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandList
 	return s_ApiFunc.startCommandList(a_CmdHandle);
 }
 
-void BB::RenderBackend::StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
+void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo)
 {
-	s_ApiFunc.startRenderPass(a_RecordingCmdHandle, a_Framebuffer);
+	s_ApiFunc.startRendering(a_RecordingCmdHandle, a_StartInfo);
 }
 
-void BB::RenderBackend::EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
-	s_ApiFunc.endRenderPass(a_RecordingCmdHandle);
+	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
 
 void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
@@ -225,11 +221,6 @@ uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
 void BB::RenderBackend::DestroyBackend()
 {
 	s_ApiFunc.destroyBackend();
-}
-
-void BB::RenderBackend::DestroyFrameBuffer(const FrameBufferHandle a_Handle)
-{
-	s_ApiFunc.destroyFrameBuffer(a_Handle);
 }
 
 void BB::RenderBackend::DestroyBindingSet(const RBindingSetHandle a_Handle)

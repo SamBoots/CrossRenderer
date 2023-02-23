@@ -99,12 +99,13 @@ private:
 	VkDescriptorPool descriptorPool;
 };
 
-struct DXPipelineBuildInfo
+struct VKPipelineBuildInfo
 {
 	//temporary allocator, this gets removed when we are finished building.
 	TemporaryAllocator buildAllocator{ s_VulkanAllocator };
 
 	VkGraphicsPipelineCreateInfo pipeInfo{};
+	VkPipelineRenderingCreateInfo dynamicRenderingInfo{}; //attachment for dynamic rendering.
 	VulkanShaderResult shaderInfo;
 
 	uint32_t layoutCount;
@@ -1143,18 +1144,19 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 
 PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
 {
-	VkPipelineRenderingCreateInfo t_PipelineRendering{};
-	t_PipelineRendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	t_PipelineRendering.colorAttachmentCount = 1;
-	t_PipelineRendering.pColorAttachmentFormats = &s_VkBackendInst.swapChain.imageFormat;
-	t_PipelineRendering.pNext = nullptr;
+	VKPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, VKPipelineBuildInfo);
 
-	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, DXPipelineBuildInfo);
-	//Get the renderpass from the Framebuffer.
+	//We do dynamic rendering to avoid having to handle renderpasses and such.
+	t_BuildInfo->dynamicRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	t_BuildInfo->dynamicRenderingInfo.colorAttachmentCount = 1;
+	t_BuildInfo->dynamicRenderingInfo.pColorAttachmentFormats = &s_VkBackendInst.swapChain.imageFormat;
+	t_BuildInfo->dynamicRenderingInfo.pNext = nullptr;
+
+	
 	t_BuildInfo->pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	t_BuildInfo->pipeInfo.subpass = 0;
 	t_BuildInfo->pipeInfo.renderPass = nullptr; //We not using em anymore! Dynamic rendering enabled.
-	t_BuildInfo->pipeInfo.pNext = &t_PipelineRendering;
+	t_BuildInfo->pipeInfo.pNext = &t_BuildInfo->dynamicRenderingInfo;
 
 	return PipelineBuilderHandle(t_BuildInfo);
 }
@@ -1162,7 +1164,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_In
 void BB::VulkanPipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle)
 {
 	constexpr uint32_t MAX_PUSHCONSTANTSIZE = 128;
-	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_BindingSetHandle.ptrHandle);
 
 	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = t_Set->setLayout;
@@ -1179,7 +1181,7 @@ void BB::VulkanPipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handl
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
-	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	t_BuildInfo->shaderInfo = CreateShaderModules(
 		t_BuildInfo->buildAllocator,
@@ -1193,7 +1195,7 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	VulkanPipeline t_Pipeline{};
-	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	{
 		//layout
@@ -1334,7 +1336,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 
 	VkImageMemoryBarrier t_PresentBarrier{};
 	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	t_PresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
 	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
@@ -1398,7 +1400,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 
 	VkImageMemoryBarrier t_PresentBarrier{};
 	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	t_PresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_EndInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_EndInfo.colorFinalLayout);
 	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
@@ -1409,7 +1411,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	t_PresentBarrier.subresourceRange.levelCount = 1;
 
 	vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 		0,
 		0,
