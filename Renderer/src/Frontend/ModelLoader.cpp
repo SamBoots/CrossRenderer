@@ -188,7 +188,6 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		t_IndexBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 		t_IndexBuffer.size = t_IndexBufferSize;
 		t_IndexBuffer.usage = RENDER_BUFFER_USAGE::INDEX;
-		t_IndexBuffer.data = t_Indices;
 		a_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexBuffer);
 
 		RenderCopyBufferInfo t_CopyInfo;

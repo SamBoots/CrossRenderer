@@ -14,7 +14,6 @@ void TempResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
-	a_FuncCreateInfo.createFrameBuffer = DX12CreateFrameBuffer;
 	a_FuncCreateInfo.createBindingSet = DX12CreateBindingSet;
 	a_FuncCreateInfo.createCommandQueue = DX12CreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = DX12CreateCommandAllocator;
@@ -30,8 +29,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = DX12EndCommandList;
-	a_FuncCreateInfo.startRenderPass = DX12StartRenderPass;
-	a_FuncCreateInfo.endRenderPass = DX12EndRenderPass;
+	a_FuncCreateInfo.startRendering = DX12StartRendering;
+	a_FuncCreateInfo.endRendering = DX12EndRendering;
 	a_FuncCreateInfo.bindPipeline = DX12BindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = DX12BindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = DX12BindIndexBuffer;
@@ -59,7 +58,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;
-	a_FuncCreateInfo.destroyFrameBuffer = DX12DestroyFramebuffer;
 	a_FuncCreateInfo.destroyBindingSet = DX12DestroyBindingSet;
 	a_FuncCreateInfo.destroyPipeline = DX12DestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = DX12DestroyCommandQueue;

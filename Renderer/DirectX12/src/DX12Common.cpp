@@ -44,11 +44,11 @@ struct DX12Backend_inst
 
 	DX12Device device{};
 	DX12Swapchain swapchain{};
+	ID3D12Resource** swapchainRenderTargets; //dyn alloc
+	ID3D12DescriptorHeap* swapchainRTVHeap;
 
 	D3D12MA::Allocator* DXMA;
 	ID3D12CommandQueue* directpresentqueue;
-
-	Slotmap<DX12FrameBuffer> frameBuffers{ s_DX12Allocator };
 
 	Pool<DescriptorHeap> Descriptorheaps;
 	Pool<BindingSet> bindingSetPool;
@@ -137,6 +137,35 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	s_DX12B.swapchain.swapchain = (IDXGISwapChain3*)t_NewSwapchain;
 
 	s_DX12B.currentFrame = s_DX12B.swapchain.swapchain->GetCurrentBackBufferIndex();
+
+	{ //crea
+		const UINT t_IncrementSize = s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+		D3D12_DESCRIPTOR_HEAP_DESC t_RtvHeapDesc = {};
+		t_RtvHeapDesc.NumDescriptors = s_DX12B.backBufferCount;
+		t_RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; //RTV heaps are CPU only so the cost is not high.
+		t_RtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		DXASSERT(s_DX12B.device.logicalDevice->CreateDescriptorHeap(
+			&t_RtvHeapDesc, IID_PPV_ARGS(&s_DX12B.swapchainRTVHeap)),
+			"DX12: Failed to create descriptor heap for swapchain.");
+
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart();
+
+		s_DX12B.swapchainRenderTargets = BBnewArr(s_DX12Allocator, s_DX12B.backBufferCount, ID3D12Resource*);
+		// Create a RTV for each frame.
+		for (UINT i = 0; i < s_DX12B.backBufferCount; i++)
+		{
+			DXASSERT(s_DX12B.swapchain.swapchain->GetBuffer(i,
+				IID_PPV_ARGS(&s_DX12B.swapchainRenderTargets[i])),
+				"DX12: Failed to get swapchain buffer.");
+
+			s_DX12B.device.logicalDevice->CreateRenderTargetView(
+				s_DX12B.swapchainRenderTargets[i],
+				nullptr,
+				rtvHandle);
+			rtvHandle.ptr += static_cast<uintptr_t>(1 * t_IncrementSize);
+		}
+	}
 }
 
 
@@ -255,65 +284,6 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	return t_BackendInfo;
 }
 
-FrameBufferHandle BB::DX12CreateFrameBuffer(Allocator a_TempAllocator, const RenderFrameBufferCreateInfo& a_FramebufferCreateInfo)
-{
-	DX12FrameBuffer frameBuffer{};
-
-	D3D12_VIEWPORT t_Viewport{};
-	D3D12_RECT t_SurfaceRect{};
-
-	for (size_t i = 0; i < 4; i++)
-	{
-		frameBuffer.clearColor[i] = a_FramebufferCreateInfo.clearColor[i];
-	}
-
-	t_Viewport.TopLeftX = 0.0f;
-	t_Viewport.TopLeftY = 0.0f;
-	t_Viewport.Width = static_cast<float>(a_FramebufferCreateInfo.width);
-	t_Viewport.Height = static_cast<float>(a_FramebufferCreateInfo.height);
-	t_Viewport.MinDepth = .1f;
-	t_Viewport.MaxDepth = 1000.f;
-
-	t_SurfaceRect.left = 0;
-	t_SurfaceRect.top = 0;
-	t_SurfaceRect.right = static_cast<LONG>(a_FramebufferCreateInfo.width);
-	t_SurfaceRect.bottom = static_cast<LONG>(a_FramebufferCreateInfo.height);
-
-	frameBuffer.viewport = t_Viewport;
-	frameBuffer.surfaceRect = t_SurfaceRect;
-
-	const UINT t_IncrementSize = s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-	D3D12_DESCRIPTOR_HEAP_DESC t_RtvHeapDesc = {};
-	t_RtvHeapDesc.NumDescriptors = s_DX12B.backBufferCount;
-	t_RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; //RTV heaps are CPU only so the cost is not high.
-	t_RtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	DXASSERT(s_DX12B.device.logicalDevice->CreateDescriptorHeap(
-		&t_RtvHeapDesc, IID_PPV_ARGS(&frameBuffer.rtvHeap)),
-		"DX12: Failed to create descriptor heap for swapchain.");
-
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle =
-		frameBuffer.rtvHeap->GetCPUDescriptorHandleForHeapStart();
-
-	frameBuffer.renderTargets = BBnewArr(s_DX12Allocator, s_DX12B.backBufferCount, ID3D12Resource*);
-
-	// Create a RTV for each frame.
-	for (UINT i = 0; i < s_DX12B.backBufferCount; i++)
-	{
-		DXASSERT(s_DX12B.swapchain.swapchain->GetBuffer(i,
-			IID_PPV_ARGS(&frameBuffer.renderTargets[i])),
-			"DX12: Failed to get swapchain buffer.");
-
-		s_DX12B.device.logicalDevice->CreateRenderTargetView(
-			frameBuffer.renderTargets[i],
-			nullptr,
-			rtvHandle);
-		rtvHandle.ptr += static_cast<uintptr_t>(1 * t_IncrementSize);
-	}
-
-	return FrameBufferHandle(s_DX12B.frameBuffers.insert(frameBuffer).handle);
-}
-
 RBindingSetHandle BB::DX12CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
 {
 	BindingSet* t_BindingSet = s_DX12B.bindingSetPool.Get();
@@ -429,7 +399,7 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 }
 
 //PipelineBuilder
-PipelineBuilderHandle BB::DX12PipelineBuilderInit(const FrameBufferHandle a_Handle)
+PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
 {
 	constexpr size_t MAXIMUM_ROOT_PARAMETERS = 64;
 	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo);
@@ -652,45 +622,127 @@ void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_CommandList->Close();
 }
 
-void BB::DX12StartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const FrameBufferHandle a_Framebuffer)
+void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	DX12FrameBuffer& t_Framebuffer = s_DX12B.frameBuffers.find(a_Framebuffer.handle);
+	t_CommandList->rtv = s_DX12B.swapchainRenderTargets[s_DX12B.currentFrame];
 
-	t_CommandList->rtv = t_Framebuffer.renderTargets[s_DX12B.currentFrame];
+	D3D12_RESOURCE_STATES t_StateBefore;
+	D3D12_RESOURCE_STATES t_StateAfter;
+	switch (a_RenderInfo.colorInitialLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::UNDEFINED:
+		t_StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		break;
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:
+		t_StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:
+		t_StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:
+		t_StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	default:											BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+	}
+
+	switch (a_RenderInfo.colorFinalLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:
+		t_StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:
+		t_StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:
+		t_StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	default:											BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+	}
 
 	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier;
 	t_RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	t_RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 	t_RenderTargetBarrier.Transition.pResource = t_CommandList->rtv;
-	t_RenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	t_RenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	t_RenderTargetBarrier.Transition.StateBefore = t_StateBefore;
+	t_RenderTargetBarrier.Transition.StateAfter = t_StateAfter;
 	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	t_CommandList->List()->ResourceBarrier(1, &t_RenderTargetBarrier);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE
-		rtvHandle(t_Framebuffer.rtvHeap->GetCPUDescriptorHandleForHeapStart());
+		rtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	rtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * 
 		s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
 	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-	t_CommandList->List()->RSSetViewports(1, &t_Framebuffer.viewport);
-	t_CommandList->List()->RSSetScissorRects(1, &t_Framebuffer.surfaceRect);
-	t_CommandList->List()->ClearRenderTargetView(rtvHandle, t_Framebuffer.clearColor, 0, nullptr);
+	D3D12_VIEWPORT t_Viewport{};
+
+	t_Viewport.Width = static_cast<FLOAT>(s_DX12B.swapchain.width);
+	t_Viewport.Height = static_cast<FLOAT>(s_DX12B.swapchain.height);
+	t_Viewport.MinDepth = .1f;
+	t_Viewport.MaxDepth = 1000.f;
+
+	t_CommandList->List()->RSSetViewports(1, &t_Viewport);
+
+	D3D12_RECT t_Rect{};
+	t_Rect.left = 0;
+	t_Rect.top = 0;
+	t_Rect.right = static_cast<LONG>(s_DX12B.swapchain.width);
+	t_Rect.bottom = static_cast<LONG>(s_DX12B.swapchain.height);
+	
+	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
+	t_CommandList->List()->ClearRenderTargetView(rtvHandle, a_RenderInfo.clearColor, 0, nullptr);
 }
 
-void BB::DX12EndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	D3D12_RESOURCE_STATES t_StateBefore{};
+	D3D12_RESOURCE_STATES t_StateAfter{};
+	switch (a_EndInfo.colorInitialLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: 
+		t_StateBefore =  D3D12_RESOURCE_STATE_RENDER_TARGET; 
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				
+		t_StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				
+		t_StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	default:											
+		BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+		break;
+	}
+
+	switch (a_EndInfo.colorFinalLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: 
+		t_StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				
+		t_StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		break;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				
+		t_StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	case RENDER_IMAGE_LAYOUT::PRESENT:					
+		t_StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		break;
+	default:
+		BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+		break;
+	}
 
 	//// Indicate that the back buffer will now be used to present.
 	D3D12_RESOURCE_BARRIER t_PresentBarrier;
 	t_PresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	t_PresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 	t_PresentBarrier.Transition.pResource = t_CommandList->rtv;
-	t_PresentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	t_PresentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	t_PresentBarrier.Transition.StateBefore = t_StateBefore;
+	t_PresentBarrier.Transition.StateAfter = t_StateAfter;
 	t_PresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
@@ -993,20 +1045,6 @@ void BB::DX12DestroyBindingSet(const RBindingSetHandle a_Handle)
 	BindingSet* t_Set = reinterpret_cast<BindingSet*>(a_Handle.ptrHandle);
 	*t_Set = {}; //zero it for safety
 	s_DX12B.bindingSetPool.Free(t_Set);
-}
-
-void BB::DX12DestroyFramebuffer(const FrameBufferHandle a_Handle)
-{
-	DX12FrameBuffer t_FrameBuffer = s_DX12B.frameBuffers.find(a_Handle.handle);
-	
-	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
-	{
-		t_FrameBuffer.renderTargets[i]->Release();
-	}
-	BBfreeArr(s_DX12Allocator, t_FrameBuffer.renderTargets);
-	t_FrameBuffer.rtvHeap->Release();
-
-	s_DX12B.frameBuffers.erase(a_Handle.handle);
 }
 
 void BB::DX12DestroyBackend()

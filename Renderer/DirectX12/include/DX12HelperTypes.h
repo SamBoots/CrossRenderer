@@ -48,16 +48,6 @@ namespace BB
 		IDXGISwapChain3* swapchain;
 	};
 
-	struct DX12FrameBuffer
-	{
-		ID3D12Resource** renderTargets; //dyn alloc
-
-		ID3D12DescriptorHeap* rtvHeap;
-		D3D12_VIEWPORT viewport;
-		D3D12_RECT surfaceRect;
-		float clearColor[4];
-	};
-
 	class DXFence
 	{
 	public:
