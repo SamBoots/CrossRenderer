@@ -54,6 +54,9 @@ static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
 struct RendererInst
 {
+	uint32_t swapchainWidth = 0;
+	uint32_t swapchainHeight = 0;
+
 	uint32_t frameBufferAmount;
 	uint32_t modelMatrixMax = 10;
 
@@ -114,7 +117,8 @@ static void Draw3DFrame()
 	RenderBackend::CopyBuffer(t_CopyInfo);
 
 	StartRenderingInfo t_StartRenderInfo;
-	//VkRenderpass info
+	t_StartRenderInfo.viewportWidth = s_RendererInst.swapchainWidth;
+	t_StartRenderInfo.viewportHeight = s_RendererInst.swapchainHeight;
 	t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
 	t_StartRenderInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
@@ -203,12 +207,15 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	int t_WindowWidth;
 	int t_WindowHeight;
 	GetWindowSize(a_InitInfo.windowHandle, t_WindowWidth, t_WindowHeight);
+	s_RendererInst.swapchainWidth = static_cast<uint32_t>(t_WindowWidth);
+	s_RendererInst.swapchainHeight = static_cast<uint32_t>(t_WindowHeight);
+
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
 	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)LibLoadFunc(a_InitInfo.renderDll, "GetRenderAPIFunctions");
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
-	t_BackendCreateInfo.hwnd = reinterpret_cast<HWND>(GetOSWindowHandle(a_InitInfo.windowHandle));
+	t_BackendCreateInfo.windowHandle = a_InitInfo.windowHandle;
 	t_BackendCreateInfo.validationLayers = a_InitInfo.debug;
 	t_BackendCreateInfo.appName = "TestName";
 	t_BackendCreateInfo.engineName = "TestEngine";
@@ -576,5 +583,7 @@ void BB::Render::EndFrame()
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 {
+	s_RendererInst.swapchainWidth = a_X;
+	s_RendererInst.swapchainHeight = a_Y;
 	RenderBackend::ResizeWindow(a_X, a_Y);
 }

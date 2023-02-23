@@ -511,7 +511,7 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 {
 	for (size_t i = 0; i < a_ModeCount; i++)
 	{
-		if (a_Modes[i] = VK_PRESENT_MODE_MAILBOX_KHR)
+		if (a_Modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
 			return VK_PRESENT_MODE_MAILBOX_KHR;
 		}
@@ -853,7 +853,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 		//Surface
 		VkWin32SurfaceCreateInfoKHR t_SurfaceCreateInfo{};
 		t_SurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		t_SurfaceCreateInfo.hwnd = a_CreateInfo.hwnd;
+		t_SurfaceCreateInfo.hwnd = reinterpret_cast<HWND>(a_CreateInfo.windowHandle.ptrHandle);
 		t_SurfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
 		VKASSERT(vkCreateWin32SurfaceKHR(s_VKB.instance,
 			&t_SurfaceCreateInfo, nullptr,
@@ -1368,9 +1368,14 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_RenderColorAttach.clearValue.color.float32[2] = a_RenderInfo.clearColor[2];
 	t_RenderColorAttach.clearValue.color.float32[3] = a_RenderInfo.clearColor[3];
 
+	VkRect2D t_Scissor{};
+	t_Scissor.offset = { 0, 0 };
+	t_Scissor.extent.width = a_RenderInfo.viewportWidth;
+	t_Scissor.extent.height = a_RenderInfo.viewportHeight;
+
 	VkRenderingInfo t_RenderInfo{};
 	t_RenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	t_RenderInfo.renderArea = VkInit::Rect2D(0, 0, s_VKB.swapChain.extent);
+	t_RenderInfo.renderArea = t_Scissor;
 	t_RenderInfo.layerCount = 1;
 	t_RenderInfo.pColorAttachments = &t_RenderColorAttach;
 	t_RenderInfo.colorAttachmentCount = 1;
@@ -1381,15 +1386,13 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	VkViewport t_Viewport{};
 	t_Viewport.x = 0.0f;
 	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(s_VKB.swapChain.extent.width);
-	t_Viewport.height = static_cast<float>(s_VKB.swapChain.extent.height);
+	t_Viewport.width = static_cast<float>(a_RenderInfo.viewportWidth);
+	t_Viewport.height = static_cast<float>(a_RenderInfo.viewportHeight);
 	t_Viewport.minDepth = 0.0f;
 	t_Viewport.maxDepth = 1.0f;
 	vkCmdSetViewport(t_Cmdlist->Buffer(), 0, 1, &t_Viewport);
 
-	VkRect2D t_Scissor{};
-	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = s_VKB.swapChain.extent;
+
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 

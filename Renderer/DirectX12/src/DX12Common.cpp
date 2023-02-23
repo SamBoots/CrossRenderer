@@ -249,7 +249,9 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 		IID_PPV_ARGS(&s_DX12B.directpresentqueue)),
 		"DX12: Failed to create direct command queue");
 
-	SetupBackendSwapChain(a_CreateInfo.windowWidth, a_CreateInfo.windowHeight, a_CreateInfo.hwnd);
+	SetupBackendSwapChain(a_CreateInfo.windowWidth, 
+		a_CreateInfo.windowHeight, 
+		reinterpret_cast<HWND>(a_CreateInfo.windowHandle.ptrHandle));
 
 	//Create the two main heaps.
 	s_DX12B.defaultHeap = 
@@ -678,8 +680,8 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 
 	D3D12_VIEWPORT t_Viewport{};
 
-	t_Viewport.Width = static_cast<FLOAT>(s_DX12B.swapchain.width);
-	t_Viewport.Height = static_cast<FLOAT>(s_DX12B.swapchain.height);
+	t_Viewport.Width = static_cast<FLOAT>(a_RenderInfo.viewportWidth);
+	t_Viewport.Height = static_cast<FLOAT>(a_RenderInfo.viewportHeight);
 	t_Viewport.MinDepth = .1f;
 	t_Viewport.MaxDepth = 1000.f;
 
@@ -688,8 +690,8 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	D3D12_RECT t_Rect{};
 	t_Rect.left = 0;
 	t_Rect.top = 0;
-	t_Rect.right = static_cast<LONG>(s_DX12B.swapchain.width);
-	t_Rect.bottom = static_cast<LONG>(s_DX12B.swapchain.height);
+	t_Rect.right = static_cast<LONG>(a_RenderInfo.viewportWidth);
+	t_Rect.bottom = static_cast<LONG>(a_RenderInfo.viewportHeight);
 	
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 	t_CommandList->List()->ClearRenderTargetView(rtvHandle, a_RenderInfo.clearColor, 0, nullptr);

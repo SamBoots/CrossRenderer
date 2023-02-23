@@ -194,9 +194,7 @@ namespace BB
 		PFN_RenderGetAPIFunctions getApiFuncPtr;
 		Slice<RENDER_EXTENSIONS> extensions{};
 		Slice<RENDER_EXTENSIONS> deviceExtensions{};
-#ifdef _WIN32
-		HWND hwnd{};
-#endif //_WIN32
+		WindowHandle windowHandle;
 		const char* appName{};
 		const char* engineName{};
 		uint32_t windowWidth{};
@@ -283,6 +281,9 @@ namespace BB
 
 	struct StartRenderingInfo
 	{
+		uint32_t viewportWidth = 0;
+		uint32_t viewportHeight = 0;
+
 		RENDER_LOAD_OP colorLoadOp{};
 		RENDER_STORE_OP colorStoreOp{};
 		RENDER_IMAGE_LAYOUT colorInitialLayout{};
