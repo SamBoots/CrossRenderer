@@ -159,12 +159,12 @@ struct VulkanBackend_inst
 		bindingSetPool.DestroyPool(s_VulkanAllocator);
 	}
 };
-static VulkanBackend_inst s_VkBackendInst;
+static VulkanBackend_inst s_VKB;
 
 static VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 {
 	VkPhysicalDeviceProperties t_Properties;
-	vkGetPhysicalDeviceProperties(s_VkBackendInst.device.physicalDevice, &t_Properties);
+	vkGetPhysicalDeviceProperties(s_VKB.device.physicalDevice, &t_Properties);
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
 }
 
@@ -178,14 +178,14 @@ void DescriptorAllocator::CreateDescriptorPool()
 	t_CreateInfo.maxSets = 1000;
 	t_CreateInfo.flags = 0;
 
-	VKASSERT(vkCreateDescriptorPool(s_VkBackendInst.device.logicalDevice,
+	VKASSERT(vkCreateDescriptorPool(s_VKB.device.logicalDevice,
 		&t_CreateInfo, nullptr, &descriptorPool),
 		"Vulkan: Failed to create descriptorPool.");
 }
 
 void DescriptorAllocator::Destroy()
 {
-	vkDestroyDescriptorPool(s_VkBackendInst.device.logicalDevice,
+	vkDestroyDescriptorPool(s_VKB.device.logicalDevice,
 		descriptorPool,
 		nullptr);
 }
@@ -215,7 +215,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 static uint32_t FindMemoryType(uint32_t a_TypeFilter, VkMemoryPropertyFlags a_Properties)
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(s_VkBackendInst.device.physicalDevice, &memProperties);
+	vkGetPhysicalDeviceMemoryProperties(s_VKB.device.physicalDevice, &memProperties);
 
 	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
 		if ((a_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & a_Properties) == a_Properties) {
@@ -381,9 +381,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	VkDevice t_ReturnDevice;
 
 	uint32_t t_QueueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(s_VkBackendInst.device.physicalDevice, &t_QueueFamilyCount, nullptr);
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.device.physicalDevice, &t_QueueFamilyCount, nullptr);
 	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
-	vkGetPhysicalDeviceQueueFamilyProperties(s_VkBackendInst.device.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.device.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
 	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(a_TempAllocator, 3, VkDeviceQueueCreateInfo);
 	uint32_t t_DifferentQueues = 0;
@@ -394,8 +394,8 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_GRAPHICS_BIT);
 
-		s_VkBackendInst.device.queueIndices.graphics = t_GraphicQueue.index;
-		s_VkBackendInst.device.queueIndices.present = t_GraphicQueue.index;
+		s_VKB.device.queueIndices.graphics = t_GraphicQueue.index;
+		s_VKB.device.queueIndices.present = t_GraphicQueue.index;
 		//set the graphics queue first.
 		t_QueueCreateInfos[t_DifferentQueues] = {};
 		t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -410,9 +410,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_TRANSFER_BIT);
 		//Check if the queueindex is the same as graphics.
-		if (t_TransferQueue.index != s_VkBackendInst.device.queueIndices.graphics)
+		if (t_TransferQueue.index != s_VKB.device.queueIndices.graphics)
 		{
-			s_VkBackendInst.device.queueIndices.transfer = t_TransferQueue.index;
+			s_VKB.device.queueIndices.transfer = t_TransferQueue.index;
 			//set the graphics queue first.
 			t_QueueCreateInfos[t_DifferentQueues] = {};
 			t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -423,7 +423,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 		}
 		else
 		{
-			s_VkBackendInst.device.queueIndices.transfer = s_VkBackendInst.device.queueIndices.graphics;
+			s_VKB.device.queueIndices.transfer = s_VKB.device.queueIndices.graphics;
 		}
 	}
 
@@ -432,10 +432,10 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_COMPUTE_BIT);
 		//Check if the queueindex is the same as graphics.
-		if ((t_ComputeQueue.index != s_VkBackendInst.device.queueIndices.graphics) &&
-			(t_ComputeQueue.index != s_VkBackendInst.device.queueIndices.compute))
+		if ((t_ComputeQueue.index != s_VKB.device.queueIndices.graphics) &&
+			(t_ComputeQueue.index != s_VKB.device.queueIndices.compute))
 		{
-			s_VkBackendInst.device.queueIndices.compute = t_ComputeQueue.index;
+			s_VKB.device.queueIndices.compute = t_ComputeQueue.index;
 			//set the graphics queue first.
 			t_QueueCreateInfos[t_DifferentQueues] = {};
 			t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -446,7 +446,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 		}
 		else
 		{
-			s_VkBackendInst.device.queueIndices.compute = s_VkBackendInst.device.queueIndices.graphics;
+			s_VKB.device.queueIndices.compute = s_VKB.device.queueIndices.graphics;
 		}
 	}
 
@@ -477,7 +477,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
 	t_CreateInfo.pNext = &t_DynamicRendering;
 
-	VKASSERT(vkCreateDevice(s_VkBackendInst.device.physicalDevice, 
+	VKASSERT(vkCreateDevice(s_VKB.device.physicalDevice, 
 		&t_CreateInfo, 
 		nullptr, 
 		&t_ReturnDevice),
@@ -485,9 +485,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 
 	//Get the present queue.
 	vkGetDeviceQueue(t_ReturnDevice,
-		s_VkBackendInst.device.queueIndices.present,
+		s_VKB.device.queueIndices.present,
 		0,
-		&s_VkBackendInst.device.presentQueue);
+		&s_VKB.device.presentQueue);
 
 	return t_ReturnDevice;
 }
@@ -537,7 +537,7 @@ static void CreateImageViews(VkImageView* a_pView, const VkImage* a_Images, VkDe
 	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
-	for (uint32_t i = 0; i < s_VkBackendInst.frameCount; i++)
+	for (uint32_t i = 0; i < s_VKB.frameCount; i++)
 	{
 		t_ImageViewCreateInfo.image = a_Images[i];
 		VKASSERT(vkCreateImageView(a_Device,
@@ -564,8 +564,8 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	a_SwapChain.extent = t_ChosenExtent;
 
 	uint32_t t_GraphicFamily, t_PresentFamily;
-	t_GraphicFamily = s_VkBackendInst.device.queueIndices.graphics;
-	t_PresentFamily = s_VkBackendInst.device.queueIndices.present;
+	t_GraphicFamily = s_VKB.device.queueIndices.graphics;
+	t_PresentFamily = s_VKB.device.queueIndices.present;
 	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
 	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
@@ -601,21 +601,21 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
 		//Now create the swapchain and set the framecount.
-		s_VkBackendInst.frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+		s_VKB.frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
 		t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
-		if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VkBackendInst.frameCount >
+		if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VKB.frameCount >
 			t_SwapchainDetails.capabilities.maxImageCount)
 		{
-			s_VkBackendInst.frameCount = t_SwapchainDetails.capabilities.maxImageCount;
+			s_VKB.frameCount = t_SwapchainDetails.capabilities.maxImageCount;
 			t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.maxImageCount;
 		}
 
 		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
 
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst.frameCount, nullptr);
-		a_SwapChain.images = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkImage);
-		a_SwapChain.imageViews = BBnewArr(s_VulkanAllocator, s_VkBackendInst.frameCount, VkImageView);
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst.frameCount, a_SwapChain.images);
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, nullptr);
+		a_SwapChain.images = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImage);
+		a_SwapChain.imageViews = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImageView);
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, a_SwapChain.images);
 
 		//Create sync structures in the same loop, might be moved to commandlist.
 		VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
@@ -624,14 +624,14 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 
 		CreateImageViews(a_SwapChain.imageViews,
 			a_SwapChain.images,
-			s_VkBackendInst.device.logicalDevice,
+			s_VKB.device.logicalDevice,
 			a_SwapChain.imageFormat,
-			s_VkBackendInst.frameCount);
+			s_VKB.frameCount);
 
 		//Also create the present semaphores, these are unique semaphores that handle the window integration API as they cannot use timeline semaphores.
 		a_SwapChain.waitSyncs = BBnewArr(
 			s_VulkanAllocator,
-			s_VkBackendInst.frameCount,
+			s_VKB.frameCount,
 			FrameWaitSync);
 
 		VkSemaphoreCreateInfo t_SemInfo{};
@@ -642,19 +642,19 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
 		t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
 		t_TimelineSemInfo.initialValue = 0;
-		for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
+		for (size_t i = 0; i < s_VKB.frameCount; i++)
 		{
-			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+			vkCreateSemaphore(s_VKB.device.logicalDevice,
 				&t_SemInfo,
 				nullptr,
 				&a_SwapChain.waitSyncs[i].imageAvailableSem);
-			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+			vkCreateSemaphore(s_VKB.device.logicalDevice,
 				&t_SemInfo,
 				nullptr,
 				&a_SwapChain.waitSyncs[i].imageRenderFinishedSem);
 
 			t_SemInfo.pNext = &t_TimelineSemInfo;
-			vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+			vkCreateSemaphore(s_VKB.device.logicalDevice,
 				&t_SemInfo,
 				nullptr,
 				&a_SwapChain.waitSyncs[i].frameTimelineSemaphore);
@@ -666,16 +666,16 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	{
 		t_SwapCreateInfo.oldSwapchain = a_SwapChain.swapChain;
 		t_SwapCreateInfo.imageExtent = a_SwapChain.extent;
-		t_SwapCreateInfo.minImageCount = s_VkBackendInst.frameCount;
+		t_SwapCreateInfo.minImageCount = s_VKB.frameCount;
 
 		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VkBackendInst.frameCount, a_SwapChain.images);
+		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, a_SwapChain.images);
 
 		CreateImageViews(a_SwapChain.imageViews,
 			a_SwapChain.images,
-			s_VkBackendInst.device.logicalDevice,
+			s_VKB.device.logicalDevice,
 			a_SwapChain.imageFormat,
-			s_VkBackendInst.frameCount);
+			s_VKB.frameCount);
 	}
 }
 
@@ -717,26 +717,26 @@ static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> 
 	t_LayoutCreateInfo.pPushConstantRanges = a_PushConstants.data();
 
 	PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
-	VkPipelineLayout* t_FoundLayout = s_VkBackendInst.pipelineLayouts.find(t_DescriptorHash);
+	VkPipelineLayout* t_FoundLayout = s_VKB.pipelineLayouts.find(t_DescriptorHash);
 
 	if (t_FoundLayout != nullptr)
 		return *t_FoundLayout;
 
 	VkPipelineLayout t_NewLayout = VK_NULL_HANDLE;
-	VKASSERT(vkCreatePipelineLayout(s_VkBackendInst.device.logicalDevice,
+	VKASSERT(vkCreatePipelineLayout(s_VKB.device.logicalDevice,
 		&t_LayoutCreateInfo,
 		nullptr,
 		&t_NewLayout),
 		"Vulkan: Failed to create pipelinelayout.");
 
-	s_VkBackendInst.pipelineLayouts.insert(t_DescriptorHash, t_NewLayout);
+	s_VKB.pipelineLayouts.insert(t_DescriptorHash, t_NewLayout);
 
 	return t_NewLayout;
 }
 
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
-	VulkanBuffer* t_Buffer = s_VkBackendInst.renderBuffers.Get();
+	VulkanBuffer* t_Buffer = s_VKB.renderBuffers.Get();
 
 	VkBufferCreateInfo t_BufferInfo{};
 	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -750,7 +750,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 		t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
 
-	VKASSERT(vmaCreateBuffer(s_VkBackendInst.vma,
+	VKASSERT(vmaCreateBuffer(s_VKB.vma,
 		&t_BufferInfo, &t_VmaAlloc,
 		&t_Buffer->buffer, &t_Buffer->allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
@@ -759,12 +759,12 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 		a_Info.memProperties != RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL)
 	{
 		void* t_MapData;
-		VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+		VKASSERT(vmaMapMemory(s_VKB.vma,
 			t_Buffer->allocation,
 			&t_MapData),
 			"Vulkan: Failed to map memory");
 		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
-		vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer->allocation);
+		vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
 	}
 
 	return RBufferHandle(t_Buffer);
@@ -773,14 +773,14 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 {
 	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle);
-	vmaDestroyBuffer(s_VkBackendInst.vma, t_Buffer->buffer, t_Buffer->allocation);
-	s_VkBackendInst.renderBuffers.Free(t_Buffer);
+	vmaDestroyBuffer(s_VKB.vma, t_Buffer->buffer, t_Buffer->allocation);
+	s_VKB.renderBuffers.Free(t_Buffer);
 }
 
 BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	//Initialize data structure
-	s_VkBackendInst.CreatePools();
+	s_VKB.CreatePools();
 
 
 	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
@@ -797,11 +797,11 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 #ifdef _DEBUG
 	//For debug, we want to remember the extensions we have.
-	s_VkBackendInst.vulkanDebug.extensions = BBnewArr(s_VulkanAllocator, t_InstanceExtensions.count, const char*);
-	s_VkBackendInst.vulkanDebug.extensionCount = t_InstanceExtensions.count;
-	for (size_t i = 0; i < s_VkBackendInst.vulkanDebug.extensionCount; i++)
+	s_VKB.vulkanDebug.extensions = BBnewArr(s_VulkanAllocator, t_InstanceExtensions.count, const char*);
+	s_VKB.vulkanDebug.extensionCount = t_InstanceExtensions.count;
+	for (size_t i = 0; i < s_VKB.vulkanDebug.extensionCount; i++)
 	{
-		s_VkBackendInst.vulkanDebug.extensions[i] = t_InstanceExtensions.extensions[i];
+		s_VKB.vulkanDebug.extensions[i] = t_InstanceExtensions.extensions[i];
 	}
 #endif //_DEBUG
 	{
@@ -837,15 +837,15 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 		VKASSERT(vkCreateInstance(&t_InstanceCreateInfo,
 			nullptr,
-			&s_VkBackendInst.instance), "Failed to create Vulkan Instance!");
+			&s_VKB.instance), "Failed to create Vulkan Instance!");
 
 		if (a_CreateInfo.validationLayers)
 		{
-			s_VkBackendInst.vulkanDebug.debugMessenger = CreateVulkanDebugMsgger(s_VkBackendInst.instance);
+			s_VKB.vulkanDebug.debugMessenger = CreateVulkanDebugMsgger(s_VKB.instance);
 		}
 		else
 		{
-			s_VkBackendInst.vulkanDebug.debugMessenger = 0;
+			s_VKB.vulkanDebug.debugMessenger = 0;
 		}
 	}
 
@@ -855,26 +855,26 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 		t_SurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		t_SurfaceCreateInfo.hwnd = a_CreateInfo.hwnd;
 		t_SurfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
-		VKASSERT(vkCreateWin32SurfaceKHR(s_VkBackendInst.instance,
+		VKASSERT(vkCreateWin32SurfaceKHR(s_VKB.instance,
 			&t_SurfaceCreateInfo, nullptr,
-			&s_VkBackendInst.surface),
+			&s_VKB.surface),
 			"Failed to create Win32 vulkan surface.");
 	}
 
 	//Get the physical Device
-	s_VkBackendInst.device.physicalDevice = FindPhysicalDevice(a_TempAllocator,
-		s_VkBackendInst.instance,
-		s_VkBackendInst.surface);
+	s_VKB.device.physicalDevice = FindPhysicalDevice(a_TempAllocator,
+		s_VKB.instance,
+		s_VKB.surface);
 	//Get the logical device and the graphics queue.
-	s_VkBackendInst.device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
+	s_VKB.device.logicalDevice = CreateLogicalDevice(a_TempAllocator,
 		BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count));
 
 
-	CreateSwapchain(s_VkBackendInst.swapChain, 
+	CreateSwapchain(s_VKB.swapChain, 
 		a_TempAllocator,
-		s_VkBackendInst.surface,
-		s_VkBackendInst.device.physicalDevice,
-		s_VkBackendInst.device.logicalDevice,
+		s_VKB.surface,
+		s_VKB.device.physicalDevice,
+		s_VKB.device.logicalDevice,
 		a_CreateInfo.windowWidth,
 		a_CreateInfo.windowHeight);
 
@@ -887,20 +887,20 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 	VmaAllocatorCreateInfo t_AllocatorCreateInfo = {};
 	t_AllocatorCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
-	t_AllocatorCreateInfo.physicalDevice = s_VkBackendInst.device.physicalDevice;
-	t_AllocatorCreateInfo.device = s_VkBackendInst.device.logicalDevice;
-	t_AllocatorCreateInfo.instance = s_VkBackendInst.instance;
+	t_AllocatorCreateInfo.physicalDevice = s_VKB.device.physicalDevice;
+	t_AllocatorCreateInfo.device = s_VKB.device.logicalDevice;
+	t_AllocatorCreateInfo.instance = s_VKB.instance;
 	t_AllocatorCreateInfo.pVulkanFunctions = &t_VkFunctions;
 
-	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VkBackendInst.vma);
+	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VKB.vma);
 
 	//Create descriptor allocator.
-	s_VkBackendInst.descriptorAllocator.CreateDescriptorPool();
+	s_VKB.descriptorAllocator.CreateDescriptorPool();
 
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
-	t_BackendInfo.currentFrame = s_VkBackendInst.currentFrame;;
-	t_BackendInfo.framebufferCount = s_VkBackendInst.frameCount;
+	t_BackendInfo.currentFrame = s_VKB.currentFrame;;
+	t_BackendInfo.framebufferCount = s_VKB.frameCount;
 
 	return t_BackendInfo;
 }
@@ -909,7 +909,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 {
 	constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
 
-	VulkanBindingSet* t_BindingSet = s_VkBackendInst.bindingSetPool.Get();
+	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
 	*t_BindingSet = {}; //set to 0
 
 	uint32_t t_PushConstantOffset = 0;
@@ -966,7 +966,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bufferBinds.size());
 
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device.logicalDevice,
 			&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
@@ -976,9 +976,9 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 	t_AllocInfo.pSetLayouts = &t_BindingSet->setLayout;
 	t_AllocInfo.descriptorSetCount = STANDARD_DESCRIPTORSET_COUNT;
 	//Lmao creat pool
-	t_AllocInfo.descriptorPool = s_VkBackendInst.descriptorAllocator.GetPool();
+	t_AllocInfo.descriptorPool = s_VKB.descriptorAllocator.GetPool();
 
-	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+	VkResult t_AllocResult = vkAllocateDescriptorSets(s_VKB.device.logicalDevice,
 		&t_AllocInfo,
 		&t_BindingSet->set);
 	bool t_NeedReallocate = false;
@@ -1002,7 +1002,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		break;
 	}
 
-	vkUpdateDescriptorSets(s_VkBackendInst.device.logicalDevice,
+	vkUpdateDescriptorSets(s_VKB.device.logicalDevice,
 		static_cast<uint32_t>(a_Info.bufferBinds.size()),
 		t_Writes,
 		0,
@@ -1018,26 +1018,26 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
-	VulkanCommandQueue* t_Queue = s_VkBackendInst.cmdQueues.Get();
+	VulkanCommandQueue* t_Queue = s_VKB.cmdQueues.Get();
 	uint32_t t_QueueIndex;
 
 	switch (a_Info.queue)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
-		t_QueueIndex = s_VkBackendInst.device.queueIndices.graphics;
+		t_QueueIndex = s_VKB.device.queueIndices.graphics;
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		t_QueueIndex = s_VkBackendInst.device.queueIndices.transfer;
+		t_QueueIndex = s_VKB.device.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
-		t_QueueIndex = s_VkBackendInst.device.queueIndices.compute;
+		t_QueueIndex = s_VKB.device.queueIndices.compute;
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
 		break;
 	}
 
-	vkGetDeviceQueue(s_VkBackendInst.device.logicalDevice,
+	vkGetDeviceQueue(s_VKB.device.logicalDevice,
 		t_QueueIndex,
 		0,
 		&t_Queue->queue);
@@ -1053,7 +1053,7 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 	t_SemCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
-	vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+	vkCreateSemaphore(s_VKB.device.logicalDevice,
 		&t_SemCreateInfo,
 		nullptr,
 		&t_Queue->timelineSemaphore);
@@ -1066,7 +1066,7 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 	t_SigInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
 	t_SigInfo.semaphore = t_Queue->timelineSemaphore;
 	t_SigInfo.value = t_Queue->lastCompleteValue;
-	vkSignalSemaphore(s_VkBackendInst.device.logicalDevice,
+	vkSignalSemaphore(s_VKB.device.logicalDevice,
 		&t_SigInfo);
 
 	return CommandQueueHandle(t_Queue);
@@ -1074,27 +1074,27 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
-	VkCommandAllocator* t_CmdAllocator = s_VkBackendInst.cmdAllocators.Get();
+	VkCommandAllocator* t_CmdAllocator = s_VKB.cmdAllocators.Get();
 
 	VkCommandPoolCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	switch (a_CreateInfo.queueType)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
-		t_CreateInfo.queueFamilyIndex = s_VkBackendInst.device.queueIndices.graphics;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.graphics;
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		t_CreateInfo.queueFamilyIndex = s_VkBackendInst.device.queueIndices.transfer;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
-		t_CreateInfo.queueFamilyIndex = s_VkBackendInst.device.queueIndices.compute;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.compute;
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Tried to make a command allocator with a queue type that does not exist.");
 		break;
 	}
 
-	VKASSERT(vkCreateCommandPool(s_VkBackendInst.device.logicalDevice,
+	VKASSERT(vkCreateCommandPool(s_VKB.device.logicalDevice,
 		&t_CreateInfo,
 		nullptr,
 		&t_CmdAllocator->pool),
@@ -1108,7 +1108,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 	t_AllocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	t_AllocCreateInfo.commandBufferCount = a_CreateInfo.commandListCount;
 
-	VKASSERT(vkAllocateCommandBuffers(s_VkBackendInst.device.logicalDevice,
+	VKASSERT(vkAllocateCommandBuffers(s_VKB.device.logicalDevice,
 		&t_AllocCreateInfo,
 		t_CmdAllocator->buffers.data()),
 		"Vulkan: Failed to allocate command buffers!");
@@ -1119,7 +1119,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	BB_ASSERT(a_CreateInfo.commandAllocator.handle != NULL, "Sending a commandallocator handle that is null!");
-	return CommandListHandle(s_VkBackendInst.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
+	return CommandListHandle(s_VKB.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
 }
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
@@ -1134,7 +1134,7 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
 	VkSemaphore t_TimelineSem;
-	vkCreateSemaphore(s_VkBackendInst.device.logicalDevice,
+	vkCreateSemaphore(s_VKB.device.logicalDevice,
 		&t_SemCreateInfo,
 		nullptr,
 		&t_TimelineSem);
@@ -1149,7 +1149,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_In
 	//We do dynamic rendering to avoid having to handle renderpasses and such.
 	t_BuildInfo->dynamicRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	t_BuildInfo->dynamicRenderingInfo.colorAttachmentCount = 1;
-	t_BuildInfo->dynamicRenderingInfo.pColorAttachmentFormats = &s_VkBackendInst.swapChain.imageFormat;
+	t_BuildInfo->dynamicRenderingInfo.pColorAttachmentFormats = &s_VKB.swapChain.imageFormat;
 	t_BuildInfo->dynamicRenderingInfo.pNext = nullptr;
 
 	
@@ -1185,7 +1185,7 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 
 	t_BuildInfo->shaderInfo = CreateShaderModules(
 		t_BuildInfo->buildAllocator,
-		s_VkBackendInst.device.logicalDevice,
+		s_VKB.device.logicalDevice,
 		a_ShaderInfo);
 
 	t_BuildInfo->pipeInfo.pStages = t_BuildInfo->shaderInfo.pipelineShaderStageInfo;
@@ -1270,7 +1270,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_BuildInfo->pipeInfo.basePipelineHandle = VK_NULL_HANDLE;
 		t_BuildInfo->pipeInfo.basePipelineIndex = -1;
 
-		VKASSERT(vkCreateGraphicsPipelines(s_VkBackendInst.device.logicalDevice,
+		VKASSERT(vkCreateGraphicsPipelines(s_VKB.device.logicalDevice,
 			VK_NULL_HANDLE,
 			1,
 			&t_BuildInfo->pipeInfo,
@@ -1280,13 +1280,13 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 
 		for (uint32_t i = 0; i < t_BuildInfo->pipeInfo.stageCount; i++)
 		{
-			vkDestroyShaderModule(s_VkBackendInst.device.logicalDevice,
+			vkDestroyShaderModule(s_VKB.device.logicalDevice,
 				t_BuildInfo->shaderInfo.shaderModules[i],
 				nullptr);
 		}
 	}
 
-	VulkanPipeline* t_ReturnPipeline = s_VkBackendInst.pipelinePool.Get();
+	VulkanPipeline* t_ReturnPipeline = s_VKB.pipelinePool.Get();
 	*t_ReturnPipeline = t_Pipeline;
 
 	BBfree(s_VulkanAllocator, t_BuildInfo);
@@ -1301,14 +1301,14 @@ void BB::VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocator
 	//Wait for fence.
 	VkCommandAllocator* t_CmdAllocator = reinterpret_cast<VkCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle);
 
-	vkResetCommandPool(s_VkBackendInst.device.logicalDevice,
+	vkResetCommandPool(s_VKB.device.logicalDevice,
 		t_CmdAllocator->pool,
 		0);
 }
 
 RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
 {
-	VulkanCommandList& t_Cmdlist = s_VkBackendInst.commandLists[a_CmdHandle.handle];
+	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_CmdHandle.handle];
 
 	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
 	VkCommandBufferBeginInfo t_CmdBeginInfo{};
@@ -1339,7 +1339,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_PresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
-	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
+	t_PresentBarrier.image = s_VKB.swapChain.images[s_VKB.currentFrame];
 	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
 	t_PresentBarrier.subresourceRange.layerCount = 1;
@@ -1362,7 +1362,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_RenderColorAttach.loadOp = VKConv::LoadOP(a_RenderInfo.colorLoadOp);
 	t_RenderColorAttach.storeOp = VKConv::StoreOp(a_RenderInfo.colorStoreOp);
 	t_RenderColorAttach.imageLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout); //Get the layout after the memory barrier.
-	t_RenderColorAttach.imageView = s_VkBackendInst.swapChain.imageViews[s_VkBackendInst.currentFrame];
+	t_RenderColorAttach.imageView = s_VKB.swapChain.imageViews[s_VKB.currentFrame];
 	t_RenderColorAttach.clearValue.color.float32[0] = a_RenderInfo.clearColor[0];
 	t_RenderColorAttach.clearValue.color.float32[1] = a_RenderInfo.clearColor[1];
 	t_RenderColorAttach.clearValue.color.float32[2] = a_RenderInfo.clearColor[2];
@@ -1370,7 +1370,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 
 	VkRenderingInfo t_RenderInfo{};
 	t_RenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	t_RenderInfo.renderArea = VkInit::Rect2D(0, 0, s_VkBackendInst.swapChain.extent);
+	t_RenderInfo.renderArea = VkInit::Rect2D(0, 0, s_VKB.swapChain.extent);
 	t_RenderInfo.layerCount = 1;
 	t_RenderInfo.pColorAttachments = &t_RenderColorAttach;
 	t_RenderInfo.colorAttachmentCount = 1;
@@ -1381,15 +1381,15 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	VkViewport t_Viewport{};
 	t_Viewport.x = 0.0f;
 	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(s_VkBackendInst.swapChain.extent.width);
-	t_Viewport.height = static_cast<float>(s_VkBackendInst.swapChain.extent.height);
+	t_Viewport.width = static_cast<float>(s_VKB.swapChain.extent.width);
+	t_Viewport.height = static_cast<float>(s_VKB.swapChain.extent.height);
 	t_Viewport.minDepth = 0.0f;
 	t_Viewport.maxDepth = 1.0f;
 	vkCmdSetViewport(t_Cmdlist->Buffer(), 0, 1, &t_Viewport);
 
 	VkRect2D t_Scissor{};
 	t_Scissor.offset = { 0, 0 };
-	t_Scissor.extent = s_VkBackendInst.swapChain.extent;
+	t_Scissor.extent = s_VKB.swapChain.extent;
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
@@ -1403,7 +1403,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_EndInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_EndInfo.colorFinalLayout);
-	t_PresentBarrier.image = s_VkBackendInst.swapChain.images[s_VkBackendInst.currentFrame];
+	t_PresentBarrier.image = s_VKB.swapChain.images[s_VKB.currentFrame];
 	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
 	t_PresentBarrier.subresourceRange.layerCount = 1;
@@ -1516,12 +1516,12 @@ void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, 
 {
 	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.handle);
 	void* t_MapData;
-	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+	VKASSERT(vmaMapMemory(s_VKB.vma,
 		t_Buffer->allocation,
 		&t_MapData),
 		"Vulkan: Failed to map memory");
 	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
-	vmaUnmapMemory(s_VkBackendInst.vma, t_Buffer->allocation);
+	vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
 }
 
 void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
@@ -1548,7 +1548,7 @@ void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo&
 void* BB::VulkanMapMemory(const RBufferHandle a_Handle)
 {
 	void* t_MapData;
-	VKASSERT(vmaMapMemory(s_VkBackendInst.vma,
+	VKASSERT(vmaMapMemory(s_VKB.vma,
 		reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation,
 		&t_MapData),
 		"Vulkan: Failed to map memory");
@@ -1558,26 +1558,26 @@ void* BB::VulkanMapMemory(const RBufferHandle a_Handle)
 
 void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 {
-	vmaUnmapMemory(s_VkBackendInst.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
+	vmaUnmapMemory(s_VKB.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
 void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)
 {
 	VulkanWaitDeviceReady();
 
-	for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
+	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{
-		vkDestroyImageView(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.imageViews[i],
+		vkDestroyImageView(s_VKB.device.logicalDevice,
+			s_VKB.swapChain.imageViews[i],
 			nullptr);
 	}
 
 	//Creates the swapchain with the image views.
-	CreateSwapchain(s_VkBackendInst.swapChain,
+	CreateSwapchain(s_VKB.swapChain,
 		a_TempAllocator,
-		s_VkBackendInst.surface,
-		s_VkBackendInst.device.physicalDevice,
-		s_VkBackendInst.device.logicalDevice,
+		s_VKB.surface,
+		s_VKB.device.physicalDevice,
+		s_VKB.device.logicalDevice,
 		a_X,
 		a_Y,
 		true);
@@ -1585,23 +1585,23 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 
 void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
 {
-	FrameIndex t_CurrentFrame = s_VkBackendInst.currentFrame;
+	FrameIndex t_CurrentFrame = s_VKB.currentFrame;
 
-	VKASSERT(vkAcquireNextImageKHR(s_VkBackendInst.device.logicalDevice,
-		s_VkBackendInst.swapChain.swapChain,
+	VKASSERT(vkAcquireNextImageKHR(s_VKB.device.logicalDevice,
+		s_VKB.swapChain.swapChain,
 		UINT64_MAX,
-		s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageAvailableSem,
+		s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageAvailableSem,
 		VK_NULL_HANDLE,
-		&s_VkBackendInst.imageIndex),
+		&s_VKB.imageIndex),
 		"Vulkan: failed to get next image.");
 
 	//For now not wait for semaphores, may be required later.
 	VkSemaphoreWaitInfo t_WaitInfo{};
 	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 	t_WaitInfo.semaphoreCount = 1;
-	t_WaitInfo.pSemaphores = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameTimelineSemaphore;
-	t_WaitInfo.pValues = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameWaitValue;
-	vkWaitSemaphores(s_VkBackendInst.device.logicalDevice, &t_WaitInfo, 1000000000);
+	t_WaitInfo.pSemaphores = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameTimelineSemaphore;
+	t_WaitInfo.pValues = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameWaitValue;
+	vkWaitSemaphores(s_VKB.device.logicalDevice, &t_WaitInfo, 1000000000);
 }
 
 void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
@@ -1624,7 +1624,7 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_E
 			VkCommandBuffer);
 		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
-			t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
+			t_CmdBuffers[j] = s_VKB.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
 		}
 
 		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
@@ -1689,7 +1689,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 		VkCommandBuffer);
 	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
 	{
-		t_CmdBuffers[j] = s_VkBackendInst.commandLists[a_ExecuteInfo.commands[j].handle].Buffer();
+		t_CmdBuffers[j] = s_VKB.commandLists[a_ExecuteInfo.commands[j].handle].Buffer();
 	}
 
 	//add 1 more to wait the binary semaphore for image presenting
@@ -1707,7 +1707,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	//SETTING THE WAIT
 	//Set the wait semaphore so that it must wait until it can present.
-	t_Semaphores[0] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageAvailableSem;
+	t_Semaphores[0] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageAvailableSem;
 	t_SemValues[0] = 0;
 	//Get the semaphore from the queues.
 	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
@@ -1719,12 +1719,12 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	//SETTING THE SIGNAL
 	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageRenderFinishedSem;
+	t_Semaphores[t_WaitSemCount] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_SemValues[t_WaitSemCount] = 0;
 	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount + 1] = s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameTimelineSemaphore;
+	t_Semaphores[t_WaitSemCount + 1] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameTimelineSemaphore;
 	//Increment the semaphore by 1 for the next frame to get.
-	t_SemValues[t_WaitSemCount + 1] = ++s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].frameWaitValue;
+	t_SemValues[t_WaitSemCount + 1] = ++s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameWaitValue;
 	for (uint32_t i = 0; i < t_SignalSemCount - 2; i++)
 	{
 		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
@@ -1765,21 +1765,21 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
 {
-	const uint32_t t_CurrentFrame = s_VkBackendInst.currentFrame;
+	const uint32_t t_CurrentFrame = s_VKB.currentFrame;
 
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &s_VkBackendInst.swapChain.waitSyncs[s_VkBackendInst.currentFrame].imageRenderFinishedSem;
+	t_PresentInfo.pWaitSemaphores = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
-	t_PresentInfo.pSwapchains = &s_VkBackendInst.swapChain.swapChain;
-	t_PresentInfo.pImageIndices = &s_VkBackendInst.imageIndex;
+	t_PresentInfo.pSwapchains = &s_VKB.swapChain.swapChain;
+	t_PresentInfo.pImageIndices = &s_VKB.imageIndex;
 	t_PresentInfo.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(s_VkBackendInst.device.presentQueue, &t_PresentInfo),
+	VKASSERT(vkQueuePresentKHR(s_VKB.device.presentQueue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
-	return s_VkBackendInst.currentFrame = (s_VkBackendInst.currentFrame + 1) % s_VkBackendInst.frameCount;
+	return s_VKB.currentFrame = (s_VKB.currentFrame + 1) % s_VKB.frameCount;
 }
 
 uint64_t BB::VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle)
@@ -1795,12 +1795,12 @@ uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
 
 void BB::VulkanWaitDeviceReady()
 {
-	vkDeviceWaitIdle(s_VkBackendInst.device.logicalDevice);
+	vkDeviceWaitIdle(s_VKB.device.logicalDevice);
 }
 
 void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 {
-	vkDestroyFence(s_VkBackendInst.device.logicalDevice,
+	vkDestroyFence(s_VKB.device.logicalDevice,
 		reinterpret_cast<VkFence>(a_Handle.ptrHandle),
 		nullptr);
 }
@@ -1808,7 +1808,7 @@ void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 void BB::VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle)
 {
 	VulkanCommandQueue* t_CmdQueue = reinterpret_cast<VulkanCommandQueue*>(a_Handle.ptrHandle);
-	vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
+	vkDestroySemaphore(s_VKB.device.logicalDevice,
 		t_CmdQueue->timelineSemaphore,
 		nullptr);
 
@@ -1822,15 +1822,15 @@ void BB::VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 {
 	VkCommandAllocator* t_CmdAllocator = reinterpret_cast<VkCommandAllocator*>(a_Handle.ptrHandle);
 	t_CmdAllocator->buffers.DestroyPool(s_VulkanAllocator);
-	vkDestroyCommandPool(s_VkBackendInst.device.logicalDevice, t_CmdAllocator->pool, nullptr);
-	s_VkBackendInst.cmdAllocators.Free(t_CmdAllocator);
+	vkDestroyCommandPool(s_VKB.device.logicalDevice, t_CmdAllocator->pool, nullptr);
+	s_VKB.cmdAllocators.Free(t_CmdAllocator);
 }
 
 void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 {
-	VulkanCommandList& a_List = s_VkBackendInst.commandLists[a_Handle.handle];
+	VulkanCommandList& a_List = s_VKB.commandLists[a_Handle.handle];
 	a_List.cmdAllocator->FreeCommandList(a_List); //Place back in the freelist.
-	s_VkBackendInst.commandLists.erase(a_Handle.handle);
+	s_VKB.commandLists.erase(a_Handle.handle);
 }
 
 void BB::VulkanDestroyBindingSet(const RBindingSetHandle a_Handle)
@@ -1838,59 +1838,59 @@ void BB::VulkanDestroyBindingSet(const RBindingSetHandle a_Handle)
 	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Handle.ptrHandle);
 	*t_Set = {}; //zero it for safety
 	//maybe store the sets? For now we just get new ones.
-	s_VkBackendInst.bindingSetPool.Free(t_Set);
+	s_VKB.bindingSetPool.Free(t_Set);
 }
 
 void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 {
 	VulkanPipeline* t_Pipeline = reinterpret_cast<VulkanPipeline*>(a_Handle.handle);
 
-	vkDestroyPipeline(s_VkBackendInst.device.logicalDevice,
+	vkDestroyPipeline(s_VKB.device.logicalDevice,
 		t_Pipeline->pipeline,
 		nullptr);
-	vkDestroyDescriptorSetLayout(s_VkBackendInst.device.logicalDevice,
+	vkDestroyDescriptorSetLayout(s_VKB.device.logicalDevice,
 		t_Pipeline->setLayout,
 		nullptr);
 }
 
 void BB::VulkanDestroyBackend()
 {
-	for (auto t_It = s_VkBackendInst.pipelineLayouts.begin();
-		t_It < s_VkBackendInst.pipelineLayouts.end(); t_It++)
+	for (auto t_It = s_VKB.pipelineLayouts.begin();
+		t_It < s_VKB.pipelineLayouts.end(); t_It++)
 	{
-		vkDestroyPipelineLayout(s_VkBackendInst.device.logicalDevice,
+		vkDestroyPipelineLayout(s_VKB.device.logicalDevice,
 			*t_It->value,
 			nullptr);
 	}
-	s_VkBackendInst.pipelineLayouts.clear();
+	s_VKB.pipelineLayouts.clear();
 
-	s_VkBackendInst.descriptorAllocator.Destroy();
+	s_VKB.descriptorAllocator.Destroy();
 
-	for (size_t i = 0; i < s_VkBackendInst.frameCount; i++)
+	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{
-		vkDestroyImageView(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.imageViews[i], nullptr);
-		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.waitSyncs[i].frameTimelineSemaphore, nullptr);
-		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.waitSyncs[i].imageAvailableSem, nullptr);
-		vkDestroySemaphore(s_VkBackendInst.device.logicalDevice,
-			s_VkBackendInst.swapChain.waitSyncs[i].imageRenderFinishedSem, nullptr);
+		vkDestroyImageView(s_VKB.device.logicalDevice,
+			s_VKB.swapChain.imageViews[i], nullptr);
+		vkDestroySemaphore(s_VKB.device.logicalDevice,
+			s_VKB.swapChain.waitSyncs[i].frameTimelineSemaphore, nullptr);
+		vkDestroySemaphore(s_VKB.device.logicalDevice,
+			s_VKB.swapChain.waitSyncs[i].imageAvailableSem, nullptr);
+		vkDestroySemaphore(s_VKB.device.logicalDevice,
+			s_VKB.swapChain.waitSyncs[i].imageRenderFinishedSem, nullptr);
 	}
 
-	vkDestroySwapchainKHR(s_VkBackendInst.device.logicalDevice,
-		s_VkBackendInst.swapChain.swapChain,
+	vkDestroySwapchainKHR(s_VKB.device.logicalDevice,
+		s_VKB.swapChain.swapChain,
 		nullptr);
-	vmaDestroyAllocator(s_VkBackendInst.vma);
-	vkDestroyDevice(s_VkBackendInst.device.logicalDevice, nullptr);
+	vmaDestroyAllocator(s_VKB.vma);
+	vkDestroyDevice(s_VKB.device.logicalDevice, nullptr);
 
-	if (s_VkBackendInst.vulkanDebug.debugMessenger != 0)
-		DestroyVulkanDebug(s_VkBackendInst.instance, s_VkBackendInst.vulkanDebug.debugMessenger);
+	if (s_VKB.vulkanDebug.debugMessenger != 0)
+		DestroyVulkanDebug(s_VKB.instance, s_VKB.vulkanDebug.debugMessenger);
 
-	vkDestroySurfaceKHR(s_VkBackendInst.instance, s_VkBackendInst.surface, nullptr);
-	vkDestroyInstance(s_VkBackendInst.instance, nullptr);
+	vkDestroySurfaceKHR(s_VKB.instance, s_VKB.surface, nullptr);
+	vkDestroyInstance(s_VKB.instance, nullptr);
 
-	s_VkBackendInst.DestroyPools();
+	s_VKB.DestroyPools();
 
 	//clear all the vulkan memory.
 	//s_VulkanAllocator.Clear();
