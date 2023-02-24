@@ -9,6 +9,7 @@ namespace BB
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
 	using DrawObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
 
+	constexpr const uint32_t MESH_INVALID_INDEX = UINT32_MAX;
 	struct Model
 	{
 		struct Primitive
@@ -27,15 +28,13 @@ namespace BB
 		{
 			Model::Node* childeren = nullptr;
 			uint32_t childCount = 0;
-			uint32_t meshIndex = 0;
+			uint32_t meshIndex = MESH_INVALID_INDEX;
 		};
 
 		PipelineHandle pipelineHandle{};
 
 		RBufferHandle vertexBuffer{};
 		RBufferHandle indexBuffer{};
-
-		RBufferHandle uniformBuffer;
 
 		Node* nodes = nullptr;
 		Node* linearNodes = nullptr;

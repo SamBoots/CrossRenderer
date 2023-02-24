@@ -26,10 +26,10 @@ static size_t GetChildNodeCount(const cgltf_node& a_Node)
 }
 
 //Maybe use own allocators for this?
-void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model & a_Model, UploadBuffer & a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path)
+void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path)
 {
 	cgltf_options t_Options = {};
-	cgltf_data* t_Data = {0};
+	cgltf_data* t_Data = { 0 };
 
 	cgltf_result t_ParseResult = cgltf_parse_file(&t_Options, a_Path, &t_Data);
 
@@ -40,7 +40,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 	size_t t_IndexCount = 0;
 	size_t t_VertexCount = 0;
-	size_t t_NodeCount = t_Data->nodes_count;
+	size_t t_LinearNodeCount = t_Data->nodes_count;
 	size_t t_MeshCount = t_Data->meshes_count;
 	size_t t_PrimitiveCount = 0;
 
@@ -48,7 +48,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 	for (size_t nodeIndex = 0; nodeIndex < t_Data->nodes_count; nodeIndex++)
 	{
 		const cgltf_node& t_Node = t_Data->nodes[nodeIndex];
-		t_NodeCount += GetChildNodeCount(t_Node);
+		t_LinearNodeCount += GetChildNodeCount(t_Node);
 	}
 
 	//Get the sizes first for efficient allocation.
@@ -78,14 +78,22 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		a_SystemAllocator,
 		t_MeshCount,
 		Model::Mesh);
+	a_Model.meshes = t_Meshes;
+	a_Model.meshCount = t_MeshCount;
+
 	Model::Primitive* t_Primitives = BBnewArr(
 		a_SystemAllocator,
 		t_PrimitiveCount,
 		Model::Primitive);
-	Model::Node* t_Nodes = BBnewArr(
+	a_Model.primitives = t_Primitives;
+	a_Model.primitiveCount = t_PrimitiveCount;
+
+	Model::Node* t_LinearNodes = BBnewArr(
 		a_SystemAllocator,
-		t_NodeCount,
+		t_LinearNodeCount,
 		Model::Node);
+	a_Model.linearNodes = t_LinearNodes;
+	a_Model.linearNodeCount = t_LinearNodeCount;
 
 	//Temporary stuff
 	uint32_t* t_Indices = BBnewArr(
@@ -99,54 +107,68 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 	uint32_t t_CurrentIndex = 0;
 	uint32_t t_CurrentVertex = 0;
+
+	uint32_t t_CurrentNode = 0;
+	uint32_t t_CurrentMesh = 0;
 	uint32_t t_CurrentPrimitive = 0;
 
-	for (size_t meshIndex = 0; meshIndex < t_MeshCount; meshIndex++)
+	for (size_t nodeIndex = 0; nodeIndex < t_LinearNodeCount; nodeIndex++)
 	{
-		const cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
-		Model::Mesh& t_ModelMesh = t_Meshes[meshIndex];
-		t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
-		t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
-
-		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
+		//TODO: we do not handle childeren now, we should!
+		const cgltf_node& t_Node = t_Data->nodes[nodeIndex];
+		Model::Node& t_ModelNode = t_LinearNodes[t_CurrentNode++];
+		t_ModelNode.childCount = 0;
+		t_ModelNode.childeren = nullptr; //For now we don't care.
+		t_ModelNode.meshIndex = MESH_INVALID_INDEX;
+		if (t_Node.mesh != nullptr)
 		{
-			const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
-			Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
-			t_MeshPrimitive.indexCount = t_Primitive.indices->count;
-			t_MeshPrimitive.indexStart = t_CurrentIndex;
+			const cgltf_mesh& t_Mesh = *t_Node.mesh;
 
-			void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
-			if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
-			{
-				for (size_t i = 0; i < t_Primitive.indices->count; i++)
-					t_Indices[t_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
-			}
-			else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
-			{
-				for (size_t i = 0; i < t_Primitive.indices->count; i++)
-					t_Indices[t_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
-			}
-			else
-			{
-				BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
-			}
+			Model::Mesh& t_ModelMesh = t_Meshes[t_CurrentMesh];
+			t_ModelNode.meshIndex = t_CurrentMesh++;
+			t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
+			t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
 
-			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
+			for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
 			{
-				const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
-				
-				switch (t_Attribute.type)
+				const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+				Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
+				t_MeshPrimitive.indexCount = t_Primitive.indices->count;
+				t_MeshPrimitive.indexStart = t_CurrentIndex;
+
+				void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
+				if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
 				{
-				case cgltf_attribute_type_position:
-					//BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position attribute is not a vec3!");
-					float* t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
-					
-					t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
-					t_Vertices[t_CurrentVertex].pos[1] = t_PosData[1];
-					t_Vertices[t_CurrentVertex].pos[2] = t_PosData[2];
-					//FOR NOW WE JUST DO THIS. LATER WE FIRST CHECK FOR THE STRIDE AND FILL IN THE ENTIRE VERTEX.
-					++t_CurrentVertex;
-					break;
+					for (size_t i = 0; i < t_Primitive.indices->count; i++)
+						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
+				}
+				else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
+				{
+					for (size_t i = 0; i < t_Primitive.indices->count; i++)
+						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
+				}
+				else
+				{
+					BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+				}
+
+				for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
+				{
+					const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
+
+					switch (t_Attribute.type)
+					{
+					case cgltf_attribute_type_position:
+						//BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position attribute is not a vec3!");
+						float* t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+						t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
+						t_Vertices[t_CurrentVertex].pos[1] = t_PosData[1];
+						t_Vertices[t_CurrentVertex].pos[2] = t_PosData[2];
+						//FOR NOW WE JUST DO THIS. LATER WE FIRST CHECK FOR THE STRIDE AND FILL IN THE ENTIRE VERTEX.
+						++t_CurrentVertex;
+						break;
+					}
 				}
 			}
 		}

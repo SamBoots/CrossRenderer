@@ -29,8 +29,8 @@ int main(int argc, char** argv)
 	InitBB(t_BBInitInfo);
 	BB_LOG(argv[0]);
 
-	int t_WindowWidth = 1200;
-	int t_WindowHeight = 800;
+	int t_WindowWidth = 1280;
+	int t_WindowHeight = 720;
 
 	RenderInitInfo t_RenderInfo{};
 	t_RenderInfo.windowHandle = BB::CreateOSWindow(
@@ -106,9 +106,9 @@ int main(int argc, char** argv)
 	//t_ModelInfo.pipeline = 
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
-	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_Model, 
+	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_gltfCube,
 		t_TransHandle1);
-	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_gltfCube,
+	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
 		t_TransHandle2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();

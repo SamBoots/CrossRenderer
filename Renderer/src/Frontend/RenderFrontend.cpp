@@ -166,17 +166,19 @@ static void Draw3DFrame()
 		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
 			const Model::Node& t_Node = t_Model->linearNodes[i];
-			const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
-
-			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
+			if (t_Node.meshIndex != MESH_INVALID_INDEX) 
 			{
-				const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
-				RenderBackend::DrawIndexed(t_RecordingGraphics,
-					t_Prim.indexCount,
-					1,
-					t_Prim.indexStart,
-					0,
-					0);
+				const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
+				for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
+				{
+					const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+					RenderBackend::DrawIndexed(t_RecordingGraphics,
+						t_Prim.indexCount,
+						1,
+						t_Prim.indexStart,
+						0,
+						0);
+				}
 			}
 		}
 	}
