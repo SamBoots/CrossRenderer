@@ -35,7 +35,7 @@ UploadBuffer::~UploadBuffer()
 
 UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
 {
-	UploadBufferChunk t_Chunk;
+	UploadBufferChunk t_Chunk{};
 	t_Chunk.memory = position;
 	t_Chunk.offset = offset;
 	position = Pointer::Add(position, a_Size);

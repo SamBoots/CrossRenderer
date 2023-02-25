@@ -72,7 +72,7 @@ int main(int argc, char** argv)
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
 	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
 
-	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 0));
+	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1));
 	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
 
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
@@ -103,13 +103,12 @@ int main(int argc, char** argv)
 	//Start frame before we upload.
 	Render::StartFrame();
 
-	//t_ModelInfo.pipeline = 
-	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
+//	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_gltfCube,
 		t_TransHandle1);
-	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
-		t_TransHandle2);
+	//DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
+	//	t_TransHandle2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();

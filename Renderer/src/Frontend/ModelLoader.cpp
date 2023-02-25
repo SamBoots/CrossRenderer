@@ -35,8 +35,9 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 	BB_ASSERT(t_ParseResult == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
 
-
 	cgltf_load_buffers(&t_Options, t_Data, a_Path);
+
+	BB_ASSERT(cgltf_validate(t_Data) == cgltf_result_success, "GLTF model validation failed!");
 
 	size_t t_IndexCount = 0;
 	size_t t_VertexCount = 0;
@@ -64,10 +65,10 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
 			{
 				cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
-				if (t_Attribute.type = cgltf_attribute_type_position)
+				if (t_Attribute.type == cgltf_attribute_type_position)
 				{
-					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3 || cgltf_type_vec4, "GLTF position type is not a vec3!");
-					++t_VertexCount;
+					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position type is not a vec3!");
+					t_VertexCount += t_Attribute.data->count;
 				}
 			}
 		}
@@ -162,11 +163,17 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 						//BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position attribute is not a vec3!");
 						float* t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
 
-						t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
-						t_Vertices[t_CurrentVertex].pos[1] = t_PosData[1];
-						t_Vertices[t_CurrentVertex].pos[2] = t_PosData[2];
-						//FOR NOW WE JUST DO THIS. LATER WE FIRST CHECK FOR THE STRIDE AND FILL IN THE ENTIRE VERTEX.
-						++t_CurrentVertex;
+						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+						{
+							t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
+							t_Vertices[t_CurrentVertex].pos[1] = t_PosData[1];
+							t_Vertices[t_CurrentVertex].pos[2] = t_PosData[2];
+							//FOR NOW WE JUST DO THIS. LATER WE FIRST CHECK FOR THE STRIDE AND FILL IN THE ENTIRE VERTEX.
+							
+							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+							++t_CurrentVertex;
+						}
+
 						break;
 					}
 				}
@@ -187,7 +194,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		t_VertBuffer.usage = RENDER_BUFFER_USAGE::VERTEX;
 		a_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertBuffer);
 
-		RenderCopyBufferInfo t_CopyInfo;
+		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.vertexBuffer;
@@ -204,15 +211,15 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		size_t t_IndexBufferSize = t_IndexCount * sizeof(uint32_t);
 
 		UploadBufferChunk t_IndexChunk = a_UploadBuffer.Alloc(t_IndexBufferSize);
-		memcpy(t_IndexChunk.memory, t_Vertices, t_IndexBufferSize);
+		memcpy(t_IndexChunk.memory, t_Indices, t_IndexBufferSize);
 
-		RenderBufferCreateInfo t_IndexBuffer;
+		RenderBufferCreateInfo t_IndexBuffer{};
 		t_IndexBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 		t_IndexBuffer.size = t_IndexBufferSize;
 		t_IndexBuffer.usage = RENDER_BUFFER_USAGE::INDEX;
 		a_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexBuffer);
 
-		RenderCopyBufferInfo t_CopyInfo;
+		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.indexBuffer;
