@@ -41,6 +41,13 @@ struct VulkanBuffer
 	VmaAllocation allocation;
 };
 
+struct VulkanImage
+{
+	VkImage image;
+	VmaAllocation allocation;
+	VkImageView view;
+};
+
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
 
 struct VkCommandAllocator;
@@ -133,7 +140,8 @@ struct VulkanBackend_inst
 	Pool<VulkanCommandQueue> cmdQueues;
 	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
-	Pool<VulkanBuffer> renderBuffers;
+	Pool<VulkanBuffer> bufferPool;
+	Pool<VulkanImage> imagePool;
 	Pool<VulkanBindingSet> bindingSetPool;
 
 	//OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
@@ -146,7 +154,8 @@ struct VulkanBackend_inst
 		cmdQueues.CreatePool(s_VulkanAllocator, 8);
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
-		renderBuffers.CreatePool(s_VulkanAllocator, 16);
+		bufferPool.CreatePool(s_VulkanAllocator, 16);
+		imagePool.CreatePool(s_VulkanAllocator, 16);
 		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
 	}
 
@@ -155,7 +164,8 @@ struct VulkanBackend_inst
 		cmdQueues.DestroyPool(s_VulkanAllocator);
 		cmdAllocators.DestroyPool(s_VulkanAllocator);
 		pipelinePool.DestroyPool(s_VulkanAllocator);
-		renderBuffers.DestroyPool(s_VulkanAllocator);
+		bufferPool.DestroyPool(s_VulkanAllocator);
+		imagePool.DestroyPool(s_VulkanAllocator);
 		bindingSetPool.DestroyPool(s_VulkanAllocator);
 	}
 };
@@ -734,49 +744,6 @@ static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> 
 	return t_NewLayout;
 }
 
-RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
-{
-	VulkanBuffer* t_Buffer = s_VKB.renderBuffers.Get();
-
-	VkBufferCreateInfo t_BufferInfo{};
-	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	t_BufferInfo.size = a_Info.size;
-	t_BufferInfo.usage = VKConv::RenderBufferUsage(a_Info.usage);
-	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo t_VmaAlloc{};
-	t_VmaAlloc.usage = MemoryPropertyFlags(a_Info.memProperties);
-	if (t_VmaAlloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_HOST)
-		t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-
-	VKASSERT(vmaCreateBuffer(s_VKB.vma,
-		&t_BufferInfo, &t_VmaAlloc,
-		&t_Buffer->buffer, &t_Buffer->allocation,
-		nullptr), "Vulkan::VMA, Failed to allocate memory");
-
-	if (a_Info.data != nullptr && 
-		a_Info.memProperties != RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL)
-	{
-		void* t_MapData;
-		VKASSERT(vmaMapMemory(s_VKB.vma,
-			t_Buffer->allocation,
-			&t_MapData),
-			"Vulkan: Failed to map memory");
-		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
-		vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
-	}
-
-	return RBufferHandle(t_Buffer);
-}
-
-void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
-{
-	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle);
-	vmaDestroyBuffer(s_VKB.vma, t_Buffer->buffer, t_Buffer->allocation);
-	s_VKB.renderBuffers.Free(t_Buffer);
-}
-
 BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
 {
 	//Initialize data structure
@@ -1122,6 +1089,106 @@ CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo&
 	return CommandListHandle(s_VKB.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
 }
 
+RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
+{
+	VulkanBuffer* t_Buffer = s_VKB.bufferPool.Get();
+
+	VkBufferCreateInfo t_BufferInfo{};
+	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	t_BufferInfo.size = a_Info.size;
+	t_BufferInfo.usage = VKConv::RenderBufferUsage(a_Info.usage);
+	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo t_VmaAlloc{};
+	t_VmaAlloc.usage = MemoryPropertyFlags(a_Info.memProperties);
+	if (t_VmaAlloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_HOST)
+		t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+
+	VKASSERT(vmaCreateBuffer(s_VKB.vma,
+		&t_BufferInfo, &t_VmaAlloc,
+		&t_Buffer->buffer, &t_Buffer->allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory");
+
+	if (a_Info.data != nullptr &&
+		a_Info.memProperties != RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL)
+	{
+		void* t_MapData;
+		VKASSERT(vmaMapMemory(s_VKB.vma,
+			t_Buffer->allocation,
+			&t_MapData),
+			"Vulkan: Failed to map memory");
+		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
+		vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
+	}
+
+	return RBufferHandle(t_Buffer);
+}
+
+RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
+{
+	VulkanImage* t_Image = s_VKB.imagePool.Get();
+
+	VkImageCreateInfo t_ImageCreateInfo{};
+	t_ImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	switch (a_CreateInfo.format)
+	{
+	case RENDER_IMAGE_FORMAT::SRGB:
+		t_ImageCreateInfo.extent.width = a_CreateInfo.width;
+		t_ImageCreateInfo.extent.height = a_CreateInfo.height;
+		t_ImageCreateInfo.extent.depth = 1;
+		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		break;
+	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
+
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Image format type not supported!");
+		break;
+	}
+
+	switch (a_CreateInfo.tiling)
+	{
+	case RENDER_IMAGE_TILING::OPTIMAL:
+		t_ImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		break;
+	case RENDER_IMAGE_TILING::LINEAR:
+		t_ImageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
+		break;
+	}
+
+	switch (a_CreateInfo.usage)
+	{
+	case RENDER_IMAGE_USAGE::SAMPLER:
+		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
+		break;
+	}
+
+	t_ImageCreateInfo.imageType = VKConv::ImageType(a_CreateInfo.type);
+	t_ImageCreateInfo.mipLevels = a_CreateInfo.mipLevels;
+	t_ImageCreateInfo.arrayLayers = a_CreateInfo.arrayLayers;
+	//Will be defined in the first layout transition.
+	t_ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	t_ImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	t_ImageCreateInfo.flags = 0;
+
+
+
+	VmaAllocationCreateInfo t_AllocInfo{};
+	t_AllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	VKASSERT(vmaCreateImage(s_VKB.vma, &t_ImageCreateInfo, &t_AllocInfo, &t_Image->image, &t_Image->allocation, nullptr), 
+		"Vulkan: Failed to create image");
+
+	return RImageHandle(t_Image);
+}
+
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 {
 	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
@@ -1425,6 +1492,82 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 		&t_PresentBarrier);
 }
 
+void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
+{
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.src.handle);
+	VulkanBuffer* t_DstBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.dst.handle);
+
+	VkBufferCopy t_CopyRegion{};
+	t_CopyRegion.srcOffset = a_CopyInfo.srcOffset;
+	t_CopyRegion.dstOffset = a_CopyInfo.dstOffset;
+	t_CopyRegion.size = a_CopyInfo.size;
+
+	vkCmdCopyBuffer(t_Cmdlist->Buffer(),
+		t_SrcBuffer->buffer,
+		t_DstBuffer->buffer,
+		1,
+		&t_CopyRegion);
+}
+
+void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+{
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.srcBuffer.handle);
+	VulkanImage* t_DstImage = reinterpret_cast<VulkanImage*>(a_CopyInfo.dstImage.handle);
+
+	VkBufferImageCopy t_CopyRegion{};
+	t_CopyRegion.bufferOffset = a_CopyInfo.srcBufferOffset;
+	t_CopyRegion.bufferRowLength = 0;
+	t_CopyRegion.bufferImageHeight = 0;
+	
+	t_CopyRegion.imageExtent.width = a_CopyInfo.srcSizeX;
+	t_CopyRegion.imageExtent.height = a_CopyInfo.srcSizeY;
+	t_CopyRegion.imageExtent.depth = a_CopyInfo.srcSizeZ;
+
+	t_CopyRegion.imageOffset.x = a_CopyInfo.dstImageInfo.srcOffsetX;
+	t_CopyRegion.imageOffset.y = a_CopyInfo.dstImageInfo.srcOffsetY;
+	t_CopyRegion.imageOffset.z = a_CopyInfo.dstImageInfo.srcOffsetZ;
+
+	t_CopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_CopyRegion.imageSubresource.mipLevel = a_CopyInfo.dstImageInfo.mipLevel;
+	t_CopyRegion.imageSubresource.baseArrayLayer = a_CopyInfo.dstImageInfo.baseArrayLayer;
+	t_CopyRegion.imageSubresource.layerCount = a_CopyInfo.dstImageInfo.layerCount;
+
+	vkCmdCopyBufferToImage(t_Cmdlist->Buffer(),
+		t_SrcBuffer->buffer,
+		t_DstImage->image,
+		VKConv::ImageLayout(a_CopyInfo.layout),
+		1,
+		&t_CopyRegion);
+}
+
+void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
+{
+	VkImageMemoryBarrier t_Barrier{};
+	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	t_Barrier.oldLayout = VKConv::ImageLayout(a_TransitionInfo.oldLayout);
+	t_Barrier.newLayout = VKConv::ImageLayout(a_TransitionInfo.newLayout);
+	t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
+	t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_Barrier.subresourceRange.baseMipLevel = a_TransitionInfo.baseMipLevel;
+	t_Barrier.subresourceRange.levelCount = a_TransitionInfo.levelCount;
+	t_Barrier.subresourceRange.baseArrayLayer = a_TransitionInfo.baseArrayLayer;
+	t_Barrier.subresourceRange.layerCount = a_TransitionInfo.layerCount;
+	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
+	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
+
+	vkCmdPipelineBarrier(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(),
+		VKConv::PipelineStage(a_TransitionInfo.srcStage),
+		VKConv::PipelineStage(a_TransitionInfo.dstStage),
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &t_Barrier);
+}
+
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
@@ -1525,27 +1668,6 @@ void BB::VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, 
 		"Vulkan: Failed to map memory");
 	memcpy(Pointer::Add(t_MapData, a_Offset), a_Data, a_Size);
 	vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
-}
-
-void BB::VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
-{
-	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_CopyInfo.transferCommandHandle.ptrHandle);
-	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.src.handle);
-	VulkanBuffer* t_DstBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.dst.handle);
-
-	VkBufferCopy* t_CopyRegion = BBnewArr(a_TempAllocator, a_CopyInfo.CopyRegionCount, VkBufferCopy);
-	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
-	{
-		t_CopyRegion[i].srcOffset = a_CopyInfo.copyRegions[i].srcOffset;
-		t_CopyRegion[i].dstOffset = a_CopyInfo.copyRegions[i].dstOffset;
-		t_CopyRegion[i].size = a_CopyInfo.copyRegions[i].size;
-	}
-
-	vkCmdCopyBuffer(t_Cmdlist->Buffer(),
-		t_SrcBuffer->buffer,
-		t_DstBuffer->buffer,
-		static_cast<uint32_t>(a_CopyInfo.CopyRegionCount),
-		t_CopyRegion);
 }
 
 void* BB::VulkanMapMemory(const RBufferHandle a_Handle)
@@ -1806,6 +1928,20 @@ void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 	vkDestroyFence(s_VKB.device.logicalDevice,
 		reinterpret_cast<VkFence>(a_Handle.ptrHandle),
 		nullptr);
+}
+
+void BB::VulkanDestroyImage(const RImageHandle a_Handle)
+{
+	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.ptrHandle);
+	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
+	s_VKB.imagePool.Free(t_Image);
+}
+
+void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
+{
+	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle);
+	vmaDestroyBuffer(s_VKB.vma, t_Buffer->buffer, t_Buffer->allocation);
+	s_VKB.bufferPool.Free(t_Buffer);
 }
 
 void BB::VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle)

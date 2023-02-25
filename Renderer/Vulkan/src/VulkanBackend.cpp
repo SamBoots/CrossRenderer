@@ -11,6 +11,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
+	a_FuncCreateInfo.createImage = VulkanCreateImage;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
@@ -18,11 +19,17 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
 	a_FuncCreateInfo.pipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
-	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;
+
+	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
 	a_FuncCreateInfo.startRendering = VulkanStartRenderPass;
 	a_FuncCreateInfo.endRendering = VulkanEndRenderPass;
+
+	a_FuncCreateInfo.copyBuffer = VulkanCopyBuffer;
+	a_FuncCreateInfo.copyBufferImage = VulkanCopyBufferImage;
+	a_FuncCreateInfo.transitionImage = VulkanTransitionImage;
+
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
@@ -33,7 +40,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.drawIndex = VulkanDrawIndexed;
 
 	a_FuncCreateInfo.bufferCopyData = VulkanBufferCopyData;
-	a_FuncCreateInfo.copyBuffer = VulkanCopyBuffer;
 	a_FuncCreateInfo.mapMemory = VulkanMapMemory;
 	a_FuncCreateInfo.unmapMemory = VulkanUnMemory;
 
@@ -56,5 +62,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
+	a_FuncCreateInfo.destroyImage = VulkanDestroyImage;
 	a_FuncCreateInfo.destroyFence = VulkanDestroyFence;
 }

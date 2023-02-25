@@ -118,6 +118,18 @@ namespace BB
 			}
 		}
 
+		inline VkImageType ImageType(const RENDER_IMAGE_TYPE a_Type)
+		{
+			switch (a_Type)
+			{
+			case RENDER_IMAGE_TYPE::TYPE_2D:					return VK_IMAGE_TYPE_2D;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_TYPE failed to convert to a VkImageType.");
+				return VK_IMAGE_TYPE_1D;
+				break;
+			}
+		}
+
 		inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 		{
 			switch (a_ImageLayout)
@@ -127,6 +139,7 @@ namespace BB
 			case RENDER_IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
 			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			case RENDER_IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_LAYOUT failed to convert to a VkImageLayout.");
@@ -134,6 +147,36 @@ namespace BB
 				break;
 			}
 		}
+
+		inline VkPipelineStageFlags PipelineStage(const RENDER_PIPELINE_STAGE a_Stage)
+		{
+			switch (a_Stage)
+			{
+			case RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE:		return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			case RENDER_PIPELINE_STAGE::TRANSFER:				return VK_PIPELINE_STAGE_TRANSFER_BIT;
+			case RENDER_PIPELINE_STAGE::FRAGMENT_SHADER:		return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+			case RENDER_PIPELINE_STAGE::END_OF_PIPELINE:		return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_PIPELINE_STAGE failed to convert to a VkPipelineStageFlags.");
+				return VK_PIPELINE_STAGE_NONE;
+				break;
+			}
+		}
+
+		inline VkAccessFlags AccessMask(const RENDER_ACCESS_MASK a_Type)
+		{
+			switch (a_Type)
+			{
+			case RENDER_ACCESS_MASK::NONE:						return VK_ACCESS_NONE;
+			case RENDER_ACCESS_MASK::TRANSFER_WRITE:			return VK_ACCESS_TRANSFER_WRITE_BIT;
+			case RENDER_ACCESS_MASK::SHADER_READ:				return VK_ACCESS_SHADER_READ_BIT;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_TYPE failed to convert to a VkImageType.");
+				return VK_IMAGE_TYPE_1D;
+				break;
+			}
+		}
+
 		struct ExtensionResult
 		{
 			const char** extensions;

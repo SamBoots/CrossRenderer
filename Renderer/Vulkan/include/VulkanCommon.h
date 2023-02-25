@@ -11,6 +11,7 @@ namespace BB
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+	RImageHandle VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
 	//PipelineBuilder
@@ -25,6 +26,11 @@ namespace BB
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
 	void VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+	
+	void VulkanCopyBuffer(const RecordingCommandListHandle transferCommandHandle, const RenderCopyBufferInfo& a_CopyInfo);
+	void VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+	void VulkanTransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
+
 	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -35,11 +41,8 @@ namespace BB
 	void VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
-	void VulkanCopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo);
 	void* VulkanMapMemory(const RBufferHandle a_Handle);
 	void VulkanUnMemory(const RBufferHandle a_Handle);
-
-	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
 	
 	void VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
 	void VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
@@ -50,9 +53,12 @@ namespace BB
 	uint64_t VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle);
 	uint64_t VulkanNextFenceValue(const RFenceHandle a_Handle);
 
+	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+
 	void VulkanWaitDeviceReady();
 
 	void VulkanDestroyFence(const RFenceHandle a_Handle);
+	void VulkanDestroyImage(const RImageHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
 	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);

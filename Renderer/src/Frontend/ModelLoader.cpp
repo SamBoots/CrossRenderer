@@ -195,16 +195,13 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		a_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertBuffer);
 
 		RenderCopyBufferInfo t_CopyInfo{};
-		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.vertexBuffer;
-		t_CopyInfo.CopyRegionCount = 1;
-		t_CopyInfo.copyRegions = BBnewArr(a_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = t_VertChunk.offset;
-		t_CopyInfo.copyRegions->dstOffset = 0;
-		t_CopyInfo.copyRegions->size = t_VertexBufferSize;
+		t_CopyInfo.srcOffset = t_VertChunk.offset;
+		t_CopyInfo.dstOffset = 0;
+		t_CopyInfo.size = t_VertexBufferSize;
 
-		RenderBackend::CopyBuffer(t_CopyInfo);
+		RenderBackend::CopyBuffer(a_TransferCmdList, t_CopyInfo);
 	}
 
 	{
@@ -220,16 +217,13 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		a_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexBuffer);
 
 		RenderCopyBufferInfo t_CopyInfo{};
-		t_CopyInfo.transferCommandHandle = a_TransferCmdList;
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.indexBuffer;
-		t_CopyInfo.CopyRegionCount = 1;
-		t_CopyInfo.copyRegions = BBnewArr(a_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = t_IndexChunk.offset;
-		t_CopyInfo.copyRegions->dstOffset = 0;
-		t_CopyInfo.copyRegions->size = t_IndexBufferSize;
+		t_CopyInfo.srcOffset = t_IndexChunk.offset;
+		t_CopyInfo.dstOffset = 0;
+		t_CopyInfo.size = t_IndexBufferSize;
 
-		RenderBackend::CopyBuffer(t_CopyInfo);
+		RenderBackend::CopyBuffer(a_TransferCmdList, t_CopyInfo);
 	}
 
 	cgltf_free(t_Data);

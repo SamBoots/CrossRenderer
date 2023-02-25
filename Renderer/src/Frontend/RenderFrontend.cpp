@@ -103,18 +103,13 @@ static void Draw3DFrame()
 {
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
-	t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 	t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
 	t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
-	RenderCopyBufferInfo::CopyRegions t_CopyRegion;
-	t_CopyRegion.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
-	t_CopyRegion.srcOffset = 0;
-	t_CopyRegion.dstOffset = t_CopyRegion.size * s_CurrentFrame;
+	t_CopyInfo.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
+	t_CopyInfo.srcOffset = 0;
+	t_CopyInfo.dstOffset = t_CopyInfo.size * s_CurrentFrame;
 
-	t_CopyInfo.copyRegions = &t_CopyRegion;
-	t_CopyInfo.CopyRegionCount = 1;
-
-	RenderBackend::CopyBuffer(t_CopyInfo);
+	RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
 
 	StartRenderingInfo t_StartRenderInfo;
 	t_StartRenderInfo.viewportWidth = s_RendererInst.swapchainWidth;
@@ -445,16 +440,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.vertexBuffer;
-		t_CopyInfo.CopyRegionCount = 1;
-		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = t_StageBuffer.offset;
-		t_CopyInfo.copyRegions->dstOffset = 0;
-		t_CopyInfo.copyRegions->size = a_CreateInfo.vertices.sizeInBytes();
+		t_CopyInfo.srcOffset = t_StageBuffer.offset;
+		t_CopyInfo.dstOffset = 0;
+		t_CopyInfo.size = a_CreateInfo.vertices.sizeInBytes();
 
-		RenderBackend::CopyBuffer(t_CopyInfo);
+		RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
 	}
 
 	{
@@ -470,16 +462,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexInfo);
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.transferCommandHandle = t_RecordingTransfer;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.indexBuffer;
-		t_CopyInfo.CopyRegionCount = 1;
-		t_CopyInfo.copyRegions = BBnewArr(m_TempAllocator, 1, RenderCopyBufferInfo::CopyRegions);
-		t_CopyInfo.copyRegions->srcOffset = t_StageBuffer.offset;
-		t_CopyInfo.copyRegions->dstOffset = 0;
-		t_CopyInfo.copyRegions->size = a_CreateInfo.indices.sizeInBytes();
+		t_CopyInfo.srcOffset = t_StageBuffer.offset;
+		t_CopyInfo.dstOffset = 0;
+		t_CopyInfo.size = a_CreateInfo.indices.sizeInBytes();
 
-		RenderBackend::CopyBuffer(t_CopyInfo);
+		RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
 	}
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
@@ -580,7 +569,6 @@ void BB::Render::EndFrame()
 	//t_PresentFrame = 1;
 	//t_PresentFrame.waitSemaphores = &t_RenderSemaphores[s_CurrentFrame];
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
-	RenderBackend::Update();
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)

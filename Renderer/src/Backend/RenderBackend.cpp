@@ -92,29 +92,19 @@ RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
 	return s_ApiFunc.createFence(a_Info);
 }
 
-void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
+void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
-	s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
-}
-
-void BB::RenderBackend::CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo)
-{
-	s_ApiFunc.copyBuffer(m_TempAllocator, a_CopyInfo);
-}
-
-void* BB::RenderBackend::MapMemory(const RBufferHandle a_Handle)
-{
-	return s_ApiFunc.mapMemory(a_Handle);
-}
-
-void BB::RenderBackend::UnmapMemory(const RBufferHandle a_Handle)
-{
-	s_ApiFunc.unmapMemory(a_Handle);
+	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);
 }
 
 RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle)
 {
 	return s_ApiFunc.startCommandList(a_CmdHandle);
+}
+
+void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
+{
+	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
 void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo)
@@ -127,14 +117,19 @@ void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_Recordin
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
 
-void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
+void BB::RenderBackend::CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
-	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);
+	s_ApiFunc.copyBuffer(a_RecordingCmdHandle, a_CopyInfo);
 }
 
-void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
-	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
+	s_ApiFunc.copyBufferImage(a_RecordingCmdHandle, a_CopyInfo);
+}
+
+void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo)
+{
+	s_ApiFunc.transitionImage(a_RecordingCmdHandle, a_TransitionInfo);
 }
 
 void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -173,6 +168,21 @@ void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_Recording
 	s_ApiFunc.drawIndex(a_RecordingCmdHandle, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
+void BB::RenderBackend::BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
+{
+	s_ApiFunc.bufferCopyData(a_Handle, a_Data, a_Size, a_Offset);
+}
+
+void* BB::RenderBackend::MapMemory(const RBufferHandle a_Handle)
+{
+	return s_ApiFunc.mapMemory(a_Handle);
+}
+
+void BB::RenderBackend::UnmapMemory(const RBufferHandle a_Handle)
+{
+	s_ApiFunc.unmapMemory(a_Handle);
+}
+
 void BB::RenderBackend::StartFrame(const StartFrameInfo& a_StartInfo)
 {
 	s_ApiFunc.startFrame(m_TempAllocator, a_StartInfo);
@@ -191,11 +201,6 @@ void BB::RenderBackend::ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue
 FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
 {
 	return s_BackendInfo.currentFrame = s_ApiFunc.presentFrame(m_TempAllocator, a_PresentInfo);
-}
-
-void BB::RenderBackend::Update()
-{
-	m_TempAllocator.Clear();
 }
 
 void BB::RenderBackend::WaitGPUReady()
@@ -251,6 +256,11 @@ void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
+{
+	s_ApiFunc.destroyImage(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)

@@ -30,18 +30,20 @@ namespace BB
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
+		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
-		
-		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
-		void CopyBuffer(const RenderCopyBufferInfo& a_CopyInfo);
-		void* MapMemory(const RBufferHandle a_Handle);
-		void UnmapMemory(const RBufferHandle a_Handle);
+
+		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
-		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+		
+		void CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+		void CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+		void TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo);
+
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
@@ -51,16 +53,19 @@ namespace BB
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
+		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
+		void* MapMemory(const RBufferHandle a_Handle);
+		void UnmapMemory(const RBufferHandle a_Handle);
+
 		void StartFrame(const StartFrameInfo& a_StartInfo);
 		void ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 		void ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 		FrameIndex PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
-		void Update();
-		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
-
 		uint64_t NextQueueFenceValue(const CommandQueueHandle a_Handle);
 		uint64_t NextFenceValue(const RFenceHandle a_Handle);
+
+		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
 		void WaitGPUReady();
 
@@ -71,6 +76,7 @@ namespace BB
 		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
+		void DestroyImage(const RImageHandle a_Handle);
 		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }
