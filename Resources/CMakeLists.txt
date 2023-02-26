@@ -1,6 +1,6 @@
-﻿# CMakeList.txt : Top-level CMake project file, do global configuration
-# and include sub-projects here.
-#
+﻿#####################################################
+#  This cmakelist handles the assets of the engine  #
+#####################################################
 cmake_minimum_required (VERSION 3.8)
 
 #copy shaders when a change happened.
@@ -12,11 +12,20 @@ add_custom_target(copy_shaders ALL
 
 add_dependencies(Renderer copy_shaders)
 
-    #copy models when a change happened.
+#copy models when a change happened.
 add_custom_target(copy_models ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/Resources/Models
     ${CMAKE_BINARY_DIR}/Resources/Models
     COMMENT "Copying models")
 
-    add_dependencies(Renderer copy_models)
+add_dependencies(Renderer copy_models)
+
+#copy models when a change happened.
+add_custom_target(copy_textures ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/Resources/Textures
+    ${CMAKE_BINARY_DIR}/Resources/Textures
+    COMMENT "Copying Textures")
+
+add_dependencies(Renderer copy_textures)

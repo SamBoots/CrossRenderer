@@ -1,4 +1,6 @@
-﻿# CMakeList.txt : Cmake project for the DirectX12DLL
+﻿########################################################
+#  This cmakelist handles Directx12 API renderbackend  #
+########################################################
 
 # Export all Symbols by default (on Windows creates '.lib'+ '.dll').
 set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )

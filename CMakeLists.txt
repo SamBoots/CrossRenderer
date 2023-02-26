@@ -1,6 +1,6 @@
-﻿# CMakeList.txt : Top-level CMake project file, do global configuration
-# and include sub-projects here.
-#
+﻿###############################################
+#  Top-level of the BB main engine framework  #
+###############################################
 cmake_minimum_required (VERSION 3.8)
 project ("CrossRenderer")
 set (CMAKE_CXX_STANDARD 17)

@@ -8,45 +8,47 @@
 #include "OS/Program.h"
 #include "ModelLoader.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 
 using namespace BB;
 using namespace BB::Render;
 
-UploadBuffer::UploadBuffer(const uint64_t a_Size)
-	: size(a_Size)
+UploadBuffer::UploadBuffer(const uint64_t a_Size) : m_Size(a_Size)
 {
 	RenderBufferCreateInfo t_UploadBufferInfo;
-	t_UploadBufferInfo.size = size;
+	t_UploadBufferInfo.size = m_Size;
 	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
 	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
 	t_UploadBufferInfo.data = nullptr;
-	buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
+	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
 
-	offset = 0;
-	start = RenderBackend::MapMemory(buffer);
-	position = start;
+	m_Offset = 0;
+	m_Position = RenderBackend::MapMemory(m_Buffer);
 }
 
 UploadBuffer::~UploadBuffer()
 {
-	RenderBackend::UnmapMemory(buffer);
-	RenderBackend::DestroyBuffer(buffer);
+	RenderBackend::UnmapMemory(m_Buffer);
+	RenderBackend::DestroyBuffer(m_Buffer);
 }
 
 UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
 {
 	UploadBufferChunk t_Chunk{};
-	t_Chunk.memory = position;
-	t_Chunk.offset = offset;
-	position = Pointer::Add(position, a_Size);
-	offset += a_Size;
+	t_Chunk.memory = m_Position;
+	t_Chunk.offset = m_Offset;
+	m_Position = Pointer::Add(m_Position, a_Size);
+	m_Offset += a_Size;
 	return t_Chunk;
 }
 
 void UploadBuffer::Clear()
 {
-	offset = 0;
-	position = start;
+	//Get back to start
+	m_Position = Pointer::Subtract(m_Position, m_Offset);
+	m_Offset = 0;
 }
 
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };

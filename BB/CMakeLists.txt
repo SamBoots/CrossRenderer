@@ -1,6 +1,6 @@
-﻿# CMakeList.txt : Top-level CMake project file, do global configuration
-# and include sub-projects here.
-#
+﻿########################################################################
+#  This cmakelist handles the base setup for the BB library framework  #
+########################################################################
 cmake_minimum_required (VERSION 3.8)
 project ("BB")
 set (CMAKE_CXX_STANDARD 17)

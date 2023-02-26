@@ -1,6 +1,6 @@
-﻿# CMakeList.txt : CMake project for Allocator, include source and define
-# project specific logic here.
-#
+﻿#####################################################
+#  This cmakelist handles the top-level renderer    #
+#####################################################
 
 if ("${GRAPHICS_API}" STREQUAL "Vulkan")
 add_compile_definitions(PUBLIC USE_VULKAN)
@@ -37,6 +37,7 @@ target_link_libraries(Renderer
     DXCompiler
     "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
     BBFramework 
+    stb_image
 )
 
 #Include library

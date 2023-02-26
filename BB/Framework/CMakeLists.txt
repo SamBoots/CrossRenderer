@@ -1,6 +1,6 @@
-﻿# CMakeList.txt : CMake project for Allocator, include source and define
-# project specific logic here.
-#
+﻿##########################################################
+#  This cmakelist handles the base BB library framework  #
+##########################################################
 cmake_minimum_required (VERSION 3.8)
 
 #compile Definitions.

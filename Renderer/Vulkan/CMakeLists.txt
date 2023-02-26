@@ -1,5 +1,6 @@
-﻿# CMakeList.txt : Cmake project for the VulkanDLL
-
+﻿#####################################################
+#  This cmakelist handles Vulkan API renderbackend  #
+#####################################################
 set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 
 #Find vulkan

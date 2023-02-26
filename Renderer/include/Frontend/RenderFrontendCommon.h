@@ -53,6 +53,7 @@ namespace BB
 		BB::Slice<Vertex> vertices;
 		BB::Slice<const uint32_t> indices;
 		PipelineHandle pipeline;
+		const char* imagePath;
 	};
 
 	enum class MODEL_TYPE
@@ -94,13 +95,12 @@ namespace BB
 		UploadBufferChunk Alloc(const uint64_t a_Size);
 		void Clear();
 
-		const RBufferHandle Buffer() const { return buffer; }
+		const RBufferHandle Buffer() const { return m_Buffer; }
 
 	private:
-		RBufferHandle buffer;
-		const uint64_t size;
-		uint64_t offset;
-		void* start;
-		void* position;
+		RBufferHandle m_Buffer;
+		const uint64_t m_Size;
+		uint64_t m_Offset;
+		void* m_Position;
 	};
 }
