@@ -78,6 +78,18 @@ namespace BB
 			}
 		}
 
+		inline VkDescriptorType DescriptorImageType(const DESCRIPTOR_IMAGE_TYPE a_Type)
+		{
+			switch (a_Type)
+			{
+			case BB::DESCRIPTOR_IMAGE_TYPE::COMBINED_IMAGE_SAMPLER:	return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				default:
+					BB_ASSERT(false, "this descriptor_type usage is not supported by the vulkan backend!");
+					return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+					break;
+			}
+		}
+
 		inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
 		{
 			switch (a_Stage)
@@ -226,13 +238,6 @@ namespace BB
 
 	constexpr uint32_t EMPTY_FAMILY_INDICES = UINT32_MAX;
 
-	struct DepthCreateInfo
-	{
-		VkFormat depthFormat;
-		VkImageLayout initialLayout;
-		VkImageLayout finalLayout;
-	};
-
 	struct SwapchainFrame
 	{
 		VkImage image;
@@ -250,6 +255,12 @@ namespace BB
 		VkFormat imageFormat;
 		VkExtent2D extent;
 		SwapchainFrame* frames;
+	};
+
+	//this struct stores data to check our device limits.
+	struct VulkanPhysicalDeviceInfo
+	{
+		float maxAnisotropy;
 	};
 
 	struct VulkanPipeline

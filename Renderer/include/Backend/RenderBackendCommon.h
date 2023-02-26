@@ -56,12 +56,7 @@ namespace BB
 
 	enum class DESCRIPTOR_IMAGE_TYPE : uint32_t
 	{
-		SAMPLER,
-		COMBINED_IMAGE_SAMPLER,
-		SAMPLED_IMAGE,
-		STORAGE_IMAGE,
-		UNIFORM_TEXEL_BUFFER,
-		STORAGE_TEXEL_BUFFER
+		COMBINED_IMAGE_SAMPLER
 	};
 
 	enum class RENDER_DESCRIPTOR_SET : uint32_t
@@ -194,6 +189,16 @@ namespace BB
 		RENDER_SHADER_STAGE stage;
 	};
 
+	struct ImageBind
+	{
+		RImageHandle image;
+
+		uint32_t binding;
+		DESCRIPTOR_IMAGE_TYPE imageType;
+		RENDER_IMAGE_LAYOUT imageLayout;
+		RENDER_SHADER_STAGE stage;
+	};
+
 	struct RenderInitInfo
 	{
 		RENDER_API renderAPI = RENDER_API::NONE;
@@ -223,6 +228,7 @@ namespace BB
 		RENDER_BINDING_SET bindingSet;
 		BB::Slice<ConstantBind> constantBinds;
 		BB::Slice<BufferBind> bufferBinds;
+		BB::Slice<ImageBind> imageBinds;
 	};
 
 	struct RenderCommandQueueCreateInfo

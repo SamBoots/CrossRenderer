@@ -152,6 +152,7 @@ struct VulkanBackend_inst
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
 	VulkanDebug vulkanDebug;
+	VulkanPhysicalDeviceInfo deviceInfo;
 
 	void CreatePools()
 	{
@@ -279,16 +280,6 @@ static VkDebugUtilsMessengerEXT CreateVulkanDebugMsgger(VkInstance a_Instance)
 	return t_ReturnDebug;
 }
 
-static void DestroyVulkanDebug(VkInstance a_Instance, VkDebugUtilsMessengerEXT& a_DebugMsgger)
-{
-	auto t_DestroyDebugFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(a_Instance, "vkDestroyDebugUtilsMessengerEXT");
-	if (t_DestroyDebugFunc == nullptr)
-	{
-		BB_WARNING(false, "Failed to get the vkDestroyDebugUtilsMessengerEXT function pointer.", WarningType::HIGH);
-	}
-	t_DestroyDebugFunc(a_Instance, a_DebugMsgger, nullptr);
-}
-
 static SwapchainSupportDetails QuerySwapChainSupport(BB::Allocator a_TempAllocator, const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
 {
 	SwapchainSupportDetails t_SwapDetails{};
@@ -397,7 +388,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 		if (t_DeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 			t_SyncFeatures.timelineSemaphore == VK_TRUE,
 			t_DeviceFeatures.features.geometryShader &&
-
+			t_DeviceFeatures.features.samplerAnisotropy &&
 			QueueFindGraphicsBit(a_TempAllocator, t_PhysicalDevices[i]) &&
 			t_SwapChainDetails.formatCount != 0 &&
 			t_SwapChainDetails.presentModeCount != 0)
@@ -485,6 +476,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	}
 
 	VkPhysicalDeviceFeatures t_DeviceFeatures{};
+	t_DeviceFeatures.samplerAnisotropy = VK_TRUE;
 	VkPhysicalDeviceTimelineSemaphoreFeatures t_TimelineSemFeatures{};
 	t_TimelineSemFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
 	t_TimelineSemFeatures.timelineSemaphore = VK_TRUE;
@@ -522,6 +514,12 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 		s_VKB.queueIndices.present,
 		0,
 		&s_VKB.presentQueue);
+
+	VkPhysicalDeviceProperties2 t_DeviceProperties{};
+	t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
+
+	s_VKB.deviceInfo.maxAnisotropy = t_DeviceProperties.properties.limits.maxSamplerAnisotropy;
 
 	return t_ReturnDevice;
 }
@@ -889,7 +887,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
-	t_BackendInfo.currentFrame = s_VKB.currentFrame;;
+	t_BackendInfo.currentFrame = s_VKB.currentFrame;
 	t_BackendInfo.framebufferCount = s_VKB.frameCount;
 
 	return t_BackendInfo;
@@ -912,47 +910,110 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 
 	t_BindingSet->pushConstantCount = static_cast<uint32_t>(a_Info.constantBinds.size());
 
-	VkDescriptorSetLayoutBinding* t_BufferBindings = BBnewArr(
+
+	VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
 		s_VulkanAllocator,
-		a_Info.bufferBinds.size(),
+		a_Info.bufferBinds.size() + a_Info.imageBinds.size(),
 		VkDescriptorSetLayoutBinding);
 
 	VkWriteDescriptorSet* t_Writes = BBnewArr(
 		s_VulkanAllocator,
-		a_Info.bufferBinds.size(),
+		a_Info.bufferBinds.size() + a_Info.imageBinds.size(),
 		VkWriteDescriptorSet);
 
-	//Setup buffer specific info.
-	VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
-		s_VulkanAllocator,
-		a_Info.bufferBinds.size(),
-		VkDescriptorBufferInfo);
+	VkDescriptorBufferInfo* t_BufferInfos = nullptr;
+	if (a_Info.bufferBinds.size())
+		//Setup buffer specific info.
+		t_BufferInfos = BBnewArr(
+			s_VulkanAllocator,
+			a_Info.bufferBinds.size(),
+			VkDescriptorBufferInfo);
 
+	VkDescriptorImageInfo* t_ImageInfos = nullptr;
+	if (a_Info.imageBinds.size())
+		//Setup image specific info.
+		t_ImageInfos = BBnewArr(
+			s_VulkanAllocator,
+			a_Info.imageBinds.size(),
+			VkDescriptorImageInfo);
+	
+	size_t t_WriteLayoutCount = 0;
 	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
 	{
-		t_BufferBindings[i].binding = a_Info.bufferBinds[i].binding;
-		t_BufferBindings[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_BufferBindings[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
-		t_BufferBindings[i].pImmutableSamplers = nullptr;
-		t_BufferBindings[i].stageFlags = VKConv::ShaderStageBits(a_Info.bufferBinds[i].stage);
+		t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
+		t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+		t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
+		t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.bufferBinds[i].stage);
 
 		//Setup the buffer Info.
-		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info.bufferBinds[i].buffer.handle)->buffer;
+		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info.bufferBinds[i].buffer.ptrHandle)->buffer;
 		t_BufferInfos[i].offset = a_Info.bufferBinds[i].bufferOffset;
 		t_BufferInfos[i].range = a_Info.bufferBinds[i].bufferSize;
 
-		t_Writes[i] = {};
-		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].dstBinding = a_Info.bufferBinds[i].binding;
-		t_Writes[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
-		t_Writes[i].pBufferInfo = &t_BufferInfos[i];
+		t_Writes[t_WriteLayoutCount] = {};
+		t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[t_WriteLayoutCount].dstBinding = a_Info.bufferBinds[i].binding;
+		t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+		t_Writes[t_WriteLayoutCount].pBufferInfo = &t_BufferInfos[i];
+		++t_WriteLayoutCount;
+	}
+
+	for (size_t i = 0; i < a_Info.imageBinds.size(); i++)
+	{
+		t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
+		t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
+		t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
+		t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.imageBinds[i].stage);
+
+		t_ImageInfos[i].imageLayout = VKConv::ImageLayout(a_Info.imageBinds[i].imageLayout);
+		t_ImageInfos[i].imageView = reinterpret_cast<VulkanImage*>(a_Info.imageBinds[i].image.ptrHandle)->view;
+
+		//Create sampler here?
+		{
+			//We could check if we can find a different way of doing this, but for now creating them here is good.
+			//Maybe placing all samplers in a hashmap and checking if they are the same?
+			VkSamplerCreateInfo t_SamplerInfo{};
+			t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+			t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+			t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+			t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+			t_SamplerInfo.anisotropyEnable = VK_TRUE;
+			t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
+			t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+			t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+			t_SamplerInfo.compareEnable = VK_FALSE;
+			t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+			//Mipmap info can be in the VulkanImage struct.
+			t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+			t_SamplerInfo.mipLodBias = 0.0f;
+			t_SamplerInfo.minLod = 0.0f;
+			t_SamplerInfo.maxLod = 0.0f;
+
+			VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfos[i].sampler),
+				"Vulkan: Failed to create image sampler!");
+			;
+		}
+
+		t_Writes[t_WriteLayoutCount] = {};
+		t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[t_WriteLayoutCount].dstBinding = a_Info.imageBinds[i].binding;
+		t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
+		t_Writes[t_WriteLayoutCount].pImageInfo = &t_ImageInfos[i];
+		++t_WriteLayoutCount;
 	}
 
 	{ //Create the descriptorSet layout.
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
 		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		t_LayoutInfo.pBindings = t_BufferBindings;
+		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bufferBinds.size());
 
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
@@ -998,7 +1059,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		0,
 		nullptr);
 
-	BBfreeArr(s_VulkanAllocator, t_BufferBindings);
+	BBfreeArr(s_VulkanAllocator, t_LayoutBinds);
 	BBfreeArr(s_VulkanAllocator, t_Writes);
 	BBfreeArr(s_VulkanAllocator, t_BufferInfos);
 
@@ -2103,7 +2164,15 @@ void BB::VulkanDestroyBackend()
 	vkDestroyDevice(s_VKB.device, nullptr);
 
 	if (s_VKB.vulkanDebug.debugMessenger != 0)
-		DestroyVulkanDebug(s_VKB.instance, s_VKB.vulkanDebug.debugMessenger);
+	{
+		auto t_DestroyDebugFunc = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(s_VKB.instance, 
+			"vkDestroyDebugUtilsMessengerEXT");
+		if (t_DestroyDebugFunc == nullptr)
+		{
+			BB_WARNING(false, "Failed to get the vkDestroyDebugUtilsMessengerEXT function pointer.", WarningType::HIGH);
+		}
+		t_DestroyDebugFunc(s_VKB.instance, s_VKB.vulkanDebug.debugMessenger, nullptr);
+	}
 
 	vkDestroySurfaceKHR(s_VKB.instance, s_VKB.surface, nullptr);
 	vkDestroyInstance(s_VKB.instance, nullptr);
