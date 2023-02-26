@@ -84,6 +84,11 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
+RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_CreateInfo)
+{
+	return s_ApiFunc.createImage(a_CreateInfo);
+}
+
 RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
 {
 	return s_ApiFunc.createFence(a_Info);

@@ -431,6 +431,62 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
 
+	int x, y, c;
+	stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
+	
+	{
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
+		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>(x * y));
+
+		RenderImageCreateInfo t_ImageInfo{};
+		t_ImageInfo.arrayLayers = 1;
+		t_ImageInfo.mipLevels = 1;
+		t_ImageInfo.width = static_cast<uint32_t>(x);
+		t_ImageInfo.height = static_cast<uint32_t>(y);
+		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
+		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
+		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
+		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
+
+		t_Model.image = RenderBackend::CreateImage(t_ImageInfo);
+
+		RenderTransitionImageInfo t_ImageTransInfo{};
+		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
+		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+		t_ImageTransInfo.image = t_Model.image;
+		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		t_ImageTransInfo.layerCount = 1;
+		t_ImageTransInfo.levelCount = 1;
+		t_ImageTransInfo.baseArrayLayer = 0;
+		t_ImageTransInfo.baseMipLevel = 0;
+		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
+		RenderBackend::TransitionImage(t_RecordingTransfer, t_ImageTransInfo);
+
+		RenderCopyBufferImageInfo t_CopyInfo{};
+		t_CopyInfo.srcBuffer = t_UploadBuffer->Buffer();
+		t_CopyInfo.srcBufferOffset = t_StageBuffer.offset;
+		t_CopyInfo.dstImage = t_Model.image;
+		t_CopyInfo.dstImageInfo.sizeX = static_cast<uint32_t>(x);
+		t_CopyInfo.dstImageInfo.sizeY = static_cast<uint32_t>(y);
+		t_CopyInfo.dstImageInfo.sizeZ = 1;
+		t_CopyInfo.dstImageInfo.mipLevel = 0;
+		t_CopyInfo.dstImageInfo.baseArrayLayer = 0;
+		t_CopyInfo.dstImageInfo.layerCount = 1;
+		t_CopyInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+
+		RenderBackend::CopyBufferImage(t_RecordingTransfer, t_CopyInfo);
+
+		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+	}
+
 	{
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
@@ -443,7 +499,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
 
-		RenderCopyBufferInfo t_CopyInfo;
+		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.vertexBuffer;
 		t_CopyInfo.srcOffset = t_StageBuffer.offset;

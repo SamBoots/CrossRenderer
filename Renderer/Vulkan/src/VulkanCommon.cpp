@@ -152,7 +152,6 @@ struct VulkanBackend_inst
 	Pool<VulkanImage> imagePool;
 	Pool<VulkanBindingSet> bindingSetPool;
 
-	//OL_HashMap<DescriptorLayout, VkDescriptorSetLayout> descriptorLayouts{ s_VulkanAllocator };
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
 	VulkanDebug vulkanDebug;
@@ -1248,6 +1247,7 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	//Will be defined in the first layout transition.
 	t_ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	t_ImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	t_ImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	t_ImageCreateInfo.flags = 0;
 
 
@@ -1657,13 +1657,13 @@ void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHa
 	t_CopyRegion.bufferRowLength = 0;
 	t_CopyRegion.bufferImageHeight = 0;
 	
-	t_CopyRegion.imageExtent.width = a_CopyInfo.srcSizeX;
-	t_CopyRegion.imageExtent.height = a_CopyInfo.srcSizeY;
-	t_CopyRegion.imageExtent.depth = a_CopyInfo.srcSizeZ;
+	t_CopyRegion.imageExtent.width = a_CopyInfo.dstImageInfo.sizeX;
+	t_CopyRegion.imageExtent.height = a_CopyInfo.dstImageInfo.sizeY;
+	t_CopyRegion.imageExtent.depth = a_CopyInfo.dstImageInfo.sizeZ;
 
-	t_CopyRegion.imageOffset.x = a_CopyInfo.dstImageInfo.srcOffsetX;
-	t_CopyRegion.imageOffset.y = a_CopyInfo.dstImageInfo.srcOffsetY;
-	t_CopyRegion.imageOffset.z = a_CopyInfo.dstImageInfo.srcOffsetZ;
+	t_CopyRegion.imageOffset.x = a_CopyInfo.dstImageInfo.offsetX;
+	t_CopyRegion.imageOffset.y = a_CopyInfo.dstImageInfo.offsetY;
+	t_CopyRegion.imageOffset.z = a_CopyInfo.dstImageInfo.offsetZ;
 
 	t_CopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_CopyRegion.imageSubresource.mipLevel = a_CopyInfo.dstImageInfo.mipLevel;
@@ -1673,7 +1673,7 @@ void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHa
 	vkCmdCopyBufferToImage(t_Cmdlist->Buffer(),
 		t_SrcBuffer->buffer,
 		t_DstImage->image,
-		VKConv::ImageLayout(a_CopyInfo.layout),
+		VKConv::ImageLayout(a_CopyInfo.dstImageInfo.layout),
 		1,
 		&t_CopyRegion);
 }

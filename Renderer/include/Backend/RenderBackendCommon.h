@@ -314,27 +314,28 @@ namespace BB
 
 	struct ImageCopyInfo
 	{
-		uint32_t srcOffsetX;
-		uint32_t srcOffsetY;
-		uint32_t srcOffsetZ;
+		uint32_t sizeX;
+		uint32_t sizeY;
+		uint32_t sizeZ;
+
+		uint32_t offsetX;
+		uint32_t offsetY;
+		uint32_t offsetZ;
 
 		uint32_t mipLevel;
 		uint32_t baseArrayLayer;
 		uint32_t layerCount;
+
+		RENDER_IMAGE_LAYOUT layout;
 	};
 
 	struct RenderCopyBufferImageInfo
 	{
 		RBufferHandle srcBuffer;
-		RImageHandle dstImage;
-
 		uint32_t srcBufferOffset;
-		ImageCopyInfo dstImageInfo;
 
-		uint32_t srcSizeX;
-		uint32_t srcSizeY;
-		uint32_t srcSizeZ;
-		RENDER_IMAGE_LAYOUT layout;
+		RImageHandle dstImage;
+		ImageCopyInfo dstImageInfo;
 	};
 
 	struct StartRenderingInfo

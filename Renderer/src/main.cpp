@@ -91,9 +91,11 @@ int main(int argc, char** argv)
 	0, 1, 2, 2, 3, 0
 	};
 
-	CreateRawModelInfo t_ModelInfo;
+	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
+	t_ModelInfo.imagePath = "../Resources/Textures/Test.jpg";
+
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
@@ -104,11 +106,11 @@ int main(int argc, char** argv)
 	Render::StartFrame();
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
-//	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
+	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_gltfCube,
 		t_TransHandle1);
-	//DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
-	//	t_TransHandle2);
+	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
+		t_TransHandle2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
