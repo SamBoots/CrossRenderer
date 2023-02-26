@@ -69,7 +69,7 @@ namespace BB
 		BB_ASSERT(m_Start == nullptr, "Trying to create a pool while one already exists!");
 
 		size_t t_AllocSize = a_Size * sizeof(T);
-		m_Start = mallocVirtual(m_Start, t_AllocSize, virtual_reserve_extra::standard);
+		m_Start = mallocVirtual(m_Start, t_AllocSize);
 		m_Pool = reinterpret_cast<T**>(m_Start);
 		const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
 

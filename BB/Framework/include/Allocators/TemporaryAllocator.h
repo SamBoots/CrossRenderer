@@ -3,8 +3,9 @@
 namespace BB
 {
 	//A linear allocator abstraction that doesn't use virtual alloc but another allocator for memory.
-	struct TemporaryAllocator
+	class TemporaryAllocator
 	{
+	public:
 		operator Allocator();
 
 		TemporaryAllocator(Allocator a_BackingAllocator);

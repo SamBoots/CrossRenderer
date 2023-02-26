@@ -11,7 +11,7 @@ struct VirtualHeader
 	size_t bytesReserved;
 };
 
-void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const virtual_reserve_extra a_ReserveSize)
+void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const size_t a_ReserveSize)
 {
 	//Adjust the requested bytes by the page size and the minimum virtual allocaion size.
 	size_t t_PageAdjustedSize = Math::RoundUp(a_Size + sizeof(VirtualHeader), VirtualMemoryPageSize());
@@ -40,7 +40,7 @@ void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const virtual_reserve_ext
 	}
 
 	//When making a new header reserve a lot more then that is requested to support later resizes better.
-	size_t t_AdditionalReserve = t_PageAdjustedSize * static_cast<size_t>(a_ReserveSize);
+	size_t t_AdditionalReserve = t_PageAdjustedSize * a_ReserveSize;
 	void* t_Address = ReserveVirtualMemory(t_AdditionalReserve);
 	BB_ASSERT(t_Address != NULL, "Error reserving virtual memory");
 

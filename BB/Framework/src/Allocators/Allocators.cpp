@@ -52,7 +52,7 @@ FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size)
 {
 	BB_ASSERT(a_Size != 0, "Fixed linear allocator is created with a size of 0!");
 	size_t t_Size = a_Size;
-	m_Start = mallocVirtual(nullptr, t_Size, BB::virtual_reserve_extra::none);
+	m_Start = mallocVirtual(nullptr, t_Size, VIRTUAL_RESERVE_NONE);
 	m_Buffer = m_Start;
 #ifdef _DEBUG
 	m_End = reinterpret_cast<uintptr_t>(m_Start) + t_Size;
@@ -235,7 +235,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t)
 
 	//Get memory to store the headers for all the freelists.
 	//reserve none extra since this will never be bigger then the virtual alloc maximum. (If it is then we should get a page fault).
-	m_FreeLists = reinterpret_cast<FreeList*>(mallocVirtual(nullptr, t_FreeListAllocSize, virtual_reserve_extra::none));
+	m_FreeLists = reinterpret_cast<FreeList*>(mallocVirtual(nullptr, t_FreeListAllocSize, VIRTUAL_RESERVE_HALF));
 
 	//Set the freelists and let the blocks point to the next free ones.
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
@@ -245,7 +245,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t)
 		m_FreeLists[i].allocSize = t_Freelist_Buffer_Size;
 		m_FreeLists[i].fullSize = t_UsedMemory;
 		//reserve half since we are splitting up the block, otherwise we might use a lot of virtual space.
-		m_FreeLists[i].start = mallocVirtual(nullptr, t_UsedMemory, virtual_reserve_extra::half);
+		m_FreeLists[i].start = mallocVirtual(nullptr, t_UsedMemory, VIRTUAL_RESERVE_HALF);
 		m_FreeLists[i].freeBlock = reinterpret_cast<FreeBlock*>(m_FreeLists[i].start);
 		//Set the first freeblock.
 		m_FreeLists[i].freeBlock->size = m_FreeLists[i].fullSize;

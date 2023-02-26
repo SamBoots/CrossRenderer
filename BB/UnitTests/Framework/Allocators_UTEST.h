@@ -2,6 +2,7 @@
 #include "../TestValues.h"
 #include "BBMemory.h"
 #include "Allocators/TemporaryAllocator.h"
+#include "Allocators/RingAllocator.h"
 
 //Bytes samples with different sizes.
 constexpr const size_t sample_32_bytes = 10000;
@@ -397,69 +398,6 @@ TEST(MemoryAllocators, POW_FREELIST_SINGLE_ALLOCATIONS)
 
 #pragma endregion
 
-#pragma region POOL_ALLOCATOR
-TEST(MemoryAllocators, POOL_SINGLE_ALLOCATIONS)
-{
-	//std::cout << "Pool allocator with 1000 2593 bytes samples." << "\n";
-
-	////Get some random values to test
-	//size_t randomValues[sample_2593_bytes]{};
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	randomValues[i] = static_cast<size_t>(BB::Utils::RandomUInt());
-	//}
-
-	//BB::PoolAllocator_t t_PoolAllocator(sizeof(size2593bytes), sample_2593_bytes, __alignof(size2593bytes));
-
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	size2593bytes* sample = BB::BBalloc<size2593bytes>(t_PoolAllocator);
-	//	sample->value = randomValues[i];
-	//}
-
-	////Test is depricated because of Boundrychecking.
-	//Test all the values inside the allocations.
-	//size2593bytes* t_AllocData = reinterpret_cast<size2593bytes*>(t_PoolAllocator.begin());
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	ASSERT_EQ(t_AllocData[i].value, randomValues[i]) << "2593 bytes, Value is different in the Pool allocator.";
-	//}
-
-	//t_PoolAllocator.Clear();
-}
-
-TEST(MemoryAllocators, POOL_SINGLE_ALLOCATIONS_RESIZE)
-{
-	//std::cout << "Pool allocator with 1000 2593 bytes samples, but an allocator size for only 100 elements to test resizing." << "\n";
-
-	////Get some random values to test
-	//size_t randomValues[sample_2593_bytes]{};
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	randomValues[i] = static_cast<size_t>(Utils::RandomUInt());
-	//}
-
-	//BB::unsafePoolAllocator_t t_PoolAllocator(sizeof(size2593bytes), sample_2593_bytes / 10, __alignof(size2593bytes));
-
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	size2593bytes* sample = BB::AllocNew<size2593bytes>(t_PoolAllocator);
-	//	sample->value = randomValues[i];
-	//}
-
-	////Test all the values inside the allocations.
-	//size2593bytes* t_AllocData = reinterpret_cast<size2593bytes*>(t_PoolAllocator.begin());
-	//for (size_t i = 0; i < sample_2593_bytes; i++)
-	//{
-	//	ASSERT_EQ(t_AllocData[i].value, randomValues[i]) << "2593 bytes, Value is different in the Pool allocator.";
-
-	//}
-
-	//t_PoolAllocator.Clear();
-}
-
-#pragma endregion
-
 #pragma region TEMPORARY_ALLOCATOR
 TEST(MemoryAllocators, TEMPORARY_ALLOCATOR)
 {
@@ -494,25 +432,69 @@ TEST(MemoryAllocators, TEMPORARY_ALLOCATOR)
 		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
 	}
 
-	////Test is depricated because of Boundrychecking.
-	//Test all the values inside the allocations
-	//void* t_AllocData = t_LinearAllocator.begin();
-	//for (size_t i = 0; i < sample_32_bytes; i++)
-	//{
-	//	size32Bytes* data = reinterpret_cast<size32Bytes*>(t_AllocData);
-	//	ASSERT_EQ(data->value, randomValues[i]) << "32 bytes, Value is different in the linear allocator.";
-	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size32Bytes));
-	//}
-	//for (size_t i = sample_32_bytes; i < sample_32_bytes + sample_256_bytes; i++)
-	//{
-	//	ASSERT_EQ(reinterpret_cast<size256Bytes*>(t_AllocData)->value, randomValues[i]) << "256 bytes, Value is different in the linear allocator.";
-	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size256Bytes));
-	//}
-	//for (size_t i = sample_32_bytes + sample_256_bytes; i < sample_32_bytes + sample_256_bytes + sample_2593_bytes; i++)
-	//{
-	//	ASSERT_EQ(reinterpret_cast<size2593bytes*>(t_AllocData)->value, randomValues[i]) << "2593 bytes, Value is different in the linear allocator.";
-	//	t_AllocData = BB::pointerutils::Add(t_AllocData, sizeof(size2593bytes));
-	//}
+	t_TempAlloc.Clear();
+
+	for (size_t i = 0; i < sample_32_bytes; i++)
+	{
+		size32Bytes* sample = BBnew(t_TempAlloc, size32Bytes);
+		sample->value = randomValues[i];
+	}
+	for (size_t i = 0; i < sample_256_bytes; i++)
+	{
+		size256Bytes* sample = BBnew(t_TempAlloc, size256Bytes);
+		sample->value = randomValues[sample_32_bytes + i];
+	}
+	for (size_t i = 0; i < sample_2593_bytes; i++)
+	{
+		size2593bytes* sample = BBnew(t_TempAlloc, size2593bytes);
+		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
+	}
 }
 
 #pragma endregion //TEMPORARY_ALLOCATOR
+
+
+#pragma region RING_ALLOCATOR
+TEST(MemoryAllocators, RING_ALLOCATOR)
+{
+	constexpr const size_t allocatorSize =
+		sizeof(size32Bytes) * sample_32_bytes +
+		sizeof(size256Bytes) * sample_256_bytes +
+		sizeof(size2593bytes) * sample_2593_bytes;
+
+	//Get some random values to test.
+	size_t randomValues[samples]{};
+	for (size_t i = 0; i < samples; i++)
+	{
+		randomValues[i] = static_cast<size_t>(BB::Random::Random());
+	}
+
+	BB::FreelistAllocator_t t_Backing(allocatorSize * 2);
+	//Getting half of the allocator size will show that the ring allocator going back to start will work.
+	BB::RingAllocator t_TempAlloc(t_Backing, allocatorSize / 2);
+
+	for (size_t i = 0; i < sample_32_bytes; i++)
+	{
+		size32Bytes* sample = BBnew(t_TempAlloc, size32Bytes);
+		sample->value = randomValues[i];
+	}
+	for (size_t i = 0; i < sample_256_bytes; i++)
+	{
+		size256Bytes* sample = BBnew(t_TempAlloc, size256Bytes);
+		sample->value = randomValues[sample_32_bytes + i];
+	}
+	for (size_t i = 0; i < sample_2593_bytes; i++)
+	{
+		size2593bytes* sample = BBnew(t_TempAlloc, size2593bytes);
+		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
+	}
+
+	//This will cause the ringallocator to go back to start again.
+	for (size_t i = 0; i < sample_2593_bytes; i++)
+	{
+		size2593bytes* sample = BBnew(t_TempAlloc, size2593bytes);
+		sample->value = randomValues[sample_32_bytes + sample_256_bytes + i];
+	}
+}
+
+#pragma endregion //RING_ALLOCATOR
