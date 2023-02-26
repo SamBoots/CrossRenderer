@@ -26,7 +26,6 @@ set (Vulkan_DLL_Source
 "src/VulkanBackend.cpp"
 "src/VulkanCommon.cpp"
 "include/VulkanHelperTypes.h"
-"include/VulkanInitializers.h"
 "include/VulkanCommon.h")
 
 #Add source to this project's executable.

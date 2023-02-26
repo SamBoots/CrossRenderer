@@ -262,18 +262,12 @@ namespace BB
 		VkPipelineLayout layout;
 	};
 
-	struct VulkanDevice
+	struct VulkanQueuesIndices
 	{
-		VkDevice logicalDevice;
-		VkPhysicalDevice physicalDevice;
-		VkQueue presentQueue;
-		struct VulkanQueues
-		{
-			uint32_t graphics;
-			uint32_t present; //Is currently always same as graphics.
-			uint32_t compute;
-			uint32_t transfer;
-		} queueIndices;
+		uint32_t graphics;
+		uint32_t present; //Is currently always same as graphics.
+		uint32_t compute;
+		uint32_t transfer;
 	};
 
 	struct VulkanDebug

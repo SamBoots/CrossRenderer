@@ -2,10 +2,11 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
 #define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
+#include "VMA/vk_mem_alloc.h"
 
 constexpr int VULKAN_VERSION = 3;
 
+#include "VulkanInitializers.h"
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
 #include "Storage/Pool.h"
@@ -131,12 +132,7 @@ struct VulkanBackend_inst
 	VkSurfaceKHR surface{};
 	DescriptorAllocator descriptorAllocator;
 
-	VkDevice device;
-	VkPhysicalDevice physicalDevice;
-	VkQueue presentQueue;
-
-	VulkanQueuesIndices queueIndices;
-
+	VulkanDevice device{};
 	VulkanSwapChain swapChain{};
 	VmaAllocator vma{};
 	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
@@ -178,7 +174,7 @@ static VulkanBackend_inst s_VKB;
 static VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 {
 	VkPhysicalDeviceProperties t_Properties;
-	vkGetPhysicalDeviceProperties(s_VKB.physicalDevice, &t_Properties);
+	vkGetPhysicalDeviceProperties(s_VKB.device.physicalDevice, &t_Properties);
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
 }
 
@@ -226,29 +222,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	return VK_FALSE;
 }
 
-static VkDebugUtilsMessengerCreateInfoEXT CreateDebugCallbackCreateInfo()
-{
-	VkDebugUtilsMessengerCreateInfoEXT t_CreateInfo{};
-	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	t_CreateInfo.messageSeverity =
-		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	t_CreateInfo.messageType =
-		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	t_CreateInfo.pfnUserCallback = debugCallback;
-	t_CreateInfo.pUserData = nullptr;
-
-	return t_CreateInfo;
-}
-
 static uint32_t FindMemoryType(uint32_t a_TypeFilter, VkMemoryPropertyFlags a_Properties)
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(s_VKB.physicalDevice, &memProperties);
+	vkGetPhysicalDeviceMemoryProperties(s_VKB.device.physicalDevice, &memProperties);
 
 	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
 		if ((a_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & a_Properties) == a_Properties) {
@@ -271,11 +248,10 @@ static VkDebugUtilsMessengerEXT CreateVulkanDebugMsgger(VkInstance a_Instance)
 		BB_WARNING(false, "Failed to get the vkCreateDebugUtilsMessengerEXT function pointer.", WarningType::HIGH);
 		return 0;
 	}
-	VkDebugUtilsMessengerCreateInfoEXT t_DebugCreateInfo = CreateDebugCallbackCreateInfo();
-
+	auto t_DebugMessenger = VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback);
 	VkDebugUtilsMessengerEXT t_ReturnDebug;
 
-	VKASSERT(t_CreateDebugFunc(a_Instance, &t_DebugCreateInfo, nullptr, &t_ReturnDebug), "Vulkan: Failed to create debug messenger.");
+	VKASSERT(t_CreateDebugFunc(a_Instance, &t_DebugMessenger, nullptr, &t_ReturnDebug), "Vulkan: Failed to create debug messenger.");
 	return t_ReturnDebug;
 }
 
@@ -415,9 +391,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	VkDevice t_ReturnDevice;
 
 	uint32_t t_QueueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, nullptr);
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.device.physicalDevice, &t_QueueFamilyCount, nullptr);
 	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
-	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
+	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.device.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
 	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(a_TempAllocator, 3, VkDeviceQueueCreateInfo);
 	uint32_t t_DifferentQueues = 0;
@@ -428,8 +404,8 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_GRAPHICS_BIT);
 
-		s_VKB.queueIndices.graphics = t_GraphicQueue.index;
-		s_VKB.queueIndices.present = t_GraphicQueue.index;
+		s_VKB.device.queueIndices.graphics = t_GraphicQueue.index;
+		s_VKB.device.queueIndices.present = t_GraphicQueue.index;
 		//set the graphics queue first.
 		t_QueueCreateInfos[t_DifferentQueues] = {};
 		t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -444,9 +420,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_TRANSFER_BIT);
 		//Check if the queueindex is the same as graphics.
-		if (t_TransferQueue.index != s_VKB.queueIndices.graphics)
+		if (t_TransferQueue.index != s_VKB.device.queueIndices.graphics)
 		{
-			s_VKB.queueIndices.transfer = t_TransferQueue.index;
+			s_VKB.device.queueIndices.transfer = t_TransferQueue.index;
 			//set the graphics queue first.
 			t_QueueCreateInfos[t_DifferentQueues] = {};
 			t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -457,7 +433,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 		}
 		else
 		{
-			s_VKB.queueIndices.transfer = s_VKB.queueIndices.graphics;
+			s_VKB.device.queueIndices.transfer = s_VKB.device.queueIndices.graphics;
 		}
 	}
 
@@ -466,10 +442,10 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 			t_QueueFamilyCount,
 			VK_QUEUE_COMPUTE_BIT);
 		//Check if the queueindex is the same as graphics.
-		if ((t_ComputeQueue.index != s_VKB.queueIndices.graphics) &&
-			(t_ComputeQueue.index != s_VKB.queueIndices.compute))
+		if ((t_ComputeQueue.index != s_VKB.device.queueIndices.graphics) &&
+			(t_ComputeQueue.index != s_VKB.device.queueIndices.compute))
 		{
-			s_VKB.queueIndices.compute = t_ComputeQueue.index;
+			s_VKB.device.queueIndices.compute = t_ComputeQueue.index;
 			//set the graphics queue first.
 			t_QueueCreateInfos[t_DifferentQueues] = {};
 			t_QueueCreateInfos[t_DifferentQueues].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -480,7 +456,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 		}
 		else
 		{
-			s_VKB.queueIndices.compute = s_VKB.queueIndices.graphics;
+			s_VKB.device.queueIndices.compute = s_VKB.device.queueIndices.graphics;
 		}
 	}
 
@@ -511,7 +487,7 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
 	t_CreateInfo.pNext = &t_DynamicRendering;
 
-	VKASSERT(vkCreateDevice(s_VKB.physicalDevice, 
+	VKASSERT(vkCreateDevice(s_VKB.device.physicalDevice, 
 		&t_CreateInfo, 
 		nullptr, 
 		&t_ReturnDevice),
@@ -519,9 +495,9 @@ static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<c
 
 	//Get the present queue.
 	vkGetDeviceQueue(t_ReturnDevice,
-		s_VKB.queueIndices.present,
+		s_VKB.device.queueIndices.present,
 		0,
-		&s_VKB.presentQueue);
+		&s_VKB.device.presentQueue);
 
 	return t_ReturnDevice;
 }
@@ -598,8 +574,8 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	a_SwapChain.extent = t_ChosenExtent;
 
 	uint32_t t_GraphicFamily, t_PresentFamily;
-	t_GraphicFamily = s_VKB.queueIndices.graphics;
-	t_PresentFamily = s_VKB.queueIndices.present;
+	t_GraphicFamily = s_VKB.device.queueIndices.graphics;
+	t_PresentFamily = s_VKB.device.queueIndices.present;
 	uint32_t t_QueueFamilyIndices[] = { t_GraphicFamily, t_PresentFamily };
 
 	VkSwapchainCreateInfoKHR t_SwapCreateInfo{};
@@ -650,6 +626,11 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		a_SwapChain.images = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImage);
 		a_SwapChain.imageViews = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImageView);
 		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, a_SwapChain.images);
+
+		//Create sync structures in the same loop, might be moved to commandlist.
+		VkFenceCreateInfo t_FenceCreateInfo = VkInit::FenceCreationInfo();
+		//first one is already signaled to make sure we can still render.
+		t_FenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		CreateImageViews(a_SwapChain.imageViews,
 			a_SwapChain.images,
@@ -726,13 +707,11 @@ static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevic
 		VKASSERT(vkCreateShaderModule(a_Device, &t_ShaderModCreateInfo, nullptr, &t_ReturnResult.shaderModules[i]),
 			"Vulkan: Failed to create shadermodule.");
 
-		t_ReturnResult.pipelineShaderStageInfo[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		t_ReturnResult.pipelineShaderStageInfo[i].stage = VKConv::ShaderStageBits(a_CreateInfo[i].shaderStage);
-		t_ReturnResult.pipelineShaderStageInfo[i].module = t_ReturnResult.shaderModules[i];
-		t_ReturnResult.pipelineShaderStageInfo[i].pName = "main";
-		t_ReturnResult.pipelineShaderStageInfo[i].pSpecializationInfo = nullptr;
-		t_ReturnResult.pipelineShaderStageInfo[i].flags = 0;
-		t_ReturnResult.pipelineShaderStageInfo[i].pNext = nullptr;
+		t_ReturnResult.pipelineShaderStageInfo[i] = VkInit::PipelineShaderStageCreateInfo(
+			VKConv::ShaderStageBits(a_CreateInfo[i].shaderStage),
+			t_ReturnResult.shaderModules[i],
+			"main",
+			nullptr);
 	}
 
 	return t_ReturnResult;
@@ -810,7 +789,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 		{
 			const char* validationLayer = "VK_LAYER_KHRONOS_validation";
 			BB_WARNING(CheckValidationLayerSupport(a_TempAllocator, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
-			t_DebugCreateInfo = CreateDebugCallbackCreateInfo();
+			t_DebugCreateInfo = VkInit::DebugUtilsMessengerCreateInfoEXT(debugCallback);
 			t_InstanceCreateInfo.ppEnabledLayerNames = &validationLayer;
 			t_InstanceCreateInfo.enabledLayerCount = 1;
 			t_InstanceCreateInfo.pNext = &t_DebugCreateInfo;
@@ -850,7 +829,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 	}
 
 	//Get the physical Device
-	s_VKB.physicalDevice = FindPhysicalDevice(a_TempAllocator,
+	s_VKB.device.physicalDevice = FindPhysicalDevice(a_TempAllocator,
 		s_VKB.instance,
 		s_VKB.surface);
 	//Get the logical device and the graphics queue.
@@ -861,7 +840,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 	CreateSwapchain(s_VKB.swapChain, 
 		a_TempAllocator,
 		s_VKB.surface,
-		s_VKB.physicalDevice,
+		s_VKB.device.physicalDevice,
 		s_VKB.device,
 		a_CreateInfo.windowWidth,
 		a_CreateInfo.windowHeight);
@@ -875,7 +854,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 
 	VmaAllocatorCreateInfo t_AllocatorCreateInfo = {};
 	t_AllocatorCreateInfo.vulkanApiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
-	t_AllocatorCreateInfo.physicalDevice = s_VKB.physicalDevice;
+	t_AllocatorCreateInfo.physicalDevice = s_VKB.device.physicalDevice;
 	t_AllocatorCreateInfo.device = s_VKB.device;
 	t_AllocatorCreateInfo.instance = s_VKB.instance;
 	t_AllocatorCreateInfo.pVulkanFunctions = &t_VkFunctions;
@@ -1012,13 +991,13 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 	switch (a_Info.queue)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
-		t_QueueIndex = s_VKB.queueIndices.graphics;
+		t_QueueIndex = s_VKB.device.queueIndices.graphics;
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		t_QueueIndex = s_VKB.queueIndices.transfer;
+		t_QueueIndex = s_VKB.device.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
-		t_QueueIndex = s_VKB.queueIndices.compute;
+		t_QueueIndex = s_VKB.device.queueIndices.compute;
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
@@ -1069,13 +1048,13 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 	switch (a_CreateInfo.queueType)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
-		t_CreateInfo.queueFamilyIndex = s_VKB.queueIndices.graphics;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.graphics;
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		t_CreateInfo.queueFamilyIndex = s_VKB.queueIndices.transfer;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
-		t_CreateInfo.queueFamilyIndex = s_VKB.queueIndices.compute;
+		t_CreateInfo.queueFamilyIndex = s_VKB.device.queueIndices.compute;
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Tried to make a command allocator with a queue type that does not exist.");
@@ -1152,10 +1131,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 	VkImageCreateInfo t_ImageCreateInfo{};
 	t_ImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-
-	VkImageViewCreateInfo t_ViewInfo{};
-	t_ViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-
 	switch (a_CreateInfo.format)
 	{
 	case RENDER_IMAGE_FORMAT::SRGB:
@@ -1163,8 +1138,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_ImageCreateInfo.extent.height = a_CreateInfo.height;
 		t_ImageCreateInfo.extent.depth = 1;
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-
-		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
 
@@ -1196,22 +1169,8 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
 		break;
 	}
-	
-	switch (a_CreateInfo.type)
-	{
-	case RENDER_IMAGE_TYPE::TYPE_2D:					
-		t_ImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 
-		if (a_CreateInfo.arrayLayers > 1)
-			t_ViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-		else
-			t_ViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan: Image type is not supported!");
-		break;
-	}
-
+	t_ImageCreateInfo.imageType = VKConv::ImageType(a_CreateInfo.type);
 	t_ImageCreateInfo.mipLevels = a_CreateInfo.mipLevels;
 	t_ImageCreateInfo.arrayLayers = a_CreateInfo.arrayLayers;
 	//Will be defined in the first layout transition.
@@ -1226,16 +1185,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 	VKASSERT(vmaCreateImage(s_VKB.vma, &t_ImageCreateInfo, &t_AllocInfo, &t_Image->image, &t_Image->allocation, nullptr), 
 		"Vulkan: Failed to create image");
-
-	t_ViewInfo.image = t_Image->image;
-	t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_ViewInfo.subresourceRange.baseMipLevel = 0;
-	t_ViewInfo.subresourceRange.levelCount = a_CreateInfo.mipLevels;
-	t_ViewInfo.subresourceRange.baseArrayLayer = 0;
-	t_ViewInfo.subresourceRange.layerCount = a_CreateInfo.arrayLayers;
-	
-	VKASSERT(vkCreateImageView(s_VKB.device, &t_ViewInfo, nullptr, &t_Image->view),
-		"Vulkan: Failed to create image view.");
 
 	return RImageHandle(t_Image);
 }
@@ -1333,85 +1282,53 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
 		//Set viewport to nullptr and let the commandbuffer handle it via 
-		VkPipelineViewportStateCreateInfo t_ViewportState{};
-		t_ViewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		t_ViewportState.viewportCount = 1;
-		t_ViewportState.pViewports = nullptr;
-		t_ViewportState.scissorCount = 1;
-		t_ViewportState.pScissors = nullptr;
+		VkPipelineViewportStateCreateInfo t_ViewportState = VkInit::PipelineViewportStateCreateInfo(
+			1,
+			nullptr,
+			1,
+			nullptr);
 
 		auto t_BindingDescription = VertexBindingDescription();
 		auto t_AttributeDescription = VertexAttributeDescriptions();
-
-		VkPipelineVertexInputStateCreateInfo t_VertexInputInfo{};
-		t_VertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		t_VertexInputInfo.vertexBindingDescriptionCount = 1;
-		t_VertexInputInfo.pVertexBindingDescriptions = &t_BindingDescription;
-		t_VertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(t_AttributeDescription.size());
-		t_VertexInputInfo.pVertexAttributeDescriptions = t_AttributeDescription.data();
-
-		VkPipelineInputAssemblyStateCreateInfo t_InputAssembly{};
-		t_InputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		t_InputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		t_InputAssembly.primitiveRestartEnable = VK_FALSE;
-
-		VkPipelineRasterizationStateCreateInfo t_Rasterizer{};
-		t_Rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		t_Rasterizer.depthClampEnable = VK_FALSE;
-		t_Rasterizer.depthBiasEnable = VK_FALSE;
-		t_Rasterizer.rasterizerDiscardEnable = VK_FALSE;
-		t_Rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-		t_Rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-		t_Rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		t_Rasterizer.lineWidth = 1.0f;
-		t_Rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-		t_Rasterizer.depthBiasClamp = 0.0f; // Optional
-		t_Rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
-
-		VkPipelineMultisampleStateCreateInfo t_Multisampling{};
-		t_Multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		t_Multisampling.sampleShadingEnable = VK_FALSE;
-		t_Multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-		t_Multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-		t_Multisampling.alphaToOneEnable = VK_FALSE; // Optional
-		t_Multisampling.minSampleShading = 1.0f; // Optional
-		t_Multisampling.pSampleMask = nullptr; // Optional
+		VkPipelineVertexInputStateCreateInfo t_VertexInput = VkInit::PipelineVertexInputStateCreateInfo(
+			1,
+			&t_BindingDescription,
+			static_cast<uint32_t>(t_AttributeDescription.size()),
+			t_AttributeDescription.data());
+		VkPipelineInputAssemblyStateCreateInfo t_InputAssembly = VkInit::PipelineInputAssemblyStateCreateInfo(
+			VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			VK_FALSE);
+		VkPipelineRasterizationStateCreateInfo t_Rasterizer = VkInit::PipelineRasterizationStateCreateInfo(
+			VK_FALSE,
+			VK_FALSE,
+			VK_FALSE,
+			VK_POLYGON_MODE_FILL,
+			VK_CULL_MODE_BACK_BIT,
+			VK_FRONT_FACE_CLOCKWISE);
+		VkPipelineMultisampleStateCreateInfo t_MultiSampling = VkInit::PipelineMultisampleStateCreateInfo(
+			VK_FALSE,
+			VK_SAMPLE_COUNT_1_BIT);
 
 		//viewport is always controlled by the dynamic state so we just initialize them here.
 		t_BuildInfo->pipeInfo.pViewportState = &t_ViewportState;
 		t_BuildInfo->pipeInfo.pDynamicState = &t_DynamicPipeCreateInfo;
-		t_BuildInfo->pipeInfo.pVertexInputState = &t_VertexInputInfo;
+		t_BuildInfo->pipeInfo.pVertexInputState = &t_VertexInput;
 		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
 		t_BuildInfo->pipeInfo.pRasterizationState = &t_Rasterizer;
-		t_BuildInfo->pipeInfo.pMultisampleState = &t_Multisampling;
+		t_BuildInfo->pipeInfo.pMultisampleState = &t_MultiSampling;
 
 		//THIS IS TEMP! We want to build these ourselves with the builder.
-		VkPipelineDepthStencilStateCreateInfo t_DepthStencil{};
-		t_DepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		t_DepthStencil.depthTestEnable = VK_TRUE;
-		t_DepthStencil.depthWriteEnable = VK_TRUE;
-		t_DepthStencil.stencilTestEnable = VK_FALSE;
-		t_DepthStencil.depthBoundsTestEnable = VK_FALSE;
-		t_DepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-		t_DepthStencil.minDepthBounds = 0.0; // Optional
-		t_DepthStencil.maxDepthBounds = 1.0f; // Optional
-
-		VkPipelineColorBlendAttachmentState t_ColorBlendAttachment{};
-		t_ColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		t_ColorBlendAttachment.blendEnable = VK_FALSE;
-		t_ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-		t_ColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-		t_ColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-		t_ColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-		t_ColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-		t_ColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
-
-		VkPipelineColorBlendStateCreateInfo t_ColorBlending{};
-		t_ColorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		t_ColorBlending.logicOpEnable = VK_FALSE;
-		t_ColorBlending.logicOp = VK_LOGIC_OP_COPY;
-		t_ColorBlending.attachmentCount = 1;
-		t_ColorBlending.pAttachments = &t_ColorBlendAttachment;
+		VkPipelineDepthStencilStateCreateInfo t_DepthStencil = VkInit::PipelineDepthStencilStateCreateInfo(
+			VK_TRUE,
+			VK_TRUE,
+			VK_FALSE,
+			VK_FALSE,
+			VK_COMPARE_OP_LESS);
+		VkPipelineColorBlendAttachmentState t_ColorblendAttachment = VkInit::PipelineColorBlendAttachmentState(
+			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+			VK_FALSE);
+		VkPipelineColorBlendStateCreateInfo t_ColorBlending = VkInit::PipelineColorBlendStateCreateInfo(
+			VK_FALSE, VK_LOGIC_OP_COPY, 1, &t_ColorblendAttachment);
 
 		t_BuildInfo->pipeInfo.pDepthStencilState = &t_DepthStencil;
 		t_BuildInfo->pipeInfo.pColorBlendState = &t_ColorBlending;
@@ -1784,7 +1701,7 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 	CreateSwapchain(s_VKB.swapChain,
 		a_TempAllocator,
 		s_VKB.surface,
-		s_VKB.physicalDevice,
+		s_VKB.device.physicalDevice,
 		s_VKB.device,
 		a_X,
 		a_Y,
@@ -1984,7 +1901,7 @@ FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameI
 	t_PresentInfo.pImageIndices = &s_VKB.imageIndex;
 	t_PresentInfo.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(s_VKB.presentQueue, &t_PresentInfo),
+	VKASSERT(vkQueuePresentKHR(s_VKB.device.presentQueue, &t_PresentInfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
 	return s_VKB.currentFrame = (s_VKB.currentFrame + 1) % s_VKB.frameCount;
@@ -2016,7 +1933,6 @@ void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 void BB::VulkanDestroyImage(const RImageHandle a_Handle)
 {
 	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.ptrHandle);
-	vkDestroyImageView(s_VKB.device, t_Image->view, nullptr);
 	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
 	s_VKB.imagePool.Free(t_Image);
 }
