@@ -233,8 +233,11 @@ namespace BB
 		VkImageLayout finalLayout;
 	};
 
-	struct FrameWaitSync
+	struct SwapchainFrame
 	{
+		VkImage image;
+		VkImageView imageView;
+
 		VkSemaphore imageAvailableSem; //The window presenting API requires a binary semaphore, it cannot use timelime that we use.
 		VkSemaphore imageRenderFinishedSem; //The window presenting API requires a binary semaphore, it cannot use timelime that we use normally.
 		VkSemaphore frameTimelineSemaphore; //A special timeline semaphore incorperated inside the backend for ease of use.
@@ -246,9 +249,7 @@ namespace BB
 		VkSwapchainKHR swapChain;
 		VkFormat imageFormat;
 		VkExtent2D extent;
-		VkImage* images;
-		VkImageView* imageViews;
-		FrameWaitSync* waitSyncs;
+		SwapchainFrame* frames;
 	};
 
 	struct VulkanPipeline

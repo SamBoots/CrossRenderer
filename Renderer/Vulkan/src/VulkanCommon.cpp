@@ -555,35 +555,39 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static void CreateImageViews(VkImageView* a_pView, const VkImage* a_Images, VkDevice a_Device, VkFormat a_Format, uint32_t a_ImageViewCount)
-{
-	VkImageViewCreateInfo t_ImageViewCreateInfo{};
-	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	t_ImageViewCreateInfo.format = a_Format;
-	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	t_ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	t_ImageViewCreateInfo.subresourceRange.levelCount = 1;
-	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
-
-	for (uint32_t i = 0; i < s_VKB.frameCount; i++)
-	{
-		t_ImageViewCreateInfo.image = a_Images[i];
-		VKASSERT(vkCreateImageView(a_Device,
-			&t_ImageViewCreateInfo,
-			nullptr,
-			&a_pView[i]),
-			"Vulkan: Failed to create swapchain image views.");
-	}
-}
-
 static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight, bool a_Recreate = false)
 {
+#ifdef _DEBUG
+	if (!a_Recreate)
+	{
+		BB_ASSERT(s_VKB.swapChain.swapChain == VK_NULL_HANDLE || s_VKB.swapChain.frames == nullptr,
+			"Vulkan: Trying to create a swapchain while one already exists! Memory could leak!");
+	}
+	else
+	{
+		BB_ASSERT(s_VKB.swapChain.swapChain != VK_NULL_HANDLE || s_VKB.swapChain.frames != nullptr,
+			"Vulkan: Trying to recreate swapchain while none exist!")
+	}
+#endif //_DEBUG
+
+	if (a_Recreate)
+	{
+		for (FrameIndex i = 0; i < s_VKB.frameCount; i++)
+		{
+			vkDestroyImageView(s_VKB.device,
+				s_VKB.swapChain.frames[i].imageView, nullptr);
+			vkDestroySemaphore(s_VKB.device,
+				s_VKB.swapChain.frames[i].frameTimelineSemaphore, nullptr);
+			vkDestroySemaphore(s_VKB.device,
+				s_VKB.swapChain.frames[i].imageAvailableSem, nullptr);
+			vkDestroySemaphore(s_VKB.device,
+				s_VKB.swapChain.frames[i].imageRenderFinishedSem, nullptr);
+		}
+
+		//When we recreate we will destroy these elements. Since we could build with a different amount of framenbuffers.
+		BBfreeArr(s_VulkanAllocator, s_VKB.swapChain.frames);
+	}
+
 	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
 
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
@@ -628,83 +632,81 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_SwapCreateInfo.pQueueFamilyIndices = nullptr;
 	}
 
-	if (!a_Recreate)
-	{ 
-		a_SwapChain.imageFormat = t_ChosenFormat.format;
-		//Don't recreate so we have no old swapchain.
-		t_SwapCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+	a_SwapChain.imageFormat = t_ChosenFormat.format;
+	//Don't recreate so we have no old swapchain.
+	t_SwapCreateInfo.oldSwapchain = s_VKB.swapChain.swapChain;
 
-		//Now create the swapchain and set the framecount.
-		s_VKB.frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
-		t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
-		if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VKB.frameCount >
-			t_SwapchainDetails.capabilities.maxImageCount)
-		{
-			s_VKB.frameCount = t_SwapchainDetails.capabilities.maxImageCount;
-			t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.maxImageCount;
-		}
-
-		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
-
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, nullptr);
-		a_SwapChain.images = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImage);
-		a_SwapChain.imageViews = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImageView);
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, a_SwapChain.images);
-
-		CreateImageViews(a_SwapChain.imageViews,
-			a_SwapChain.images,
-			s_VKB.device,
-			a_SwapChain.imageFormat,
-			s_VKB.frameCount);
-
-		//Also create the present semaphores, these are unique semaphores that handle the window integration API as they cannot use timeline semaphores.
-		a_SwapChain.waitSyncs = BBnewArr(
-			s_VulkanAllocator,
-			s_VKB.frameCount,
-			FrameWaitSync);
-
-		VkSemaphoreCreateInfo t_SemInfo{};
-		t_SemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		//Used for the last semaphore created of a single frame struct.
-		VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
-		t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-		t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-		t_TimelineSemInfo.initialValue = 0;
-		for (size_t i = 0; i < s_VKB.frameCount; i++)
-		{
-			vkCreateSemaphore(s_VKB.device,
-				&t_SemInfo,
-				nullptr,
-				&a_SwapChain.waitSyncs[i].imageAvailableSem);
-			vkCreateSemaphore(s_VKB.device,
-				&t_SemInfo,
-				nullptr,
-				&a_SwapChain.waitSyncs[i].imageRenderFinishedSem);
-
-			t_SemInfo.pNext = &t_TimelineSemInfo;
-			vkCreateSemaphore(s_VKB.device,
-				&t_SemInfo,
-				nullptr,
-				&a_SwapChain.waitSyncs[i].frameTimelineSemaphore);
-			t_SemInfo.pNext = nullptr;
-			a_SwapChain.waitSyncs[i].frameWaitValue = 0;
-		}
-	}
-	else //Or recreate the swapchain.
+	//Now create the swapchain and set the framecount.
+	s_VKB.frameCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+	t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.minImageCount + 1;
+	if (t_SwapchainDetails.capabilities.maxImageCount > 0 && s_VKB.frameCount >
+		t_SwapchainDetails.capabilities.maxImageCount)
 	{
-		t_SwapCreateInfo.oldSwapchain = a_SwapChain.swapChain;
-		t_SwapCreateInfo.imageExtent = a_SwapChain.extent;
-		t_SwapCreateInfo.minImageCount = s_VKB.frameCount;
+		s_VKB.frameCount = t_SwapchainDetails.capabilities.maxImageCount;
+		t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.maxImageCount;
+	}
 
-		VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
-		vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, a_SwapChain.images);
+	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
 
-		CreateImageViews(a_SwapChain.imageViews,
-			a_SwapChain.images,
-			s_VKB.device,
-			a_SwapChain.imageFormat,
-			s_VKB.frameCount);
+	vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, nullptr);
+	VkImage* t_SwapchainImages = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImage);
+	vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, t_SwapchainImages);
+
+	//Also create the present semaphores, these are unique semaphores that handle the window integration API as they cannot use timeline semaphores.
+	a_SwapChain.frames = BBnewArr(
+		s_VulkanAllocator,
+		s_VKB.frameCount,
+		SwapchainFrame);
+
+	VkImageViewCreateInfo t_ImageViewCreateInfo{};
+	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	t_ImageViewCreateInfo.format = a_SwapChain.imageFormat;
+	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	t_ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	t_ImageViewCreateInfo.subresourceRange.levelCount = 1;
+	t_ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	t_ImageViewCreateInfo.subresourceRange.layerCount = 1;
+
+	VkSemaphoreCreateInfo t_SemInfo{};
+	t_SemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	//Used for the last semaphore created of a single frame struct.
+	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
+	t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+	t_TimelineSemInfo.initialValue = 0;
+	for (size_t i = 0; i < s_VKB.frameCount; i++)
+	{
+		a_SwapChain.frames[i].image = t_SwapchainImages[i];
+
+		t_ImageViewCreateInfo.image = t_SwapchainImages[i];
+		VKASSERT(vkCreateImageView(a_Device,
+			&t_ImageViewCreateInfo,
+			nullptr,
+			&a_SwapChain.frames[i].imageView),
+			"Vulkan: Failed to create swapchain image views.");
+
+		vkCreateSemaphore(s_VKB.device,
+			&t_SemInfo,
+			nullptr,
+			&a_SwapChain.frames[i].imageAvailableSem);
+		vkCreateSemaphore(s_VKB.device,
+			&t_SemInfo,
+			nullptr,
+			&a_SwapChain.frames[i].imageRenderFinishedSem);
+
+		t_SemInfo.pNext = &t_TimelineSemInfo;
+		vkCreateSemaphore(s_VKB.device,
+			&t_SemInfo,
+			nullptr,
+			&a_SwapChain.frames[i].frameTimelineSemaphore);
+		t_SemInfo.pNext = nullptr;
+		a_SwapChain.frames[i].frameWaitValue = 0;
 	}
 }
 
@@ -1489,7 +1491,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_PresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
-	t_PresentBarrier.image = s_VKB.swapChain.images[s_VKB.currentFrame];
+	t_PresentBarrier.image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
 	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
 	t_PresentBarrier.subresourceRange.layerCount = 1;
@@ -1512,7 +1514,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	t_RenderColorAttach.loadOp = VKConv::LoadOP(a_RenderInfo.colorLoadOp);
 	t_RenderColorAttach.storeOp = VKConv::StoreOp(a_RenderInfo.colorStoreOp);
 	t_RenderColorAttach.imageLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout); //Get the layout after the memory barrier.
-	t_RenderColorAttach.imageView = s_VKB.swapChain.imageViews[s_VKB.currentFrame];
+	t_RenderColorAttach.imageView = s_VKB.swapChain.frames[s_VKB.currentFrame].imageView;
 	t_RenderColorAttach.clearValue.color.float32[0] = a_RenderInfo.clearColor[0];
 	t_RenderColorAttach.clearValue.color.float32[1] = a_RenderInfo.clearColor[1];
 	t_RenderColorAttach.clearValue.color.float32[2] = a_RenderInfo.clearColor[2];
@@ -1556,7 +1558,7 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	t_PresentBarrier.oldLayout = VKConv::ImageLayout(a_EndInfo.colorInitialLayout);
 	t_PresentBarrier.newLayout = VKConv::ImageLayout(a_EndInfo.colorFinalLayout);
-	t_PresentBarrier.image = s_VKB.swapChain.images[s_VKB.currentFrame];
+	t_PresentBarrier.image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
 	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
 	t_PresentBarrier.subresourceRange.layerCount = 1;
@@ -1773,13 +1775,6 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 {
 	VulkanWaitDeviceReady();
 
-	for (size_t i = 0; i < s_VKB.frameCount; i++)
-	{
-		vkDestroyImageView(s_VKB.device,
-			s_VKB.swapChain.imageViews[i],
-			nullptr);
-	}
-
 	//Creates the swapchain with the image views.
 	CreateSwapchain(s_VKB.swapChain,
 		a_TempAllocator,
@@ -1798,7 +1793,7 @@ void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Sta
 	VKASSERT(vkAcquireNextImageKHR(s_VKB.device,
 		s_VKB.swapChain.swapChain,
 		UINT64_MAX,
-		s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageAvailableSem,
+		s_VKB.swapChain.frames[s_VKB.currentFrame].imageAvailableSem,
 		VK_NULL_HANDLE,
 		&s_VKB.imageIndex),
 		"Vulkan: failed to get next image.");
@@ -1807,8 +1802,8 @@ void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Sta
 	VkSemaphoreWaitInfo t_WaitInfo{};
 	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 	t_WaitInfo.semaphoreCount = 1;
-	t_WaitInfo.pSemaphores = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameTimelineSemaphore;
-	t_WaitInfo.pValues = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameWaitValue;
+	t_WaitInfo.pSemaphores = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameTimelineSemaphore;
+	t_WaitInfo.pValues = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
 	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);
 }
 
@@ -1915,7 +1910,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	//SETTING THE WAIT
 	//Set the wait semaphore so that it must wait until it can present.
-	t_Semaphores[0] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageAvailableSem;
+	t_Semaphores[0] = s_VKB.swapChain.frames[s_VKB.currentFrame].imageAvailableSem;
 	t_SemValues[0] = 0;
 	//Get the semaphore from the queues.
 	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
@@ -1927,12 +1922,12 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 
 	//SETTING THE SIGNAL
 	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageRenderFinishedSem;
+	t_Semaphores[t_WaitSemCount] = s_VKB.swapChain.frames[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_SemValues[t_WaitSemCount] = 0;
 	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount + 1] = s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameTimelineSemaphore;
+	t_Semaphores[t_WaitSemCount + 1] = s_VKB.swapChain.frames[s_VKB.currentFrame].frameTimelineSemaphore;
 	//Increment the semaphore by 1 for the next frame to get.
-	t_SemValues[t_WaitSemCount + 1] = ++s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].frameWaitValue;
+	t_SemValues[t_WaitSemCount + 1] = ++s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
 	for (uint32_t i = 0; i < t_SignalSemCount - 2; i++)
 	{
 		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
@@ -1978,7 +1973,7 @@ FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameI
 	VkPresentInfoKHR t_PresentInfo{};
 	t_PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	t_PresentInfo.waitSemaphoreCount = 1;
-	t_PresentInfo.pWaitSemaphores = &s_VKB.swapChain.waitSyncs[s_VKB.currentFrame].imageRenderFinishedSem;
+	t_PresentInfo.pWaitSemaphores = &s_VKB.swapChain.frames[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_PresentInfo.swapchainCount = 1; //Swapchain will always be 1
 	t_PresentInfo.pSwapchains = &s_VKB.swapChain.swapChain;
 	t_PresentInfo.pImageIndices = &s_VKB.imageIndex;
@@ -2092,13 +2087,13 @@ void BB::VulkanDestroyBackend()
 	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{
 		vkDestroyImageView(s_VKB.device,
-			s_VKB.swapChain.imageViews[i], nullptr);
+			s_VKB.swapChain.frames[i].imageView, nullptr);
 		vkDestroySemaphore(s_VKB.device,
-			s_VKB.swapChain.waitSyncs[i].frameTimelineSemaphore, nullptr);
+			s_VKB.swapChain.frames[i].frameTimelineSemaphore, nullptr);
 		vkDestroySemaphore(s_VKB.device,
-			s_VKB.swapChain.waitSyncs[i].imageAvailableSem, nullptr);
+			s_VKB.swapChain.frames[i].imageAvailableSem, nullptr);
 		vkDestroySemaphore(s_VKB.device,
-			s_VKB.swapChain.waitSyncs[i].imageRenderFinishedSem, nullptr);
+			s_VKB.swapChain.frames[i].imageRenderFinishedSem, nullptr);
 	}
 
 	vkDestroySwapchainKHR(s_VKB.device,
