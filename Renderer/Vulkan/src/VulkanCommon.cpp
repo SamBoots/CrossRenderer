@@ -921,93 +921,94 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		a_Info.bufferBinds.size() + a_Info.imageBinds.size(),
 		VkWriteDescriptorSet);
 
-	VkDescriptorBufferInfo* t_BufferInfos = nullptr;
+	size_t t_WriteLayoutCount = 0;
 	if (a_Info.bufferBinds.size())
+	{
 		//Setup buffer specific info.
-		t_BufferInfos = BBnewArr(
+		VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
 			s_VulkanAllocator,
 			a_Info.bufferBinds.size(),
 			VkDescriptorBufferInfo);
 
-	VkDescriptorImageInfo* t_ImageInfos = nullptr;
+		for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+		{
+			t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
+			t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+			t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+			t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
+			t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.bufferBinds[i].stage);
+
+			//Setup the buffer Info.
+			t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info.bufferBinds[i].buffer.ptrHandle)->buffer;
+			t_BufferInfos[i].offset = a_Info.bufferBinds[i].bufferOffset;
+			t_BufferInfos[i].range = a_Info.bufferBinds[i].bufferSize;
+
+			t_Writes[t_WriteLayoutCount] = {};
+			t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			t_Writes[t_WriteLayoutCount].dstBinding = a_Info.bufferBinds[i].binding;
+			t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+			t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
+			t_Writes[t_WriteLayoutCount].pBufferInfo = &t_BufferInfos[i];
+			++t_WriteLayoutCount;
+		}
+	}
+
 	if (a_Info.imageBinds.size())
+	{
 		//Setup image specific info.
-		t_ImageInfos = BBnewArr(
+		VkDescriptorImageInfo* t_ImageInfos = BBnewArr(
 			s_VulkanAllocator,
 			a_Info.imageBinds.size(),
 			VkDescriptorImageInfo);
-	
-	size_t t_WriteLayoutCount = 0;
-	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
-	{
-		t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
-		t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
-		t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
-		t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.bufferBinds[i].stage);
-
-		//Setup the buffer Info.
-		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info.bufferBinds[i].buffer.ptrHandle)->buffer;
-		t_BufferInfos[i].offset = a_Info.bufferBinds[i].bufferOffset;
-		t_BufferInfos[i].range = a_Info.bufferBinds[i].bufferSize;
-
-		t_Writes[t_WriteLayoutCount] = {};
-		t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[t_WriteLayoutCount].dstBinding = a_Info.bufferBinds[i].binding;
-		t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorBufferType(a_Info.bufferBinds[i].type);
-		t_Writes[t_WriteLayoutCount].pBufferInfo = &t_BufferInfos[i];
-		++t_WriteLayoutCount;
-	}
-
-	for (size_t i = 0; i < a_Info.imageBinds.size(); i++)
-	{
-		t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
-		t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
-		t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
-		t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.imageBinds[i].stage);
-
-		t_ImageInfos[i].imageLayout = VKConv::ImageLayout(a_Info.imageBinds[i].imageLayout);
-		t_ImageInfos[i].imageView = reinterpret_cast<VulkanImage*>(a_Info.imageBinds[i].image.ptrHandle)->view;
-
-		//Create sampler here?
+		for (size_t i = 0; i < a_Info.imageBinds.size(); i++)
 		{
-			//We could check if we can find a different way of doing this, but for now creating them here is good.
-			//Maybe placing all samplers in a hashmap and checking if they are the same?
-			VkSamplerCreateInfo t_SamplerInfo{};
-			t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-			t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
-			t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
-			t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-			t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-			t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
+			t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+			t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
+			t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
+			t_LayoutBinds[t_WriteLayoutCount].stageFlags = VKConv::ShaderStageBits(a_Info.imageBinds[i].stage);
 
-			t_SamplerInfo.anisotropyEnable = VK_TRUE;
-			t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
-			t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-			t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
+			t_ImageInfos[i].imageLayout = VKConv::ImageLayout(a_Info.imageBinds[i].imageLayout);
+			t_ImageInfos[i].imageView = reinterpret_cast<VulkanImage*>(a_Info.imageBinds[i].image.ptrHandle)->view;
 
-			t_SamplerInfo.compareEnable = VK_FALSE;
-			t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-			//Mipmap info can be in the VulkanImage struct.
-			t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-			t_SamplerInfo.mipLodBias = 0.0f;
-			t_SamplerInfo.minLod = 0.0f;
-			t_SamplerInfo.maxLod = 0.0f;
+			//Create sampler here?
+			{
+				//We could check if we can find a different way of doing this, but for now creating them here is good.
+				//Maybe placing all samplers in a hashmap and checking if they are the same?
+				VkSamplerCreateInfo t_SamplerInfo{};
+				t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+				t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+				t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+				t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-			VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfos[i].sampler),
-				"Vulkan: Failed to create image sampler!");
-			;
+				t_SamplerInfo.anisotropyEnable = VK_TRUE;
+				t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
+				t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+				t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+				t_SamplerInfo.compareEnable = VK_FALSE;
+				t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+				//Mipmap info can be in the VulkanImage struct.
+				t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				t_SamplerInfo.mipLodBias = 0.0f;
+				t_SamplerInfo.minLod = 0.0f;
+				t_SamplerInfo.maxLod = 0.0f;
+
+				VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfos[i].sampler),
+					"Vulkan: Failed to create image sampler!");
+				;
+			}
+
+			t_Writes[t_WriteLayoutCount] = {};
+			t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			t_Writes[t_WriteLayoutCount].dstBinding = a_Info.imageBinds[i].binding;
+			t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+			t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
+			t_Writes[t_WriteLayoutCount].pImageInfo = &t_ImageInfos[i];
+			++t_WriteLayoutCount;
 		}
-
-		t_Writes[t_WriteLayoutCount] = {};
-		t_Writes[t_WriteLayoutCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[t_WriteLayoutCount].dstBinding = a_Info.imageBinds[i].binding;
-		t_Writes[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
-		t_Writes[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
-		t_Writes[t_WriteLayoutCount].pImageInfo = &t_ImageInfos[i];
-		++t_WriteLayoutCount;
 	}
 
 	{ //Create the descriptorSet layout.
@@ -1061,7 +1062,6 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 
 	BBfreeArr(s_VulkanAllocator, t_LayoutBinds);
 	BBfreeArr(s_VulkanAllocator, t_Writes);
-	BBfreeArr(s_VulkanAllocator, t_BufferInfos);
 
 	return RBindingSetHandle(t_BindingSet);
 
