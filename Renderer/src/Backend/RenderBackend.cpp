@@ -6,9 +6,6 @@
 
 using namespace BB;
 
-static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
-static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
-
 static RenderAPIFunctions s_ApiFunc;
 
 static BackendInfo s_BackendInfo;
@@ -59,7 +56,7 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
 
-	s_BackendInfo = s_ApiFunc.createBackend(m_TempAllocator, a_CreateInfo);
+	s_BackendInfo = s_ApiFunc.createBackend(a_CreateInfo);
 }
 
 RBindingSetHandle BB::RenderBackend::CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
@@ -185,22 +182,22 @@ void BB::RenderBackend::UnmapMemory(const RBufferHandle a_Handle)
 
 void BB::RenderBackend::StartFrame(const StartFrameInfo& a_StartInfo)
 {
-	s_ApiFunc.startFrame(m_TempAllocator, a_StartInfo);
+	s_ApiFunc.startFrame(a_StartInfo);
 }
 
 void BB::RenderBackend::ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	s_ApiFunc.executeCommands(m_TempAllocator, a_ExecuteQueue, a_ExecuteInfos, a_ExecuteInfoCount);
+	s_ApiFunc.executeCommands(a_ExecuteQueue, a_ExecuteInfos, a_ExecuteInfoCount);
 }
 
 void BB::RenderBackend::ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
-	s_ApiFunc.executePresentCommands(m_TempAllocator, a_ExecuteQueue, a_ExecuteInfo);
+	s_ApiFunc.executePresentCommands(a_ExecuteQueue, a_ExecuteInfo);
 }
 
 FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo)
 {
-	return s_BackendInfo.currentFrame = s_ApiFunc.presentFrame(m_TempAllocator, a_PresentInfo);
+	return s_BackendInfo.currentFrame = s_ApiFunc.presentFrame(a_PresentInfo);
 }
 
 void BB::RenderBackend::WaitGPUReady()
@@ -210,7 +207,7 @@ void BB::RenderBackend::WaitGPUReady()
 
 void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
 {
-	s_ApiFunc.resizeWindow(m_TempAllocator, a_X, a_Y);
+	s_ApiFunc.resizeWindow(a_X, a_Y);
 }
 
 uint64_t BB::RenderBackend::NextQueueFenceValue(const CommandQueueHandle a_Handle)

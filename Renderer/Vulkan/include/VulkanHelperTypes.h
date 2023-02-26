@@ -1,8 +1,6 @@
 #pragma once
 #include "Utils/Logger.h"
 #include "Utils/Slice.h"
-#include "BBMemory.h"
-#include "TemporaryAllocator.h"
 
 #include "RenderBackendCommon.h"
 #include <vulkan/vulkan.h>
@@ -220,12 +218,6 @@ namespace BB
 			return t_Result;
 		}
 	}
-
-	struct VulkanShaderResult
-	{
-		VkShaderModule* shaderModules;
-		VkPipelineShaderStageCreateInfo* pipelineShaderStageInfo;
-	};
 
 	struct SwapchainSupportDetails
 	{

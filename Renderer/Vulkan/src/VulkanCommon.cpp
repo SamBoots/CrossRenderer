@@ -9,6 +9,9 @@ constexpr int VULKAN_VERSION = 3;
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
 #include "Storage/Pool.h"
+#include "Allocators/RingAllocator.h"
+#include "Allocators/TemporaryAllocator.h"
+#include "BBMemory.h"
 
 #include "VulkanCommon.h"
 
@@ -48,6 +51,8 @@ struct VulkanImage
 };
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
+//This allocator is what we use to temporary allocate elements.
+static RingAllocator s_VulkanTempAllocator{ s_VulkanAllocator, kbSize * 64 };
 
 struct VkCommandAllocator;
 
@@ -112,7 +117,6 @@ struct VKPipelineBuildInfo
 
 	VkGraphicsPipelineCreateInfo pipeInfo{};
 	VkPipelineRenderingCreateInfo dynamicRenderingInfo{}; //attachment for dynamic rendering.
-	VulkanShaderResult shaderInfo;
 
 	uint32_t layoutCount;
 	VkDescriptorSetLayout layout[BINDING_MAX];
@@ -280,29 +284,29 @@ static VkDebugUtilsMessengerEXT CreateVulkanDebugMsgger(VkInstance a_Instance)
 	return t_ReturnDebug;
 }
 
-static SwapchainSupportDetails QuerySwapChainSupport(BB::Allocator a_TempAllocator, const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
+static SwapchainSupportDetails QuerySwapChainSupport(const VkSurfaceKHR a_Surface, const VkPhysicalDevice a_PhysicalDevice)
 {
 	SwapchainSupportDetails t_SwapDetails{};
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.capabilities);
 
 	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, nullptr);
-	t_SwapDetails.formats = BBnewArr(a_TempAllocator, t_SwapDetails.formatCount, VkSurfaceFormatKHR);
+	t_SwapDetails.formats = BBnewArr(s_VulkanTempAllocator, t_SwapDetails.formatCount, VkSurfaceFormatKHR);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, t_SwapDetails.formats);
 
 	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, nullptr);
-	t_SwapDetails.presentModes = BBnewArr(a_TempAllocator, t_SwapDetails.presentModeCount, VkPresentModeKHR);
+	t_SwapDetails.presentModes = BBnewArr(s_VulkanTempAllocator, t_SwapDetails.presentModeCount, VkPresentModeKHR);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, t_SwapDetails.presentModes);
 
 	return t_SwapDetails;
 }
 
-static bool CheckExtensionSupport(BB::Allocator a_TempAllocator, BB::Slice<const char*> a_Extensions)
+static bool CheckExtensionSupport(BB::Slice<const char*> a_Extensions)
 {
 	// check extensions if they are available.
 	uint32_t t_ExtensionCount;
 	vkEnumerateInstanceExtensionProperties(nullptr, &t_ExtensionCount, nullptr);
-	VkExtensionProperties* t_Extensions = BBnewArr(a_TempAllocator, t_ExtensionCount, VkExtensionProperties);
+	VkExtensionProperties* t_Extensions = BBnewArr(s_VulkanTempAllocator, t_ExtensionCount, VkExtensionProperties);
 	vkEnumerateInstanceExtensionProperties(nullptr, &t_ExtensionCount, t_Extensions);
 
 	for (auto t_It = a_Extensions.begin(); t_It < a_Extensions.end(); t_It++)
@@ -320,12 +324,12 @@ static bool CheckExtensionSupport(BB::Allocator a_TempAllocator, BB::Slice<const
 	return true;
 }
 
-static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, const BB::Slice<const char*> a_Layers)
+static bool CheckValidationLayerSupport(const BB::Slice<const char*> a_Layers)
 {
 	// check layers if they are available.
 	uint32_t t_LayerCount;
 	vkEnumerateInstanceLayerProperties(&t_LayerCount, nullptr);
-	VkLayerProperties* t_Layers = BBnewArr(a_TempAllocator, t_LayerCount, VkLayerProperties);
+	VkLayerProperties* t_Layers = BBnewArr(s_VulkanTempAllocator, t_LayerCount, VkLayerProperties);
 	vkEnumerateInstanceLayerProperties(&t_LayerCount, t_Layers);
 
 	for (auto t_It = a_Layers.begin(); t_It < a_Layers.end(); t_It++)
@@ -344,12 +348,12 @@ static bool CheckValidationLayerSupport(BB::Allocator a_TempAllocator, const BB:
 }
 
 //If a_Index is nullptr it will just check if we have a queue that has a graphics bit.
-static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_PhysicalDevice)
+static bool QueueFindGraphicsBit(VkPhysicalDevice a_PhysicalDevice)
 {
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
 
-	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(s_VulkanTempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
 	for (uint32_t i = 0; i < t_QueueFamilyCount; i++)
@@ -362,12 +366,12 @@ static bool QueueFindGraphicsBit(Allocator a_TempAllocator, VkPhysicalDevice a_P
 	return false;
 }
 
-static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkInstance a_Instance, const VkSurfaceKHR a_Surface)
+static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const VkSurfaceKHR a_Surface)
 {
 	uint32_t t_DeviceCount = 0;
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, nullptr);
 	BB_ASSERT(t_DeviceCount != 0, "Failed to find any GPU's with vulkan support.");
-	VkPhysicalDevice* t_PhysicalDevices = BBnewArr(a_TempAllocator, t_DeviceCount, VkPhysicalDevice);
+	VkPhysicalDevice* t_PhysicalDevices = BBnewArr(s_VulkanTempAllocator, t_DeviceCount, VkPhysicalDevice);
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, t_PhysicalDevices);
 
 	for (uint32_t i = 0; i < t_DeviceCount; i++)
@@ -383,13 +387,13 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 		t_DeviceFeatures.pNext = &t_SyncFeatures;
 		vkGetPhysicalDeviceFeatures2(t_PhysicalDevices[i], &t_DeviceFeatures);
 
-		SwapchainSupportDetails t_SwapChainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, t_PhysicalDevices[i]);
+		SwapchainSupportDetails t_SwapChainDetails = QuerySwapChainSupport(a_Surface, t_PhysicalDevices[i]);
 
 		if (t_DeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 			t_SyncFeatures.timelineSemaphore == VK_TRUE,
 			t_DeviceFeatures.features.geometryShader &&
 			t_DeviceFeatures.features.samplerAnisotropy &&
-			QueueFindGraphicsBit(a_TempAllocator, t_PhysicalDevices[i]) &&
+			QueueFindGraphicsBit(t_PhysicalDevices[i]) &&
 			t_SwapChainDetails.formatCount != 0 &&
 			t_SwapChainDetails.presentModeCount != 0)
 		{
@@ -401,16 +405,16 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_TempAllocator, const VkIn
 	return VK_NULL_HANDLE;
 }
 
-static VkDevice CreateLogicalDevice(Allocator a_TempAllocator, const BB::Slice<const char*>& a_DeviceExtensions)
+static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtensions)
 {
 	VkDevice t_ReturnDevice;
 
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, nullptr);
-	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(a_TempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(s_VulkanTempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
 	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
-	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(a_TempAllocator, 3, VkDeviceQueueCreateInfo);
+	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(s_VulkanTempAllocator, 3, VkDeviceQueueCreateInfo);
 	uint32_t t_DifferentQueues = 0;
 	float t_StandardQueuePrios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
 
@@ -553,7 +557,7 @@ static VkPresentModeKHR ChoosePresentMode(VkPresentModeKHR* a_Modes, size_t a_Mo
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAllocator, VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight, bool a_Recreate = false)
+static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalDevice, VkDevice a_Device, uint32_t t_SurfaceWidth, uint32_t t_SurfaceHeight, bool a_Recreate = false)
 {
 #ifdef _DEBUG
 	if (!a_Recreate)
@@ -586,7 +590,7 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		BBfreeArr(s_VulkanAllocator, s_VKB.swapChain.frames);
 	}
 
-	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_TempAllocator, a_Surface, a_PhysicalDevice);
+	SwapchainSupportDetails t_SwapchainDetails = QuerySwapChainSupport(a_Surface, a_PhysicalDevice);
 
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
 	VkPresentModeKHR t_ChosenPresentMode = ChoosePresentMode(t_SwapchainDetails.presentModes, t_SwapchainDetails.presentModeCount);
@@ -597,7 +601,7 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	t_ChosenExtent.height = Math::clamp(t_SurfaceHeight,
 		t_SwapchainDetails.capabilities.minImageExtent.height,
 		t_SwapchainDetails.capabilities.maxImageExtent.height);
-	a_SwapChain.extent = t_ChosenExtent;
+	s_VKB.swapChain.extent = t_ChosenExtent;
 
 	uint32_t t_GraphicFamily, t_PresentFamily;
 	t_GraphicFamily = s_VKB.queueIndices.graphics;
@@ -630,7 +634,7 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_SwapCreateInfo.pQueueFamilyIndices = nullptr;
 	}
 
-	a_SwapChain.imageFormat = t_ChosenFormat.format;
+	s_VKB.swapChain.imageFormat = t_ChosenFormat.format;
 	//Don't recreate so we have no old swapchain.
 	t_SwapCreateInfo.oldSwapchain = s_VKB.swapChain.swapChain;
 
@@ -644,21 +648,21 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 		t_SwapCreateInfo.minImageCount = t_SwapchainDetails.capabilities.maxImageCount;
 	}
 
-	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &a_SwapChain.swapChain), "Vulkan: Failed to create swapchain.");
+	VKASSERT(vkCreateSwapchainKHR(a_Device, &t_SwapCreateInfo, nullptr, &s_VKB.swapChain.swapChain), "Vulkan: Failed to create swapchain.");
 
-	vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, nullptr);
+	vkGetSwapchainImagesKHR(a_Device, s_VKB.swapChain.swapChain, &s_VKB.frameCount, nullptr);
 	VkImage* t_SwapchainImages = BBnewArr(s_VulkanAllocator, s_VKB.frameCount, VkImage);
-	vkGetSwapchainImagesKHR(a_Device, a_SwapChain.swapChain, &s_VKB.frameCount, t_SwapchainImages);
+	vkGetSwapchainImagesKHR(a_Device, s_VKB.swapChain.swapChain, &s_VKB.frameCount, t_SwapchainImages);
 
 	//Also create the present semaphores, these are unique semaphores that handle the window integration API as they cannot use timeline semaphores.
-	a_SwapChain.frames = BBnewArr(
+	s_VKB.swapChain.frames = BBnewArr(
 		s_VulkanAllocator,
 		s_VKB.frameCount,
 		SwapchainFrame);
 
 	VkImageViewCreateInfo t_ImageViewCreateInfo{};
 	t_ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	t_ImageViewCreateInfo.format = a_SwapChain.imageFormat;
+	t_ImageViewCreateInfo.format = s_VKB.swapChain.imageFormat;
 	t_ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	t_ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 	t_ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -680,62 +684,32 @@ static void CreateSwapchain(VulkanSwapChain& a_SwapChain, BB::Allocator a_TempAl
 	t_TimelineSemInfo.initialValue = 0;
 	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{
-		a_SwapChain.frames[i].image = t_SwapchainImages[i];
+		s_VKB.swapChain.frames[i].image = t_SwapchainImages[i];
 
 		t_ImageViewCreateInfo.image = t_SwapchainImages[i];
 		VKASSERT(vkCreateImageView(a_Device,
 			&t_ImageViewCreateInfo,
 			nullptr,
-			&a_SwapChain.frames[i].imageView),
+			&s_VKB.swapChain.frames[i].imageView),
 			"Vulkan: Failed to create swapchain image views.");
 
 		vkCreateSemaphore(s_VKB.device,
 			&t_SemInfo,
 			nullptr,
-			&a_SwapChain.frames[i].imageAvailableSem);
+			&s_VKB.swapChain.frames[i].imageAvailableSem);
 		vkCreateSemaphore(s_VKB.device,
 			&t_SemInfo,
 			nullptr,
-			&a_SwapChain.frames[i].imageRenderFinishedSem);
+			&s_VKB.swapChain.frames[i].imageRenderFinishedSem);
 
 		t_SemInfo.pNext = &t_TimelineSemInfo;
 		vkCreateSemaphore(s_VKB.device,
 			&t_SemInfo,
 			nullptr,
-			&a_SwapChain.frames[i].frameTimelineSemaphore);
+			&s_VKB.swapChain.frames[i].frameTimelineSemaphore);
 		t_SemInfo.pNext = nullptr;
-		a_SwapChain.frames[i].frameWaitValue = 0;
+		s_VKB.swapChain.frames[i].frameWaitValue = 0;
 	}
-}
-
-//Creates VkPipelineShaderStageCreateInfo equal to the amount of ShaderCreateInfos in a_CreateInfo.
-static VulkanShaderResult CreateShaderModules(Allocator a_TempAllocator, VkDevice a_Device, const Slice<BB::ShaderCreateInfo> a_CreateInfo)
-{
-	VulkanShaderResult t_ReturnResult{};
-
-	t_ReturnResult.pipelineShaderStageInfo = BBnewArr(a_TempAllocator, a_CreateInfo.size(), VkPipelineShaderStageCreateInfo);
-	t_ReturnResult.shaderModules = BBnewArr(a_TempAllocator, a_CreateInfo.size(), VkShaderModule);
-
-	VkShaderModuleCreateInfo t_ShaderModCreateInfo{};
-	t_ShaderModCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	for (size_t i = 0; i < a_CreateInfo.size(); i++)
-	{
-		t_ShaderModCreateInfo.codeSize = a_CreateInfo[i].buffer.size;
-		t_ShaderModCreateInfo.pCode = reinterpret_cast<const uint32_t*>(a_CreateInfo[i].buffer.data);
-
-		VKASSERT(vkCreateShaderModule(a_Device, &t_ShaderModCreateInfo, nullptr, &t_ReturnResult.shaderModules[i]),
-			"Vulkan: Failed to create shadermodule.");
-
-		t_ReturnResult.pipelineShaderStageInfo[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		t_ReturnResult.pipelineShaderStageInfo[i].stage = VKConv::ShaderStageBits(a_CreateInfo[i].shaderStage);
-		t_ReturnResult.pipelineShaderStageInfo[i].module = t_ReturnResult.shaderModules[i];
-		t_ReturnResult.pipelineShaderStageInfo[i].pName = "main";
-		t_ReturnResult.pipelineShaderStageInfo[i].pSpecializationInfo = nullptr;
-		t_ReturnResult.pipelineShaderStageInfo[i].flags = 0;
-		t_ReturnResult.pipelineShaderStageInfo[i].pNext = nullptr;
-	}
-
-	return t_ReturnResult;
 }
 
 static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> a_DescLayouts, const Slice<VkPushConstantRange> a_PushConstants)
@@ -765,22 +739,21 @@ static VkPipelineLayout CreatePipelineLayout(const Slice<VkDescriptorSetLayout> 
 	return t_NewLayout;
 }
 
-BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	//Initialize data structure
 	s_VKB.CreatePools();
 
 
 	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
-		a_TempAllocator,
+		s_VulkanTempAllocator,
 		a_CreateInfo.extensions);
 	VKConv::ExtensionResult t_DeviceExtensions = VKConv::TranslateExtensions(
-		a_TempAllocator,
+		s_VulkanTempAllocator,
 		a_CreateInfo.deviceExtensions);
 
 	//Check if the extensions and layers work.
-	BB_ASSERT(CheckExtensionSupport(a_TempAllocator,
-		BB::Slice(t_InstanceExtensions.extensions, t_InstanceExtensions.count)),
+	BB_ASSERT(CheckExtensionSupport(BB::Slice(t_InstanceExtensions.extensions, t_InstanceExtensions.count)),
 		"Vulkan: extension(s) not supported.");
 
 #ifdef _DEBUG
@@ -809,7 +782,7 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 		if (a_CreateInfo.validationLayers)
 		{
 			const char* validationLayer = "VK_LAYER_KHRONOS_validation";
-			BB_WARNING(CheckValidationLayerSupport(a_TempAllocator, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
+			BB_WARNING(CheckValidationLayerSupport(Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
 			t_DebugCreateInfo = CreateDebugCallbackCreateInfo();
 			t_InstanceCreateInfo.ppEnabledLayerNames = &validationLayer;
 			t_InstanceCreateInfo.enabledLayerCount = 1;
@@ -850,17 +823,12 @@ BackendInfo BB::VulkanCreateBackend(Allocator a_TempAllocator, const RenderBacke
 	}
 
 	//Get the physical Device
-	s_VKB.physicalDevice = FindPhysicalDevice(a_TempAllocator,
-		s_VKB.instance,
-		s_VKB.surface);
+	s_VKB.physicalDevice = FindPhysicalDevice(s_VKB.instance, s_VKB.surface);
 	//Get the logical device and the graphics queue.
-	s_VKB.device = CreateLogicalDevice(a_TempAllocator,
-		BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count));
+	s_VKB.device = CreateLogicalDevice(BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count));
 
 
-	CreateSwapchain(s_VKB.swapChain, 
-		a_TempAllocator,
-		s_VKB.surface,
+	CreateSwapchain(s_VKB.surface,
 		s_VKB.physicalDevice,
 		s_VKB.device,
 		a_CreateInfo.windowWidth,
@@ -1364,12 +1332,34 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 {
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 
-	t_BuildInfo->shaderInfo = CreateShaderModules(
-		t_BuildInfo->buildAllocator,
-		s_VKB.device,
-		a_ShaderInfo);
+	BB_ASSERT(t_BuildInfo->pipeInfo.pStages == nullptr, "Vulkan: Already bound pipeline stages to the pipeline builder!");
 
-	t_BuildInfo->pipeInfo.pStages = t_BuildInfo->shaderInfo.pipelineShaderStageInfo;
+	VkPipelineShaderStageCreateInfo* t_PipelineShaderStageInfo = BBnewArr(t_BuildInfo->buildAllocator, 
+		a_ShaderInfo.size(), 
+		VkPipelineShaderStageCreateInfo);
+
+	VkShaderModule* t_ShaderModules = BBnewArr(t_BuildInfo->buildAllocator, 
+		a_ShaderInfo.size(), 
+		VkShaderModule);
+
+	VkShaderModuleCreateInfo t_ShaderModCreateInfo{};
+	t_ShaderModCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	for (size_t i = 0; i < a_ShaderInfo.size(); i++)
+	{
+		t_ShaderModCreateInfo.codeSize = a_ShaderInfo[i].buffer.size;
+		t_ShaderModCreateInfo.pCode = reinterpret_cast<const uint32_t*>(a_ShaderInfo[i].buffer.data);
+
+		VKASSERT(vkCreateShaderModule(s_VKB.device, &t_ShaderModCreateInfo, nullptr, &t_ShaderModules[i]),
+			"Vulkan: Failed to create shadermodule.");
+
+		t_PipelineShaderStageInfo[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		t_PipelineShaderStageInfo[i].stage = VKConv::ShaderStageBits(a_ShaderInfo[i].shaderStage);
+		t_PipelineShaderStageInfo[i].module = t_ShaderModules[i];
+		t_PipelineShaderStageInfo[i].pName = "main";
+		t_PipelineShaderStageInfo[i].pSpecializationInfo = nullptr;
+	}
+
+	t_BuildInfo->pipeInfo.pStages = t_PipelineShaderStageInfo;
 	t_BuildInfo->pipeInfo.stageCount = a_ShaderInfo.size();
 }
 
@@ -1494,7 +1484,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		for (uint32_t i = 0; i < t_BuildInfo->pipeInfo.stageCount; i++)
 		{
 			vkDestroyShaderModule(s_VKB.device,
-				t_BuildInfo->shaderInfo.shaderModules[i],
+				t_BuildInfo->pipeInfo.pStages[i].module,
 				nullptr);
 		}
 	}
@@ -1832,14 +1822,12 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 	vmaUnmapMemory(s_VKB.vma, reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle)->allocation);
 }
 
-void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y)
+void BB::VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 {
 	VulkanWaitDeviceReady();
 
 	//Creates the swapchain with the image views.
-	CreateSwapchain(s_VKB.swapChain,
-		a_TempAllocator,
-		s_VKB.surface,
+	CreateSwapchain(s_VKB.surface,
 		s_VKB.physicalDevice,
 		s_VKB.device,
 		a_X,
@@ -1847,7 +1835,7 @@ void BB::VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const
 		true);
 }
 
-void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
+void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 {
 	FrameIndex t_CurrentFrame = s_VKB.currentFrame;
 
@@ -1868,22 +1856,20 @@ void BB::VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_Sta
 	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);
 }
 
-void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
 
-	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(
-		a_TempAllocator,
+	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(s_VulkanTempAllocator,
 		a_ExecuteInfoCount,
 		VkTimelineSemaphoreSubmitInfo);
-	VkSubmitInfo* t_SubmitInfos = BBnewArr(
-		a_TempAllocator,
+	VkSubmitInfo* t_SubmitInfos = BBnewArr(s_VulkanTempAllocator,
 		a_ExecuteInfoCount,
 		VkSubmitInfo);
 
 	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
-		VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+		VkCommandBuffer* t_CmdBuffers = BBnewArr(s_VulkanTempAllocator,
 			a_ExecuteInfos[i].commandCount,
 			VkCommandBuffer);
 		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
@@ -1894,10 +1880,10 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_E
 		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
 		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
 
-		VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+		VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
 			t_WaitSemCount + t_SignalSemCount + 1,
 			VkSemaphore);
-		uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
+		uint64_t* t_SemValues = BBnewArr(s_VulkanTempAllocator,
 			t_WaitSemCount + t_SignalSemCount + 1,
 			uint64_t);
 
@@ -1946,9 +1932,9 @@ void BB::VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_E
 		"Vulkan: failed to submit to queue.");
 }
 
-void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
+void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
-	VkCommandBuffer* t_CmdBuffers = BBnewArr(a_TempAllocator,
+	VkCommandBuffer* t_CmdBuffers = BBnewArr(s_VulkanTempAllocator,
 		a_ExecuteInfo.commandCount,
 		VkCommandBuffer);
 	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
@@ -1962,10 +1948,10 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
 	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 2;
 
-	VkSemaphore* t_Semaphores = BBnewArr(a_TempAllocator,
+	VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
 		t_WaitSemCount + t_SignalSemCount,
 		VkSemaphore);
-	uint64_t* t_SemValues = BBnewArr(a_TempAllocator,
+	uint64_t* t_SemValues = BBnewArr(s_VulkanTempAllocator,
 		t_WaitSemCount + t_SignalSemCount,
 		uint64_t);
 
@@ -2027,7 +2013,7 @@ void BB::VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHand
 		"Vulkan: failed to submit to queue.");
 }
 
-FrameIndex BB::VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
+FrameIndex BB::VulkanPresentFrame(const PresentFrameInfo& a_PresentInfo)
 {
 	const uint32_t t_CurrentFrame = s_VKB.currentFrame;
 

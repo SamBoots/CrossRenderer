@@ -4,7 +4,7 @@
 namespace BB
 {
 	//Functions
-	BackendInfo VulkanCreateBackend(Allocator a_TempAllocator,const RenderBackendCreateInfo& a_CreateInfo);
+	BackendInfo VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
 	//Can also do images here later.
 	RBindingSetHandle VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a_Info);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
@@ -44,16 +44,16 @@ namespace BB
 	void* VulkanMapMemory(const RBufferHandle a_Handle);
 	void VulkanUnMemory(const RBufferHandle a_Handle);
 	
-	void VulkanStartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
-	void VulkanExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	void VulkanStartFrame(const StartFrameInfo& a_StartInfo);
+	void VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 	//Special execute commands that also signals the binary semaphore for image presentation
-	void VulkanExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
-	FrameIndex VulkanPresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
+	void VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
+	FrameIndex VulkanPresentFrame(const PresentFrameInfo& a_PresentInfo);
 
 	uint64_t VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle);
 	uint64_t VulkanNextFenceValue(const RFenceHandle a_Handle);
 
-	void VulkanResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	void VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
 	void VulkanWaitDeviceReady();
 

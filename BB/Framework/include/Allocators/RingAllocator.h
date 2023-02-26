@@ -10,7 +10,7 @@ namespace BB
 	public:
 		operator Allocator();
 
-		RingAllocator(Allocator a_BackingAllocator, const size_t a_Size);
+		RingAllocator(const Allocator a_BackingAllocator, const size_t a_Size);
 		~RingAllocator();
 
 		//just delete these for safety, copies might cause errors.

@@ -403,7 +403,7 @@ namespace BB
 	};
 
 	//construction
-	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo);
+	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
 	typedef RBindingSetHandle	(*PFN_RenderAPICreateBindingSet)(const RenderBindingSetCreateInfo& a_Info);
 	typedef CommandQueueHandle	(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -444,12 +444,12 @@ namespace BB
 	typedef void* (*PFN_RenderAPIMapMemory)(const RBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIUnmapMemory)(const RBufferHandle a_Handle);
 
-	typedef void (*PFN_RenderAPIResizeWindow)(Allocator a_TempAllocator, const uint32_t a_X, const uint32_t a_Y);
+	typedef void (*PFN_RenderAPIResizeWindow)(const uint32_t a_X, const uint32_t a_Y);
 	
-	typedef void (*PFN_RenderAPIStartFrame)(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo);
-	typedef void (*PFN_RenderAPIExecuteCommands)(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
-	typedef void (*PFN_RenderAPIExecutePresentCommands)(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
-	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo);
+	typedef void (*PFN_RenderAPIStartFrame)(const StartFrameInfo& a_StartInfo);
+	typedef void (*PFN_RenderAPIExecuteCommands)(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
+	typedef void (*PFN_RenderAPIExecutePresentCommands)(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
+	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(const PresentFrameInfo& a_PresentInfo);
 
 	typedef uint64_t (*PFN_RenderAPINextQueueFenceValue)(const CommandQueueHandle a_Handle);
 	typedef uint64_t (*PFN_RenderAPINextFenceValue)(const RFenceHandle a_Handle);
