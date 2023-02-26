@@ -94,12 +94,6 @@ namespace BB
 		SRGB
 	};
 
-	enum class RENDER_IMAGE_VIEWTYPE : uint32_t
-	{
-		TYPE_2D,
-		TYPE_2D_ARRAY
-	};
-
 	enum class RENDER_IMAGE_TILING : uint32_t
 	{
 		LINEAR,
@@ -270,7 +264,6 @@ namespace BB
 		RENDER_IMAGE_USAGE usage;
 		RENDER_IMAGE_FORMAT format;
 		RENDER_IMAGE_TILING tiling;
-		RENDER_IMAGE_VIEWTYPE viewtype;
 	};
 
 	struct RenderTransitionImageInfo

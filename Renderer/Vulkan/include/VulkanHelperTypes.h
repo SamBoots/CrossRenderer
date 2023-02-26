@@ -118,18 +118,6 @@ namespace BB
 			}
 		}
 
-		inline VkImageType ImageType(const RENDER_IMAGE_TYPE a_Type)
-		{
-			switch (a_Type)
-			{
-			case RENDER_IMAGE_TYPE::TYPE_2D:					return VK_IMAGE_TYPE_2D;
-			default:
-				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_TYPE failed to convert to a VkImageType.");
-				return VK_IMAGE_TYPE_1D;
-				break;
-			}
-		}
-
 		inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 		{
 			switch (a_ImageLayout)

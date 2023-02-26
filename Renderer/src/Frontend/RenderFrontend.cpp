@@ -376,6 +376,7 @@ void BB::Render::DestroyRenderer()
 		RenderBackend::DestroyBuffer(it->vertexBuffer);
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
+	RenderBackend::DestroyBindingSet(t_BindingSet);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_PerFrameInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);

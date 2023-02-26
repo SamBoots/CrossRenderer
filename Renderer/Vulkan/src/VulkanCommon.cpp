@@ -1131,6 +1131,10 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 	VkImageCreateInfo t_ImageCreateInfo{};
 	t_ImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+
+	VkImageViewCreateInfo t_ViewInfo{};
+	t_ViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
 	switch (a_CreateInfo.format)
 	{
 	case RENDER_IMAGE_FORMAT::SRGB:
@@ -1138,6 +1142,8 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_ImageCreateInfo.extent.height = a_CreateInfo.height;
 		t_ImageCreateInfo.extent.depth = 1;
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+
+		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
 
@@ -1169,8 +1175,22 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
 		break;
 	}
+	
+	switch (a_CreateInfo.type)
+	{
+	case RENDER_IMAGE_TYPE::TYPE_2D:					
+		t_ImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 
-	t_ImageCreateInfo.imageType = VKConv::ImageType(a_CreateInfo.type);
+		if (a_CreateInfo.arrayLayers > 1)
+			t_ViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+		else
+			t_ViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Image type is not supported!");
+		break;
+	}
+
 	t_ImageCreateInfo.mipLevels = a_CreateInfo.mipLevels;
 	t_ImageCreateInfo.arrayLayers = a_CreateInfo.arrayLayers;
 	//Will be defined in the first layout transition.
@@ -1185,6 +1205,16 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 	VKASSERT(vmaCreateImage(s_VKB.vma, &t_ImageCreateInfo, &t_AllocInfo, &t_Image->image, &t_Image->allocation, nullptr), 
 		"Vulkan: Failed to create image");
+
+	t_ViewInfo.image = t_Image->image;
+	t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_ViewInfo.subresourceRange.baseMipLevel = 0;
+	t_ViewInfo.subresourceRange.levelCount = a_CreateInfo.mipLevels;
+	t_ViewInfo.subresourceRange.baseArrayLayer = 0;
+	t_ViewInfo.subresourceRange.layerCount = a_CreateInfo.arrayLayers;
+	
+	VKASSERT(vkCreateImageView(s_VKB.device.logicalDevice, &t_ViewInfo, nullptr, &t_Image->view),
+		"Vulkan: Failed to create image view.");
 
 	return RImageHandle(t_Image);
 }
@@ -1933,6 +1963,7 @@ void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 void BB::VulkanDestroyImage(const RImageHandle a_Handle)
 {
 	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.ptrHandle);
+	vkDestroyImageView(s_VKB.device.logicalDevice, t_Image->view, nullptr);
 	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
 	s_VKB.imagePool.Free(t_Image);
 }
