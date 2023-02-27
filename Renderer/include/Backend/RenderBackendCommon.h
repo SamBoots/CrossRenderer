@@ -110,6 +110,8 @@ namespace BB
 	{
 		TOP_OF_PIPELINE,
 		TRANSFER,
+		VERTEX_INPUT,
+		VERTEX_SHADER,
 		FRAGMENT_SHADER,
 		END_OF_PIPELINE
 	};
@@ -381,6 +383,7 @@ namespace BB
 		CommandQueueHandle* waitQueues;
 		uint64_t* waitValues;
 		uint32_t waitQueueCount;
+		RENDER_PIPELINE_STAGE* waitStages;
 		CommandQueueHandle* signalQueues;
 		uint32_t signalQueueCount;
 	};

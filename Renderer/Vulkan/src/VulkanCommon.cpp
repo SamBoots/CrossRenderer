@@ -1858,8 +1858,6 @@ void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 
 void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
-
 	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(s_VulkanTempAllocator,
 		a_ExecuteInfoCount,
 		VkTimelineSemaphoreSubmitInfo);
@@ -1880,6 +1878,10 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
 		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
 
+		VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
+			t_WaitSemCount,
+			VkPipelineStageFlags);
+
 		VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
 			t_WaitSemCount + t_SignalSemCount + 1,
 			VkSemaphore);
@@ -1893,6 +1895,8 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 			t_Semaphores[j] = reinterpret_cast<VulkanCommandQueue*>(
 				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->timelineSemaphore;
 			t_SemValues[j] = a_ExecuteInfos[i].waitValues[j];;
+
+			t_WaitStagesMask[j] = VKConv::PipelineStage(a_ExecuteInfos[i].waitStages[j]);
 		}
 
 		//SETTING THE SIGNAL
@@ -1948,6 +1952,10 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
 	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 2;
 
+	VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
+		t_WaitSemCount,
+		VkPipelineStageFlags);
+
 	VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
 		t_WaitSemCount + t_SignalSemCount,
 		VkSemaphore);
@@ -1959,12 +1967,16 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	//Set the wait semaphore so that it must wait until it can present.
 	t_Semaphores[0] = s_VKB.swapChain.frames[s_VKB.currentFrame].imageAvailableSem;
 	t_SemValues[0] = 0;
+	t_WaitStagesMask[0] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+
 	//Get the semaphore from the queues.
 	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
 	{
 		t_Semaphores[i + 1] = reinterpret_cast<VulkanCommandQueue*>(
 			a_ExecuteInfo.waitQueues[i].ptrHandle)->timelineSemaphore;
 		t_SemValues[i + 1] = a_ExecuteInfo.waitValues[i];
+		t_WaitStagesMask[i + 1] = VKConv::PipelineStage(a_ExecuteInfo.waitStages[i]);
 	}
 
 	//SETTING THE SIGNAL
@@ -1983,8 +1995,6 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 		t_SemValues[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
 			a_ExecuteInfo.signalQueues[i].ptrHandle)->nextSemValue++;
 	}
-
-	VkPipelineStageFlags t_WaitStagesMask[] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
 
 	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{};
 	t_TimelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;

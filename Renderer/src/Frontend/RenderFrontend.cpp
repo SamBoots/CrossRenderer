@@ -617,12 +617,16 @@ void BB::Render::EndFrame()
 	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
 
 	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_TransferQueue) - 1;
+
+	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
+	RENDER_PIPELINE_STAGE t_WaitStage = RENDER_PIPELINE_STAGE::VERTEX_SHADER;
 	t_ExecuteInfos[1] = {};
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
 	t_ExecuteInfos[1].waitQueueCount = 1;
 	t_ExecuteInfos[1].waitQueues = &t_TransferQueue;
 	t_ExecuteInfos[1].waitValues = &t_WaitValue;
+	t_ExecuteInfos[1].waitStages = &t_WaitStage;
 
 	RenderBackend::ExecutePresentCommands(t_GraphicsQueue, t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
