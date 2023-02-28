@@ -96,6 +96,8 @@ PipelineHandle t_Pipeline;
 
 UploadBuffer* t_UploadBuffer;
 
+RImageHandle t_ExampleImage;
+
 static FrameIndex s_CurrentFrame;
 
 static RendererInst s_RendererInst;
@@ -246,13 +248,37 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PerFrameBuffer.data = nullptr;
 	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
+	int x, y, c;
+	stbi_uc* t_Pixels = stbi_load("../Resources/Textures/Test.jpg", &x, &y, &c, 4);
+
+	{
+		RenderImageCreateInfo t_ImageInfo{};
+		t_ImageInfo.arrayLayers = 1;
+		t_ImageInfo.mipLevels = 1;
+		t_ImageInfo.width = static_cast<uint32_t>(x);
+		t_ImageInfo.height = static_cast<uint32_t>(y);
+		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
+		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
+		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
+		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
+
+		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
+	}
+
+
 	PipelineInitInfo t_PipeInitInfo{};
 
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 
 	FixedArray<ConstantBind, 1> t_ConstantBinds;
 	FixedArray<BufferBind, 2> t_BufferBinds;
+	FixedArray<ImageBind, 1> t_ImageBinds;
 
+	{//IndexConstantBind
+		t_ConstantBinds[0].binding = 0;
+		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_ConstantBinds[0].dwordCount = 1; //We store one 32 bit value
+	}
 	{//CamBind
 		t_BufferBinds[0].binding = 0;
 		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
@@ -269,15 +295,19 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_BufferBinds[1].bufferOffset = 0;
 		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 	}
-	{//IndexConstantBind
-		t_ConstantBinds[0].binding = 0;
-		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_ConstantBinds[0].dwordCount = 1; //We store one 32 bit value
+	{//Image Binds
+		t_ImageBinds[0].binding = 2;
+		t_ImageBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+		t_ImageBinds[0].image = t_ExampleImage;
+		t_ImageBinds[0].imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_ImageBinds[0].imageType = DESCRIPTOR_IMAGE_TYPE::COMBINED_IMAGE_SAMPLER;
 	}
+
 	RenderBindingSetCreateInfo t_BindingSetInfo{};
 	t_BindingSetInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
 	t_BindingSetInfo.constantBinds = BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size());
 	t_BindingSetInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
+	t_BindingSetInfo.imageBinds = BB::Slice(t_ImageBinds.data(), t_ImageBinds.size());
 	t_BindingSet = RenderBackend::CreateBindingSet(t_BindingSetInfo);
 	t_BasicPipe.BindBindingSet(t_BindingSet);
 
@@ -360,6 +390,53 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
 
 
+
+	UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
+	memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>(x* y));
+
+	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
+	//t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
+
+
+	RenderTransitionImageInfo t_ImageTransInfo{};
+	t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
+	t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+	t_ImageTransInfo.image = t_ExampleImage;
+	t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+	t_ImageTransInfo.layerCount = 1;
+	t_ImageTransInfo.levelCount = 1;
+	t_ImageTransInfo.baseArrayLayer = 0;
+	t_ImageTransInfo.baseMipLevel = 0;
+	t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+	t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
+	RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+
+	RenderCopyBufferImageInfo t_CopyInfo{};
+	t_CopyInfo.srcBuffer = t_UploadBuffer->Buffer();
+	t_CopyInfo.srcBufferOffset = t_StageBuffer.offset;
+	t_CopyInfo.dstImage = t_ExampleImage;
+	t_CopyInfo.dstImageInfo.sizeX = static_cast<uint32_t>(x);
+	t_CopyInfo.dstImageInfo.sizeY = static_cast<uint32_t>(y);
+	t_CopyInfo.dstImageInfo.sizeZ = 1;
+	t_CopyInfo.dstImageInfo.mipLevel = 0;
+	t_CopyInfo.dstImageInfo.baseArrayLayer = 0;
+	t_CopyInfo.dstImageInfo.layerCount = 1;
+	t_CopyInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+
+	RenderBackend::CopyBufferImage(t_RecordingGraphics, t_CopyInfo);
+
+	t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+	t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+	t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+	t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+	t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+	t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+
+	//RenderBackend::EndCommandList(t_RecordingTransfer);
+	RenderBackend::EndCommandList(t_RecordingGraphics);
+
 	for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
 	{
 		Shader::ReleaseShaderCode(t_ShaderHandles[i]);
@@ -430,62 +507,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
 	t_Model.pipelineHandle = t_Pipeline;
-
-	int x, y, c;
-	stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
-	
-	{
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
-		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>(x * y));
-
-		RenderImageCreateInfo t_ImageInfo{};
-		t_ImageInfo.arrayLayers = 1;
-		t_ImageInfo.mipLevels = 1;
-		t_ImageInfo.width = static_cast<uint32_t>(x);
-		t_ImageInfo.height = static_cast<uint32_t>(y);
-		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
-		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
-		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
-
-		t_Model.image = RenderBackend::CreateImage(t_ImageInfo);
-
-		RenderTransitionImageInfo t_ImageTransInfo{};
-		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
-		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-		t_ImageTransInfo.image = t_Model.image;
-		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-		t_ImageTransInfo.layerCount = 1;
-		t_ImageTransInfo.levelCount = 1;
-		t_ImageTransInfo.baseArrayLayer = 0;
-		t_ImageTransInfo.baseMipLevel = 0;
-		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
-		RenderBackend::TransitionImage(t_RecordingTransfer, t_ImageTransInfo);
-
-		RenderCopyBufferImageInfo t_CopyInfo{};
-		t_CopyInfo.srcBuffer = t_UploadBuffer->Buffer();
-		t_CopyInfo.srcBufferOffset = t_StageBuffer.offset;
-		t_CopyInfo.dstImage = t_Model.image;
-		t_CopyInfo.dstImageInfo.sizeX = static_cast<uint32_t>(x);
-		t_CopyInfo.dstImageInfo.sizeY = static_cast<uint32_t>(y);
-		t_CopyInfo.dstImageInfo.sizeZ = 1;
-		t_CopyInfo.dstImageInfo.mipLevel = 0;
-		t_CopyInfo.dstImageInfo.baseArrayLayer = 0;
-		t_CopyInfo.dstImageInfo.layerCount = 1;
-		t_CopyInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-
-		RenderBackend::CopyBufferImage(t_RecordingTransfer, t_CopyInfo);
-
-		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
-		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
-		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
-		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
-	}
 
 	{
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());

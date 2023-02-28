@@ -6,10 +6,8 @@
 #define _BBEXT(num)
 #endif
 
-[[vk::combinedImageSampler]]
-Texture2D text : register(t0, space0);
-[[vk::combinedImageSampler]]
-SamplerState samplerArray : register(s1, space0);
+Texture2D text : register(t2, space0);
+SamplerState samplerColor : register(s2, space0);
 
 struct VSoutput
 {
@@ -20,7 +18,7 @@ struct VSoutput
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 fragColor = text.Gather(samplerArray, input.fragUV.xy);
+    float4 fragColor = text.Sample(samplerColor, input.fragUV.xy, int2(0, 0));
     fragColor = mul(fragColor, float4(input.fragColor.xyz, 1.0f));
-    return float4(input.fragColor.xyz, 1.0);
+    return float4(fragColor);
 }

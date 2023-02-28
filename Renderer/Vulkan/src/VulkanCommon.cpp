@@ -877,15 +877,16 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 
 	t_BindingSet->pushConstantCount = static_cast<uint32_t>(a_Info.constantBinds.size());
 
+	const uint32_t t_BindingCount = static_cast<uint32_t>(a_Info.bufferBinds.size() + a_Info.imageBinds.size());
 
 	VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
-		s_VulkanAllocator,
-		a_Info.bufferBinds.size() + a_Info.imageBinds.size(),
+		s_VulkanTempAllocator,
+		t_BindingCount,
 		VkDescriptorSetLayoutBinding);
 
 	VkWriteDescriptorSet* t_Writes = BBnewArr(
-		s_VulkanAllocator,
-		a_Info.bufferBinds.size() + a_Info.imageBinds.size(),
+		s_VulkanTempAllocator,
+		t_BindingCount,
 		VkWriteDescriptorSet);
 
 	size_t t_WriteLayoutCount = 0;
@@ -893,7 +894,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 	{
 		//Setup buffer specific info.
 		VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
-			s_VulkanAllocator,
+			s_VulkanTempAllocator,
 			a_Info.bufferBinds.size(),
 			VkDescriptorBufferInfo);
 
@@ -924,12 +925,12 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 	{
 		//Setup image specific info.
 		VkDescriptorImageInfo* t_ImageInfos = BBnewArr(
-			s_VulkanAllocator,
+			s_VulkanTempAllocator,
 			a_Info.imageBinds.size(),
 			VkDescriptorImageInfo);
 		for (size_t i = 0; i < a_Info.imageBinds.size(); i++)
 		{
-			t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.bufferBinds[i].binding;
+			t_LayoutBinds[t_WriteLayoutCount].binding = a_Info.imageBinds[i].binding;
 			t_LayoutBinds[t_WriteLayoutCount].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
 			t_LayoutBinds[t_WriteLayoutCount].descriptorType = VKConv::DescriptorImageType(a_Info.imageBinds[i].imageType);
 			t_LayoutBinds[t_WriteLayoutCount].pImmutableSamplers = nullptr;
@@ -982,7 +983,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
 		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		t_LayoutInfo.pBindings = t_LayoutBinds;
-		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bufferBinds.size());
+		t_LayoutInfo.bindingCount = t_BindingCount;
 
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
 		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
@@ -1002,7 +1003,7 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		&t_BindingSet->set);
 	bool t_NeedReallocate = false;
 
-	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+	for (size_t i = 0; i < t_BindingCount; i++)
 	{
 		t_Writes[i].dstSet = t_BindingSet->set;
 	}
@@ -1022,13 +1023,10 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 	}
 
 	vkUpdateDescriptorSets(s_VKB.device,
-		static_cast<uint32_t>(a_Info.bufferBinds.size()),
+		t_BindingCount,
 		t_Writes,
 		0,
 		nullptr);
-
-	BBfreeArr(s_VulkanAllocator, t_LayoutBinds);
-	BBfreeArr(s_VulkanAllocator, t_Writes);
 
 	return RBindingSetHandle(t_BindingSet);
 
