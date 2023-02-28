@@ -1,4 +1,3 @@
-
 #ifdef _VULKAN
 #define _BBEXT(num) [[vk::location(num)]]
 #elif _DIRECTX12
@@ -6,6 +5,12 @@
 #else
 #define _BBEXT(num)
 #endif
+
+[[vk::combinedImageSampler]]
+Texture2D text : register(t0, space0);
+[[vk::combinedImageSampler]]
+SamplerState samplerArray : register(s1, space0);
+
 struct VSoutput
 {
     float4 pos : SV_POSITION;
@@ -15,7 +20,7 @@ struct VSoutput
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 fragColor = float4(input.fragUV.x, input.fragUV.y, 1.0f, 1.0f);
+    float4 fragColor = text.Gather(samplerArray, input.fragUV.xy);
     fragColor = mul(fragColor, float4(input.fragColor.xyz, 1.0f));
     return float4(input.fragColor.xyz, 1.0);
 }
