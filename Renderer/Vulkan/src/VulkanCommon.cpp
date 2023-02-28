@@ -1877,10 +1877,11 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 
 		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
 		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
-
-		VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
-			t_WaitSemCount,
-			VkPipelineStageFlags);
+		VkPipelineStageFlags* t_WaitStagesMask = nullptr;
+		if (t_WaitSemCount != 0)
+			t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
+				t_WaitSemCount,
+				VkPipelineStageFlags);
 
 		VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
 			t_WaitSemCount + t_SignalSemCount + 1,

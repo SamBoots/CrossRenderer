@@ -1,22 +1,25 @@
+#ifdef _VULKAN
+#define _BBEXT(num) [[vk::location(num)]]
+#elif _DIRECTX12
+#define _BBEXT(num)
+#else
+#define _BBEXT(num)
+#endif
+
 struct VSInput
 {
-#ifdef _VULKAN
-    [[vk::location(0)]] float3 inPosition : POSITION0;
-    [[vk::location(1)]] float3 inColor : COLOR0;
-#elif _DIRECTX12
-    float3 inPosition : POSITION0;
-    float3 inColor : COLOR0;
-#endif
+    _BBEXT(0) float3 inPosition : POSITION0;
+    _BBEXT(1) float3 inNormal : NORMAL0;
+    _BBEXT(2) float2 inUv : UV0;
+    _BBEXT(3) float3 inColor : COLOR0;
+
 };
 
 struct VSOutput
 {
     float4 pos : SV_POSITION;   
-#ifdef _VULKAN
-    [[vk::location(0)]] float3 fragColor : COLOR0;
-#elif _DIRECTX12
-    float3 fragColor : COLOR0;
-#endif
+    _BBEXT(0) float2 fragUV : UV0;
+    _BBEXT(1) float3 fragColor : COLOR0;
 };
 
 struct ModelInstance
@@ -53,6 +56,7 @@ VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
     VSOutput output = (VSOutput)0;
     
     output.pos = mul(cam[0].proj, mul(cam[0].view, mul(modelInstances[indices.model].model, float4(input.inPosition.xy, 0.0, 1.0))));
+    output.fragUV = input.inUv;
     output.fragColor = input.inColor;
     return output;
 }

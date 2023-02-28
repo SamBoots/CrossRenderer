@@ -27,9 +27,9 @@ namespace BB
 		return t_BindingDescription;
 	}
 
-	static FixedArray<VkVertexInputAttributeDescription, 2> VertexAttributeDescriptions()
+	static FixedArray<VkVertexInputAttributeDescription, 4> VertexAttributeDescriptions()
 	{
-		FixedArray<VkVertexInputAttributeDescription, 2> t_AttributeDescriptions;
+		FixedArray<VkVertexInputAttributeDescription, 4> t_AttributeDescriptions;
 		t_AttributeDescriptions[0].binding = 0;
 		t_AttributeDescriptions[0].location = 0;
 		t_AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -38,7 +38,17 @@ namespace BB
 		t_AttributeDescriptions[1].binding = 0;
 		t_AttributeDescriptions[1].location = 1;
 		t_AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		t_AttributeDescriptions[1].offset = offsetof(Vertex, color);
+		t_AttributeDescriptions[1].offset = offsetof(Vertex, normal);
+
+		t_AttributeDescriptions[2].binding = 0;
+		t_AttributeDescriptions[2].location = 2;
+		t_AttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		t_AttributeDescriptions[2].offset = offsetof(Vertex, uv);
+
+		t_AttributeDescriptions[3].binding = 0;
+		t_AttributeDescriptions[3].location = 3;
+		t_AttributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+		t_AttributeDescriptions[3].offset = offsetof(Vertex, color);
 
 		return t_AttributeDescriptions;
 	}
