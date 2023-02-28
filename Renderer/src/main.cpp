@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
-	//t_ModelInfo.imagePath = "../Resources/Textures/Test.jpg";
+	t_ModelInfo.imagePath = "../Resources/Textures/Test.jpg";
 
 
 	LoadModelInfo t_LoadInfo{};
