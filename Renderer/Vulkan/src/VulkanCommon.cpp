@@ -860,7 +860,45 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	return t_BackendInfo;
 }
 
-RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
+RBindingSetHandle VulkanCreateBindingSetEXT(const RenderBindingSetCreateInfo& a_Info)
+{
+	constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
+
+	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
+	*t_BindingSet = {}; //set to 0
+
+	VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
+		s_VulkanTempAllocator,
+		a_Info.bindings.size(),
+		VkDescriptorSetLayoutBinding);
+
+
+	for (size_t i = 0; i < a_Info.bindings.size(); i++)
+	{
+		t_LayoutBinds[i].binding = a_Info.bindings[i].binding;
+		t_LayoutBinds[i].descriptorCount = STANDARD_DESCRIPTORSET_COUNT;
+		t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bindings[i].type);
+		t_LayoutBinds[i].pImmutableSamplers = nullptr;
+		t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(a_Info.bindings[i].stage);
+	}
+	
+
+	{ //Create the descriptorSet layout.
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
+		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		t_LayoutInfo.pBindings = t_LayoutBinds;
+		t_LayoutInfo.bindingCount = a_Info.bindings.size();
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
+			&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+			"Vulkan: Failed to create a descriptorsetlayout.");
+	}
+
+	return RBindingSetHandle(t_BindingSet);
+}
+
+RBindingSetHandle VulkanCreateBindingSetEXT(const RenderBindingSetCreateInfo& a_Info)
 {
 	constexpr uint32_t STANDARD_DESCRIPTORSET_COUNT = 1; //Setting a standard here, may change this later if I want to make more sets in 1 call. 
 
@@ -1029,7 +1067,6 @@ RBindingSetHandle BB::VulkanCreateBindingSet(const RenderBindingSetCreateInfo& a
 		nullptr);
 
 	return RBindingSetHandle(t_BindingSet);
-
 }
 
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)

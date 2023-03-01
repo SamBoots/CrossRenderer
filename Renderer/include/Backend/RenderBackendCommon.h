@@ -51,11 +51,7 @@ namespace BB
 		READONLY_CONSTANT, //CBV or uniform buffer
 		READONLY_BUFFER, //SRV or Storage buffer
 		READWRITE, //UAV or write storage buffer(?)
-		INPUT_ATTACHMENT
-	};
-
-	enum class DESCRIPTOR_IMAGE_TYPE : uint32_t
-	{
+		INPUT_ATTACHMENT,
 		COMBINED_IMAGE_SAMPLER
 	};
 
@@ -196,7 +192,7 @@ namespace BB
 		RImageHandle image;
 
 		uint32_t binding;
-		DESCRIPTOR_IMAGE_TYPE imageType;
+		DESCRIPTOR_BUFFER_TYPE imageType;
 		RENDER_IMAGE_LAYOUT imageLayout;
 		RENDER_SHADER_STAGE stage;
 	};
@@ -225,12 +221,19 @@ namespace BB
 		bool validationLayers{};
 	};
 
+	struct DescriptorBinding
+	{
+		uint32_t binding;
+		DESCRIPTOR_BUFFER_TYPE type;
+		RENDER_SHADER_STAGE stage;
+
+	};
+
 	struct RenderBindingSetCreateInfo
 	{
 		RENDER_BINDING_SET bindingSet;
-		BB::Slice<ConstantBind> constantBinds;
-		BB::Slice<BufferBind> bufferBinds;
-		BB::Slice<ImageBind> imageBinds;
+		BB::Slice<DescriptorBinding> bindings;
+
 	};
 
 	struct RenderCommandQueueCreateInfo
