@@ -6,6 +6,7 @@
 
 namespace BB
 {
+	using RMaterialHandle = FrameworkHandle<struct RMaterialHandleTag>;
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
 	using DrawObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
 

@@ -21,6 +21,7 @@ add_executable (Renderer
 "include/Frontend/RenderFrontend.h"
 "include/Frontend/ModelLoader.h"
 "include/Frontend/Transform.h" 
+"include/Frontend/Materials.h"
 
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
@@ -29,6 +30,7 @@ add_executable (Renderer
 "src/Frontend/RenderFrontend.cpp"
 "src/Frontend/ModelLoader.cpp"
 "src/Frontend/Transform.cpp"
+"src/Frontend/Materials.cpp"
 
 #temporary to test
 "src/main.cpp")
