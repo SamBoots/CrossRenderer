@@ -465,7 +465,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
 
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
-		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>(x * y));
+		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>((x * y) * 4));
 		RenderTransitionImageInfo t_ImageTransInfo{};
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;

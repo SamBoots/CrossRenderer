@@ -18,7 +18,8 @@ struct VSoutput
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 fragColor = text.Sample(samplerColor, input.fragUV.xy, int2(0, 0));
-    fragColor = mul(fragColor, float4(input.fragColor.xyz, 1.0f));
-    return float4(fragColor);
+    float4 textureColor = text.Sample(samplerColor, input.fragUV.xy);
+    float4 color = textureColor * float4(input.fragColor.xyz, 1.0f);
+    return color;
+
 }
