@@ -6,8 +6,8 @@
 #define _BBEXT(num)
 #endif
 
-Texture2D text : register(t2, space0);
-SamplerState samplerColor : register(s2, space0);
+Texture2D text : register(t0, space1);
+SamplerState samplerColor : register(s0, space1);
 
 struct VSoutput
 {

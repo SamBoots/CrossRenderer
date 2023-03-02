@@ -94,6 +94,17 @@ RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
 	return s_ApiFunc.createFence(a_Info);
 }
 
+void BB::RenderBackend::UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+{
+	s_ApiFunc.updateDescriptorBuffer(a_Info);
+}
+
+void BB::RenderBackend::UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+{
+	s_ApiFunc.updateDescriptorImage(a_Info);
+}
+
+
 void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
 	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);

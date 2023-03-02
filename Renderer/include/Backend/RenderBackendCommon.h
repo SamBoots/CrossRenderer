@@ -13,7 +13,7 @@ namespace BB
 {
 	//Hardware minimally supports 4 binding sets on Vulkan. So we make the hard limit for VK and DX12.
 	constexpr uint32_t BINDING_MAX = 4;
-	constexpr uint32_t IMAGE_DESCRIPTOR_MAX = 1024;
+	constexpr uint32_t DESCRIPTOR_IMAGE_MAX = 1024;
 
 	using FrameIndex = uint32_t;
 	
@@ -174,15 +174,6 @@ namespace BB
 		PER_PASS = 1,
 		PER_MATERIAL = 2,
 		PER_OBJECT = 3
-	};
-
-	struct ConstantBind
-	{
-		uint32_t binding; //binding space or shader register.
-		uint32_t dwordCount;
-
-		//find a way to make this relevant for directx12, maybe exclude shader stages?
-		RENDER_SHADER_STAGE stage;
 	};
 
 	struct UpdateDescriptorImageInfo

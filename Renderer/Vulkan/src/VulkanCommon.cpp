@@ -190,9 +190,9 @@ void DescriptorAllocator::CreateDescriptorPool()
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	t_CreateInfo.pPoolSizes = s_DescriptorPoolSizes;
 	t_CreateInfo.poolSizeCount = _countof(s_DescriptorPoolSizes);
-
-	t_CreateInfo.maxSets = 1000;
-	t_CreateInfo.flags = 0;
+	t_CreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+	
+	t_CreateInfo.maxSets = 1024;
 
 	VKASSERT(vkCreateDescriptorPool(s_VKB.device,
 		&t_CreateInfo, nullptr, &descriptorPool),
@@ -494,6 +494,14 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 	t_DynamicRendering.dynamicRendering = VK_TRUE;
 	t_DynamicRendering.pNext = &t_ShaderDrawFeatures;
 
+	VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
+	t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+	t_IndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+	t_IndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+	t_IndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+	t_IndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+	t_IndexingFeatures.pNext = &t_DynamicRendering;
+
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	t_CreateInfo.pQueueCreateInfos = t_QueueCreateInfos;
@@ -502,7 +510,7 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
-	t_CreateInfo.pNext = &t_DynamicRendering;
+	t_CreateInfo.pNext = &t_IndexingFeatures;
 
 	VKASSERT(vkCreateDevice(s_VKB.physicalDevice, 
 		&t_CreateInfo, 
@@ -833,11 +841,15 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 {
-
+	bool bindlessSet = false;
 	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
 	*t_BindingSet = {}; //set to 0
 
-	uint32_t t_BindingCount = 0;
+	uint32_t* t_DescriptorCounts = BBnewArr(
+		s_VulkanTempAllocator,
+		a_Info.bindings.size(),
+		uint32_t);
+
 	{
 		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
 			s_VulkanTempAllocator,
@@ -849,9 +861,10 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 			a_Info.bindings.size(),
 			VkDescriptorBindingFlags);
 
-
 		for (size_t i = 0; i < a_Info.bindings.size(); i++)
 		{
+			t_DescriptorCounts[i] = a_Info.bindings[i].descriptorCount;
+
 			t_LayoutBinds[i].binding = a_Info.bindings[i].binding;
 			t_LayoutBinds[i].descriptorCount = a_Info.bindings[i].descriptorCount;
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bindings[i].type);
@@ -865,34 +878,45 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT |
-					VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;// |
+				VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+
+				bindlessSet = true;
 				break;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_FLAG not supported!");
 				break;
 			}
-
-			t_BindingCount += a_Info.bindings[i].descriptorCount;
 		}
 
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
 		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = a_Info.bindings.size();
-		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT;
+		
+		if (bindlessSet) //if bindless add another struct and return here.
+		{
+			t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 
-		VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{};
-		t_LayoutExtInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
-		t_LayoutExtInfo.bindingCount = a_Info.bindings.size();
-		t_LayoutExtInfo.pBindingFlags = t_BindlessFlags;
+			VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{};
+			t_LayoutExtInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+			t_LayoutExtInfo.bindingCount = a_Info.bindings.size();
+			t_LayoutExtInfo.pBindingFlags = t_BindlessFlags;
 
-		t_LayoutInfo.pNext = &t_LayoutExtInfo;
+			t_LayoutInfo.pNext = &t_LayoutExtInfo;
 
-		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-			&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
-			"Vulkan: Failed to create a descriptorsetlayout.");
+			//Do some algorithm to see if I already made a descriptorlayout like this one.
+			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
+				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				"Vulkan: Failed to create a descriptorsetlayout.");
+		}
+		else
+		{
+			//Do some algorithm to see if I already made a descriptorlayout like this one.
+			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
+				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				"Vulkan: Failed to create a descriptorsetlayout.");
+		}
 	}
 
 	{
@@ -904,12 +928,20 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 		//Lmao creat pool
 		t_AllocInfo.descriptorPool = s_VKB.descriptorAllocator.GetPool();
 
-		VkDescriptorSetVariableDescriptorCountAllocateInfoEXT t_CountInfo{};
-		t_CountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT;
-		t_CountInfo.descriptorSetCount = 1;
-		t_CountInfo.pDescriptorCounts = &t_BindingCount;
+		if (bindlessSet) //if bindless add another struct and return here.
+		{
+			VkDescriptorSetVariableDescriptorCountAllocateInfoEXT t_CountInfo{};
+			t_CountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT;
+			t_CountInfo.descriptorSetCount = a_Info.bindings.size();
+			t_CountInfo.pDescriptorCounts = t_DescriptorCounts;
 
-		t_AllocInfo.pNext = &t_CountInfo;
+			t_AllocInfo.pNext = &t_CountInfo;
+
+			VKASSERT(vkAllocateDescriptorSets(s_VKB.device, &t_AllocInfo, &t_BindingSet->set),
+				"Vulkan: Allocating bindless descriptor sets failed.");
+			
+			return RDescriptorHandle(t_BindingSet);
+		}
 
 		VKASSERT(vkAllocateDescriptorSets(s_VKB.device, &t_AllocInfo, &t_BindingSet->set),
 			"Vulkan: Allocating descriptor sets failed.");
@@ -918,7 +950,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 	return RDescriptorHandle(t_BindingSet);
 }
 
-void VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 {
 	VkDescriptorBufferInfo t_BufferInfo{};
 	t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_Info.buffer.ptrHandle)->buffer;
@@ -933,9 +965,17 @@ void VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 	t_Write.descriptorCount = 1;
 	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
 	t_Write.pBufferInfo = &t_BufferInfo;
+
+	//maybe make this a scheduler
+
+	vkUpdateDescriptorSets(s_VKB.device,
+		1,
+		&t_Write,
+		0,
+		nullptr);
 }
 
-void VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 {
 	VkDescriptorImageInfo t_ImageInfo{};
 	t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
@@ -1329,16 +1369,19 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		VkPipelineLayout* t_FoundLayout = s_VKB.pipelineLayouts.find(t_DescriptorHash);
 
 		if (t_FoundLayout != nullptr)
-			return *t_FoundLayout;
+		{ 
+			t_Pipeline.layout = *t_FoundLayout;
+		}
+		else
+		{
+			VKASSERT(vkCreatePipelineLayout(s_VKB.device,
+				&t_LayoutCreateInfo,
+				nullptr,
+				&t_Pipeline.layout),
+				"Vulkan: Failed to create pipelinelayout.");
 
-		VkPipelineLayout t_NewLayout = VK_NULL_HANDLE;
-		VKASSERT(vkCreatePipelineLayout(s_VKB.device,
-			&t_LayoutCreateInfo,
-			nullptr,
-			&t_NewLayout),
-			"Vulkan: Failed to create pipelinelayout.");
-
-		s_VKB.pipelineLayouts.insert(t_DescriptorHash, t_NewLayout);
+			s_VKB.pipelineLayouts.insert(t_DescriptorHash, t_Pipeline.layout);
+		}
 
 		t_BuildInfo->pipeInfo.layout = t_Pipeline.layout;
 	}

@@ -91,7 +91,8 @@ RecordingCommandListHandle t_RecordingTransfer;
 
 RFenceHandle t_SwapchainFence[3];
 
-RBindingSetHandle t_BindingSet;
+RDescriptorHandle t_Descriptor1;
+RDescriptorHandle t_Descriptor2;
 PipelineHandle t_Pipeline;
 
 UploadBuffer* t_UploadBuffer;
@@ -136,7 +137,8 @@ static void Draw3DFrame()
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
-	RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
+	RDescriptorHandle t_Descriptors[]{ t_Descriptor1 , t_Descriptor2 };
+	RenderBackend::BindDescriptors(t_RecordingGraphics, t_Descriptors, _countof(t_Descriptors), 2, t_DynOffSets);
 
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
@@ -152,7 +154,7 @@ static void Draw3DFrame()
 			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
 			{
 				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
-				RenderBackend::BindBindingSets(t_RecordingGraphics, &t_BindingSet, 1, 2, t_DynOffSets);
+				RenderBackend::BindDescriptors(t_RecordingGraphics, t_Descriptors, _countof(t_Descriptors), 2, t_DynOffSets);
 			}
 
 			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
@@ -161,7 +163,7 @@ static void Draw3DFrame()
 			t_Model = t_NewModel;
 		}
 
-		RenderBackend::BindConstant(t_RecordingGraphics, t_BindingSet, 0, 1, 0, &t_It->transformHandle.index);
+		RenderBackend::BindConstant(t_RecordingGraphics, 0, 1, 0, &t_It->transformHandle.index);
 		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
 			const Model::Node& t_Node = t_Model->linearNodes[i];
@@ -269,47 +271,83 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	PipelineInitInfo t_PipeInitInfo{};
 
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
+	
+	{
+		RenderDescriptorCreateInfo t_CreateInfo{};
+		FixedArray<DescriptorBinding, 2> t_DescBinds;
+		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 
-	FixedArray<ConstantBind, 1> t_ConstantBinds;
-	FixedArray<BufferBind, 2> t_BufferBinds;
-	FixedArray<ImageBind, 1> t_ImageBinds;
+		{//CamBind
+			t_DescBinds[0].binding = 0;
+			t_DescBinds[0].descriptorCount = 1;
+			t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
+		}
+		{//ModelBind
+			t_DescBinds[1].binding = 1;
+			t_DescBinds[1].descriptorCount = 1;
+			t_DescBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::NONE;
+		}
 
-	{//IndexConstantBind
-		t_ConstantBinds[0].binding = 0;
-		t_ConstantBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_ConstantBinds[0].dwordCount = 1; //We store one 32 bit value
-	}
-	{//CamBind
-		t_BufferBinds[0].binding = 0;
-		t_BufferBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_BufferBinds[0].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
-		t_BufferBinds[0].buffer = s_PerFrameInfo.perFrameBuffer;
-		t_BufferBinds[0].bufferOffset = 0;
-		t_BufferBinds[0].bufferSize = sizeof(CameraBufferInfo);
-	}
-	{//ModelBind
-		t_BufferBinds[1].binding = 1;
-		t_BufferBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_BufferBinds[1].type = DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER;
-		t_BufferBinds[1].buffer = s_PerFrameInfo.perFrameBuffer;
-		t_BufferBinds[1].bufferOffset = 0;
-		t_BufferBinds[1].bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
-	}
-	{//Image Binds
-		t_ImageBinds[0].binding = 2;
-		t_ImageBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-		t_ImageBinds[0].image = t_ExampleImage;
-		t_ImageBinds[0].imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_ImageBinds[0].imageType = DESCRIPTOR_IMAGE_TYPE::COMBINED_IMAGE_SAMPLER;
+		t_Descriptor1 = RenderBackend::CreateDescriptor(t_CreateInfo);
 	}
 
-	RenderBindingSetCreateInfo t_BindingSetInfo{};
-	t_BindingSetInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
-	t_BindingSetInfo.constantBinds = BB::Slice(t_ConstantBinds.data(), t_ConstantBinds.size());
-	t_BindingSetInfo.bufferBinds = BB::Slice(t_BufferBinds.data(), t_BufferBinds.size());
-	t_BindingSetInfo.imageBinds = BB::Slice(t_ImageBinds.data(), t_ImageBinds.size());
-	t_BindingSet = RenderBackend::CreateBindingSet(t_BindingSetInfo);
-	t_BasicPipe.BindBindingSet(t_BindingSet);
+	{
+		DescriptorBinding t_DescBind{};
+		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_PASS;
+		t_CreateInfo.bindings = BB::Slice(&t_DescBind, 1);
+		{//Image Binds
+			t_DescBind.binding = 0;
+			t_DescBind.descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBind.stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBind.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+			t_DescBind.flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
+		}
+
+		t_Descriptor2 = RenderBackend::CreateDescriptor(t_CreateInfo);
+	}
+
+	{
+		UpdateDescriptorBufferInfo t_BufferUpdate{};
+		t_BufferUpdate.binding = 0;
+		t_BufferUpdate.descriptorIndex = 0;
+		t_BufferUpdate.set = t_Descriptor1;
+		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+		t_BufferUpdate.buffer = s_PerFrameInfo.perFrameBuffer;
+		t_BufferUpdate.bufferOffset = 0;
+		t_BufferUpdate.bufferSize = sizeof(CameraBufferInfo);
+
+		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+
+		t_BufferUpdate.binding = 1;
+		t_BufferUpdate.descriptorIndex = 0;
+		t_BufferUpdate.bufferOffset = 0;
+		t_BufferUpdate.bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+
+		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+	}
+
+	{
+		UpdateDescriptorImageInfo t_ImageUpdate{};
+		t_ImageUpdate.binding = 0;
+		t_ImageUpdate.descriptorIndex = 0;
+		t_ImageUpdate.set = t_Descriptor2;
+		t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+
+		t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_ImageUpdate.image = t_ExampleImage;
+
+		RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+	}
+
+	t_BasicPipe.BindDescriptor(t_Descriptor1);
+	t_BasicPipe.BindDescriptor(t_Descriptor2);
 
 	const wchar_t* t_ShaderPath[2];
 	t_ShaderPath[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
@@ -406,7 +444,8 @@ void BB::Render::DestroyRenderer()
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
 
-	RenderBackend::DestroyBindingSet(t_BindingSet);
+	RenderBackend::DestroyDescriptor(t_Descriptor1);
+	RenderBackend::DestroyDescriptor(t_Descriptor2);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_PerFrameInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);

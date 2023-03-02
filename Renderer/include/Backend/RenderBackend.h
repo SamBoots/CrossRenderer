@@ -33,6 +33,9 @@ namespace BB
 		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 
+		void UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
+		void UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
+		
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);

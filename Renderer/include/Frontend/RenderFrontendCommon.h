@@ -33,7 +33,6 @@ namespace BB
 		};
 
 		PipelineHandle pipelineHandle{};
-		RBindingSetHandle materialSet{};
 		RImageHandle image; //This is temp, will be managed by the engine.
 
 		RBufferHandle vertexBuffer{};
