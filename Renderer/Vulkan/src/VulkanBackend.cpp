@@ -6,7 +6,7 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
-	a_FuncCreateInfo.createBindingSet = VulkanCreateBindingSet;
+	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
@@ -14,8 +14,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createImage = VulkanCreateImage;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
+	a_FuncCreateInfo.updateDescriptorBuffer = VulkanUpdateDescriptorBuffer;
+	a_FuncCreateInfo.updateDescriptorImage = VulkanUpdateDescriptorImage;
+
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
-	a_FuncCreateInfo.pipelineBuilderBindBindingSet = VulkanPipelineBuilderBindBindingSet;
+	a_FuncCreateInfo.pipelineBuilderBindDescriptor = VulkanPipelineBuilderBindDescriptor;
 	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
 	a_FuncCreateInfo.pipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
@@ -33,7 +36,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
-	a_FuncCreateInfo.bindBindingSet = VulkanBindBindingSets;
+	a_FuncCreateInfo.bindDescriptors = VulkanBindDescriptors;
 	a_FuncCreateInfo.bindConstant = VulkanBindConstant;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
@@ -56,7 +59,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
-	a_FuncCreateInfo.destroyBindingSet = VulkanDestroyBindingSet;
+	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptor;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = VulkanDestroyCommandQueue;
 	a_FuncCreateInfo.destroyCommandAllocator = VulkanDestroyCommandAllocator;

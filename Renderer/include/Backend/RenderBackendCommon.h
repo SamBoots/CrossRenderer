@@ -13,13 +13,15 @@ namespace BB
 {
 	//Hardware minimally supports 4 binding sets on Vulkan. So we make the hard limit for VK and DX12.
 	constexpr uint32_t BINDING_MAX = 4;
+	constexpr uint32_t IMAGE_DESCRIPTOR_MAX = 1024;
 
 	using FrameIndex = uint32_t;
 	
 	//Index is the start index, Index 
 	using PipelineBuilderHandle = FrameworkHandle<struct PipelineBuilderHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
-	using RBindingSetHandle = FrameworkHandle<struct RBindingSetHandleTag>;
+	
+	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
@@ -46,7 +48,7 @@ namespace BB
 		STAGING
 	};
 
-	enum class DESCRIPTOR_BUFFER_TYPE : uint32_t
+	enum class RENDER_DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
 		READONLY_BUFFER, //SRV or Storage buffer
@@ -62,6 +64,12 @@ namespace BB
 		PER_MESH_SET = 2,
 		PER_MATERIAL_SET = 3
 	};
+
+	enum class RENDER_DESCRIPTOR_FLAG : uint32_t
+	{
+		NONE,
+		BINDLESS
+	}; 
 
 	enum class RENDER_MEMORY_PROPERTIES : uint32_t
 	{
@@ -177,24 +185,27 @@ namespace BB
 		RENDER_SHADER_STAGE stage;
 	};
 
-	struct BufferBind
+	struct UpdateDescriptorImageInfo
 	{
-		RBufferHandle buffer;
-		uint64_t bufferSize;
-		uint64_t bufferOffset;
-		uint32_t binding; //binding space or shader register.
-		DESCRIPTOR_BUFFER_TYPE type;
-		RENDER_SHADER_STAGE stage;
+		RDescriptorHandle set;
+		uint32_t binding;
+		uint32_t descriptorIndex;
+		RENDER_DESCRIPTOR_TYPE type;
+
+		RImageHandle image;
+		RENDER_IMAGE_LAYOUT imageLayout;
 	};
 
-	struct ImageBind
+	struct UpdateDescriptorBufferInfo
 	{
-		RImageHandle image;
-
+		RDescriptorHandle set;
 		uint32_t binding;
-		DESCRIPTOR_BUFFER_TYPE imageType;
-		RENDER_IMAGE_LAYOUT imageLayout;
-		RENDER_SHADER_STAGE stage;
+		uint32_t descriptorIndex;
+		RENDER_DESCRIPTOR_TYPE type;
+
+		RBufferHandle buffer;
+		uint32_t bufferSize;
+		uint32_t bufferOffset;
 	};
 
 	struct RenderInitInfo
@@ -224,16 +235,16 @@ namespace BB
 	struct DescriptorBinding
 	{
 		uint32_t binding;
-		DESCRIPTOR_BUFFER_TYPE type;
+		uint32_t descriptorCount;
+		RENDER_DESCRIPTOR_TYPE type;
 		RENDER_SHADER_STAGE stage;
-
+		RENDER_DESCRIPTOR_FLAG flags;
 	};
 
-	struct RenderBindingSetCreateInfo
+	struct RenderDescriptorCreateInfo
 	{
 		RENDER_BINDING_SET bindingSet;
 		BB::Slice<DescriptorBinding> bindings;
-
 	};
 
 	struct RenderCommandQueueCreateInfo
@@ -412,20 +423,23 @@ namespace BB
 	};
 
 	//construction
-	typedef BackendInfo			(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RBindingSetHandle	(*PFN_RenderAPICreateBindingSet)(const RenderBindingSetCreateInfo& a_Info);
-	typedef CommandQueueHandle	(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
-	typedef CommandAllocatorHandle(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
-	typedef CommandListHandle	(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
-	typedef RBufferHandle		(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
-	typedef RImageHandle		(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);;
-	typedef RFenceHandle		(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
+	typedef BackendInfo				(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
+	typedef RDescriptorHandle		(*PFN_RenderAPICreateDescriptor)(const RenderDescriptorCreateInfo& a_Info);
+	typedef CommandQueueHandle		(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
+	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
+	typedef CommandListHandle		(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
+	typedef RBufferHandle			(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
+	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);;
+	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
+
+	typedef void (*PFN_RenderAPIUpdateDescriptorBuffer)(const UpdateDescriptorBufferInfo& a_Info);
+	typedef void (*PFN_RenderAPIUpdateDescriptorImage)(const UpdateDescriptorImageInfo& a_Info);
 
 	//PipelineBuilder
-	typedef PipelineBuilderHandle(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
-	typedef void				(*PFN_RenderAPIDX12PipelineBuilderBindBindingSet)(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle);
-	typedef void				(*PFN_RenderAPIPipelineBuilderBindShaders)(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
-	typedef PipelineHandle		(*PFN_RenderAPIBuildPipeline)(const PipelineBuilderHandle a_Handle);
+	typedef PipelineBuilderHandle	(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
+	typedef void					(*PFN_RenderAPIDX12PipelineBuilderBindDescriptor)(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
+	typedef void					(*PFN_RenderAPIPipelineBuilderBindShaders)(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+	typedef PipelineHandle			(*PFN_RenderAPIBuildPipeline)(const PipelineBuilderHandle a_Handle);
 
 	//Commandlist handling
 	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
@@ -441,8 +455,8 @@ namespace BB
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	typedef void (*PFN_RenderAPIBindBindingSets)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
-	typedef void (*PFN_REnderAPIBindConstant)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data);
+	typedef void (*PFN_RenderAPIBindDescriptors)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
+	typedef void (*PFN_REnderAPIBindConstant)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data);
 
 	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
@@ -467,7 +481,7 @@ namespace BB
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
-	typedef void (*PFN_RenderAPIDestroyBindingSet)(const RBindingSetHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandQueue)(const CommandQueueHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
@@ -479,7 +493,7 @@ namespace BB
 	struct RenderAPIFunctions
 	{
 		PFN_RenderAPICreateBackend createBackend;
-		PFN_RenderAPICreateBindingSet createBindingSet;
+		PFN_RenderAPICreateDescriptor createDescriptor;
 		PFN_RenderAPICreateCommandQueue createCommandQueue;
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
@@ -487,8 +501,11 @@ namespace BB
 		PFN_RenderAPICreateImage createImage;
 		PFN_RenderAPICreateFence createFence;
 
+		PFN_RenderAPIUpdateDescriptorBuffer updateDescriptorBuffer;
+		PFN_RenderAPIUpdateDescriptorImage updateDescriptorImage;
+
 		PFN_RenderAPIPipelineBuilderInit pipelineBuilderInit;
-		PFN_RenderAPIDX12PipelineBuilderBindBindingSet pipelineBuilderBindBindingSet;
+		PFN_RenderAPIDX12PipelineBuilderBindDescriptor pipelineBuilderBindDescriptor;
 		PFN_RenderAPIPipelineBuilderBindShaders pipelineBuilderBindShaders;
 		PFN_RenderAPIBuildPipeline pipelineBuilderBuildPipeline;
 
@@ -505,7 +522,7 @@ namespace BB
 		PFN_RenderAPIBindPipeline bindPipeline;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
 		PFN_RenderAPIBindIndexBuffer bindIndexBuffer;
-		PFN_RenderAPIBindBindingSets bindBindingSet;
+		PFN_RenderAPIBindDescriptors bindDescriptors;
 		PFN_REnderAPIBindConstant bindConstant;
 
 		PFN_RenderAPIDrawVertex drawVertex;
@@ -528,7 +545,7 @@ namespace BB
 		PFN_RenderAPIWaitDeviceReady waitDevice;
 
 		PFN_RenderAPIDestroyBackend destroyBackend;
-		PFN_RenderAPIDestroyBindingSet destroyBindingSet;
+		PFN_RenderAPIDestroyDescriptor destroyDescriptor;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;
 		PFN_RenderAPIDestroyCommandQueue destroyCommandQueue;
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
