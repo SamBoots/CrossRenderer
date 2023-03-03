@@ -373,9 +373,14 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 
 	for (uint32_t i = 0; i < t_DeviceCount; i++)
 	{
+		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
+		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+
 		VkPhysicalDeviceProperties2 t_DeviceProperties{};
 		t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		t_DeviceProperties.pNext = &t_IndexingFeatures;
 		vkGetPhysicalDeviceProperties2(t_PhysicalDevices[i], &t_DeviceProperties);
+		
 
 		VkPhysicalDeviceTimelineSemaphoreFeatures t_SyncFeatures{};
 		t_SyncFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
@@ -392,7 +397,11 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 			t_DeviceFeatures.features.samplerAnisotropy &&
 			QueueFindGraphicsBit(t_PhysicalDevices[i]) &&
 			t_SwapChainDetails.formatCount != 0 &&
-			t_SwapChainDetails.presentModeCount != 0)
+			t_SwapChainDetails.presentModeCount != 0 &&
+			t_IndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
+			t_IndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
+			t_IndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
+			t_IndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE);
 		{
 			return t_PhysicalDevices[i];
 		}
@@ -845,10 +854,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
 	*t_BindingSet = {}; //set to 0
 
-	uint32_t* t_DescriptorCounts = BBnewArr(
-		s_VulkanTempAllocator,
-		a_Info.bindings.size(),
-		uint32_t);
+	uint32_t t_DescriptorCount = 0;
 
 	{
 		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
@@ -863,7 +869,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 		for (size_t i = 0; i < a_Info.bindings.size(); i++)
 		{
-			t_DescriptorCounts[i] = a_Info.bindings[i].descriptorCount;
+			t_DescriptorCount += a_Info.bindings[i].descriptorCount;
 
 			t_LayoutBinds[i].binding = a_Info.bindings[i].binding;
 			t_LayoutBinds[i].descriptorCount = a_Info.bindings[i].descriptorCount;
@@ -878,8 +884,8 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;// |
-				VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT |
+					VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
 
 				bindlessSet = true;
 				break;
@@ -930,10 +936,10 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
-			VkDescriptorSetVariableDescriptorCountAllocateInfoEXT t_CountInfo{};
-			t_CountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT;
-			t_CountInfo.descriptorSetCount = a_Info.bindings.size();
-			t_CountInfo.pDescriptorCounts = t_DescriptorCounts;
+			VkDescriptorSetVariableDescriptorCountAllocateInfo t_CountInfo{};
+			t_CountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+			t_CountInfo.descriptorSetCount = 1;
+			t_CountInfo.pDescriptorCounts = &t_DescriptorCount;
 
 			t_AllocInfo.pNext = &t_CountInfo;
 
