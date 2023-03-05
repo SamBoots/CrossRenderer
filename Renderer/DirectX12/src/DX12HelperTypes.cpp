@@ -100,11 +100,12 @@ void DXFence::WaitFenceCPU(const uint64_t a_FenceValue)
 }
 
 DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size)
+	: m_Size(static_cast<UINT>(a_Size))
 {
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
 	t_ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	t_ResourceDesc.Alignment = 0;
-	t_ResourceDesc.Width = a_Size;
+	t_ResourceDesc.Width = static_cast<UINT64>(m_Size);
 	t_ResourceDesc.Height = 1;
 	t_ResourceDesc.DepthOrArraySize = 1;
 	t_ResourceDesc.MipLevels = 1;
@@ -125,17 +126,17 @@ DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUF
 		break;
 	}
 	
-
+	D3D12_RESOURCE_STATES t_State{};
 	switch (a_BufferUsage)
 	{
 	case RENDER_BUFFER_USAGE::VERTEX:
-		m_CurrentState = D3D12_RESOURCE_STATE_COMMON;
+		t_State = D3D12_RESOURCE_STATE_COMMON;
 		break;
 	case RENDER_BUFFER_USAGE::INDEX:
-		m_CurrentState = D3D12_RESOURCE_STATE_COMMON;
+		t_State = D3D12_RESOURCE_STATE_COMMON;
 		break;
 	case RENDER_BUFFER_USAGE::STAGING:
-		m_CurrentState = D3D12_RESOURCE_STATE_GENERIC_READ;
+		t_State = D3D12_RESOURCE_STATE_GENERIC_READ;
 		BB_ASSERT(t_AllocationDesc.HeapType == D3D12_HEAP_TYPE_UPLOAD,
 			"DX12, tries to make an upload resource but the heap type is not upload!");
 		break;
@@ -144,33 +145,57 @@ DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUF
 	DXASSERT(a_ResourceAllocator->CreateResource(
 		&t_AllocationDesc,
 		&t_ResourceDesc,
-		m_CurrentState,
+		t_State,
 		NULL,
 		&m_Allocation,
 		IID_PPV_ARGS(&m_Resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
-
-
-	switch (a_BufferUsage)
-	{
-	case RENDER_BUFFER_USAGE::VERTEX:
-		m_View.vertexView.BufferLocation = m_Resource->GetGPUVirtualAddress();
-		m_View.vertexView.StrideInBytes = sizeof(Vertex);
-		m_View.vertexView.SizeInBytes = static_cast<UINT>(a_Size);
-		break;
-	case RENDER_BUFFER_USAGE::INDEX:
-		m_View.indexView.BufferLocation = m_Resource->GetGPUVirtualAddress();
-		m_View.indexView.Format = DXGI_FORMAT_R32_UINT;
-		m_View.indexView.SizeInBytes = static_cast<UINT>(a_Size);
-		break;
-	default:
-		m_View.constantView.BufferLocation = m_Resource->GetGPUVirtualAddress();
-		m_View.constantView.SizeInBytes = static_cast<UINT>(a_Size);
-		break;
-	}
 }
 
 DXResource::~DXResource()
+{
+	m_Resource->Release();
+	m_Allocation->Release();
+}
+
+DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreateInfo& a_Info)
+{
+	D3D12_RESOURCE_DESC t_Desc{};
+	t_Desc.Alignment = 0;
+	t_Desc.Width = static_cast<UINT64>(a_Info.width);
+	t_Desc.Height = a_Info.height;
+	t_Desc.DepthOrArraySize = static_cast<UINT16>(a_Info.arrayLayers);
+	t_Desc.MipLevels = static_cast<UINT16>(a_Info.mipLevels);
+	t_Desc.Format = DXGI_FORMAT_UNKNOWN;
+	t_Desc.SampleDesc.Count = 1;
+	t_Desc.SampleDesc.Quality = 0;
+	t_Desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	switch (a_Info.type)
+	{
+	case RENDER_IMAGE_TYPE::TYPE_2D:
+		t_Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, image type not supported!")
+		break;
+	}
+
+	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
+	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+
+	DXASSERT(a_ResourceAllocator->CreateResource(
+		&t_AllocationDesc,
+		&t_Desc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		NULL,
+		&m_Allocation,
+		IID_PPV_ARGS(&m_Resource)),
+		"DX12: Failed to create resource using D3D12 Memory Allocator");
+}
+
+DXImage::~DXImage()
 {
 	m_Resource->Release();
 	m_Allocation->Release();

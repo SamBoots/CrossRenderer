@@ -1,6 +1,7 @@
 #pragma once
 #include "DX12Common.h"
 #include "D3D12MemAlloc.h"
+#include "Allocators/RingAllocator.h"
 
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
@@ -15,6 +16,8 @@ namespace BB
 {
 
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
+	static RingAllocator s_DX12TempAllocator{ s_DX12Allocator, kbSize * 64 };
+
 
 	namespace DXConv
 	{
@@ -31,21 +34,6 @@ namespace BB
 		D3D12_VERTEX_BUFFER_VIEW vertexView;
 		D3D12_INDEX_BUFFER_VIEW indexView;
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constantView;
-	};
-
-	struct DX12Device
-	{
-		IDXGIAdapter1* adapter;
-		ID3D12Device* logicalDevice;
-
-		ID3D12DebugDevice1* debugDevice;
-	};
-
-	struct DX12Swapchain
-	{
-		UINT width;
-		UINT height;
-		IDXGISwapChain3* swapchain;
 	};
 
 	class DXFence
@@ -79,16 +67,27 @@ namespace BB
 		~DXResource();
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
-		const DX12BufferView& GetView() const { return m_View; }
-
-		const D3D12_RESOURCE_STATES GetState() const { return m_CurrentState; }
+		UINT GetResourceSize() const { return m_Size; };
 
 	private:
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
-		DX12BufferView m_View;
+		const UINT m_Size = 0;
+	};
 
-		D3D12_RESOURCE_STATES m_CurrentState;
+	class DXImage
+	{
+	public:
+		DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreateInfo& a_Info);
+		~DXImage();
+
+		ID3D12Resource* GetResource() const { return m_Resource; };
+		UINT GetResourceSize() const { return m_Desc.Width * m_Desc.Height; };
+		const D3D12_RESOURCE_DESC& GetResourceDesc() const { return m_Desc; }
+
+	private:
+		ID3D12Resource* m_Resource;
+		D3D12MA::Allocation* m_Allocation;
 	};
 
 	class DXCommandQueue
@@ -218,9 +217,9 @@ namespace BB
 		D3D12_DESCRIPTOR_HEAP_TYPE m_HeapType;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_HeapCPUStart;
 		D3D12_GPU_DESCRIPTOR_HANDLE m_HeapGPUStart;
-		uint32_t m_MaxDescriptors;
+		uint32_t m_MaxDescriptors = 0;
 		uint32_t m_InUse = 0;
-		uint32_t m_IncrementSize;
+		uint32_t m_IncrementSize = 0;
 	};
 
 	struct RootConstant
@@ -235,23 +234,25 @@ namespace BB
 		UINT rootIndex{};
 	};
 
+	struct DescTable
+	{
+		DescriptorHeapHandle table{};
+		UINT rootIndex{};
+	};
+
 	//This somewhat represents a vkDescriptorSet.
-	struct BindingSet
+	struct DXDescriptor
 	{
 		//Maximum of 4 bindings.
 		RENDER_BINDING_SET shaderSpace = {};
+
+		DescTable tables;
 
 		uint32_t rootConstantCount = 0;
 		RootConstant rootConstant[4];
 
 		uint32_t cbvCount = 0;
-		uint32_t srvCount = 0;
-		uint32_t uavCount = 0;
 		RootDescriptor rootCBV[4];
-		RootDescriptor rootSRV[4];
-		RootDescriptor rootUAV[4];
-
-		DescriptorHeapHandle heapHandle{};
 	};
 
 	//Maybe create a class and a builder for this?

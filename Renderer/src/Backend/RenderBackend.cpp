@@ -9,8 +9,6 @@ using namespace BB;
 static RenderAPIFunctions s_ApiFunc;
 
 static BackendInfo s_BackendInfo;
-void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
-void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 
 PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
@@ -40,6 +38,41 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 	return t_ReturnHandle;
 }
 
+UploadBuffer::UploadBuffer(const uint64_t a_Size) : m_Size(a_Size)
+{
+	RenderBufferCreateInfo t_UploadBufferInfo;
+	t_UploadBufferInfo.size = m_Size;
+	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_UploadBufferInfo.data = nullptr;
+	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
+
+	m_Offset = 0;
+	m_Position = RenderBackend::MapMemory(m_Buffer);
+}
+
+UploadBuffer::~UploadBuffer()
+{
+	RenderBackend::UnmapMemory(m_Buffer);
+	RenderBackend::DestroyBuffer(m_Buffer);
+}
+
+UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
+{
+	UploadBufferChunk t_Chunk{};
+	t_Chunk.memory = m_Position;
+	t_Chunk.offset = m_Offset;
+	m_Position = Pointer::Add(m_Position, a_Size);
+	m_Offset += a_Size;
+	return t_Chunk;
+}
+
+void UploadBuffer::Clear()
+{
+	//Get back to start
+	m_Position = Pointer::Subtract(m_Position, m_Offset);
+	m_Offset = 0;
+}
 
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
 {
@@ -130,14 +163,14 @@ void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_Recordin
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
 
+void BB::RenderBackend::UploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info)
+{
+	s_ApiFunc.uploadImage(a_RecordingCmdHandle, a_Info);
+}
+
 void BB::RenderBackend::CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	s_ApiFunc.copyBuffer(a_RecordingCmdHandle, a_CopyInfo);
-}
-
-void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
-{
-	s_ApiFunc.copyBufferImage(a_RecordingCmdHandle, a_CopyInfo);
 }
 
 void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo)

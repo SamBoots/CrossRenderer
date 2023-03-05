@@ -81,28 +81,4 @@ namespace BB
 		RModelHandle modelHandle;
 		TransformHandle transformHandle;
 	};
-
-	struct UploadBufferChunk
-	{
-		void* memory;
-		uint64_t offset;
-	};
-
-	class UploadBuffer
-	{
-	public:
-		UploadBuffer(const uint64_t a_Size);
-		~UploadBuffer();
-
-		UploadBufferChunk Alloc(const uint64_t a_Size);
-		void Clear();
-
-		const RBufferHandle Buffer() const { return m_Buffer; }
-
-	private:
-		RBufferHandle m_Buffer;
-		const uint64_t m_Size;
-		uint64_t m_Offset;
-		void* m_Position;
-	};
 }

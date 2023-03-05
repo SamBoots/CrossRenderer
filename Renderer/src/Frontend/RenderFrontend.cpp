@@ -15,42 +15,6 @@
 using namespace BB;
 using namespace BB::Render;
 
-UploadBuffer::UploadBuffer(const uint64_t a_Size) : m_Size(a_Size)
-{
-	RenderBufferCreateInfo t_UploadBufferInfo;
-	t_UploadBufferInfo.size = m_Size;
-	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UploadBufferInfo.data = nullptr;
-	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
-
-	m_Offset = 0;
-	m_Position = RenderBackend::MapMemory(m_Buffer);
-}
-
-UploadBuffer::~UploadBuffer()
-{
-	RenderBackend::UnmapMemory(m_Buffer);
-	RenderBackend::DestroyBuffer(m_Buffer);
-}
-
-UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
-{
-	UploadBufferChunk t_Chunk{};
-	t_Chunk.memory = m_Position;
-	t_Chunk.offset = m_Offset;
-	m_Position = Pointer::Add(m_Position, a_Size);
-	m_Offset += a_Size;
-	return t_Chunk;
-}
-
-void UploadBuffer::Clear()
-{
-	//Get back to start
-	m_Position = Pointer::Subtract(m_Position, m_Offset);
-	m_Offset = 0;
-}
-
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
 static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
@@ -500,11 +464,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_Model.pipelineHandle = t_Pipeline;
 
 	{
-		int x, y, c;
-		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
-
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
-		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>((x * y) * 4));
 		RenderTransitionImageInfo t_ImageTransInfo{};
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
@@ -519,19 +478,18 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
 		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
 
-		RenderCopyBufferImageInfo t_CopyInfo{};
-		t_CopyInfo.srcBuffer = t_UploadBuffer->Buffer();
-		t_CopyInfo.srcBufferOffset = t_StageBuffer.offset;
-		t_CopyInfo.dstImage = t_ExampleImage;
-		t_CopyInfo.dstImageInfo.sizeX = static_cast<uint32_t>(x);
-		t_CopyInfo.dstImageInfo.sizeY = static_cast<uint32_t>(y);
-		t_CopyInfo.dstImageInfo.sizeZ = 1;
-		t_CopyInfo.dstImageInfo.mipLevel = 0;
-		t_CopyInfo.dstImageInfo.baseArrayLayer = 0;
-		t_CopyInfo.dstImageInfo.layerCount = 1;
-		t_CopyInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		int x, y, c;
 
-		RenderBackend::CopyBufferImage(t_RecordingGraphics, t_CopyInfo);
+		UploadImageInfo t_UploadInfo{};
+		t_UploadInfo.uploadBuffer = t_UploadBuffer;
+		t_UploadInfo.width = static_cast<uint32_t>(x);
+		t_UploadInfo.height = static_cast<uint32_t>(y);
+		t_UploadInfo.channels = static_cast<uint32_t>(c);
+		t_UploadInfo.image = t_ExampleImage;
+		t_UploadInfo.imageData.data = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
+		t_UploadInfo.imageData.size = static_cast<size_t>(x * y * c);
+
+		RenderBackend::UploadImage(t_RecordingGraphics, t_UploadInfo);
 
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;

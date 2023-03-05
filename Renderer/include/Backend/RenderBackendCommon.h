@@ -52,6 +52,8 @@ namespace BB
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
 		READONLY_BUFFER, //SRV or Storage buffer
+		READONLY_CONSTANT_DYNAMIC,
+		READONLY_BUFFER_DYNAMIC,
 		READWRITE, //UAV or write storage buffer(?)
 		INPUT_ATTACHMENT,
 		COMBINED_IMAGE_SAMPLER
@@ -270,9 +272,11 @@ namespace BB
 		uint32_t width = 0;
 		// The height in texels.
 		uint32_t height = 0;
+		// Amount of channels, often just 4 bytes. (so 4)
+		uint32_t channels;
 
-		uint32_t arrayLayers = 0;
-		uint32_t mipLevels = 0;
+		uint16_t arrayLayers = 0;
+		uint16_t mipLevels = 0;
 		RENDER_IMAGE_TYPE type;
 		RENDER_IMAGE_USAGE usage;
 		RENDER_IMAGE_FORMAT format;
@@ -307,7 +311,15 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
-
+	struct UploadImageInfo
+	{
+		UploadBuffer* uploadBuffer;
+		RImageHandle image;
+		Buffer imageData;
+		uint32_t width;
+		uint32_t height;
+		uint32_t channels;
+	};
 
 	struct RenderCopyBufferInfo
 	{
@@ -317,32 +329,6 @@ namespace BB
 		uint64_t srcOffset;
 		uint64_t dstOffset;
 		uint64_t size;
-	};
-
-	struct ImageCopyInfo
-	{
-		uint32_t sizeX;
-		uint32_t sizeY;
-		uint32_t sizeZ;
-
-		uint32_t offsetX;
-		uint32_t offsetY;
-		uint32_t offsetZ;
-
-		uint32_t mipLevel;
-		uint32_t baseArrayLayer;
-		uint32_t layerCount;
-
-		RENDER_IMAGE_LAYOUT layout;
-	};
-
-	struct RenderCopyBufferImageInfo
-	{
-		RBufferHandle srcBuffer;
-		uint32_t srcBufferOffset;
-
-		RImageHandle dstImage;
-		ImageCopyInfo dstImageInfo;
 	};
 
 	struct StartRenderingInfo
@@ -439,8 +425,8 @@ namespace BB
 	typedef void (*PFN_RenderAPIStartRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 	typedef void (*PFN_RenderAPIEndRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 
+	typedef void (*PFN_RenderAPIUploadImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
-	typedef void (*PFN_RenderAPICopyBufferImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 	typedef void (*PFN_RenderAPITransitionImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
 
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -506,8 +492,8 @@ namespace BB
 		PFN_RenderAPIStartRendering startRendering;
 		PFN_RenderAPIEndRendering endRendering;
 
+		PFN_RenderAPIUploadImage uploadImage;
 		PFN_RenderAPICopyBuffer copyBuffer;
-		PFN_RenderAPICopyBufferImage copyBufferImage;
 		PFN_RenderAPITransitionImage transitionImage;
 
 		PFN_RenderAPIBindPipeline bindPipeline;

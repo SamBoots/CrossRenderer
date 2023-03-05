@@ -26,11 +26,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
-	a_FuncCreateInfo.startRendering = VulkanStartRenderPass;
-	a_FuncCreateInfo.endRendering = VulkanEndRenderPass;
+	a_FuncCreateInfo.startRendering = VulkanStartRendering;
+	a_FuncCreateInfo.endRendering = VulkanEndRendering;
 
+	a_FuncCreateInfo.uploadImage = VulkanUploadImage;
 	a_FuncCreateInfo.copyBuffer = VulkanCopyBuffer;
-	a_FuncCreateInfo.copyBufferImage = VulkanCopyBufferImage;
 	a_FuncCreateInfo.transitionImage = VulkanTransitionImage;
 
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;

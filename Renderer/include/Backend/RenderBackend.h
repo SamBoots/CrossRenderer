@@ -18,6 +18,29 @@ namespace BB
 		PipelineBuilderHandle m_BuilderHandle;
 	};
 
+	struct UploadBufferChunk
+	{
+		void* memory;
+		uint64_t offset;
+	};
+
+	class UploadBuffer
+	{
+	public:
+		UploadBuffer(const uint64_t a_Size);
+		~UploadBuffer();
+
+		UploadBufferChunk Alloc(const uint64_t a_Size);
+		void Clear();
+
+		const RBufferHandle Buffer() const { return m_Buffer; }
+
+	private:
+		RBufferHandle m_Buffer;
+		const uint64_t m_Size;
+		uint64_t m_Offset;
+		void* m_Position;
+	};
 
 	namespace RenderBackend
 	{
@@ -43,8 +66,8 @@ namespace BB
 		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 		
+		void UploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 		void CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
-		void CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 		void TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo);
 
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);

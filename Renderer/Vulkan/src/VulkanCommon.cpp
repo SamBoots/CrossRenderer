@@ -956,83 +956,6 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 	return RDescriptorHandle(t_BindingSet);
 }
 
-void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
-{
-	VkDescriptorBufferInfo t_BufferInfo{};
-	t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_Info.buffer.ptrHandle)->buffer;
-	t_BufferInfo.offset = a_Info.bufferOffset;
-	t_BufferInfo.range = a_Info.bufferSize;
-
-	VkWriteDescriptorSet t_Write{};
-	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	t_Write.dstBinding = a_Info.binding;
-	t_Write.dstArrayElement = a_Info.descriptorIndex;
-	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
-	t_Write.descriptorCount = 1;
-	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
-	t_Write.pBufferInfo = &t_BufferInfo;
-
-	//maybe make this a scheduler
-
-	vkUpdateDescriptorSets(s_VKB.device,
-		1,
-		&t_Write,
-		0,
-		nullptr);
-}
-
-void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
-{
-	VkDescriptorImageInfo t_ImageInfo{};
-	t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
-	t_ImageInfo.imageView = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle)->view;
-
-	//Create sampler here?
-	{
-		//We could check if we can find a different way of doing this, but for now creating them here is good.
-		//Maybe placing all samplers in a hashmap and checking if they are the same?
-		VkSamplerCreateInfo t_SamplerInfo{};
-		t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-		t_SamplerInfo.anisotropyEnable = VK_TRUE;
-		t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
-		t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
-
-		t_SamplerInfo.compareEnable = VK_FALSE;
-		t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		//Mipmap info can be in the VulkanImage struct.
-		t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		t_SamplerInfo.mipLodBias = 0.0f;
-		t_SamplerInfo.minLod = 0.0f;
-		t_SamplerInfo.maxLod = 0.0f;
-
-		VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfo.sampler),
-			"Vulkan: Failed to create image sampler!");
-	}
-
-	VkWriteDescriptorSet t_Write{};
-	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	t_Write.dstBinding = a_Info.binding;
-	t_Write.dstArrayElement = a_Info.descriptorIndex;
-	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
-	t_Write.descriptorCount = 1;
-	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
-	t_Write.pImageInfo = &t_ImageInfo;
-
-	//maybe make this a scheduler
-	vkUpdateDescriptorSets(s_VKB.device,
-		1,
-		&t_Write,
-		0,
-		nullptr);
-}
-
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	VulkanCommandQueue* t_Queue = s_VKB.cmdQueues.Get();
@@ -1192,7 +1115,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_ImageCreateInfo.extent.height = a_CreateInfo.height;
 		t_ImageCreateInfo.extent.depth = 1;
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-
 		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
@@ -1225,10 +1147,10 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
 		break;
 	}
-	
+
 	switch (a_CreateInfo.type)
 	{
-	case RENDER_IMAGE_TYPE::TYPE_2D:					
+	case RENDER_IMAGE_TYPE::TYPE_2D:
 		t_ImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 
 		if (a_CreateInfo.arrayLayers > 1)
@@ -1254,7 +1176,7 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	VmaAllocationCreateInfo t_AllocInfo{};
 	t_AllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	VKASSERT(vmaCreateImage(s_VKB.vma, &t_ImageCreateInfo, &t_AllocInfo, &t_Image->image, &t_Image->allocation, nullptr), 
+	VKASSERT(vmaCreateImage(s_VKB.vma, &t_ImageCreateInfo, &t_AllocInfo, &t_Image->image, &t_Image->allocation, nullptr),
 		"Vulkan: Failed to create image");
 
 	t_ViewInfo.image = t_Image->image;
@@ -1263,7 +1185,7 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	t_ViewInfo.subresourceRange.levelCount = a_CreateInfo.mipLevels;
 	t_ViewInfo.subresourceRange.baseArrayLayer = 0;
 	t_ViewInfo.subresourceRange.layerCount = a_CreateInfo.arrayLayers;
-	
+
 	VKASSERT(vkCreateImageView(s_VKB.device, &t_ViewInfo, nullptr, &t_Image->view),
 		"Vulkan: Failed to create image view.");
 
@@ -1288,6 +1210,83 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 		&t_TimelineSem);
 
 	return RFenceHandle(t_TimelineSem);
+}
+
+void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+{
+	VkDescriptorBufferInfo t_BufferInfo{};
+	t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_Info.buffer.ptrHandle)->buffer;
+	t_BufferInfo.offset = a_Info.bufferOffset;
+	t_BufferInfo.range = a_Info.bufferSize;
+
+	VkWriteDescriptorSet t_Write{};
+	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	t_Write.dstBinding = a_Info.binding;
+	t_Write.dstArrayElement = a_Info.descriptorIndex;
+	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
+	t_Write.descriptorCount = 1;
+	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
+	t_Write.pBufferInfo = &t_BufferInfo;
+
+	//maybe make this a scheduler
+
+	vkUpdateDescriptorSets(s_VKB.device,
+		1,
+		&t_Write,
+		0,
+		nullptr);
+}
+
+void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+{
+	VkDescriptorImageInfo t_ImageInfo{};
+	t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
+	t_ImageInfo.imageView = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle)->view;
+
+	//Create sampler here?
+	{
+		//We could check if we can find a different way of doing this, but for now creating them here is good.
+		//Maybe placing all samplers in a hashmap and checking if they are the same?
+		VkSamplerCreateInfo t_SamplerInfo{};
+		t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+		t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+		t_SamplerInfo.anisotropyEnable = VK_TRUE;
+		t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
+		t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+		t_SamplerInfo.compareEnable = VK_FALSE;
+		t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		//Mipmap info can be in the VulkanImage struct.
+		t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		t_SamplerInfo.mipLodBias = 0.0f;
+		t_SamplerInfo.minLod = 0.0f;
+		t_SamplerInfo.maxLod = 0.0f;
+
+		VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfo.sampler),
+			"Vulkan: Failed to create image sampler!");
+	}
+
+	VkWriteDescriptorSet t_Write{};
+	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	t_Write.dstBinding = a_Info.binding;
+	t_Write.dstArrayElement = a_Info.descriptorIndex;
+	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
+	t_Write.descriptorCount = 1;
+	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
+	t_Write.pImageInfo = &t_ImageInfo;
+
+	//maybe make this a scheduler
+	vkUpdateDescriptorSets(s_VKB.device,
+		1,
+		&t_Write,
+		0,
+		nullptr);
 }
 
 PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
@@ -1548,7 +1547,7 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 		"Vulkan: Error when trying to end commandbuffer!");
 }
 
-void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
+void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1614,7 +1613,7 @@ void BB::VulkanStartRenderPass(const RecordingCommandListHandle a_RecordingCmdHa
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
-void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
+void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	vkCmdEndRendering(t_Cmdlist->Buffer());
@@ -1643,6 +1642,42 @@ void BB::VulkanEndRenderPass(const RecordingCommandListHandle a_RecordingCmdHand
 		&t_PresentBarrier);
 }
 
+void BB::VulkanUploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info)
+{
+	const size_t t_MemSize = static_cast<const size_t>(a_Info.width * a_Info.height * a_Info.channels);
+	UploadBufferChunk t_StageBuffer = a_Info.uploadBuffer->Alloc(t_MemSize);
+	memcpy(t_StageBuffer.memory, a_Info.imageData.data, t_MemSize);
+
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_Info.uploadBuffer->Buffer().handle);
+	VulkanImage* t_DstImage = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle);
+
+	VkBufferImageCopy t_CopyRegion{};
+	t_CopyRegion.bufferOffset = t_StageBuffer.offset;
+	t_CopyRegion.bufferRowLength = 0;
+	t_CopyRegion.bufferImageHeight = 0;
+
+	t_CopyRegion.imageExtent.width = static_cast<uint32_t>(a_Info.width);
+	t_CopyRegion.imageExtent.height = static_cast<uint32_t>(a_Info.height);
+	t_CopyRegion.imageExtent.depth = 1;
+
+	t_CopyRegion.imageOffset.x = 0;
+	t_CopyRegion.imageOffset.y = 0;
+	t_CopyRegion.imageOffset.z = 0;
+
+	t_CopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_CopyRegion.imageSubresource.mipLevel = 0;
+	t_CopyRegion.imageSubresource.baseArrayLayer = 0;
+	t_CopyRegion.imageSubresource.layerCount = 1;
+
+	vkCmdCopyBufferToImage(t_Cmdlist->Buffer(),
+		t_SrcBuffer->buffer,
+		t_DstImage->image,
+		VKConv::ImageLayout(RENDER_IMAGE_LAYOUT::TRANSFER_DST),
+		1,
+		&t_CopyRegion);
+}
+
 void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
@@ -1657,38 +1692,6 @@ void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle,
 	vkCmdCopyBuffer(t_Cmdlist->Buffer(),
 		t_SrcBuffer->buffer,
 		t_DstBuffer->buffer,
-		1,
-		&t_CopyRegion);
-}
-
-void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
-{
-	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.srcBuffer.handle);
-	VulkanImage* t_DstImage = reinterpret_cast<VulkanImage*>(a_CopyInfo.dstImage.handle);
-
-	VkBufferImageCopy t_CopyRegion{};
-	t_CopyRegion.bufferOffset = a_CopyInfo.srcBufferOffset;
-	t_CopyRegion.bufferRowLength = 0;
-	t_CopyRegion.bufferImageHeight = 0;
-	
-	t_CopyRegion.imageExtent.width = a_CopyInfo.dstImageInfo.sizeX;
-	t_CopyRegion.imageExtent.height = a_CopyInfo.dstImageInfo.sizeY;
-	t_CopyRegion.imageExtent.depth = a_CopyInfo.dstImageInfo.sizeZ;
-
-	t_CopyRegion.imageOffset.x = a_CopyInfo.dstImageInfo.offsetX;
-	t_CopyRegion.imageOffset.y = a_CopyInfo.dstImageInfo.offsetY;
-	t_CopyRegion.imageOffset.z = a_CopyInfo.dstImageInfo.offsetZ;
-
-	t_CopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_CopyRegion.imageSubresource.mipLevel = a_CopyInfo.dstImageInfo.mipLevel;
-	t_CopyRegion.imageSubresource.baseArrayLayer = a_CopyInfo.dstImageInfo.baseArrayLayer;
-	t_CopyRegion.imageSubresource.layerCount = a_CopyInfo.dstImageInfo.layerCount;
-
-	vkCmdCopyBufferToImage(t_Cmdlist->Buffer(),
-		t_SrcBuffer->buffer,
-		t_DstImage->image,
-		VKConv::ImageLayout(a_CopyInfo.dstImageInfo.layout),
 		1,
 		&t_CopyRegion);
 }

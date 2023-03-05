@@ -39,44 +39,50 @@ struct DX12Backend_inst
 	IDXGIFactory4* factory{};
 	ID3D12Debug1* debugController{};
 
-	DescriptorHeap* defaultHeap;
+	DescriptorHeap* CBV_SRV_UAV_Heap;
 	DescriptorHeap* uploadHeap;
 
-	DX12Device device{};
-	DX12Swapchain swapchain{};
+	IDXGIAdapter1* adapter;
+	ID3D12Device* device;
+
+	ID3D12DebugDevice1* debugDevice;
+
+	UINT swapWidth;
+	UINT swapHeight;
+	IDXGISwapChain3* swapchain;
 	ID3D12Resource** swapchainRenderTargets; //dyn alloc
 	ID3D12DescriptorHeap* swapchainRTVHeap;
 
 	D3D12MA::Allocator* DXMA;
 	ID3D12CommandQueue* directpresentqueue;
 
-	Pool<DescriptorHeap> Descriptorheaps;
-	Pool<BindingSet> bindingSetPool;
+	Pool<DXDescriptor> bindingSetPool;
 	Pool<DXPipeline> pipelinePool;
 	Pool<DXCommandQueue> cmdQueues;
 	Pool<DXCommandAllocator> cmdAllocators;
 	Pool<DXResource> renderResources;
+	Pool<DXImage> renderImages;
 	Pool<DXFence> fencePool;
 
 	void CreatePools()
 	{
-		Descriptorheaps.CreatePool(s_DX12Allocator, 16);
 		pipelinePool.CreatePool(s_DX12Allocator, 4);
 		bindingSetPool.CreatePool(s_DX12Allocator, 16);
 		cmdQueues.CreatePool(s_DX12Allocator, 4);
 		cmdAllocators.CreatePool(s_DX12Allocator, 16);
 		renderResources.CreatePool(s_DX12Allocator, 8);
+		renderImages.CreatePool(s_DX12Allocator, 8);
 		fencePool.CreatePool(s_DX12Allocator, 16);
 	}
 
 	void DestroyPools()
 	{
-		Descriptorheaps.DestroyPool(s_DX12Allocator);
 		pipelinePool.DestroyPool(s_DX12Allocator);
 		bindingSetPool.DestroyPool(s_DX12Allocator);
 		cmdQueues.DestroyPool(s_DX12Allocator);
 		cmdAllocators.DestroyPool(s_DX12Allocator);
 		renderResources.DestroyPool(s_DX12Allocator);
+		renderImages.DestroyPool(s_DX12Allocator);
 		fencePool.DestroyPool(s_DX12Allocator);
 	}
 };
@@ -93,13 +99,13 @@ enum class ShaderType
 
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
 {
-	s_DX12B.swapchain.width = a_Width;
-	s_DX12B.swapchain.height = a_Height;
+	s_DX12B.swapWidth = a_Width;
+	s_DX12B.swapHeight = a_Height;
 
 	//Just do a resize if a swapchain already exists.
-	if (s_DX12B.swapchain.swapchain != nullptr)
+	if (s_DX12B.swapchain != nullptr)
 	{
-		s_DX12B.swapchain.swapchain->ResizeBuffers(s_DX12B.backBufferCount,
+		s_DX12B.swapchain->ResizeBuffers(s_DX12B.backBufferCount,
 			a_Width,
 			a_Height,
 			DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -134,18 +140,18 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		__uuidof(IDXGISwapChain3), (void**)&t_NewSwapchain),
 		"DX12: Failed to get support for a IDXGISwapchain3.");
 
-	s_DX12B.swapchain.swapchain = (IDXGISwapChain3*)t_NewSwapchain;
+	s_DX12B.swapchain = (IDXGISwapChain3*)t_NewSwapchain;
 
-	s_DX12B.currentFrame = s_DX12B.swapchain.swapchain->GetCurrentBackBufferIndex();
+	s_DX12B.currentFrame = s_DX12B.swapchain->GetCurrentBackBufferIndex();
 
 	{ //crea
-		const UINT t_IncrementSize = s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		const UINT t_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 		D3D12_DESCRIPTOR_HEAP_DESC t_RtvHeapDesc = {};
 		t_RtvHeapDesc.NumDescriptors = s_DX12B.backBufferCount;
 		t_RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; //RTV heaps are CPU only so the cost is not high.
 		t_RtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-		DXASSERT(s_DX12B.device.logicalDevice->CreateDescriptorHeap(
+		DXASSERT(s_DX12B.device->CreateDescriptorHeap(
 			&t_RtvHeapDesc, IID_PPV_ARGS(&s_DX12B.swapchainRTVHeap)),
 			"DX12: Failed to create descriptor heap for swapchain.");
 
@@ -155,11 +161,11 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 		// Create a RTV for each frame.
 		for (UINT i = 0; i < s_DX12B.backBufferCount; i++)
 		{
-			DXASSERT(s_DX12B.swapchain.swapchain->GetBuffer(i,
+			DXASSERT(s_DX12B.swapchain->GetBuffer(i,
 				IID_PPV_ARGS(&s_DX12B.swapchainRenderTargets[i])),
 				"DX12: Failed to get swapchain buffer.");
 
-			s_DX12B.device.logicalDevice->CreateRenderTargetView(
+			s_DX12B.device->CreateRenderTargetView(
 				s_DX12B.swapchainRenderTargets[i],
 				nullptr,
 				rtvHandle);
@@ -169,7 +175,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 }
 
 
-BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackendCreateInfo& a_CreateInfo)
+BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	UINT t_FactoryFlags = 0;
 	s_DX12B.CreatePools();
@@ -201,11 +207,11 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	SIZE_T t_BestDedicatedVRAM = 0;
 
 	for (UINT adapterIndex = 0;
-		DXGI_ERROR_NOT_FOUND != s_DX12B.factory->EnumAdapters1(adapterIndex, &s_DX12B.device.adapter);
+		DXGI_ERROR_NOT_FOUND != s_DX12B.factory->EnumAdapters1(adapterIndex, &s_DX12B.adapter);
 		++adapterIndex)
 	{
 		DXGI_ADAPTER_DESC1 t_Desc;
-		s_DX12B.device.adapter->GetDesc1(&t_Desc);
+		s_DX12B.adapter->GetDesc1(&t_Desc);
 
 		//We don't take the software adapter.
 		if (t_Desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
@@ -214,30 +220,30 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 		if (t_Desc.DedicatedVideoMemory > t_BestDedicatedVRAM)
 		{
 			t_BestDedicatedVRAM = t_Desc.DedicatedVideoMemory;
-			t_CurrentBestAdapter = s_DX12B.device.adapter;
+			t_CurrentBestAdapter = s_DX12B.adapter;
 		}
 	}
-	s_DX12B.device.adapter = t_CurrentBestAdapter;
+	s_DX12B.adapter = t_CurrentBestAdapter;
 
-	DXASSERT(D3D12CreateDevice(s_DX12B.device.adapter,
+	DXASSERT(D3D12CreateDevice(s_DX12B.adapter,
 		D3D_FEATURE_LEVEL_12_0,
-		IID_PPV_ARGS(&s_DX12B.device.logicalDevice)),
+		IID_PPV_ARGS(&s_DX12B.device)),
 		"DX12: Failed to create logical device.");
 
 	if (a_CreateInfo.validationLayers)
 	{
-		DXASSERT(s_DX12B.device.logicalDevice->QueryInterface(&s_DX12B.device.debugDevice),
+		DXASSERT(s_DX12B.device->QueryInterface(&s_DX12B.debugDevice),
 			"DX12: Failed to query debug device.");
 	}
 	else
 	{
-		s_DX12B.device.debugDevice = nullptr;
+		s_DX12B.debugDevice = nullptr;
 	}
 #pragma endregion //DEVICE_CREATION
 
 	D3D12MA::ALLOCATOR_DESC t_AllocatorDesc = {};
-	t_AllocatorDesc.pDevice = s_DX12B.device.logicalDevice;
-	t_AllocatorDesc.pAdapter = s_DX12B.device.adapter;
+	t_AllocatorDesc.pDevice = s_DX12B.device;
+	t_AllocatorDesc.pAdapter = s_DX12B.adapter;
 
 	DXASSERT(D3D12MA::CreateAllocator(&t_AllocatorDesc, &s_DX12B.DXMA),
 		"DX12: Failed to create DX12 memory allocator");
@@ -245,7 +251,7 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	t_QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-	DXASSERT(s_DX12B.device.logicalDevice->CreateCommandQueue(&t_QueueDesc,
+	DXASSERT(s_DX12B.device->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&s_DX12B.directpresentqueue)),
 		"DX12: Failed to create direct command queue");
 
@@ -254,16 +260,14 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 		reinterpret_cast<HWND>(a_CreateInfo.windowHandle.ptrHandle));
 
 	//Create the two main heaps.
-	s_DX12B.defaultHeap = 
-		new (s_DX12B.Descriptorheaps.Get())DescriptorHeap(
-			s_DX12B.device.logicalDevice,
+	s_DX12B.CBV_SRV_UAV_Heap = BBnew(s_DX12Allocator,
+		DescriptorHeap)(s_DX12B.device,
 			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 			4096,
 			true);
 
-	s_DX12B.uploadHeap = 
-		new (s_DX12B.Descriptorheaps.Get())DescriptorHeap(
-			s_DX12B.device.logicalDevice,
+	s_DX12B.uploadHeap = BBnew(s_DX12Allocator,
+			DescriptorHeap)(s_DX12B.device,
 			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 			4096,
 			false);
@@ -275,7 +279,7 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 
 	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
 	{
-		new (&s_DX12B.frameFences[i]) DXFence(s_DX12B.device.logicalDevice);
+		new (&s_DX12B.frameFences[i]) DXFence(s_DX12B.device);
 	}
 
 	//Returns some info to the global backend that is important.
@@ -286,52 +290,62 @@ BackendInfo BB::DX12CreateBackend(Allocator a_TempAllocator, const RenderBackend
 	return t_BackendInfo;
 }
 
-RBindingSetHandle BB::DX12CreateBindingSet(const RenderBindingSetCreateInfo& a_Info)
+RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 {
-	BindingSet* t_BindingSet = s_DX12B.bindingSetPool.Get();
+	DXDescriptor* t_BindingSet = s_DX12B.bindingSetPool.Get();
 	*t_BindingSet = {};
 
 	t_BindingSet->shaderSpace = a_Info.bindingSet;
-	size_t t_ParamIndex = 0;
+	size_t t_ParamIndex = 1;
 
-	for (size_t i = 0; i < a_Info.constantBinds.size(); i++)
+	uint32_t t_TableDescriptorCount = 0;
+	for (size_t i = 0; i < a_Info.bindings.size(); i++)
 	{
-		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].rootIndex = t_ParamIndex++;
-		t_BindingSet->rootConstant[t_BindingSet->rootConstantCount].dwordCount = a_Info.constantBinds[i].dwordCount;
-		t_BindingSet->rootConstantCount++;
+		//Go through all the buffers.
+		for (size_t i = 0; i < a_Info.bindings.size(); i++)
+		{
+			//If it's part of the shader table, make sure to register it.
+			switch (a_Info.bindings[i].type)
+			{
+			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::READWRITE:
+				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
+				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
+				break;
+			}
+		}
+	}
+
+	if (t_TableDescriptorCount != 0)
+	{
+		t_BindingSet->tables.table = s_DX12B.CBV_SRV_UAV_Heap->Allocate(t_TableDescriptorCount);
+		t_BindingSet->tables.rootIndex = t_ParamIndex++;
 	}
 
 	//Go through all the buffers.
-	for (size_t i = 0; i < a_Info.bufferBinds.size(); i++)
+	for (size_t i = 0; i < a_Info.bindings.size(); i++)
 	{
-		switch (a_Info.bufferBinds[i].type)
+		switch (a_Info.bindings[i].type)
 		{
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_CONSTANT:
-			t_BindingSet->rootCBV[t_BindingSet->cbvCount].rootIndex = 
-			t_BindingSet->rootCBV[t_BindingSet->cbvCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+		case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:
+			t_BindingSet->rootCBV[t_BindingSet->cbvCount++].rootIndex = t_ParamIndex++;
 
-			//We do not increment the register since the root constants are also CBV.
-			++t_BindingSet->cbvCount;
 			break;
-		case DESCRIPTOR_BUFFER_TYPE::READONLY_BUFFER:
-			t_BindingSet->rootSRV[t_BindingSet->srvCount].rootIndex = t_ParamIndex++;
-			t_BindingSet->rootSRV[t_BindingSet->srvCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+		case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
+			t_BindingSet->rootCBV[t_BindingSet->cbvCount++].rootIndex = t_ParamIndex++;
 
-			++t_BindingSet->srvCount;
-			break;
-		case DESCRIPTOR_BUFFER_TYPE::READWRITE:
-			t_BindingSet->rootUAV[t_BindingSet->uavCount].rootIndex = t_ParamIndex++;
-			t_BindingSet->rootUAV[t_BindingSet->uavCount].virtAddress =
-				reinterpret_cast<DXResource*>(a_Info.bufferBinds[i].buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
-
-			++t_BindingSet->uavCount;
 			break;
 		}
 	}
 
-	return RBindingSetHandle(t_BindingSet);
+	return RDescriptorHandle(t_BindingSet);
 }
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
@@ -340,20 +354,20 @@ CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
+			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_COPY));
+			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_COPY));
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_COMPUTE));
+			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_COMPUTE));
 		break;
 	default:
 		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device.logicalDevice, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
+			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
 		break;
 	}
 }
@@ -362,7 +376,7 @@ CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocat
 {
 	//Create the command allocator and it's command lists.
 	DXCommandAllocator* t_CmdAllocator = new (s_DX12B.cmdAllocators.Get())
-		DXCommandAllocator(s_DX12B.device.logicalDevice,
+		DXCommandAllocator(s_DX12B.device,
 			DXConv::CommandListType(a_CreateInfo.queueType),
 			a_CreateInfo.commandListCount);
 
@@ -373,6 +387,8 @@ CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a
 {
 	return CommandListHandle(reinterpret_cast<DXCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList());
 }
+
+
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
@@ -395,9 +411,84 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	return RBufferHandle(t_Resource);
 }
 
+RImageHandle BB::DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo)
+{
+	DXImage* t_Image = new (s_DX12B.renderImages.Get())
+		DXImage(s_DX12B.DXMA, a_CreateInfo);
+
+	return RImageHandle(t_Image);
+}
+
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(s_DX12B.device.logicalDevice));
+	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(s_DX12B.device));
+}
+
+void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+{
+	D3D12_GPU_VIRTUAL_ADDRESS t_Address = reinterpret_cast<DXResource*>(a_Info.buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
+	t_Address += a_Info.bufferOffset;
+	
+	DXDescriptor* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_Info.set.ptrHandle);
+	D3D12_CPU_DESCRIPTOR_HANDLE t_DescHandle = t_Descriptor->tables.table.cpuHandle;
+	t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->tables.table.incrementSize * a_Info.descriptorIndex);
+
+	switch (a_Info.type)
+	{
+	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+	{
+		D3D12_CONSTANT_BUFFER_VIEW_DESC t_View{};
+		t_View.BufferLocation = t_Address;
+		t_View.SizeInBytes = a_Info.bufferSize;
+		s_DX12B.device->CreateConstantBufferView(&t_View, t_DescHandle);
+	}
+		break;
+	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+	{
+		D3D12_CONSTANT_BUFFER_VIEW_DESC t_View{};
+		t_View.BufferLocation = t_Address;
+		t_View.SizeInBytes = a_Info.bufferSize;
+		s_DX12B.device->CreateConstantBufferView(&t_View, t_DescHandle);
+	}
+		break;
+	case RENDER_DESCRIPTOR_TYPE::READWRITE:
+	{
+		//D3D12_UNORDERED_ACCESS_VIEW_DESC t_View{};
+
+		//s_DX12B.device->CreateUnorderedAccessView();
+	}
+		break;
+	default:
+		DXASSERT(false, "DX12, Trying to update a buffer descriptor with an invalid type.");
+		break;
+	}
+}
+
+void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+{
+	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
+
+	DXDescriptor* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_Info.set.ptrHandle);
+	D3D12_CPU_DESCRIPTOR_HANDLE t_DescHandle = t_Descriptor->tables.table.cpuHandle;
+	t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->tables.table.incrementSize * a_Info.descriptorIndex);
+
+	switch (a_Info.type)
+	{
+	case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
+	{
+		D3D12_SHADER_RESOURCE_VIEW_DESC t_View = {};
+		t_View.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		t_View.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		t_View.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		t_View.Texture2D.MipLevels = 1;
+		t_View.Texture2D.MostDetailedMip = 0;
+		s_DX12B.device->CreateShaderResourceView(t_Image->GetResource(), &t_View, t_DescHandle);
+	}
+		break;
+	default:
+		DXASSERT(false, "DX12, Trying to update a image descriptor with an invalid type.");
+		break;
+	}
 }
 
 //PipelineBuilder
@@ -409,7 +500,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
 	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
-	if (FAILED(s_DX12B.device.logicalDevice->CheckFeatureSupport(
+	if (FAILED(s_DX12B.device->CheckFeatureSupport(
 		D3D12_FEATURE_ROOT_SIGNATURE,
 		&t_FeatureData, sizeof(t_FeatureData))))
 	{
@@ -429,10 +520,10 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle)
+void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_BindingSetHandle)
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
-	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_BindingSetHandle.ptrHandle);
+	const DXDescriptor* t_BindingSet = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
 
 	size_t t_ParamIndex = t_BuildInfo->rootParamCount;
 	t_BuildInfo->buildPipeline.rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = t_ParamIndex;
@@ -454,24 +545,6 @@ void BB::DX12PipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle,
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regCBV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
-
-		++t_ParamIndex;
-	}
-
-	for (size_t i = 0; i < t_BindingSet->srvCount; i++)
-	{
-		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regSRV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
-
-		++t_ParamIndex;
-	}
-
-	for (size_t i = 0; i < t_BindingSet->uavCount; i++)
-	{
-		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regUAV++;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
@@ -524,7 +597,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 			t_Error->Release();
 		}
 
-		DXASSERT(s_DX12B.device.logicalDevice->CreateRootSignature(0,
+		DXASSERT(s_DX12B.device->CreateRootSignature(0,
 			t_Signature->GetBufferPointer(),
 			t_Signature->GetBufferSize(),
 			IID_PPV_ARGS(&t_BuildInfo->buildPipeline.rootSig)),
@@ -590,7 +663,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	t_BuildInfo->PSOdesc.SampleDesc.Count = 1;
 
 
-	DXASSERT(s_DX12B.device.logicalDevice->CreateGraphicsPipelineState(
+	DXASSERT(s_DX12B.device->CreateGraphicsPipelineState(
 		&t_BuildInfo->PSOdesc, IID_PPV_ARGS(&t_BuildInfo->buildPipeline.pipelineState)),
 		"DX12: Failed to create graphics pipeline");
 
@@ -674,7 +747,7 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	D3D12_CPU_DESCRIPTOR_HANDLE
 		rtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	rtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * 
-		s_DX12B.device.logicalDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+		s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
 	
 	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
@@ -750,6 +823,59 @@ void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle,
 	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
 }
 
+void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
+{
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	ID3D12Resource* t_DestResource = reinterpret_cast<DXResource*>(a_CopyInfo.dst.ptrHandle)->GetResource();
+	ID3D12Resource* t_SrcResource = reinterpret_cast<DXResource*>(a_CopyInfo.src.handle)->GetResource();
+	t_CommandList->List()->CopyBufferRegion(
+		t_DestResource,
+		a_CopyInfo.dstOffset,
+		t_SrcResource,
+		a_CopyInfo.srcOffset,
+		a_CopyInfo.size);
+}
+
+void BB::DX12UploadImage(const UploadImageInfo& a_Info)
+{
+	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
+	const D3D12_RESOURCE_DESC& t_Desc = t_Image->GetResource()->GetDesc();
+	const uint32_t subresourceNum = t_Desc.DepthOrArraySize + t_Desc.MipLevels;
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT* t_Layouts = BBnewArr(
+		s_DX12TempAllocator,
+		subresourceNum,
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT);
+
+	UINT64 t_TotalByteSize = 0;
+
+	s_DX12B.device->GetCopyableFootprints(&t_Desc, 0,
+		subresourceNum, 0,
+		t_Layouts,
+		nullptr,
+		nullptr,
+		&t_TotalByteSize);
+
+	UploadBufferChunk t_ImageChunk = a_Info.uploadBuffer.Alloc(t_TotalByteSize);
+
+	void* t_ImageStart = a_Info.imageData.data;
+	UINT64 t_SourcePitch = t_Desc.Width * sizeof(uint32_t);
+	//Layouts should be only 1 right now due to mips.
+	for (uint32_t i = 0; i < t_Layouts->Footprint.Height; i++)
+	{
+		memcpy(
+			Pointer::Add(t_ImageChunk.memory, static_cast<size_t>(t_Layouts->Footprint.RowPitch * i)),
+			Pointer::Add(t_ImageStart, t_SourcePitch * i),
+			t_SourcePitch);
+	}
+}
+
+void DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+{
+
+}
+
 void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
@@ -768,7 +894,8 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	D3D12_VERTEX_BUFFER_VIEW t_Views[12]{};
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
-		t_Views[i] = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetView().vertexView;
+		t_Views[i].SizeInBytes = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResourceSize();
+		t_Views[i].StrideInBytes = sizeof(Vertex);
 		t_Views[i].BufferLocation += a_BufferOffsets[i];
 	}
 	
@@ -778,21 +905,27 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	D3D12_INDEX_BUFFER_VIEW t_View = reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetView().indexView;
+	D3D12_INDEX_BUFFER_VIEW t_View{};
+	t_View.SizeInBytes = reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetResourceSize();
+	t_View.Format = DXGI_FORMAT_R32_UINT;
+	t_View.BufferLocation = reinterpret_cast<DXResource*>(a_Buffer.ptrHandle)->GetResource()->GetGPUVirtualAddress();
 	t_View.BufferLocation += a_Offset;
 	t_CommandList->List()->IASetIndexBuffer(&t_View);
 }
 
-void BB::DX12BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	for (size_t i = 0; i < a_SetCount; i++)
 	{
-		const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Sets[i].ptrHandle);
+		const DXDescriptor* t_BindingSet = reinterpret_cast<DXDescriptor*>(a_Sets[i].ptrHandle);
 		const uint32_t t_StartBindingIndex =
 			t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)];
 
+
+		t_CommandList->List()->SetGraphicsRootDescriptorTable(t_BindingSet->tables.rootIndex,
+			t_BindingSet->tables.table.gpuHandle);
 		//TODO: dynamic offsets not simulate how vulkan does it yet. No issue for now since everything in vulkan has a dynamic offset.
 		for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
 		{
@@ -800,29 +933,15 @@ void BB::DX12BindBindingSets(const RecordingCommandListHandle a_RecordingCmdHand
 				t_BindingSet->rootCBV[i].rootIndex + t_StartBindingIndex,
 				t_BindingSet->rootCBV[i].virtAddress + a_DynamicOffsets[i]);
 		}
-		for (size_t i = 0; i < t_BindingSet->srvCount; i++)
-		{
-			t_CommandList->List()->SetGraphicsRootShaderResourceView(
-				t_BindingSet->rootSRV[i].rootIndex + t_StartBindingIndex,
-				t_BindingSet->rootSRV[i].virtAddress + a_DynamicOffsets[i]);
-		}
-		for (size_t i = 0; i < t_BindingSet->uavCount; i++)
-		{
-			t_CommandList->List()->SetGraphicsRootUnorderedAccessView(
-				t_BindingSet->rootUAV[i].rootIndex + t_StartBindingIndex,
-				t_BindingSet->rootUAV[i].virtAddress + a_DynamicOffsets[i]);
-		}
 	}
 	
 }
 
-void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const RBindingSetHandle a_Set, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	const BindingSet* t_BindingSet = reinterpret_cast<BindingSet*>(a_Set.ptrHandle);
-	const uint32_t t_StartBindingIndex = t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)];
 
-	t_CommandList->List()->SetGraphicsRoot32BitConstants(t_BindingSet->rootConstant[a_ConstantIndex].rootIndex + t_StartBindingIndex,
+	t_CommandList->List()->SetGraphicsRoot32BitConstants(0,
 		a_DwordCount,
 		a_Data,
 		a_Offset);
@@ -842,7 +961,6 @@ void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, 
 	t_CommandList->List()->DrawIndexedInstanced(a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
 
-
 void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset)
 {
 	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
@@ -855,36 +973,6 @@ void BB::DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, co
 
 	t_Resource->GetResource()->Unmap(0, NULL);
 }
-
-void BB::DX12CopyBuffer(Allocator a_TempAllocator, const RenderCopyBufferInfo& a_CopyInfo)
-{
-	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CopyInfo.transferCommandHandle.ptrHandle);
-
-	ID3D12Resource* t_DestResource = reinterpret_cast<DXResource*>(a_CopyInfo.dst.ptrHandle)->GetResource();
-
-	for (size_t i = 0; i < a_CopyInfo.CopyRegionCount; i++)
-	{
-		t_CommandList->List()->CopyBufferRegion(
-			t_DestResource,
-			a_CopyInfo.copyRegions[i].dstOffset,
-			reinterpret_cast<DXResource*>(a_CopyInfo.src.handle)->GetResource(),
-			a_CopyInfo.copyRegions[i].srcOffset,
-			a_CopyInfo.copyRegions[i].size);
-	}
-}
-
-struct RenderBarriersInfo
-{
-	struct ResourceBarriers
-	{
-		RENDER_BUFFER_USAGE previous;
-		RENDER_BUFFER_USAGE next;
-		RBufferHandle buffer;
-		uint32_t subresource;
-	};
-	ResourceBarriers* barriers;
-	uint32_t barrierCount;
-};
 
 void* BB::DX12MapMemory(const RBufferHandle a_Handle)
 {
@@ -901,17 +989,17 @@ void BB::DX12UnMemory(const RBufferHandle a_Handle)
 	t_Resource->GetResource()->Unmap(0, NULL);
 }
 
-void BB::DX12StartFrame(Allocator a_TempAllocator, const StartFrameInfo& a_StartInfo)
+void BB::DX12StartFrame(const StartFrameInfo& a_StartInfo)
 {
 	s_DX12B.frameFences[s_DX12B.currentFrame].WaitIdle();
 }
 
-void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
+void BB::DX12ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
 	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
 		ID3D12CommandList** t_CommandLists = BBnewArr(
-			a_TempAllocator,
+			s_DX12TempAllocator,
 			a_ExecuteInfos[i].commandCount,
 			ID3D12CommandList*
 		);
@@ -941,10 +1029,10 @@ void BB::DX12ExecuteCommands(Allocator a_TempAllocator, CommandQueueHandle a_Exe
 }
 
 //Special execute commands, not sure if DX12 needs anything special yet.
-void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
+void BB::DX12ExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
 	ID3D12CommandList** t_CommandLists = BBnewArr(
-		a_TempAllocator,
+		s_DX12TempAllocator,
 		a_ExecuteInfo.commandCount,
 		ID3D12CommandList*
 	);
@@ -974,10 +1062,10 @@ void BB::DX12ExecutePresentCommand(Allocator a_TempAllocator, CommandQueueHandle
 		s_DX12B.frameFences[s_DX12B.currentFrame]);
 }
 
-FrameIndex BB::DX12PresentFrame(Allocator a_TempAllocator, const PresentFrameInfo& a_PresentInfo)
+FrameIndex BB::DX12PresentFrame(const PresentFrameInfo& a_PresentInfo)
 {
-	s_DX12B.swapchain.swapchain->Present(1, 0);
-	s_DX12B.currentFrame = s_DX12B.swapchain.swapchain->GetCurrentBackBufferIndex();
+	s_DX12B.swapchain->Present(1, 0);
+	s_DX12B.currentFrame = s_DX12B.swapchain->GetCurrentBackBufferIndex();
 
 	return s_DX12B.currentFrame;
 }
@@ -1042,29 +1130,29 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 	DXRelease(t_Pipeline->rootSig);
 }
 
-void BB::DX12DestroyBindingSet(const RBindingSetHandle a_Handle)
+void BB::DX12DestroyDescriptor(const RDescriptorHandle a_Handle)
 {
-	BindingSet* t_Set = reinterpret_cast<BindingSet*>(a_Handle.ptrHandle);
+	DXDescriptor* t_Set = reinterpret_cast<DXDescriptor*>(a_Handle.ptrHandle);
 	*t_Set = {}; //zero it for safety
 	s_DX12B.bindingSetPool.Free(t_Set);
 }
 
 void BB::DX12DestroyBackend()
 {
-	s_DX12B.swapchain.swapchain->SetFullscreenState(false, NULL);
-	s_DX12B.swapchain.swapchain->Release();
-	s_DX12B.swapchain.swapchain = nullptr;
+	s_DX12B.swapchain->SetFullscreenState(false, NULL);
+	s_DX12B.swapchain->Release();
+	s_DX12B.swapchain = nullptr;
 
 	s_DX12B.DXMA->Release();
-	if (s_DX12B.device.debugDevice)
+	if (s_DX12B.debugDevice)
 	{
-		s_DX12B.device.debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_NONE);
-		s_DX12B.device.debugDevice->Release();
+		s_DX12B.debugDevice->ReportLiveDeviceObjects(D3D12_RLDO_NONE);
+		s_DX12B.debugDevice->Release();
 	}
 
 
-	s_DX12B.device.logicalDevice->Release();
-	s_DX12B.device.adapter->Release();
+	s_DX12B.device->Release();
+	s_DX12B.adapter->Release();
 	if (s_DX12B.debugController)
 		s_DX12B.debugController->Release();
 
