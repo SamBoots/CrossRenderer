@@ -56,6 +56,15 @@ struct VulkanImage
 	uint16_t layerCount = 0;
 };
 
+struct VulkanUploadBuffer
+{
+#ifdef _DEBUG
+	const uint64_t size;
+#endif
+	uint64_t offset;
+	VulkanBuffer buffer;
+};
+
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
 //This allocator is what we use to temporary allocate elements.
 static RingAllocator s_VulkanTempAllocator{ s_VulkanAllocator, kbSize * 64 };
@@ -1102,6 +1111,28 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 	}
 
 	return RBufferHandle(t_Buffer);
+}
+
+RUploadBufferHandle BB::VulkanCreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info)
+{
+	VulkanBuffer* t_Buffer = s_VKB.bufferPool.Get();
+
+	VkBufferCreateInfo t_BufferInfo{};
+	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	t_BufferInfo.size = a_Info.size;
+	t_BufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo t_VmaAlloc{};
+	t_VmaAlloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VKASSERT(vmaCreateBuffer(s_VKB.vma,
+		&t_BufferInfo, &t_VmaAlloc,
+		&t_Buffer->buffer, &t_Buffer->allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory");
+
+	return RUploadBufferHandle(t_Buffer);
 }
 
 RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)

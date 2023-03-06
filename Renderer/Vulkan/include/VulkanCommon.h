@@ -10,6 +10,7 @@ namespace BB
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
+	RUploadBufferHandle VulkanCreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info);
 	RImageHandle VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 

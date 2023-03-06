@@ -28,6 +28,7 @@ namespace BB
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
 	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
+	using RUploadBufferHandle = FrameworkHandle<struct RUploadBufferHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
@@ -263,6 +264,11 @@ namespace BB
 		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
+	};
+
+	struct RenderUploadBufferCreateInfo
+	{
+		uint64_t size = 0;
 	};
 
 
