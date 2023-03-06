@@ -273,7 +273,7 @@ namespace BB
 		// The height in texels.
 		uint32_t height = 0;
 		// Amount of channels, often just 4 bytes. (so 4)
-		uint32_t channels;
+		uint32_t channels = 0;
 
 		uint16_t arrayLayers = 0;
 		uint16_t mipLevels = 0;

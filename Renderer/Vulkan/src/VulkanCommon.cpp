@@ -48,6 +48,12 @@ struct VulkanImage
 	VkImage image;
 	VmaAllocation allocation;
 	VkImageView view;
+
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t depth = 0;
+	uint16_t mips = 0;
+	uint16_t layerCount = 0;
 };
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
@@ -1188,6 +1194,12 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 	VKASSERT(vkCreateImageView(s_VKB.device, &t_ViewInfo, nullptr, &t_Image->view),
 		"Vulkan: Failed to create image view.");
+
+	t_Image->width = t_ImageCreateInfo.extent.width;
+	t_Image->height = t_ImageCreateInfo.extent.height;
+	t_Image->depth = t_ImageCreateInfo.extent.depth;
+	t_Image->mips = static_cast<uint16_t>(t_ViewInfo.subresourceRange.levelCount);
+	t_Image->layerCount = static_cast<uint16_t>(t_ViewInfo.subresourceRange.layerCount);
 
 	return RImageHandle(t_Image);
 }
