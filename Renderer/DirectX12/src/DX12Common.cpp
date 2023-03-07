@@ -495,7 +495,7 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 {
 	ImageReturnInfo t_ReturnInfo{};
 
-	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
+	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Handle.ptrHandle);
 	D3D12_RESOURCE_DESC t_Desc = t_Image->GetResource()->GetDesc();
 
 	const uint32_t subresourceNum = t_Desc.DepthOrArraySize + t_Desc.MipLevels;
@@ -508,13 +508,13 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 	UINT64 t_TotalByteSize = 0;
 
 	s_DX12B.device->GetCopyableFootprints(&t_Desc, 0,
-		subresourceNum, 0,
+		1, 0,
 		t_Layouts,
 		nullptr,
 		nullptr,
 		&t_TotalByteSize);
 
-	ImageReturnInfo t_ReturnInfo{};
+
 	t_ReturnInfo.allocInfo.imageAllocByteSize = t_TotalByteSize;
 	t_ReturnInfo.allocInfo.footRowPitch = t_Layouts->Footprint.RowPitch;
 	t_ReturnInfo.allocInfo.footHeight = t_Layouts->Footprint.Height;
@@ -876,39 +876,34 @@ void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, c
 
 void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
-	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
-	const D3D12_RESOURCE_DESC& t_Desc = t_Image->GetResource()->GetDesc();
-	const uint32_t subresourceNum = t_Desc.DepthOrArraySize + t_Desc.MipLevels;
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT* t_Layouts = BBnewArr(
-		s_DX12TempAllocator,
-		subresourceNum,
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT);
-	t_Layouts->Footprint.
-	UINT64 t_TotalByteSize = 0;
+	DXImage* t_DestImage = reinterpret_cast<DXImage*>(a_CopyInfo.dstImage.ptrHandle);
+	DXResource* t_SrcResource = reinterpret_cast<DXResource*>(a_CopyInfo.srcBuffer.handle);
 
-	s_DX12B.device->GetCopyableFootprints(&t_Desc, 0,
-		subresourceNum, 0,
-		t_Layouts,
+	D3D12_TEXTURE_COPY_LOCATION t_DestCopy = {};
+	t_DestCopy.pResource = t_DestImage->GetResource();
+	t_DestCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	t_DestCopy.SubresourceIndex = 0;
+
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT t_Layouts{};
+	s_DX12B.device->GetCopyableFootprints(&t_DestImage->GetResource()->GetDesc(), 0,
+		1, 0,
+		&t_Layouts,
 		nullptr,
 		nullptr,
-		&t_TotalByteSize);
+		nullptr);
 
-	UploadBufferChunk t_ImageChunk = a_Info.uploadBuffer.Alloc(t_TotalByteSize);
+	D3D12_TEXTURE_COPY_LOCATION t_SrcCopy = {};
+	t_SrcCopy.pResource = t_SrcResource->GetResource();
+	t_SrcCopy.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	t_SrcCopy.PlacedFootprint = t_Layouts;
 
-	void* t_ImageStart = a_Info.imageData.data;
-	UINT64 t_SourcePitch = t_Desc.Width * sizeof(uint32_t);
-	//Layouts should be only 1 right now due to mips.
-	for (uint32_t i = 0; i < t_Layouts->Footprint.Height; i++)
-	{
-		memcpy(
-			Pointer::Add(t_ImageChunk.memory, static_cast<size_t>(t_Layouts->Footprint.RowPitch * i)),
-			Pointer::Add(t_ImageStart, t_SourcePitch * i),
-			t_SourcePitch);
-	}
+	t_CommandList->List()->CopyTextureRegion(&t_DestCopy, 0, 0, 0, &t_SrcCopy, nullptr);
 }
 
-void DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+void BB::DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
 {
 
 }
@@ -1135,6 +1130,13 @@ void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 	DXFence* t_Fence = reinterpret_cast<DXFence*>(a_Handle.ptrHandle);
 	s_DX12B.fencePool.Free(t_Fence);
 	t_Fence->~DXFence();
+}
+
+void BB::DX12DestroyImage(const RImageHandle a_Handle)
+{
+	DXImage* t_Resource = reinterpret_cast<DXImage*>(a_Handle.ptrHandle);
+	s_DX12B.renderImages.Free(t_Resource);
+	t_Resource->~DXImage();
 }
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)

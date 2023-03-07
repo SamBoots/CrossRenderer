@@ -64,7 +64,7 @@ namespace BB
 	void DX12WaitDeviceReady();
 
 	void DX12DestroyFence(const RFenceHandle a_Handle);
-	void VulkanDestroyImage(const RImageHandle a_Handle);
+	void DX12DestroyImage(const RImageHandle a_Handle);
 	void DX12DestroyBuffer(const RBufferHandle a_Handle);
 	void DX12DestroyCommandList(const CommandListHandle a_Handle);
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
