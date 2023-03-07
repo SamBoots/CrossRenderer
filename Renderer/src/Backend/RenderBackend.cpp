@@ -60,6 +60,7 @@ UploadBuffer::~UploadBuffer()
 
 UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
 {
+	BB_ASSERT(m_Size > m_Offset + a_Size, "Now enough space to alloc in the uploadbuffer.");
 	UploadBufferChunk t_Chunk{};
 	t_Chunk.memory = Pointer::Add(m_Start, m_Offset);
 	t_Chunk.offset = m_Offset;

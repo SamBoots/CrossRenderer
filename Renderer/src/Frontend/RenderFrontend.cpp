@@ -489,6 +489,24 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		memcpy(t_StageBuffer.memory, t_Pixels, t_ImageInfo.imageAllocByteSize);
 
 
+		RenderCopyBufferImageInfo t_CopyImage{};
+		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
+		t_CopyImage.srcBufferOffset = t_StageBuffer.offset;
+		t_CopyImage.dstImage = t_ExampleImage;
+		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
+		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(y);
+		t_CopyImage.dstImageInfo.sizeZ = 1;
+		t_CopyImage.dstImageInfo.offsetX = 0;
+		t_CopyImage.dstImageInfo.offsetY = 0;
+		t_CopyImage.dstImageInfo.offsetZ = 0;
+		t_CopyImage.dstImageInfo.layerCount = 1;
+		t_CopyImage.dstImageInfo.mipLevel = 0;
+		t_CopyImage.dstImageInfo.baseArrayLayer = 0;
+		t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+
+		RenderBackend::CopyBufferImage(t_RecordingGraphics, t_CopyImage);
+
+
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
 		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
