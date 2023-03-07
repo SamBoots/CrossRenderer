@@ -18,19 +18,28 @@ namespace BB
 		PipelineBuilderHandle m_BuilderHandle;
 	};
 
+	struct UploadBufferChunk
+	{
+		void* memory;
+		uint64_t offset;
+	};
+
 	class UploadBuffer
 	{
 	public:
 		UploadBuffer(const uint64_t a_Size);
 		~UploadBuffer();
 
-		void* Alloc(const uint64_t a_Size);
+		UploadBufferChunk  Alloc(const uint64_t a_Size);
 		void Clear();
 
-		const RUploadBufferHandle Buffer() const { return m_Buffer; }
+		const RBufferHandle Buffer() const { return m_Buffer; }
 
 	private:
-		RUploadBufferHandle m_Buffer;
+		RBufferHandle m_Buffer;
+		const uint64_t m_Size;
+		uint64_t m_Offset;
+		void* m_Start;
 	};
 
 	namespace RenderBackend
@@ -44,13 +53,14 @@ namespace BB
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
-		RUploadBufferHandle CreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info);
 		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 
 		void UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
 		void UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
-		
+
+		ImageReturnInfo GetImageInfo(const RImageHandle a_Handle);
+
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
@@ -58,9 +68,8 @@ namespace BB
 		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 		
-		void* AllocateBufferSpace(const RenderAllocateBufferSpace& a_AllocateInfo);
-		void UploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 		void CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+		void CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 		void TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo);
 
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -95,7 +104,6 @@ namespace BB
 		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
-		void DestroyUploadBuffer(const RUploadBufferHandle a_Handle);
 		void DestroyImage(const RImageHandle a_Handle);
 		void DestroyFence(const RFenceHandle a_Handle);
 	};

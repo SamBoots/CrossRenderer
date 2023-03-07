@@ -28,7 +28,6 @@ namespace BB
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
 	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
-	using RUploadBufferHandle = FrameworkHandle<struct RUploadBufferHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
@@ -266,20 +265,11 @@ namespace BB
 		RENDER_MEMORY_PROPERTIES memProperties;
 	};
 
-	struct RenderUploadBufferCreateInfo
-	{
-		uint64_t size = 0;
-	};
-
-
 	struct RenderImageCreateInfo
 	{
-		// The width in texels.
 		uint32_t width = 0;
-		// The height in texels.
 		uint32_t height = 0;
-		// Amount of channels, often just 4 bytes. (so 4)
-		uint32_t channels = 0;
+		uint32_t depth = 0;
 
 		uint16_t arrayLayers = 0;
 		uint16_t mipLevels = 0;
@@ -317,21 +307,14 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
-	struct RenderAllocateBufferSpace
+	struct ImageReturnInfo
 	{
-		//Maybe do some alignment?
-		RUploadBufferHandle uploadBuffer;
-		size_t size;
-	};
-
-	struct UploadImageInfo
-	{
-		RUploadBufferHandle uploadBuffer;
-		RImageHandle image;
-		Buffer imageData;
+		uint64_t imageAllocByteSize;
 		uint32_t width;
 		uint32_t height;
-		uint32_t channels;
+		uint32_t depth;
+		uint16_t mips;
+		uint16_t arrayLayers;
 	};
 
 	struct RenderCopyBufferInfo
@@ -342,6 +325,32 @@ namespace BB
 		uint64_t srcOffset;
 		uint64_t dstOffset;
 		uint64_t size;
+	};
+
+	struct ImageCopyInfo
+	{
+		uint32_t sizeX;
+		uint32_t sizeY;
+		uint32_t sizeZ;
+
+		int32_t offsetX;
+		int32_t offsetY;
+		int32_t offsetZ;
+
+		uint32_t mipLevel;
+		uint32_t baseArrayLayer;
+		uint32_t layerCount;
+
+		RENDER_IMAGE_LAYOUT layout;
+	};
+
+	struct RenderCopyBufferImageInfo
+	{
+		RBufferHandle srcBuffer;
+		uint32_t srcBufferOffset;
+
+		RImageHandle dstImage;
+		ImageCopyInfo dstImageInfo;
 	};
 
 	struct StartRenderingInfo
@@ -419,12 +428,13 @@ namespace BB
 	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle		(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle			(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
-	typedef RUploadBufferHandle		(*PFN_RenderAPICreateUploadBuffer)(const RenderUploadBufferCreateInfo& a_Info);
-	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);;
+	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
 	typedef void (*PFN_RenderAPIUpdateDescriptorBuffer)(const UpdateDescriptorBufferInfo& a_Info);
 	typedef void (*PFN_RenderAPIUpdateDescriptorImage)(const UpdateDescriptorImageInfo& a_Info);
+
+	typedef ImageReturnInfo		(*PFN_RenderAPIGetImageInfo)(RImageHandle a_Handle);
 
 	//PipelineBuilder
 	typedef PipelineBuilderHandle	(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
@@ -438,7 +448,9 @@ namespace BB
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIStartRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 	typedef void (*PFN_RenderAPIEndRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+	
 	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+	typedef void (*PFN_RenderAPICopyBufferImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 	typedef void (*PFN_RenderAPITransitionImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
 
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -450,8 +462,6 @@ namespace BB
 	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
-	typedef void* (*PFN_RenderAPIAllocateBufferSpace)(const RenderAllocateBufferSpace& a_AllocateInfo);
-	typedef void (*PFN_RenderAPIUploadImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
 	typedef void* (*PFN_RenderAPIMapMemory)(const RBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIUnmapMemory)(const RBufferHandle a_Handle);
@@ -476,7 +486,6 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
-	typedef void (*PFN_RenderAPIDestroyUploadBuffer)(const RUploadBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyImage)(const RImageHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFence)(const RFenceHandle a_Handle);
 
@@ -488,12 +497,12 @@ namespace BB
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
-		PFN_RenderAPICreateUploadBuffer createUploadBuffer;
 		PFN_RenderAPICreateImage createImage;
 		PFN_RenderAPICreateFence createFence;
 
 		PFN_RenderAPIUpdateDescriptorBuffer updateDescriptorBuffer;
 		PFN_RenderAPIUpdateDescriptorImage updateDescriptorImage;
+		PFN_RenderAPIGetImageInfo getImageInfo;
 
 		PFN_RenderAPIPipelineBuilderInit pipelineBuilderInit;
 		PFN_RenderAPIDX12PipelineBuilderBindDescriptor pipelineBuilderBindDescriptor;
@@ -506,9 +515,8 @@ namespace BB
 		PFN_RenderAPIStartRendering startRendering;
 		PFN_RenderAPIEndRendering endRendering;
 
-		PFN_RenderAPIAllocateBufferSpace allocateBufferSpace;
-		PFN_RenderAPIUploadImage uploadImage;
 		PFN_RenderAPICopyBuffer copyBuffer;
+		PFN_RenderAPICopyBufferImage copyBufferImage;
 		PFN_RenderAPITransitionImage transitionImage;
 
 		PFN_RenderAPIBindPipeline bindPipeline;
@@ -543,7 +551,6 @@ namespace BB
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
-		PFN_RenderAPIDestroyUploadBuffer destroyUploadBuffer;
 		PFN_RenderAPIDestroyImage destroyImage;
 		PFN_RenderAPIDestroyFence destroyFence;
 	};

@@ -1,5 +1,4 @@
 #include "RenderFrontend.h"
-#include "RenderBackend.h"
 #include "ShaderCompiler.h"
 
 #include "Transform.h"
@@ -219,10 +218,11 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	STBI_FREE(t_Pixels); //HACK, will fix later.
 	{
 		RenderImageCreateInfo t_ImageInfo{};
-		t_ImageInfo.arrayLayers = 1;
-		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.width = static_cast<uint32_t>(x);
 		t_ImageInfo.height = static_cast<uint32_t>(y);
+		t_ImageInfo.depth = 1;
+		t_ImageInfo.arrayLayers = 1;
+		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
 		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
@@ -478,18 +478,16 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
 		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
 
+
 		int x, y, c;
+		//hacky way, whatever we do it for now.
+		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
+		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
 
-		UploadImageInfo t_UploadInfo{};
-		t_UploadInfo.uploadBuffer = t_UploadBuffer;
-		t_UploadInfo.width = static_cast<uint32_t>(x);
-		t_UploadInfo.height = static_cast<uint32_t>(y);
-		t_UploadInfo.channels = static_cast<uint32_t>(c);
-		t_UploadInfo.image = t_ExampleImage;
-		t_UploadInfo.imageData.data = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
-		t_UploadInfo.imageData.size = static_cast<size_t>(x * y * c);
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.imageAllocByteSize);
+		//depending on mips we do it differently.
+		memcpy(t_StageBuffer.memory, t_Pixels, t_ImageInfo.imageAllocByteSize);
 
-		RenderBackend::UploadImage(t_RecordingGraphics, t_UploadInfo);
 
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;

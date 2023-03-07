@@ -39,28 +39,38 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 }
 
 UploadBuffer::UploadBuffer(const uint64_t a_Size)
+	: m_Size(a_Size)
 {
-	RenderUploadBufferCreateInfo t_UploadBufferInfo;
-	t_UploadBufferInfo.size = a_Size;
-	m_Buffer = RenderBackend::CreateUploadBuffer(t_UploadBufferInfo);
+	RenderBufferCreateInfo t_UploadBufferInfo;
+	t_UploadBufferInfo.size = m_Size;
+	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
+	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+	t_UploadBufferInfo.data = nullptr;
+	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
+
+	m_Offset = 0;
+	m_Start = RenderBackend::MapMemory(m_Buffer);
 }
 
 UploadBuffer::~UploadBuffer()
 {
-	RenderBackend::DestroyUploadBuffer(m_Buffer);
+	RenderBackend::UnmapMemory(m_Buffer);
+	RenderBackend::DestroyBuffer(m_Buffer);
 }
 
-void* UploadBuffer::Alloc(const uint64_t a_Size)
+UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
 {
-	RenderAllocateBufferSpace t_AllocInfo{};
-	t_AllocInfo.uploadBuffer = m_Buffer;
-	t_AllocInfo.size = a_Size;
-	return RenderBackend::AllocateBufferSpace(t_AllocInfo);
+	UploadBufferChunk t_Chunk{};
+	t_Chunk.memory = Pointer::Add(m_Start, m_Offset);
+	t_Chunk.offset = m_Offset;
+	m_Offset += a_Size;
+	return t_Chunk;
 }
 
 void UploadBuffer::Clear()
 {
-	//Get back to start.
+	m_Offset = 0;
+	memset(m_Start, 0, m_Size);
 }
 
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
@@ -106,13 +116,13 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
-RUploadBufferHandle BB::RenderBackend::CreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info)
-{
-	return s_ApiFunc.createUploadBuffer(a_Info);
-}
-
 RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
+	BB_ASSERT(a_CreateInfo.width != 0, "Image width is 0! Choose a correct width for an image.");
+	BB_ASSERT(a_CreateInfo.height != 0, "Image height is 0! Choose a correct height for an image.");
+	BB_ASSERT(a_CreateInfo.depth != 0, "Image depth is 0! Standard 2d texture should have a depth of 1.");
+	BB_ASSERT(a_CreateInfo.arrayLayers != 0, "Image arrayLayers is 0! Standard should be 1 if you do not do anything special for a 2d image.");
+	BB_ASSERT(a_CreateInfo.mipLevels != 0, "Image mipLevels is 0! Standard should be 1 if you do not do mips for an image.");
 	return s_ApiFunc.createImage(a_CreateInfo);
 }
 
@@ -157,19 +167,19 @@ void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_Recordin
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
 
-void* AllocateBufferSpace(const RenderAllocateBufferSpace& a_AllocateInfo)
+ImageReturnInfo BB::RenderBackend::GetImageInfo(const RImageHandle a_Handle)
 {
-	return s_ApiFunc.allocateBufferSpace(a_AllocateInfo);
-}
-
-void BB::RenderBackend::UploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info)
-{
-	s_ApiFunc.uploadImage(a_RecordingCmdHandle, a_Info);
+	return s_ApiFunc.getImageInfo(a_Handle);
 }
 
 void BB::RenderBackend::CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	s_ApiFunc.copyBuffer(a_RecordingCmdHandle, a_CopyInfo);
+}
+
+void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+{
+	s_ApiFunc.copyBufferImage(a_RecordingCmdHandle, a_CopyInfo);
 }
 
 void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo)
@@ -301,11 +311,6 @@ void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyBuffer(a_Handle);
-}
-
-void BB::RenderBackend::DestroyUploadBuffer(const RUploadBufferHandle a_Handle)
-{
-	s_ApiFunc.destroyUploadBuffer(a_Handle);
 }
 
 void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
