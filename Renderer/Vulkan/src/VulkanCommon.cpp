@@ -1231,9 +1231,9 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	t_ViewInfo.image = t_Image->image;
 	t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_ViewInfo.subresourceRange.baseMipLevel = 0;
-	t_ViewInfo.subresourceRange.levelCount = static_cast<uint32_t>(a_CreateInfo.mipLevels);
+	t_ViewInfo.subresourceRange.levelCount = a_CreateInfo.mipLevels;
 	t_ViewInfo.subresourceRange.baseArrayLayer = 0;
-	t_ViewInfo.subresourceRange.layerCount = static_cast<uint32_t>(a_CreateInfo.arrayLayers);
+	t_ViewInfo.subresourceRange.layerCount = a_CreateInfo.arrayLayers;
 
 	VKASSERT(vkCreateImageView(s_VKB.device, &t_ViewInfo, nullptr, &t_Image->view),
 		"Vulkan: Failed to create image view.");
