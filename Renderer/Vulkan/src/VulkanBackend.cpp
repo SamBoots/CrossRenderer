@@ -14,6 +14,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createImage = VulkanCreateImage;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
+	a_FuncCreateInfo.GetImageInfo = VulkanGetImageInfo;
+
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
 	a_FuncCreateInfo.pipelineBuilderBindBindingSet = VulkanPipelineBuilderBindBindingSet;
 	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;

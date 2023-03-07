@@ -253,10 +253,11 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	STBI_FREE(t_Pixels); //HACK, will fix later.
 	{
 		RenderImageCreateInfo t_ImageInfo{};
-		t_ImageInfo.arrayLayers = 1;
-		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.width = static_cast<uint32_t>(x);
 		t_ImageInfo.height = static_cast<uint32_t>(y);
+		t_ImageInfo.depth = 1;
+		t_ImageInfo.arrayLayers = 1;
+		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
 		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
@@ -462,10 +463,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 	{
 		int x, y, c;
+		//hacky way, whatever we do it for now.
 		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
+		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
 
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(static_cast<size_t>(x * y));
-		memcpy(t_StageBuffer.memory, t_Pixels, static_cast<size_t>((x * y) * 4));
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.imageAllocByteSize);
+		//depending on mips we do it differently.
+		memcpy(t_StageBuffer.memory, t_Pixels, t_ImageInfo.imageAllocByteSize);
 		RenderTransitionImageInfo t_ImageTransInfo{};
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;

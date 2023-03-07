@@ -33,6 +33,8 @@ namespace BB
 		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 
+		ImageReturnInfo GetImageInfo(const RImageHandle a_Handle);
+
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);

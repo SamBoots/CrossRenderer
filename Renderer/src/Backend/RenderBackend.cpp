@@ -86,6 +86,11 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 
 RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
+	BB_ASSERT(a_CreateInfo.width != 0, "Image width is 0! Choose a correct width for an image.");
+	BB_ASSERT(a_CreateInfo.height != 0, "Image height is 0! Choose a correct height for an image.");
+	BB_ASSERT(a_CreateInfo.depth != 0, "Image depth is 0! Standard 2d texture should have a depth of 1.");
+	BB_ASSERT(a_CreateInfo.arrayLayers != 0, "Image arrayLayers is 0! Standard should be 1 if you do not do anything special for a 2d image.");
+	BB_ASSERT(a_CreateInfo.mipLevels != 0, "Image mipLevels is 0! Standard should be 1 if you do not do mips for an image.");
 	return s_ApiFunc.createImage(a_CreateInfo);
 }
 
@@ -117,6 +122,11 @@ void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_Record
 void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
+}
+
+ImageReturnInfo BB::RenderBackend::GetImageInfo(const RImageHandle a_Handle)
+{
+	return s_ApiFunc.GetImageInfo(a_Handle);
 }
 
 void BB::RenderBackend::CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)

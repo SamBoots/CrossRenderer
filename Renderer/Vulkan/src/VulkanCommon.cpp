@@ -48,6 +48,12 @@ struct VulkanImage
 	VkImage image;
 	VmaAllocation allocation;
 	VkImageView view;
+
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
+	uint16_t mips;
+	uint16_t arrays;
 };
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
@@ -1189,9 +1195,8 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	case RENDER_IMAGE_FORMAT::SRGB:
 		t_ImageCreateInfo.extent.width = a_CreateInfo.width;
 		t_ImageCreateInfo.extent.height = a_CreateInfo.height;
-		t_ImageCreateInfo.extent.depth = 1;
+		t_ImageCreateInfo.extent.depth = a_CreateInfo.depth;
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-
 		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
@@ -1266,6 +1271,12 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	VKASSERT(vkCreateImageView(s_VKB.device, &t_ViewInfo, nullptr, &t_Image->view),
 		"Vulkan: Failed to create image view.");
 
+	t_Image->width = a_CreateInfo.width;
+	t_Image->height = a_CreateInfo.height;
+	t_Image->depth = a_CreateInfo.depth;
+	t_Image->arrays = a_CreateInfo.arrayLayers;
+	t_Image->mips = a_CreateInfo.mipLevels;
+
 	return RImageHandle(t_Image);
 }
 
@@ -1287,6 +1298,28 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 		&t_TimelineSem);
 
 	return RFenceHandle(t_TimelineSem);
+}
+
+ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
+{
+	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.handle);
+
+	ImageReturnInfo t_ReturnInfo{};
+	t_ReturnInfo.imageAllocByteSize = static_cast<uint64_t>(
+		t_Image->width *
+		t_Image->height *
+		4 * //4 is the amount of channels it has.
+		t_Image->depth *
+		t_Image->arrays *
+		t_Image->mips);
+
+	t_ReturnInfo.width = t_Image->width;
+	t_ReturnInfo.height = t_Image->height;
+	t_ReturnInfo.depth = t_Image->depth;
+	t_ReturnInfo.arrayLayers = t_Image->arrays;
+	t_ReturnInfo.mips = t_Image->mips;
+
+	return t_ReturnInfo;
 }
 
 PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo)

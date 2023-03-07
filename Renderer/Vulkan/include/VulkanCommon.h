@@ -14,6 +14,8 @@ namespace BB
 	RImageHandle VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
+	ImageReturnInfo VulkanGetImageInfo(const RImageHandle a_Handle);
+
 	//PipelineBuilder
 	PipelineBuilderHandle VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
 	void VulkanPipelineBuilderBindBindingSet(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle);

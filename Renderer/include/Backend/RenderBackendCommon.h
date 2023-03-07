@@ -258,16 +258,14 @@ namespace BB
 		RENDER_MEMORY_PROPERTIES memProperties;
 	};
 
-
 	struct RenderImageCreateInfo
 	{
-		// The width in texels.
 		uint32_t width = 0;
-		// The height in texels.
 		uint32_t height = 0;
+		uint32_t depth = 0;
 
-		uint32_t arrayLayers = 0;
-		uint32_t mipLevels = 0;
+		uint16_t arrayLayers = 0;
+		uint16_t mipLevels = 0;
 		RENDER_IMAGE_TYPE type;
 		RENDER_IMAGE_USAGE usage;
 		RENDER_IMAGE_FORMAT format;
@@ -302,7 +300,15 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
-
+	struct ImageReturnInfo
+	{
+		uint64_t imageAllocByteSize;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
+		uint16_t mips;
+		uint16_t arrayLayers;
+	};
 
 	struct RenderCopyBufferInfo
 	{
@@ -418,6 +424,8 @@ namespace BB
 	typedef RImageHandle		(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);;
 	typedef RFenceHandle		(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
+	typedef ImageReturnInfo		(*PFN_RenderAPIGetImageInfo)(RImageHandle a_Handle);
+
 	//PipelineBuilder
 	typedef PipelineBuilderHandle(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
 	typedef void				(*PFN_RenderAPIDX12PipelineBuilderBindBindingSet)(const PipelineBuilderHandle a_Handle, const RBindingSetHandle a_BindingSetHandle);
@@ -483,6 +491,8 @@ namespace BB
 		PFN_RenderAPICreateBuffer createBuffer;
 		PFN_RenderAPICreateImage createImage;
 		PFN_RenderAPICreateFence createFence;
+
+		PFN_RenderAPIGetImageInfo GetImageInfo;
 
 		PFN_RenderAPIPipelineBuilderInit pipelineBuilderInit;
 		PFN_RenderAPIDX12PipelineBuilderBindBindingSet pipelineBuilderBindBindingSet;
