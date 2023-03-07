@@ -1306,13 +1306,15 @@ ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
 	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.handle);
 
 	ImageReturnInfo t_ReturnInfo{};
-	t_ReturnInfo.imageAllocByteSize = static_cast<uint64_t>(
+	t_ReturnInfo.allocInfo.imageAllocByteSize = static_cast<uint64_t>(
 		t_Image->width *
 		t_Image->height *
 		4 * //4 is the amount of channels it has.
 		t_Image->depth *
 		t_Image->arrays *
 		t_Image->mips);
+	t_ReturnInfo.allocInfo.footRowPitch = t_Image->width * sizeof(uint32_t);
+	t_ReturnInfo.allocInfo.footHeight = t_Image->height;
 
 	t_ReturnInfo.width = t_Image->width;
 	t_ReturnInfo.height = t_Image->height;

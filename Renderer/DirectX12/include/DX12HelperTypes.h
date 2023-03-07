@@ -83,7 +83,6 @@ namespace BB
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
 		UINT GetResourceSize() const { return m_Desc.Width * m_Desc.Height; };
-		const D3D12_RESOURCE_DESC& GetResourceDesc() const { return m_Desc; }
 
 	private:
 		ID3D12Resource* m_Resource;

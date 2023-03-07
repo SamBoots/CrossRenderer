@@ -9,9 +9,7 @@
 
 namespace BB
 {
-	//Functions
 	BackendInfo DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	//Can also do images here later.
 	RDescriptorHandle DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info);
 	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -22,6 +20,7 @@ namespace BB
 
 	void DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
 	void DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
+	ImageReturnInfo DX12GetImageInfo(const RImageHandle a_Handle);
 
 	//PipelineBuilder
 	PipelineBuilderHandle DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
@@ -36,7 +35,6 @@ namespace BB
 	void DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
 	void DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	
-	void DX12UploadImage(const UploadImageInfo& a_Info);
 	void DX12CopyBuffer(const RecordingCommandListHandle transferCommandHandle, const RenderCopyBufferInfo& a_CopyInfo);
 	void DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 	void DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);

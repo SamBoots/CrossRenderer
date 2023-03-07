@@ -307,9 +307,17 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
+
+
 	struct ImageReturnInfo
 	{
-		uint64_t imageAllocByteSize;
+		struct AllocInfo
+		{
+			uint64_t imageAllocByteSize;
+			uint32_t footRowPitch;
+			uint32_t footHeight;
+		} allocInfo;
+
 		uint32_t width;
 		uint32_t height;
 		uint32_t depth;
@@ -337,9 +345,9 @@ namespace BB
 		int32_t offsetY;
 		int32_t offsetZ;
 
-		uint32_t mipLevel;
-		uint32_t baseArrayLayer;
-		uint32_t layerCount;
+		uint16_t mipLevel;
+		uint16_t baseArrayLayer;
+		uint16_t layerCount;
 
 		RENDER_IMAGE_LAYOUT layout;
 	};

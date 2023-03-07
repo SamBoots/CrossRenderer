@@ -484,17 +484,23 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
 		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
 
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.imageAllocByteSize);
-		//depending on mips we do it differently.
-		memcpy(t_StageBuffer.memory, t_Pixels, t_ImageInfo.imageAllocByteSize);
-
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize);
+		const UINT64 t_SourcePitch = t_ImageInfo.width * sizeof(uint32_t);
+		//Layouts should be only 1 right now due to mips.
+		for (uint32_t i = 0; i < t_ImageInfo.allocInfo.footHeight; i++)
+		{
+			memcpy(
+				Pointer::Add(t_StageBuffer.memory, static_cast<size_t>(t_ImageInfo.allocInfo.footRowPitch * i)),
+				Pointer::Add(t_Pixels, t_SourcePitch * i),
+				t_SourcePitch);
+		}
 
 		RenderCopyBufferImageInfo t_CopyImage{};
 		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
 		t_CopyImage.srcBufferOffset = t_StageBuffer.offset;
 		t_CopyImage.dstImage = t_ExampleImage;
-		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
-		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(y);
+		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(t_ImageInfo.width);
+		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(t_ImageInfo.height);
 		t_CopyImage.dstImageInfo.sizeZ = 1;
 		t_CopyImage.dstImageInfo.offsetX = 0;
 		t_CopyImage.dstImageInfo.offsetY = 0;

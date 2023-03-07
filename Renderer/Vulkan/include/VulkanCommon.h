@@ -3,7 +3,6 @@
 
 namespace BB
 {
-	//Functions
 	BackendInfo VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
 	RDescriptorHandle VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Info);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
@@ -17,7 +16,6 @@ namespace BB
 	void VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
 	ImageReturnInfo VulkanGetImageInfo(const RImageHandle a_Handle);
 
-	//PipelineBuilder
 	PipelineBuilderHandle VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
 	void VulkanPipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
 	void VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);

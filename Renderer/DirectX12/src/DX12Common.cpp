@@ -491,6 +491,43 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	}
 }
 
+ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
+{
+	ImageReturnInfo t_ReturnInfo{};
+
+	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
+	D3D12_RESOURCE_DESC t_Desc = t_Image->GetResource()->GetDesc();
+
+	const uint32_t subresourceNum = t_Desc.DepthOrArraySize + t_Desc.MipLevels;
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT* t_Layouts = BBnewArr(
+		s_DX12TempAllocator,
+		subresourceNum,
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT);
+
+	UINT64 t_TotalByteSize = 0;
+
+	s_DX12B.device->GetCopyableFootprints(&t_Desc, 0,
+		subresourceNum, 0,
+		t_Layouts,
+		nullptr,
+		nullptr,
+		&t_TotalByteSize);
+
+	ImageReturnInfo t_ReturnInfo{};
+	t_ReturnInfo.allocInfo.imageAllocByteSize = t_TotalByteSize;
+	t_ReturnInfo.allocInfo.footRowPitch = t_Layouts->Footprint.RowPitch;
+	t_ReturnInfo.allocInfo.footHeight = t_Layouts->Footprint.Height;
+
+	t_ReturnInfo.width = t_Desc.Width;
+	t_ReturnInfo.height = t_Desc.Height;
+	t_ReturnInfo.depth = t_Desc.DepthOrArraySize;
+	t_ReturnInfo.arrayLayers = t_Desc.DepthOrArraySize;
+	t_ReturnInfo.mips = t_Desc.MipLevels;
+
+	return t_ReturnInfo;
+}
+
 //PipelineBuilder
 PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
 {
@@ -837,7 +874,7 @@ void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, c
 		a_CopyInfo.size);
 }
 
-void BB::DX12UploadImage(const UploadImageInfo& a_Info)
+void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
 	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
 	const D3D12_RESOURCE_DESC& t_Desc = t_Image->GetResource()->GetDesc();
@@ -847,7 +884,7 @@ void BB::DX12UploadImage(const UploadImageInfo& a_Info)
 		s_DX12TempAllocator,
 		subresourceNum,
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT);
-
+	t_Layouts->Footprint.
 	UINT64 t_TotalByteSize = 0;
 
 	s_DX12B.device->GetCopyableFootprints(&t_Desc, 0,
