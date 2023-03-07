@@ -38,40 +38,29 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 	return t_ReturnHandle;
 }
 
-UploadBuffer::UploadBuffer(const uint64_t a_Size) : m_Size(a_Size)
+UploadBuffer::UploadBuffer(const uint64_t a_Size)
 {
-	RenderBufferCreateInfo t_UploadBufferInfo;
-	t_UploadBufferInfo.size = m_Size;
-	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
-	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UploadBufferInfo.data = nullptr;
-	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
-
-	m_Offset = 0;
-	m_Position = RenderBackend::MapMemory(m_Buffer);
+	RenderUploadBufferCreateInfo t_UploadBufferInfo;
+	t_UploadBufferInfo.size = a_Size;
+	m_Buffer = RenderBackend::CreateUploadBuffer(t_UploadBufferInfo);
 }
 
 UploadBuffer::~UploadBuffer()
 {
-	RenderBackend::UnmapMemory(m_Buffer);
-	RenderBackend::DestroyBuffer(m_Buffer);
+	RenderBackend::DestroyUploadBuffer(m_Buffer);
 }
 
-UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
+void* UploadBuffer::Alloc(const uint64_t a_Size)
 {
-	UploadBufferChunk t_Chunk{};
-	t_Chunk.memory = m_Position;
-	t_Chunk.offset = m_Offset;
-	m_Position = Pointer::Add(m_Position, a_Size);
-	m_Offset += a_Size;
-	return t_Chunk;
+	RenderAllocateBufferSpace t_AllocInfo{};
+	t_AllocInfo.uploadBuffer = m_Buffer;
+	t_AllocInfo.size = a_Size;
+	return RenderBackend::AllocateBufferSpace(t_AllocInfo);
 }
 
 void UploadBuffer::Clear()
 {
-	//Get back to start
-	m_Position = Pointer::Subtract(m_Position, m_Offset);
-	m_Offset = 0;
+	//Get back to start.
 }
 
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
@@ -115,6 +104,11 @@ CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCr
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
 	return s_ApiFunc.createBuffer(a_CreateInfo);
+}
+
+RUploadBufferHandle BB::RenderBackend::CreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info)
+{
+	return s_ApiFunc.createUploadBuffer(a_Info);
 }
 
 RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_CreateInfo)
@@ -161,6 +155,11 @@ void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_Record
 void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
+}
+
+void* AllocateBufferSpace(const RenderAllocateBufferSpace& a_AllocateInfo)
+{
+	return s_ApiFunc.allocateBufferSpace(a_AllocateInfo);
 }
 
 void BB::RenderBackend::UploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info)
@@ -302,6 +301,11 @@ void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
 	s_ApiFunc.destroyBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyUploadBuffer(const RUploadBufferHandle a_Handle)
+{
+	s_ApiFunc.destroyUploadBuffer(a_Handle);
 }
 
 void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)

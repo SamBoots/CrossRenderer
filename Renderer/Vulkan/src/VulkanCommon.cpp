@@ -59,10 +59,12 @@ struct VulkanImage
 struct VulkanUploadBuffer
 {
 #ifdef _DEBUG
-	const uint64_t size;
+	uint64_t size;
+	void* memStart;
 #endif
 	uint64_t offset;
-	VulkanBuffer buffer;
+	VkBuffer buffer;
+	VmaAllocation allocation;
 };
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
@@ -162,6 +164,7 @@ struct VulkanBackend_inst
 	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
+	Pool<VulkanUploadBuffer> uploadBufferPool;
 	Pool<VulkanImage> imagePool;
 	Pool<VulkanBindingSet> bindingSetPool;
 
@@ -176,6 +179,7 @@ struct VulkanBackend_inst
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 16);
+		uploadBufferPool.CreatePool(s_VulkanAllocator, 4);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
 		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
 	}
@@ -186,6 +190,7 @@ struct VulkanBackend_inst
 		cmdAllocators.DestroyPool(s_VulkanAllocator);
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
+		uploadBufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
 		bindingSetPool.DestroyPool(s_VulkanAllocator);
 	}
@@ -1115,7 +1120,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 
 RUploadBufferHandle BB::VulkanCreateUploadBuffer(const RenderUploadBufferCreateInfo& a_Info)
 {
-	VulkanBuffer* t_Buffer = s_VKB.bufferPool.Get();
+	VulkanUploadBuffer* t_UpBuffer = s_VKB.uploadBufferPool.Get();
 
 	VkBufferCreateInfo t_BufferInfo{};
 	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1129,10 +1134,17 @@ RUploadBufferHandle BB::VulkanCreateUploadBuffer(const RenderUploadBufferCreateI
 
 	VKASSERT(vmaCreateBuffer(s_VKB.vma,
 		&t_BufferInfo, &t_VmaAlloc,
-		&t_Buffer->buffer, &t_Buffer->allocation,
+		&t_UpBuffer->buffer, &t_UpBuffer->allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
-	return RUploadBufferHandle(t_Buffer);
+	t_UpBuffer->size = t_BufferInfo.size;
+
+	VKASSERT(vmaMapMemory(s_VKB.vma,
+		t_UpBuffer->allocation,
+		&t_UpBuffer->memStart),
+		"Vulkan: Failed to map memory");
+
+	return RUploadBufferHandle(t_UpBuffer);
 }
 
 RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
@@ -1685,18 +1697,32 @@ void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 		&t_PresentBarrier);
 }
 
+void* BB::VulkanAllocateBufferSpace(const RenderAllocateBufferSpace& a_AllocateInfo)
+{
+	VulkanUploadBuffer* t_UploadBuffer = reinterpret_cast<VulkanUploadBuffer*>(a_AllocateInfo.uploadBuffer.ptrHandle);
+	BB_ASSERT(t_UploadBuffer->size > a_AllocateInfo.size + t_UploadBuffer->offset,
+		"Vulkan: Upload buffer too small! Maybe implement ring allocator type of buffer.");
+
+	//maybe do some alignment?
+	void* t_MemSpace = Pointer::Add(t_UploadBuffer->memStart, t_UploadBuffer->offset);
+	t_UploadBuffer->offset += a_AllocateInfo.size;
+}
+
 void BB::VulkanUploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info)
 {
 	const size_t t_MemSize = static_cast<const size_t>(a_Info.width * a_Info.height * a_Info.channels);
-	UploadBufferChunk t_StageBuffer = a_Info.uploadBuffer->Alloc(t_MemSize);
-	memcpy(t_StageBuffer.memory, a_Info.imageData.data, t_MemSize);
+	VulkanUploadBuffer* t_UploadBuffer = reinterpret_cast<VulkanUploadBuffer*>(a_Info.uploadBuffer.ptrHandle);
+	BB_ASSERT(t_UploadBuffer->size > t_MemSize + t_UploadBuffer->offset,
+		"Vulkan: Upload buffer too small! Maybe implement ring allocator type of buffer.");
+
+	memcpy(Pointer::Add(t_UploadBuffer->memStart, t_UploadBuffer->offset), a_Info.imageData.data, t_MemSize);
+
 
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_Info.uploadBuffer->Buffer().handle);
 	VulkanImage* t_DstImage = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle);
 
 	VkBufferImageCopy t_CopyRegion{};
-	t_CopyRegion.bufferOffset = t_StageBuffer.offset;
+	t_CopyRegion.bufferOffset = t_UploadBuffer->offset;
 	t_CopyRegion.bufferRowLength = 0;
 	t_CopyRegion.bufferImageHeight = 0;
 
@@ -1714,11 +1740,13 @@ void BB::VulkanUploadImage(const RecordingCommandListHandle a_RecordingCmdHandle
 	t_CopyRegion.imageSubresource.layerCount = 1;
 
 	vkCmdCopyBufferToImage(t_Cmdlist->Buffer(),
-		t_SrcBuffer->buffer,
+		t_UploadBuffer->buffer,
 		t_DstImage->image,
 		VKConv::ImageLayout(RENDER_IMAGE_LAYOUT::TRANSFER_DST),
 		1,
 		&t_CopyRegion);
+
+	t_UploadBuffer->offset += t_MemSize;
 }
 
 void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
@@ -2130,6 +2158,14 @@ void BB::VulkanDestroyImage(const RImageHandle a_Handle)
 	vkDestroyImageView(s_VKB.device, t_Image->view, nullptr);
 	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
 	s_VKB.imagePool.Free(t_Image);
+}
+
+void BB::VulkanDestroyUploadBuffer(const RUploadBufferHandle a_Handle)
+{
+	VulkanUploadBuffer* t_Buffer = reinterpret_cast<VulkanUploadBuffer*>(a_Handle.ptrHandle);
+	vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
+	vmaDestroyBuffer(s_VKB.vma, t_Buffer->buffer, t_Buffer->allocation);
+	s_VKB.uploadBufferPool.Free(t_Buffer);
 }
 
 void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)

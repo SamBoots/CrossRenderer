@@ -29,7 +29,8 @@ namespace BB
 	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
 	void VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
-	
+
+	void* VulkanAllocateBufferSpace(const RenderAllocateBufferSpace& a_AllocateInfo);
 	void VulkanUploadImage(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 	void VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
 	void VulkanTransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
@@ -62,6 +63,7 @@ namespace BB
 
 	void VulkanDestroyFence(const RFenceHandle a_Handle);
 	void VulkanDestroyImage(const RImageHandle a_Handle);
+	void VulkanDestroyUploadBuffer(const RUploadBufferHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
 	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);

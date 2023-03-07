@@ -317,9 +317,16 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
+	struct RenderAllocateBufferSpace
+	{
+		//Maybe do some alignment?
+		RUploadBufferHandle uploadBuffer;
+		size_t size;
+	};
+
 	struct UploadImageInfo
 	{
-		UploadBuffer* uploadBuffer;
+		RUploadBufferHandle uploadBuffer;
 		RImageHandle image;
 		Buffer imageData;
 		uint32_t width;
@@ -412,6 +419,7 @@ namespace BB
 	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle		(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle			(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
+	typedef RUploadBufferHandle		(*PFN_RenderAPICreateUploadBuffer)(const RenderUploadBufferCreateInfo& a_Info);
 	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);;
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
@@ -430,8 +438,6 @@ namespace BB
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIStartRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
 	typedef void (*PFN_RenderAPIEndRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
-
-	typedef void (*PFN_RenderAPIUploadImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
 	typedef void (*PFN_RenderAPITransitionImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
 
@@ -444,9 +450,9 @@ namespace BB
 	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
 	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
-	//Utility
+	typedef void* (*PFN_RenderAPIAllocateBufferSpace)(const RenderAllocateBufferSpace& a_AllocateInfo);
+	typedef void (*PFN_RenderAPIUploadImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const UploadImageInfo& a_Info);
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
-
 	typedef void* (*PFN_RenderAPIMapMemory)(const RBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIUnmapMemory)(const RBufferHandle a_Handle);
 
@@ -470,6 +476,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyUploadBuffer)(const RUploadBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyImage)(const RImageHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFence)(const RFenceHandle a_Handle);
 
@@ -481,6 +488,7 @@ namespace BB
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
+		PFN_RenderAPICreateUploadBuffer createUploadBuffer;
 		PFN_RenderAPICreateImage createImage;
 		PFN_RenderAPICreateFence createFence;
 
@@ -498,6 +506,7 @@ namespace BB
 		PFN_RenderAPIStartRendering startRendering;
 		PFN_RenderAPIEndRendering endRendering;
 
+		PFN_RenderAPIAllocateBufferSpace allocateBufferSpace;
 		PFN_RenderAPIUploadImage uploadImage;
 		PFN_RenderAPICopyBuffer copyBuffer;
 		PFN_RenderAPITransitionImage transitionImage;
@@ -534,6 +543,7 @@ namespace BB
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
+		PFN_RenderAPIDestroyUploadBuffer destroyUploadBuffer;
 		PFN_RenderAPIDestroyImage destroyImage;
 		PFN_RenderAPIDestroyFence destroyFence;
 	};
