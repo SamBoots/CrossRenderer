@@ -245,6 +245,8 @@ namespace BB
 		RENDER_BINDING_SET shaderSpace = {};
 
 		DescTable tables;
+		uint32_t tableDescRangeCount = 0;
+		D3D12_DESCRIPTOR_RANGE1* tableDescRanges = nullptr;
 
 		uint32_t rootConstantCount = 0;
 		RootConstant rootConstant[4];

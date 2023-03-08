@@ -292,13 +292,19 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 {
-	DXDescriptor* t_BindingSet = s_DX12B.bindingSetPool.Get();
-	*t_BindingSet = {};
+	DXDescriptor* t_Descriptor = s_DX12B.bindingSetPool.Get();
+	*t_Descriptor = {};
 
-	t_BindingSet->shaderSpace = a_Info.bindingSet;
+	t_Descriptor->shaderSpace = a_Info.bindingSet;
 	size_t t_ParamIndex = 1;
 
 	uint32_t t_TableDescriptorCount = 0;
+	uint32_t t_TableBindingCount = 0;
+	DescriptorBinding** t_TableBindings = BBnewArr(
+		s_DX12TempAllocator,
+		a_Info.bindings.size(),
+		DescriptorBinding*);
+
 	for (size_t i = 0; i < a_Info.bindings.size(); i++)
 	{
 		//Go through all the buffers.
@@ -308,25 +314,64 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 			switch (a_Info.bindings[i].type)
 			{
 			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+				t_TableBindings[t_TableBindingCount++] = &a_Info.bindings[i];
 				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
 				break;
 			case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+				t_TableBindings[t_TableBindingCount++] = &a_Info.bindings[i];
 				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
 				break;
 			case RENDER_DESCRIPTOR_TYPE::READWRITE:
+				t_TableBindings[t_TableBindingCount++] = &a_Info.bindings[i];
 				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
 				break;
 			case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
+				t_TableBindings[t_TableBindingCount++] = &a_Info.bindings[i];
 				t_TableDescriptorCount += a_Info.bindings[i].descriptorCount;
 				break;
 			}
 		}
 	}
 
-	if (t_TableDescriptorCount != 0)
+	if (t_TableBindingCount != 0)
 	{
-		t_BindingSet->tables.table = s_DX12B.CBV_SRV_UAV_Heap->Allocate(t_TableDescriptorCount);
-		t_BindingSet->tables.rootIndex = t_ParamIndex++;
+		uint32_t t_TableOffset = 0;
+
+		t_Descriptor->tables.table = s_DX12B.CBV_SRV_UAV_Heap->Allocate(t_TableDescriptorCount);
+		t_Descriptor->tables.rootIndex = t_ParamIndex++;
+
+		t_Descriptor->tableDescRangeCount = t_TableBindingCount;
+
+		//set the ranges.
+		t_Descriptor->tableDescRanges = BBnewArr(
+			s_DX12Allocator,
+			t_TableDescriptorCount,
+			D3D12_DESCRIPTOR_RANGE1);
+
+		for (size_t i = 0; i < t_TableBindingCount; i++)
+		{
+			switch (t_TableBindings[i]->type)
+			{
+			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::READWRITE:
+				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
+				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+				break;
+			}
+			
+			t_Descriptor->tableDescRanges[i].OffsetInDescriptorsFromTableStart = t_TableOffset;
+			t_Descriptor->tableDescRanges[i].NumDescriptors = t_TableBindings[i]->descriptorCount;
+			t_Descriptor->tableDescRanges[i].RegisterSpace = static_cast<UINT>(t_Descriptor->shaderSpace);
+
+			t_TableOffset += t_TableBindings[i]->descriptorCount;
+		}
 	}
 
 	//Go through all the buffers.
@@ -335,17 +380,17 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 		switch (a_Info.bindings[i].type)
 		{
 		case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:
-			t_BindingSet->rootCBV[t_BindingSet->cbvCount++].rootIndex = t_ParamIndex++;
+			t_Descriptor->rootCBV[t_Descriptor->cbvCount++].rootIndex = t_ParamIndex++;
 
 			break;
 		case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
-			t_BindingSet->rootCBV[t_BindingSet->cbvCount++].rootIndex = t_ParamIndex++;
+			t_Descriptor->rootCBV[t_Descriptor->cbvCount++].rootIndex = t_ParamIndex++;
 
 			break;
 		}
 	}
 
-	return RDescriptorHandle(t_BindingSet);
+	return RDescriptorHandle(t_Descriptor);
 }
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
@@ -565,20 +610,33 @@ void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle,
 	size_t t_ParamIndex = t_BuildInfo->rootParamCount;
 	t_BuildInfo->buildPipeline.rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = t_ParamIndex;
 
-	for (size_t i = 0; i < t_BindingSet->rootConstantCount; i++)
+	if (t_BindingSet->tables.table.count != 0)
 	{
+		for (uint32_t i = 0; i < t_BindingSet->tableDescRangeCount; i++)
+		{
+			switch (t_BindingSet->tableDescRanges[i].RangeType)
+			{
+			case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
+				t_BindingSet->tableDescRanges[i].RegisterSpace = t_BuildInfo->regCBV++;
+				break;
+			case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
+				t_BindingSet->tableDescRanges[i].RegisterSpace = t_BuildInfo->regSRV++;
+				break;
+			default:
+				BB_ASSERT(false, "DirectX12, Descriptor range type not yet supported!");
+				break;
+			}
+			
+		}
 
-		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-		t_BuildInfo->rootParams[t_ParamIndex].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; //This is for the indices so make it visible to all.
-
-		t_BuildInfo->rootParams[t_ParamIndex].Constants.Num32BitValues = t_BindingSet->rootConstant[i].dwordCount;
-		t_BuildInfo->rootParams[t_ParamIndex].Constants.ShaderRegister = t_BuildInfo->regCBV++;
-		t_BuildInfo->rootParams[t_ParamIndex].Constants.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		t_BuildInfo->rootParams[t_ParamIndex].DescriptorTable.NumDescriptorRanges = t_BindingSet->tableDescRangeCount;
+		t_BuildInfo->rootParams[t_ParamIndex].DescriptorTable.pDescriptorRanges = t_BindingSet->tableDescRanges;
 
 		++t_ParamIndex;
 	}
 
-	for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
+	for (uint32_t i = 0; i < t_BindingSet->cbvCount; i++)
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regCBV++;
@@ -651,7 +709,11 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 20,
+		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32,
 		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
 
 	t_BuildInfo->PSOdesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };

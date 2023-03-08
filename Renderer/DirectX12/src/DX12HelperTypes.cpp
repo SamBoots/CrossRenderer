@@ -166,7 +166,7 @@ DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreat
 	t_Desc.Height = a_Info.height;
 	t_Desc.DepthOrArraySize = static_cast<UINT16>(a_Info.arrayLayers);
 	t_Desc.MipLevels = static_cast<UINT16>(a_Info.mipLevels);
-	t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	t_Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	t_Desc.SampleDesc.Count = 1;
 	t_Desc.SampleDesc.Quality = 0;
 	t_Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
