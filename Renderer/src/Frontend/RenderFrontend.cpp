@@ -486,13 +486,16 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize);
 		const UINT64 t_SourcePitch = t_ImageInfo.width * sizeof(uint32_t);
+
+		void* t_ImageSrc = t_Pixels;
+		void* t_ImageDst = t_StageBuffer.memory;
 		//Layouts should be only 1 right now due to mips.
 		for (uint32_t i = 0; i < t_ImageInfo.allocInfo.footHeight; i++)
 		{
-			memcpy(
-				Pointer::Add(t_StageBuffer.memory, static_cast<size_t>(t_ImageInfo.allocInfo.footRowPitch * i)),
-				Pointer::Add(t_Pixels, t_SourcePitch * i),
-				t_SourcePitch);
+			memcpy(t_ImageDst, t_ImageSrc, t_SourcePitch);
+
+			t_ImageSrc = Pointer::Add(t_ImageSrc, t_SourcePitch);
+			t_ImageDst = Pointer::Add(t_ImageDst, t_ImageInfo.allocInfo.footRowPitch);
 		}
 
 		RenderCopyBufferImageInfo t_CopyImage{};

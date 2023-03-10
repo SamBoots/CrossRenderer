@@ -539,7 +539,7 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
 	{
 		D3D12_SHADER_RESOURCE_VIEW_DESC t_View = {};
-		t_View.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		t_View.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		t_View.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		t_View.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		t_View.Texture2D.MipLevels = 1;
@@ -1012,8 +1012,8 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 
 	D3D12_TEXTURE_COPY_LOCATION t_SrcCopy = {};
 	t_SrcCopy.pResource = t_SrcResource->GetResource();
-	t_SrcCopy.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 	t_SrcCopy.PlacedFootprint = t_Layouts;
+	t_SrcCopy.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 
 	t_CommandList->List()->CopyTextureRegion(&t_DestCopy, 0, 0, 0, &t_SrcCopy, nullptr);
 }
