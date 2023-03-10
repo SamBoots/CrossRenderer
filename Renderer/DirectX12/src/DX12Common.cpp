@@ -355,8 +355,11 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 
 		for (size_t i = 0; i < t_TableBindingCount; i++)
 		{
+			if (t_TableBindings[i]->descriptorCount > 1)
+				t_Descriptor->tableDescRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
+
 			switch (t_TableBindings[i]->type)
-			{
+			{	
 			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
 				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 				break;
@@ -603,9 +606,9 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 	}
 	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_BuildInfo->rootSigDesc.Desc_1_1.Flags = 
+	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
+	
 
 	t_BuildInfo->rootParams = BBnewArr(
 		t_BuildInfo->buildAllocator,
@@ -1040,7 +1043,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	{
 		t_Views[i].SizeInBytes = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResourceSize();
 		t_Views[i].StrideInBytes = sizeof(Vertex);
-		t_Views[i].BufferLocation += a_BufferOffsets[i];
+		t_Views[i].BufferLocation = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResource()->GetGPUVirtualAddress() + a_BufferOffsets[i];
 	}
 	
 	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
