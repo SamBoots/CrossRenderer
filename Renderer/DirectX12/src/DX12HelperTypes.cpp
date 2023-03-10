@@ -12,7 +12,22 @@ const D3D12_RESOURCE_STATES BB::DXConv::ResourceStates(const RENDER_BUFFER_USAGE
 	case RENDER_BUFFER_USAGE::STORAGE:				return D3D12_RESOURCE_STATE_COPY_DEST;
 	case RENDER_BUFFER_USAGE::STAGING:				return D3D12_RESOURCE_STATE_GENERIC_READ;
 	default:
-		BB_ASSERT(false, "DX12, Buffer Usage not supported by DX12!");
+		BB_ASSERT(false, "DX12, this Buffer Usage not supported by DX12!");
+		return D3D12_RESOURCE_STATE_COMMON;
+		break;
+	}
+}
+
+const D3D12_RESOURCE_STATES BB::DXConv::ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+{
+	switch (a_ImageLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::UNDEFINED:			return D3D12_RESOURCE_STATE_COMMON;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:			return D3D12_RESOURCE_STATE_COPY_DEST;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:			return D3D12_RESOURCE_STATE_COPY_SOURCE;
+	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:		return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	default:
+		BB_ASSERT(false, "DX12, this Image Layout not supported by DX12!");
 		return D3D12_RESOURCE_STATE_COMMON;
 		break;
 	}
@@ -188,7 +203,7 @@ DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreat
 	DXASSERT(a_ResourceAllocator->CreateResource(
 		&t_AllocationDesc,
 		&t_Desc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_COMMON,
 		NULL,
 		&m_Allocation,
 		IID_PPV_ARGS(&m_Resource)),
