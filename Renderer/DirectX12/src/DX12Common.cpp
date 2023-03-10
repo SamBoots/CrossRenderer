@@ -40,6 +40,7 @@ struct DX12Backend_inst
 	ID3D12Debug1* debugController{};
 
 	DescriptorHeap* CBV_SRV_UAV_Heap;
+	DescriptorHeap* sampler_Heap;
 	DescriptorHeap* uploadHeap;
 
 	IDXGIAdapter1* adapter;
@@ -266,11 +267,11 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 			4096,
 			true);
 
-	s_DX12B.uploadHeap = BBnew(s_DX12Allocator,
-			DescriptorHeap)(s_DX12B.device,
-			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-			4096,
-			false);
+	s_DX12B.sampler_Heap = BBnew(s_DX12Allocator,
+		DescriptorHeap)(s_DX12B.device,
+			D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
+			128,
+			true);
 
 
 	s_DX12B.frameFences = BBnewArr(s_DX12Allocator,
@@ -614,13 +615,15 @@ void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle,
 	{
 		for (uint32_t i = 0; i < t_BindingSet->tableDescRangeCount; i++)
 		{
+			t_BindingSet->tableDescRanges[i].RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
+
 			switch (t_BindingSet->tableDescRanges[i].RangeType)
 			{
 			case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
-				t_BindingSet->tableDescRanges[i].RegisterSpace = t_BuildInfo->regCBV++;
+				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regCBV++;
 				break;
 			case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
-				t_BindingSet->tableDescRanges[i].RegisterSpace = t_BuildInfo->regSRV++;
+				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSRV++;
 				break;
 			default:
 				BB_ASSERT(false, "DirectX12, Descriptor range type not yet supported!");
@@ -676,9 +679,19 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	{
+		D3D12_STATIC_SAMPLER_DESC t_SamplerDesc{};
+		t_SamplerDesc.RegisterSpace = 1;
+		t_SamplerDesc.ShaderRegister = 0;
+		t_SamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		t_SamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		t_SamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		t_SamplerDesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		t_SamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		
 		t_BuildInfo->rootSigDesc.Desc_1_1.NumParameters = t_BuildInfo->rootParamCount;
 		t_BuildInfo->rootSigDesc.Desc_1_1.pParameters = t_BuildInfo->rootParams;
-
+		t_BuildInfo->rootSigDesc.Desc_1_1.NumStaticSamplers = 1;
+		t_BuildInfo->rootSigDesc.Desc_1_1.pStaticSamplers = &t_SamplerDesc;
 		ID3DBlob* t_Signature;
 		ID3DBlob* t_Error;
 
@@ -801,6 +814,14 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->rtv = s_DX12B.swapchainRenderTargets[s_DX12B.currentFrame];
 
+	ID3D12DescriptorHeap* t_Heaps[] =
+	{
+		s_DX12B.CBV_SRV_UAV_Heap->GetHeap(),
+		s_DX12B.sampler_Heap->GetHeap()
+	};
+
+	t_CommandList->List()->SetDescriptorHeaps(2, t_Heaps);
+
 	D3D12_RESOURCE_STATES t_StateBefore;
 	D3D12_RESOURCE_STATES t_StateAfter;
 	switch (a_RenderInfo.colorInitialLayout)
@@ -817,7 +838,7 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:
 		t_StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
 		break;
-	default:											BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+	default: BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
 	}
 
 	switch (a_RenderInfo.colorFinalLayout)
@@ -831,7 +852,7 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:
 		t_StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
 		break;
-	default:											BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
+	default: BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
 	}
 
 	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier;

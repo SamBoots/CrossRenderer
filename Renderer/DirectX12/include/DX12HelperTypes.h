@@ -36,6 +36,42 @@ namespace BB
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constantView;
 	};
 
+	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
+	struct DescriptorHeapHandle
+	{
+		ID3D12DescriptorHeap* heap;
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle{};
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
+		uint32_t heapIndex{};
+		uint32_t count{};
+		uint32_t incrementSize{};
+	};
+	
+	class DescriptorHeap
+	{
+	public:
+		DescriptorHeap(ID3D12Device* a_Device, D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible);
+		~DescriptorHeap();
+
+		DescriptorHeapHandle Allocate(const uint32_t a_Count);
+
+		void Reset();
+
+		D3D12_CPU_DESCRIPTOR_HANDLE GetCPUStartPtr() const { return m_HeapCPUStart; }
+		D3D12_GPU_DESCRIPTOR_HANDLE GetGPUStartPtr() const { return m_HeapGPUStart; }
+		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
+		ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
+
+	private:
+		ID3D12DescriptorHeap* m_DescriptorHeap;
+		D3D12_DESCRIPTOR_HEAP_TYPE m_HeapType;
+		D3D12_CPU_DESCRIPTOR_HANDLE m_HeapCPUStart;
+		D3D12_GPU_DESCRIPTOR_HANDLE m_HeapGPUStart;
+		uint32_t m_MaxDescriptors = 0;
+		uint32_t m_InUse = 0;
+		uint32_t m_IncrementSize = 0;
+	};
+
 	class DXFence
 	{
 	public:
@@ -83,9 +119,11 @@ namespace BB
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
 
+
 	private:
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
+
 	};
 
 	class DXCommandQueue
@@ -181,43 +219,6 @@ namespace BB
 		uint32_t m_ListSize;
 
 		friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
-	};
-
-	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
-	struct DescriptorHeapHandle
-	{
-		ID3D12DescriptorHeap* heap;
-		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle{};
-		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
-		uint32_t heapIndex{};
-		uint32_t count{};
-		uint32_t incrementSize{};
-
-	};
-
-	class DescriptorHeap
-	{
-	public:
-		DescriptorHeap(ID3D12Device* a_Device, D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible);
-		~DescriptorHeap();
-
-		DescriptorHeapHandle Allocate(const uint32_t a_Count);
-
-		void Reset();
-
-		D3D12_CPU_DESCRIPTOR_HANDLE GetCPUStartPtr() const { return m_HeapCPUStart; }
-		D3D12_GPU_DESCRIPTOR_HANDLE GetGPUStartPtr() const { return m_HeapGPUStart; }
-		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
-		const ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
-
-	private:
-		ID3D12DescriptorHeap* m_DescriptorHeap;
-		D3D12_DESCRIPTOR_HEAP_TYPE m_HeapType;
-		D3D12_CPU_DESCRIPTOR_HANDLE m_HeapCPUStart;
-		D3D12_GPU_DESCRIPTOR_HANDLE m_HeapGPUStart;
-		uint32_t m_MaxDescriptors = 0;
-		uint32_t m_InUse = 0;
-		uint32_t m_IncrementSize = 0;
 	};
 
 	struct RootConstant
