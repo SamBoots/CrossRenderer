@@ -246,14 +246,14 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_DescBinds[0].binding = 0;
 			t_DescBinds[0].descriptorCount = 1;
 			t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
 			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//ModelBind
 			t_DescBinds[1].binding = 1;
 			t_DescBinds[1].descriptorCount = 1;
 			t_DescBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
 			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 
@@ -281,7 +281,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_BufferUpdate.binding = 0;
 		t_BufferUpdate.descriptorIndex = 0;
 		t_BufferUpdate.set = t_Descriptor1;
-		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
 
 		t_BufferUpdate.buffer = s_PerFrameInfo.perFrameBuffer;
 		t_BufferUpdate.bufferOffset = 0;

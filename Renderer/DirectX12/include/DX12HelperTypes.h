@@ -254,6 +254,8 @@ namespace BB
 
 		uint32_t cbvCount = 0;
 		RootDescriptor rootCBV[4];
+		uint32_t srvCount = 0;
+		RootDescriptor rootSRV[4];
 	};
 
 	//Maybe create a class and a builder for this?

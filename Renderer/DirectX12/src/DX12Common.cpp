@@ -20,9 +20,13 @@ struct DXPipelineBuildInfo
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC PSOdesc{};
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
 
-	UINT regCBV = 0;
-	UINT regSRV = 0;
-	UINT regUAV = 0;
+	struct RegSpace
+	{
+		UINT regCBV = 0;
+		UINT regSRV = 0;
+		UINT regUAV = 0;
+	};
+	RegSpace regSpaces[4];
 
 	//Maximum of 4 bindings.
 	uint32_t rootParamCount = 0;
@@ -297,7 +301,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 	*t_Descriptor = {};
 
 	t_Descriptor->shaderSpace = a_Info.bindingSet;
-	size_t t_ParamIndex = 1;
+	size_t t_ParamIndex = 0;
 
 	uint32_t t_TableDescriptorCount = 0;
 	uint32_t t_TableBindingCount = 0;
@@ -385,7 +389,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 
 			break;
 		case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
-			t_Descriptor->rootCBV[t_Descriptor->cbvCount++].rootIndex = t_ParamIndex++;
+			t_Descriptor->rootSRV[t_Descriptor->srvCount++].rootIndex = t_ParamIndex++;
 
 			break;
 		}
@@ -481,15 +485,15 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 
 	switch (a_Info.type)
 	{
-	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
 	{
 		D3D12_CONSTANT_BUFFER_VIEW_DESC t_View{};
 		t_View.BufferLocation = t_Address;
 		t_View.SizeInBytes = a_Info.bufferSize;
 		s_DX12B.device->CreateConstantBufferView(&t_View, t_DescHandle);
 	}
-		break;
-	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+	break;
+	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
 	{
 		D3D12_CONSTANT_BUFFER_VIEW_DESC t_View{};
 		t_View.BufferLocation = t_Address;
@@ -503,7 +507,16 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 
 		//s_DX12B.device->CreateUnorderedAccessView();
 	}
-		break;
+	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:
+	{
+		t_Descriptor->rootSRV[a_Info.binding].virtAddress = t_Address;
+	}
+	break;
+	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
+	{
+		t_Descriptor->rootSRV[a_Info.binding].virtAddress = t_Address;
+	}
+	break;
 	default:
 		DXASSERT(false, "DX12, Trying to update a buffer descriptor with an invalid type.");
 		break;
@@ -590,15 +603,22 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 	}
 	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
+	t_BuildInfo->rootSigDesc.Desc_1_1.Flags = 
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	t_BuildInfo->rootSigDesc.Desc_1_1.NumStaticSamplers = 0;
-	t_BuildInfo->rootSigDesc.Desc_1_1.pStaticSamplers = nullptr;
+
 
 	t_BuildInfo->rootParams = BBnewArr(
 		t_BuildInfo->buildAllocator,
 		MAXIMUM_ROOT_PARAMETERS,
 		D3D12_ROOT_PARAMETER1);
+
+	//Reserve one space for the root constants
+	t_BuildInfo->rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	t_BuildInfo->rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	t_BuildInfo->rootParams[0].Constants.RegisterSpace = 0;
+	t_BuildInfo->rootParams[0].Constants.ShaderRegister = t_BuildInfo->regSpaces[0].regCBV++;
+	t_BuildInfo->rootParams[0].Constants.Num32BitValues = 1;
+	++t_BuildInfo->rootParamCount;
 
 	return PipelineBuilderHandle(t_BuildInfo);
 }
@@ -620,10 +640,10 @@ void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle,
 			switch (t_BindingSet->tableDescRanges[i].RangeType)
 			{
 			case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
-				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regCBV++;
+				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regCBV++;
 				break;
 			case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
-				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSRV++;
+				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regSRV++;
 				break;
 			default:
 				BB_ASSERT(false, "DirectX12, Descriptor range type not yet supported!");
@@ -642,7 +662,16 @@ void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle,
 	for (uint32_t i = 0; i < t_BindingSet->cbvCount; i++)
 	{
 		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regCBV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regCBV++;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
+
+		++t_ParamIndex;
+	}
+
+	for (uint32_t i = 0; i < t_BindingSet->srvCount; i++)
+	{
+		t_BuildInfo->rootParams[t_ParamIndex].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.ShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regSRV++;
 		t_BuildInfo->rootParams[t_ParamIndex].Descriptor.RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 		++t_ParamIndex;
@@ -1039,14 +1068,23 @@ void BB::DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHand
 			t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)];
 
 
-		t_CommandList->List()->SetGraphicsRootDescriptorTable(t_BindingSet->tables.rootIndex,
-			t_BindingSet->tables.table.gpuHandle);
+		if (t_BindingSet->tableDescRangeCount)
+			t_CommandList->List()->SetGraphicsRootDescriptorTable(t_BindingSet->tables.rootIndex + t_StartBindingIndex, t_BindingSet->tables.table.gpuHandle);
+
 		//TODO: dynamic offsets not simulate how vulkan does it yet. No issue for now since everything in vulkan has a dynamic offset.
 		for (size_t i = 0; i < t_BindingSet->cbvCount; i++)
 		{
 			t_CommandList->List()->SetGraphicsRootConstantBufferView(
 				t_BindingSet->rootCBV[i].rootIndex + t_StartBindingIndex,
 				t_BindingSet->rootCBV[i].virtAddress + a_DynamicOffsets[i]);
+		}
+
+		//TODO: dynamic offsets not simulate how vulkan does it yet. No issue for now since everything in vulkan has a dynamic offset.
+		for (size_t i = 0; i < t_BindingSet->srvCount; i++)
+		{
+			t_CommandList->List()->SetGraphicsRootShaderResourceView(
+				t_BindingSet->rootSRV[i].rootIndex + t_StartBindingIndex,
+				t_BindingSet->rootSRV[i].virtAddress + a_DynamicOffsets[i]);
 		}
 	}
 	
