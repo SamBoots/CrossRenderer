@@ -86,7 +86,8 @@ namespace BB
 
 	enum class RENDER_IMAGE_USAGE : uint32_t
 	{
-		SAMPLER
+		SAMPLER,
+		DEPTH_ATTACHMENT
 	};
 
 	enum class RENDER_IMAGE_FORMAT : uint32_t
@@ -307,8 +308,6 @@ namespace BB
 		uint32_t fenceCount;
 	};
 
-
-
 	struct ImageReturnInfo
 	{
 		struct AllocInfo
@@ -390,7 +389,8 @@ namespace BB
 
 	struct PipelineInitInfo
 	{
-
+		//can be null
+		RImageHandle depthStencil;
 	};
 
 	struct ShaderCreateInfo

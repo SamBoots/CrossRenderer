@@ -61,6 +61,7 @@ PipelineHandle t_Pipeline;
 UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
+RImageHandle t_DepthImage;
 
 static FrameIndex s_CurrentFrame;
 
@@ -90,6 +91,7 @@ static void Draw3DFrame()
 	t_StartRenderInfo.clearColor[1] = 0.0f;
 	t_StartRenderInfo.clearColor[2] = 0.0f;
 	t_StartRenderInfo.clearColor[3] = 1.0f;
+	t_StartRenderInfo.depthStencil = t_DepthImage;
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
@@ -229,6 +231,21 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
 
 		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
+	}
+
+	{ //depth create info
+		RenderImageCreateInfo t_DepthInfo{};
+		t_DepthInfo.width = static_cast<uint32_t>(s_RendererInst.swapchainWidth);
+		t_DepthInfo.height = static_cast<uint32_t>(s_RendererInst.swapchainHeight);
+		t_DepthInfo.depth = 1;
+		t_DepthInfo.arrayLayers = 1;
+		t_DepthInfo.mipLevels = 1;
+		t_DepthInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
+		t_DepthInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
+		t_DepthInfo.usage = RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT;
+		t_DepthInfo.format = RENDER_IMAGE_FORMAT::DEPTH_STENCIL;
+
+		t_DepthImage = RenderBackend::CreateImage(t_DepthInfo);
 	}
 
 
