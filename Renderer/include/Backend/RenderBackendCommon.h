@@ -371,6 +371,8 @@ namespace BB
 		RENDER_IMAGE_LAYOUT colorInitialLayout{};
 		RENDER_IMAGE_LAYOUT colorFinalLayout{};
 
+		RImageHandle depthStencil;
+
 		//RGBA
 		float clearColor[4]{};
 	};
