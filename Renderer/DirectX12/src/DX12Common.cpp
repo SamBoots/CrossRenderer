@@ -994,6 +994,7 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 	DXImage* t_DestImage = reinterpret_cast<DXImage*>(a_CopyInfo.dstImage.ptrHandle);
 	DXResource* t_SrcResource = reinterpret_cast<DXResource*>(a_CopyInfo.srcBuffer.handle);
 
+	//may include offsets later.
 	D3D12_TEXTURE_COPY_LOCATION t_DestCopy = {};
 	t_DestCopy.pResource = t_DestImage->GetResource();
 	t_DestCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
@@ -1014,7 +1015,11 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 	t_SrcCopy.PlacedFootprint = t_Layouts;
 	t_SrcCopy.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 
-	t_CommandList->List()->CopyTextureRegion(&t_DestCopy, 0, 0, 0, &t_SrcCopy, nullptr);
+	t_CommandList->List()->CopyTextureRegion(&t_DestCopy, 
+		a_CopyInfo.dstImageInfo.sizeX,
+		a_CopyInfo.dstImageInfo.sizeY,
+		a_CopyInfo.dstImageInfo.sizeZ,
+		&t_SrcCopy, nullptr);
 }
 
 void BB::DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
