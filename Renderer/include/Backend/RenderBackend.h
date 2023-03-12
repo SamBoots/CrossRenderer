@@ -31,6 +31,7 @@ namespace BB
 		~UploadBuffer();
 
 		UploadBufferChunk  Alloc(const uint64_t a_Size);
+		const uint64_t GetCurrentOffset() const { return m_Offset; }
 		void Clear();
 
 		const RBufferHandle Buffer() const { return m_Buffer; }

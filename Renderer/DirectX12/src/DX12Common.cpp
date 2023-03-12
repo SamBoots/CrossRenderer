@@ -539,7 +539,7 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
 	{
 		D3D12_SHADER_RESOURCE_VIEW_DESC t_View = {};
-		t_View.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+		t_View.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		t_View.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		t_View.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		t_View.Texture2D.MipLevels = 1;
@@ -714,11 +714,16 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 		D3D12_STATIC_SAMPLER_DESC t_SamplerDesc{};
 		t_SamplerDesc.RegisterSpace = 1;
 		t_SamplerDesc.ShaderRegister = 0;
-		t_SamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		t_SamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		t_SamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		t_SamplerDesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		t_SamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		t_SamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		t_SamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		t_SamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 		t_SamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		t_SamplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+		t_SamplerDesc.MinLOD = 0.0f;
+		t_SamplerDesc.MaxLOD = 0.0f;
+		t_SamplerDesc.MipLODBias = 0;
+		t_SamplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		
 		t_BuildInfo->rootSigDesc.Desc_1_1.NumParameters = t_BuildInfo->rootParamCount;
 		t_BuildInfo->rootSigDesc.Desc_1_1.pParameters = t_BuildInfo->rootParams;
@@ -751,17 +756,10 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 
 	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
 
-	D3D12_INPUT_ELEMENT_DESC t_InputElementDescs[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 20,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32,
-		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0} };
+	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> t_InputElementDescs = VertexInputElements();
 
-	t_BuildInfo->PSOdesc.InputLayout = { t_InputElementDescs, _countof(t_InputElementDescs) };
+	t_BuildInfo->PSOdesc.InputLayout.pInputElementDescs = t_InputElementDescs.data();
+	t_BuildInfo->PSOdesc.InputLayout.NumElements = t_InputElementDescs.size(); 
 
 
 	D3D12_BLEND_DESC t_BlendDesc;
@@ -1009,6 +1007,7 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 		nullptr,
 		nullptr,
 		nullptr);
+	t_Layouts.Offset = a_CopyInfo.srcBufferOffset;
 
 	D3D12_TEXTURE_COPY_LOCATION t_SrcCopy = {};
 	t_SrcCopy.pResource = t_SrcResource->GetResource();

@@ -2,6 +2,7 @@
 #include "DX12Common.h"
 #include "D3D12MemAlloc.h"
 #include "Allocators/RingAllocator.h"
+#include "FixedArray.h"
 
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
@@ -17,6 +18,8 @@ namespace BB
 
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 	static RingAllocator s_DX12TempAllocator{ s_DX12Allocator, kbSize * 64 };
+
+	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> VertexInputElements();
 
 
 	namespace DXConv

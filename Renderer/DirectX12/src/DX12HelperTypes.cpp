@@ -3,6 +3,32 @@
 
 using namespace BB;
 
+FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> BB::VertexInputElements()
+{
+	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> t_AttributeDescriptions;
+	t_AttributeDescriptions[0].SemanticName = "POSITION";
+	t_AttributeDescriptions[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	t_AttributeDescriptions[0].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	t_AttributeDescriptions[0].AlignedByteOffset = offsetof(Vertex, pos);
+	
+	t_AttributeDescriptions[1].SemanticName = "NORMAL";
+	t_AttributeDescriptions[1].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	t_AttributeDescriptions[1].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	t_AttributeDescriptions[1].AlignedByteOffset = offsetof(Vertex, normal);
+
+	t_AttributeDescriptions[2].SemanticName = "UV";
+	t_AttributeDescriptions[2].Format = DXGI_FORMAT_R32G32_FLOAT;
+	t_AttributeDescriptions[2].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	t_AttributeDescriptions[2].AlignedByteOffset = offsetof(Vertex, uv);
+
+	t_AttributeDescriptions[3].SemanticName = "COLOR";
+	t_AttributeDescriptions[3].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	t_AttributeDescriptions[3].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+	t_AttributeDescriptions[3].AlignedByteOffset = offsetof(Vertex, color);
+
+	return t_AttributeDescriptions;
+}
+
 const D3D12_RESOURCE_STATES BB::DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
 {
 	switch (a_Usage)
@@ -181,7 +207,7 @@ DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreat
 	t_Desc.Height = a_Info.height;
 	t_Desc.DepthOrArraySize = static_cast<UINT16>(a_Info.arrayLayers);
 	t_Desc.MipLevels = static_cast<UINT16>(a_Info.mipLevels);
-	t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+	t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	t_Desc.SampleDesc.Count = 1;
 	t_Desc.SampleDesc.Quality = 0;
 	t_Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;

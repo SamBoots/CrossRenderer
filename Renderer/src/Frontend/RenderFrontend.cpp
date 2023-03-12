@@ -478,17 +478,20 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
 		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
 
-
+		constexpr size_t TEXTURE_BYTE_ALIGNMENT = 512;
 		int x, y, c;
 		//hacky way, whatever we do it for now.
 		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
 		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
 
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize);
+		//Add some extra for alignment.
+		size_t t_AlignedOffset = Pointer::AlignPad(t_UploadBuffer->GetCurrentOffset(), TEXTURE_BYTE_ALIGNMENT);
+		size_t t_AllocAddition = t_AlignedOffset - t_UploadBuffer->GetCurrentOffset();
+		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize + t_AllocAddition);
 		const UINT64 t_SourcePitch = t_ImageInfo.width * sizeof(uint32_t);
 
 		void* t_ImageSrc = t_Pixels;
-		void* t_ImageDst = t_StageBuffer.memory;
+		void* t_ImageDst = Pointer::Add(t_StageBuffer.memory, t_AllocAddition);
 		//Layouts should be only 1 right now due to mips.
 		for (uint32_t i = 0; i < t_ImageInfo.allocInfo.footHeight; i++)
 		{
@@ -500,7 +503,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferImageInfo t_CopyImage{};
 		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
-		t_CopyImage.srcBufferOffset = t_StageBuffer.offset;
+		t_CopyImage.srcBufferOffset = t_AlignedOffset;
 		t_CopyImage.dstImage = t_ExampleImage;
 		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(t_ImageInfo.width);
 		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(t_ImageInfo.height);
