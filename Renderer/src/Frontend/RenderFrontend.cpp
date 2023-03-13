@@ -522,8 +522,8 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
 		t_CopyImage.srcBufferOffset = t_AlignedOffset;
 		t_CopyImage.dstImage = t_ExampleImage;
-		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(t_ImageInfo.allocInfo.footRowPitch);
-		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(t_ImageInfo.allocInfo.footHeight);
+		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
+		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(y);
 		t_CopyImage.dstImageInfo.sizeZ = 1;
 		t_CopyImage.dstImageInfo.offsetX = 0;
 		t_CopyImage.dstImageInfo.offsetY = 0;
