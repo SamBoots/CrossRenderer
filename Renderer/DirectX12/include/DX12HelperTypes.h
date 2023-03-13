@@ -142,7 +142,7 @@ namespace BB
 		//Some extra metadata.
 		union
 		{
-			DepthMetaData m_DepthData;
+			DepthMetaData m_DepthData{};
 		};
 		
 	};

@@ -84,12 +84,6 @@ namespace BB
 		TYPE_2D
 	};
 
-	enum class RENDER_IMAGE_USAGE : uint32_t
-	{
-		SAMPLER,
-		DEPTH_ATTACHMENT
-	};
-
 	enum class RENDER_IMAGE_FORMAT : uint32_t
 	{
 		DEPTH_STENCIL,
@@ -278,7 +272,6 @@ namespace BB
 		uint16_t arrayLayers = 0;
 		uint16_t mipLevels = 0;
 		RENDER_IMAGE_TYPE type;
-		RENDER_IMAGE_USAGE usage;
 		RENDER_IMAGE_FORMAT format;
 		RENDER_IMAGE_TILING tiling;
 	};

@@ -1123,11 +1123,13 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	{
 	case RENDER_IMAGE_FORMAT::SRGB:
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
 		t_ImageCreateInfo.format = DEPTH_FORMAT;
+		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		t_ViewInfo.format = DEPTH_FORMAT;
 		t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		break;
@@ -1143,19 +1145,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 		break;
 	case RENDER_IMAGE_TILING::LINEAR:
 		t_ImageCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");
-		break;
-	}
-
-	switch (a_CreateInfo.usage)
-	{
-	case RENDER_IMAGE_USAGE::SAMPLER:
-		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		break;
-	case RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT:
-		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Image tiling type not supported!");

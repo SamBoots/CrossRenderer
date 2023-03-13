@@ -227,7 +227,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_ImageInfo.usage = RENDER_IMAGE_USAGE::SAMPLER;
 		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
 
 		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
@@ -242,7 +241,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_DepthInfo.mipLevels = 1;
 		t_DepthInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_DepthInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_DepthInfo.usage = RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT;
 		t_DepthInfo.format = RENDER_IMAGE_FORMAT::DEPTH_STENCIL;
 
 		t_DepthImage = RenderBackend::CreateImage(t_DepthInfo);
@@ -710,7 +708,6 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 		t_DepthInfo.mipLevels = 1;
 		t_DepthInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_DepthInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_DepthInfo.usage = RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT;
 		t_DepthInfo.format = RENDER_IMAGE_FORMAT::DEPTH_STENCIL;
 
 		t_DepthImage = RenderBackend::CreateImage(t_DepthInfo);

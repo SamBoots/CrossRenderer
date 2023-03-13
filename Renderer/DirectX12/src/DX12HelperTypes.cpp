@@ -207,8 +207,8 @@ DXImage::DXImage(const RenderImageCreateInfo& a_Info)
 	t_Desc.Alignment = 0;
 	t_Desc.Width = static_cast<UINT64>(a_Info.width);
 	t_Desc.Height = a_Info.height;
-	t_Desc.DepthOrArraySize = static_cast<UINT16>(a_Info.arrayLayers);
-	t_Desc.MipLevels = static_cast<UINT16>(a_Info.mipLevels);
+	t_Desc.DepthOrArraySize = a_Info.arrayLayers;
+	t_Desc.MipLevels = a_Info.mipLevels;
 	t_Desc.SampleDesc.Count = 1;
 	t_Desc.SampleDesc.Quality = 0;
 	t_Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -217,14 +217,14 @@ DXImage::DXImage(const RenderImageCreateInfo& a_Info)
 	bool t_IsDepth = false;
 
 	D3D12_RESOURCE_STATES t_StartState{};
-	switch (a_Info.usage)
+	switch (a_Info.format)
 	{
-	case RENDER_IMAGE_USAGE::SAMPLER:
+	case RENDER_IMAGE_FORMAT::SRGB:
 		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		t_StartState = D3D12_RESOURCE_STATE_COMMON;
 		break;
-	case RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT:
+	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
 		t_Desc.Format = DEPTH_FORMAT;
 		t_Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 		t_StartState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
