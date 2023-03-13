@@ -1119,7 +1119,6 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	t_ImageCreateInfo.extent.width = a_CreateInfo.width;
 	t_ImageCreateInfo.extent.height = a_CreateInfo.height;
 	t_ImageCreateInfo.extent.depth = a_CreateInfo.depth;
-
 	switch (a_CreateInfo.format)
 	{
 	case RENDER_IMAGE_FORMAT::SRGB:
@@ -1363,7 +1362,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_In
 
 	t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
 	t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
-
+	t_BuildInfo->dynamicRenderingInfo.stencilAttachmentFormat = DEPTH_FORMAT;
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
@@ -1638,8 +1637,7 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	VkRenderingAttachmentInfo t_RenderDepthAttach{};
 
 	//If we handle the depth stencil we do that here. 
-	//if (a_RenderInfo.depthStencil.ptrHandle != nullptr) 
-	if (false)
+	if (a_RenderInfo.depthStencil.ptrHandle != nullptr) 
 	{
 		VkImageMemoryBarrier t_DepthBarrier{};
 		t_DepthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1654,8 +1652,8 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 		t_DepthBarrier.subresourceRange.levelCount = 1;
 
 		vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 			0,
 			0,
 			nullptr,
@@ -1667,13 +1665,13 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 		t_Cmdlist->depthImage = t_DepthBarrier.image;
 		
 		t_RenderDepthAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		t_RenderDepthAttach.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		t_RenderDepthAttach.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		t_RenderDepthAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		t_RenderDepthAttach.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		t_RenderDepthAttach.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		t_RenderDepthAttach.imageView = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->view;
-		t_RenderDepthAttach.clearValue.depthStencil.stencil = 0;
-		t_RenderDepthAttach.clearValue.depthStencil.depth = 1.0f;
+		t_RenderDepthAttach.clearValue.depthStencil = { 1.0f, 0 };
 		t_RenderInfo.pDepthAttachment = &t_RenderDepthAttach;
+		t_RenderInfo.pStencilAttachment = &t_RenderDepthAttach;
 	}
 
 	VkRenderingAttachmentInfo t_RenderColorAttach{};
@@ -1741,33 +1739,8 @@ void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 		nullptr,
 		1,
 		&t_PresentBarrier);
-	
-	//if (t_Cmdlist->depthImage != VK_NULL_HANDLE)
-	if (false)
-	{
-		VkImageMemoryBarrier t_DepthBarrier{};
-		t_DepthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		t_DepthBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		t_DepthBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		t_DepthBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		t_DepthBarrier.image = t_Cmdlist->depthImage;
-		t_DepthBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		t_DepthBarrier.subresourceRange.baseArrayLayer = 0;
-		t_DepthBarrier.subresourceRange.layerCount = 1;
-		t_DepthBarrier.subresourceRange.baseMipLevel = 0;
-		t_DepthBarrier.subresourceRange.levelCount = 1;
 
-		vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			0,
-			0,
-			nullptr,
-			0,
-			nullptr,
-			1,
-			&t_DepthBarrier);
-	}
+	t_Cmdlist->depthImage = VK_NULL_HANDLE;
 }
 
 void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
@@ -1829,7 +1802,11 @@ void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, 
 	t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
-	t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	if (a_TransitionInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT || 
+		a_TransitionInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
+		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	else
+		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	t_Barrier.subresourceRange.baseMipLevel = a_TransitionInfo.baseMipLevel;
 	t_Barrier.subresourceRange.levelCount = a_TransitionInfo.levelCount;
 	t_Barrier.subresourceRange.baseArrayLayer = a_TransitionInfo.baseArrayLayer;
