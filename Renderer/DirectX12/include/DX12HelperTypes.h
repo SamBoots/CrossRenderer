@@ -15,6 +15,10 @@
 
 namespace BB
 {
+	//Some globals
+	constexpr DXGI_FORMAT DEPTH_FORMAT = DXGI_FORMAT_D32_FLOAT;
+	constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
+
 
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 	static RingAllocator s_DX12TempAllocator{ s_DX12Allocator, kbSize * 64 };
@@ -54,7 +58,7 @@ namespace BB
 	class DescriptorHeap
 	{
 	public:
-		DescriptorHeap(ID3D12Device* a_Device, D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible);
+		DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible);
 		~DescriptorHeap();
 
 		DescriptorHeapHandle Allocate(const uint32_t a_Count);
@@ -79,7 +83,7 @@ namespace BB
 	class DXFence
 	{
 	public:
-		DXFence(ID3D12Device* a_Device);
+		DXFence();
 		~DXFence();
 
 		uint64_t PollFenceValue();
@@ -103,7 +107,7 @@ namespace BB
 	class DXResource
 	{
 	public:
-		DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size);
+		DXResource(const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size);
 		~DXResource();
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
@@ -118,23 +122,36 @@ namespace BB
 	class DXImage
 	{
 	public:
-		DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreateInfo& a_Info);
+		struct DepthMetaData
+		{
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle;
+		};
+
+		DXImage(const RenderImageCreateInfo& a_Info);
 		~DXImage();
 
-		ID3D12Resource* GetResource() const { return m_Resource; };
 
+		ID3D12Resource* GetResource() const { return m_Resource; };
+		//Optionally we can query the descriptor index if it has one. 
+		//DEPTH STENCIL ONLY
+		DXImage::DepthMetaData GetDepthMetaData() const { return m_DepthData; };
 
 	private:
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
-
+		//Some extra metadata.
+		union
+		{
+			DepthMetaData m_DepthData;
+		};
+		
 	};
 
 	class DXCommandQueue
 	{
 	public:
-		DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType);
-		DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
+		DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType);
+		DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
 		~DXCommandQueue();
 
 		uint64_t PollFenceValue()
@@ -182,7 +199,7 @@ namespace BB
 	class DXCommandList
 	{
 	public:
-		DXCommandList(ID3D12Device* a_Device, DXCommandAllocator& a_CmdAllocator);
+		DXCommandList(DXCommandAllocator& a_CmdAllocator);
 		~DXCommandList();
 
 		//Possible caching for efficiency, might go for specific commandlist types.
@@ -209,7 +226,7 @@ namespace BB
 	class DXCommandAllocator
 	{
 	public:
-		DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount);
+		DXCommandAllocator(const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount);
 		~DXCommandAllocator();
 
 		DXCommandList* GetCommandList();
@@ -272,4 +289,64 @@ namespace BB
 		//Each index indicates the start paramindex for a binding.
 		UINT rootParamBindingOffset[BINDING_MAX]{};
 	};
+
+	struct DX12Backend_inst
+	{
+		FrameIndex currentFrame = 0;
+		UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
+		DXFence* frameFences; //Equal amount of fences to backBufferCount.
+
+		IDXGIFactory4* factory{};
+		ID3D12Debug1* debugController{};
+
+		DescriptorHeap* CBV_SRV_UAVHeap;
+		DescriptorHeap* samplerHeap;
+		DescriptorHeap* dsvHeap;
+
+		IDXGIAdapter1* adapter;
+		ID3D12Device* device;
+
+		ID3D12DebugDevice1* debugDevice;
+
+		UINT swapWidth;
+		UINT swapHeight;
+		IDXGISwapChain3* swapchain;
+		ID3D12Resource** swapchainRenderTargets; //dyn alloc
+		ID3D12DescriptorHeap* swapchainRTVHeap;
+
+		D3D12MA::Allocator* DXMA;
+		ID3D12CommandQueue* directpresentqueue;
+
+		Pool<DXDescriptor> bindingSetPool;
+		Pool<DXPipeline> pipelinePool;
+		Pool<DXCommandQueue> cmdQueues;
+		Pool<DXCommandAllocator> cmdAllocators;
+		Pool<DXResource> renderResources;
+		Pool<DXImage> renderImages;
+		Pool<DXFence> fencePool;
+
+		void CreatePools()
+		{
+			pipelinePool.CreatePool(s_DX12Allocator, 4);
+			bindingSetPool.CreatePool(s_DX12Allocator, 16);
+			cmdQueues.CreatePool(s_DX12Allocator, 4);
+			cmdAllocators.CreatePool(s_DX12Allocator, 16);
+			renderResources.CreatePool(s_DX12Allocator, 8);
+			renderImages.CreatePool(s_DX12Allocator, 8);
+			fencePool.CreatePool(s_DX12Allocator, 16);
+		}
+
+		void DestroyPools()
+		{
+			pipelinePool.DestroyPool(s_DX12Allocator);
+			bindingSetPool.DestroyPool(s_DX12Allocator);
+			cmdQueues.DestroyPool(s_DX12Allocator);
+			cmdAllocators.DestroyPool(s_DX12Allocator);
+			renderResources.DestroyPool(s_DX12Allocator);
+			renderImages.DestroyPool(s_DX12Allocator);
+			fencePool.DestroyPool(s_DX12Allocator);
+		}
+	};
+
+	extern DX12Backend_inst s_DX12B;
 }

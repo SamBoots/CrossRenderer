@@ -3,6 +3,8 @@
 
 using namespace BB;
 
+DX12Backend_inst BB::s_DX12B{};
+
 FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> BB::VertexInputElements()
 {
 	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> t_AttributeDescriptions;
@@ -92,9 +94,9 @@ void BB::DXRelease(IUnknown* a_Obj)
 		a_Obj->Release();
 }
 
-DXFence::DXFence(ID3D12Device* a_Device)
+DXFence::DXFence()
 {
-	DXASSERT(a_Device->CreateFence(0,
+	DXASSERT(s_DX12B.device->CreateFence(0,
 		D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&m_Fence)),
 		"DX12: Failed to create fence.");
@@ -140,7 +142,7 @@ void DXFence::WaitFenceCPU(const uint64_t a_FenceValue)
 	m_LastCompleteValue = a_FenceValue;
 }
 
-DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size)
+DXResource::DXResource(const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size)
 	: m_Size(static_cast<UINT>(a_Size))
 {
 	D3D12_RESOURCE_DESC t_ResourceDesc = {};
@@ -183,7 +185,7 @@ DXResource::DXResource(D3D12MA::Allocator* a_ResourceAllocator, const RENDER_BUF
 		break;
 	}
 
-	DXASSERT(a_ResourceAllocator->CreateResource(
+	DXASSERT(s_DX12B.DXMA->CreateResource(
 		&t_AllocationDesc,
 		&t_ResourceDesc,
 		t_State,
@@ -199,7 +201,7 @@ DXResource::~DXResource()
 	m_Allocation->Release();
 }
 
-DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreateInfo& a_Info)
+DXImage::DXImage(const RenderImageCreateInfo& a_Info)
 {
 	D3D12_RESOURCE_DESC t_Desc{};
 	t_Desc.Alignment = 0;
@@ -207,12 +209,38 @@ DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreat
 	t_Desc.Height = a_Info.height;
 	t_Desc.DepthOrArraySize = static_cast<UINT16>(a_Info.arrayLayers);
 	t_Desc.MipLevels = static_cast<UINT16>(a_Info.mipLevels);
-	t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	t_Desc.SampleDesc.Count = 1;
 	t_Desc.SampleDesc.Quality = 0;
 	t_Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	
+	D3D12_CLEAR_VALUE* t_ClearValue = nullptr;
+	bool t_IsDepth = false;
+
+	D3D12_RESOURCE_STATES t_StartState{};
+	switch (a_Info.usage)
+	{
+	case RENDER_IMAGE_USAGE::SAMPLER:
+		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		t_StartState = D3D12_RESOURCE_STATE_COMMON;
+		break;
+	case RENDER_IMAGE_USAGE::DEPTH_ATTACHMENT:
+		t_Desc.Format = DEPTH_FORMAT;
+		t_Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+		t_StartState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+		t_ClearValue = BBnew(
+			s_DX12TempAllocator,
+			D3D12_CLEAR_VALUE);
+		t_ClearValue->Format = t_Desc.Format;
+		t_ClearValue->DepthStencil.Depth = 1.0f;
+		t_ClearValue->DepthStencil.Stencil = 0;
+		t_IsDepth = true;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, image usage not supported!")
+			break;
+	}
+
 	switch (a_Info.type)
 	{
 	case RENDER_IMAGE_TYPE::TYPE_2D:
@@ -226,36 +254,51 @@ DXImage::DXImage(D3D12MA::Allocator* a_ResourceAllocator, const RenderImageCreat
 	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
 	t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
 
-	DXASSERT(a_ResourceAllocator->CreateResource(
+	DXASSERT(s_DX12B.DXMA->CreateResource(
 		&t_AllocationDesc,
 		&t_Desc,
-		D3D12_RESOURCE_STATE_COMMON,
-		NULL,
+		t_StartState,
+		t_ClearValue,
 		&m_Allocation,
 		IID_PPV_ARGS(&m_Resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
+
+	if (t_IsDepth)
+	{
+		D3D12_DEPTH_STENCIL_VIEW_DESC t_DepthStencilDesc = {};
+		t_DepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		t_DepthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		t_DepthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+		DescriptorHeapHandle t_HeapHandle = s_DX12B.dsvHeap->Allocate(1);
+		m_DepthData.dsvHandle = t_HeapHandle.cpuHandle;
+		s_DX12B.device->CreateDepthStencilView(m_Resource, &t_DepthStencilDesc, m_DepthData.dsvHandle);
+	}
 }
 
 DXImage::~DXImage()
 {
+	if (m_Resource->GetDesc().Flags == D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
+		//free the descriptor info for DSV.
+
 	m_Resource->Release();
 	m_Allocation->Release();
 }
 
-DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType)
-	: m_Fence(a_Device)
+DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType)
+	: m_Fence()
 {
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
 	t_QueueDesc.Type = a_CommandType;
 	t_QueueDesc.NodeMask = 0;
 	m_QueueType = a_CommandType;
-	DXASSERT(a_Device->CreateCommandQueue(&t_QueueDesc, 
+	DXASSERT(s_DX12B.device->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&m_Queue)),
 		"DX12: Failed to create queue.");
 }
 
-DXCommandQueue::DXCommandQueue(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
-	: m_Fence(a_Device)
+DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
+	: m_Fence()
 {
 	m_Queue = a_CommandQueue;
 	m_QueueType = a_CommandType;
@@ -298,16 +341,16 @@ void DXCommandQueue::SignalQueue(DXFence& a_Fence)
 	++a_Fence.m_NextFenceValue;
 }
 
-DXCommandAllocator::DXCommandAllocator(ID3D12Device* a_Device, const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount)
+DXCommandAllocator::DXCommandAllocator(const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount)
 {
 	m_ListSize = a_CommandListCount;
 	m_Type = a_QueueType;
-	a_Device->CreateCommandAllocator(m_Type, IID_PPV_ARGS(&m_Allocator));
+	s_DX12B.device->CreateCommandAllocator(m_Type, IID_PPV_ARGS(&m_Allocator));
 	m_Lists.CreatePool(s_DX12Allocator, m_ListSize);
 	//pre-reserve the commandlists, doing it here so it becomes easy to make a cross-API renderer with vulkan.
 	for (size_t i = 0; i < m_ListSize; i++)
 	{
-		new (&m_Lists.data()[i]) DXCommandList(a_Device, *this);
+		new (&m_Lists.data()[i]) DXCommandList(* this);
 	}
 }
 
@@ -332,10 +375,10 @@ DXCommandList* DXCommandAllocator::GetCommandList()
 	return m_Lists.Get();
 }
 
-DXCommandList::DXCommandList(ID3D12Device* a_Device, DXCommandAllocator& a_CmdAllocator)
+DXCommandList::DXCommandList(DXCommandAllocator& a_CmdAllocator)
 	: m_CmdAllocator(a_CmdAllocator)
 {
-	DXASSERT(a_Device->CreateCommandList(0,
+	DXASSERT(s_DX12B.device->CreateCommandList(0,
 		m_CmdAllocator.m_Type,
 		m_CmdAllocator.m_Allocator,
 		nullptr,
@@ -368,10 +411,8 @@ void DXCommandList::Free()
 	m_CmdAllocator.FreeCommandList(this);
 }
 
-DescriptorHeap::DescriptorHeap(ID3D12Device* a_Device,
-	D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
-	uint32_t a_DescriptorCount,
-	bool a_ShaderVisible)
+DescriptorHeap::DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
+	uint32_t a_DescriptorCount, bool a_ShaderVisible)
 {
 	m_HeapType = a_HeapType;
 	m_MaxDescriptors = a_DescriptorCount;
@@ -382,7 +423,7 @@ DescriptorHeap::DescriptorHeap(ID3D12Device* a_Device,
 	t_HeapInfo.Flags = a_ShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	t_HeapInfo.NodeMask = 0;
 
-	DXASSERT(a_Device->CreateDescriptorHeap(&t_HeapInfo, IID_PPV_ARGS(&m_DescriptorHeap)),
+	DXASSERT(s_DX12B.device->CreateDescriptorHeap(&t_HeapInfo, IID_PPV_ARGS(&m_DescriptorHeap)),
 		"DX12, Failed to create descriptor heap.");
 
 	m_HeapCPUStart = m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
@@ -392,7 +433,7 @@ DescriptorHeap::DescriptorHeap(ID3D12Device* a_Device,
 		m_HeapGPUStart = m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	}
 
-	m_IncrementSize = a_Device->GetDescriptorHandleIncrementSize(a_HeapType);
+	m_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(a_HeapType);
 	
 }
 

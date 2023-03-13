@@ -34,68 +34,6 @@ struct DXPipelineBuildInfo
 	D3D12_ROOT_PARAMETER1* rootParams{};
 };
 
-struct DX12Backend_inst
-{
-	FrameIndex currentFrame = 0;
-	UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
-	DXFence* frameFences; //Equal amount of fences to backBufferCount.
-
-	IDXGIFactory4* factory{};
-	ID3D12Debug1* debugController{};
-
-	DescriptorHeap* CBV_SRV_UAV_Heap;
-	DescriptorHeap* sampler_Heap;
-	DescriptorHeap* uploadHeap;
-
-	IDXGIAdapter1* adapter;
-	ID3D12Device* device;
-
-	ID3D12DebugDevice1* debugDevice;
-
-	UINT swapWidth;
-	UINT swapHeight;
-	IDXGISwapChain3* swapchain;
-	ID3D12Resource** swapchainRenderTargets; //dyn alloc
-	ID3D12DescriptorHeap* swapchainRTVHeap;
-
-	D3D12MA::Allocator* DXMA;
-	ID3D12CommandQueue* directpresentqueue;
-
-	Pool<DXDescriptor> bindingSetPool;
-	Pool<DXPipeline> pipelinePool;
-	Pool<DXCommandQueue> cmdQueues;
-	Pool<DXCommandAllocator> cmdAllocators;
-	Pool<DXResource> renderResources;
-	Pool<DXImage> renderImages;
-	Pool<DXFence> fencePool;
-
-	void CreatePools()
-	{
-		pipelinePool.CreatePool(s_DX12Allocator, 4);
-		bindingSetPool.CreatePool(s_DX12Allocator, 16);
-		cmdQueues.CreatePool(s_DX12Allocator, 4);
-		cmdAllocators.CreatePool(s_DX12Allocator, 16);
-		renderResources.CreatePool(s_DX12Allocator, 8);
-		renderImages.CreatePool(s_DX12Allocator, 8);
-		fencePool.CreatePool(s_DX12Allocator, 16);
-	}
-
-	void DestroyPools()
-	{
-		pipelinePool.DestroyPool(s_DX12Allocator);
-		bindingSetPool.DestroyPool(s_DX12Allocator);
-		cmdQueues.DestroyPool(s_DX12Allocator);
-		cmdAllocators.DestroyPool(s_DX12Allocator);
-		renderResources.DestroyPool(s_DX12Allocator);
-		renderImages.DestroyPool(s_DX12Allocator);
-		fencePool.DestroyPool(s_DX12Allocator);
-	}
-};
-
-static DX12Backend_inst s_DX12B;
-
-constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
-
 enum class ShaderType
 {
 	VERTEX,
@@ -265,18 +203,21 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		reinterpret_cast<HWND>(a_CreateInfo.windowHandle.ptrHandle));
 
 	//Create the two main heaps.
-	s_DX12B.CBV_SRV_UAV_Heap = BBnew(s_DX12Allocator,
-		DescriptorHeap)(s_DX12B.device,
+	s_DX12B.CBV_SRV_UAVHeap = BBnew(s_DX12Allocator,
+		DescriptorHeap)(
 			D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 			4096,
 			true);
 
-	s_DX12B.sampler_Heap = BBnew(s_DX12Allocator,
-		DescriptorHeap)(s_DX12B.device,
-			D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
+	s_DX12B.samplerHeap = BBnew(s_DX12Allocator,
+		DescriptorHeap)(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
 			128,
 			true);
 
+	s_DX12B.dsvHeap = BBnew(s_DX12Allocator,
+		DescriptorHeap)(D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+			32,
+			false);
 
 	s_DX12B.frameFences = BBnewArr(s_DX12Allocator,
 		s_DX12B.backBufferCount,
@@ -284,7 +225,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
 	{
-		new (&s_DX12B.frameFences[i]) DXFence(s_DX12B.device);
+		new (&s_DX12B.frameFences[i]) DXFence();
 	}
 
 	//Returns some info to the global backend that is important.
@@ -342,7 +283,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 	{
 		uint32_t t_TableOffset = 0;
 
-		t_Descriptor->tables.table = s_DX12B.CBV_SRV_UAV_Heap->Allocate(t_TableDescriptorCount);
+		t_Descriptor->tables.table = s_DX12B.CBV_SRV_UAVHeap->Allocate(t_TableDescriptorCount);
 		t_Descriptor->tables.rootIndex = t_ParamIndex++;
 
 		t_Descriptor->tableDescRangeCount = t_TableBindingCount;
@@ -407,20 +348,20 @@ CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
+			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
 		break;
 	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_COPY));
+			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_COPY));
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_COMPUTE));
+			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
 		break;
 	default:
 		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(s_DX12B.device, D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
+			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
 		break;
 	}
 }
@@ -429,8 +370,7 @@ CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocat
 {
 	//Create the command allocator and it's command lists.
 	DXCommandAllocator* t_CmdAllocator = new (s_DX12B.cmdAllocators.Get())
-		DXCommandAllocator(s_DX12B.device,
-			DXConv::CommandListType(a_CreateInfo.queueType),
+		DXCommandAllocator(DXConv::CommandListType(a_CreateInfo.queueType),
 			a_CreateInfo.commandListCount);
 
 	return CommandAllocatorHandle(t_CmdAllocator);
@@ -446,7 +386,7 @@ CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 {
 	DXResource* t_Resource = new (s_DX12B.renderResources.Get())
-		DXResource(s_DX12B.DXMA, a_Info.usage, a_Info.memProperties, a_Info.size);
+		DXResource(a_Info.usage, a_Info.memProperties, a_Info.size);
 
 	if (a_Info.data != nullptr)
 	{
@@ -467,14 +407,14 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 RImageHandle BB::DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
 	DXImage* t_Image = new (s_DX12B.renderImages.Get())
-		DXImage(s_DX12B.DXMA, a_CreateInfo);
+		DXImage(a_CreateInfo);
 
 	return RImageHandle(t_Image);
 }
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(s_DX12B.device));
+	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence());
 }
 
 void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
@@ -846,8 +786,8 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 
 	ID3D12DescriptorHeap* t_Heaps[] =
 	{
-		s_DX12B.CBV_SRV_UAV_Heap->GetHeap(),
-		s_DX12B.sampler_Heap->GetHeap()
+		s_DX12B.CBV_SRV_UAVHeap->GetHeap(),
+		s_DX12B.samplerHeap->GetHeap()
 	};
 
 	t_CommandList->List()->SetDescriptorHeaps(2, t_Heaps);
@@ -894,12 +834,11 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	t_CommandList->List()->ResourceBarrier(1, &t_RenderTargetBarrier);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE
-		rtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
-	rtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * 
+	D3D12_CPU_DESCRIPTOR_HANDLE t_RtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
+	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame *
 		s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-	
-	t_CommandList->List()->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	D3D12_CPU_DESCRIPTOR_HANDLE t_DsvHandle = reinterpret_cast<DXImage*>(a_RenderInfo.depthStencil.ptrHandle)->GetDepthMetaData().dsvHandle;
+	t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, &t_DsvHandle);
 
 	D3D12_VIEWPORT t_Viewport{};
 
@@ -917,7 +856,8 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_Rect.bottom = static_cast<LONG>(a_RenderInfo.viewportHeight);
 	
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
-	t_CommandList->List()->ClearRenderTargetView(rtvHandle, a_RenderInfo.clearColor, 0, nullptr);
+	t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
+	t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
 void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
@@ -1016,9 +956,9 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 	t_SrcCopy.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 
 	t_CommandList->List()->CopyTextureRegion(&t_DestCopy, 
-		a_CopyInfo.dstImageInfo.sizeX,
-		a_CopyInfo.dstImageInfo.sizeY,
-		a_CopyInfo.dstImageInfo.sizeZ,
+		a_CopyInfo.dstImageInfo.offsetX,
+		a_CopyInfo.dstImageInfo.offsetY,
+		a_CopyInfo.dstImageInfo.offsetZ,
 		&t_SrcCopy, nullptr);
 }
 
@@ -1313,9 +1253,13 @@ void BB::DX12DestroyDescriptor(const RDescriptorHandle a_Handle)
 
 void BB::DX12DestroyBackend()
 {
+	s_DX12B.swapchainRTVHeap->Release();
 	s_DX12B.swapchain->SetFullscreenState(false, NULL);
 	s_DX12B.swapchain->Release();
 	s_DX12B.swapchain = nullptr;
+	BBfree(s_DX12Allocator, s_DX12B.CBV_SRV_UAVHeap);
+	BBfree(s_DX12Allocator, s_DX12B.dsvHeap);
+	BBfree(s_DX12Allocator, s_DX12B.samplerHeap);
 
 	s_DX12B.DXMA->Release();
 	if (s_DX12B.debugDevice)
