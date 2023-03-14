@@ -31,13 +31,17 @@ struct RendererInst
 	Slotmap<DrawObject> drawObjects{ m_SystemAllocator };
 };
 
-struct PerFrameInfo
+struct GlobalInfo
 {
-	uint64_t transferBufferSize;
+	Camera* cameraData;
+	uint64_t perFrameBufferSize;
 
 	RBufferHandle perFrameBuffer;
 	RBufferHandle perFrameTransferBuffer;
-	void* transferBufferPtr;
+
+	void* transferBufferStart;
+	void* transferBufferCameraStart;
+	void* transferBufferMatrixStart;
 };
 
 CommandQueueHandle t_GraphicsQueue;
@@ -66,15 +70,15 @@ RImageHandle t_DepthImage;
 static FrameIndex s_CurrentFrame;
 
 static RendererInst s_RendererInst;
-static PerFrameInfo s_PerFrameInfo;
+static GlobalInfo s_GlobalInfo;
 
 static void Draw3DFrame()
 {
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
-	t_CopyInfo.src = s_PerFrameInfo.perFrameTransferBuffer;
-	t_CopyInfo.dst = s_PerFrameInfo.perFrameBuffer;
-	t_CopyInfo.size = sizeof(CameraBufferInfo) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
+	t_CopyInfo.src = s_GlobalInfo.perFrameTransferBuffer;
+	t_CopyInfo.dst = s_GlobalInfo.perFrameBuffer;
+	t_CopyInfo.size = sizeof(Camera) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
 	t_CopyInfo.srcOffset = 0;
 	t_CopyInfo.dstOffset = t_CopyInfo.size * s_CurrentFrame;
 
@@ -98,9 +102,11 @@ static void Draw3DFrame()
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
-	uint32_t t_CamOffset = (sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax) * s_CurrentFrame;
-	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraBufferInfo);
+
+	uint32_t t_CamOffset = s_GlobalInfo.perFrameBufferSize * s_CurrentFrame;
+	uint32_t t_MatrixOffset = t_CamOffset + sizeof(Camera);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
+
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 	RDescriptorHandle t_Descriptors[]{ t_Descriptor1 , t_Descriptor2 };
 	RenderBackend::BindDescriptors(t_RecordingGraphics, t_Descriptors, _countof(t_Descriptors), 2, t_DynOffSets);
@@ -196,15 +202,19 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 
 #pragma region PipelineCreation
-	const uint64_t t_PerFrameBufferSingleFrame = sizeof(CameraBufferInfo) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+	const uint64_t t_PerFrameBufferSingleFrame = sizeof(Camera) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
 	RenderBufferCreateInfo t_PerFrameTransferBuffer;
 	t_PerFrameTransferBuffer.size = t_PerFrameBufferSingleFrame;
 	t_PerFrameTransferBuffer.usage = RENDER_BUFFER_USAGE::STAGING;
 	t_PerFrameTransferBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
 	t_PerFrameTransferBuffer.data = nullptr;
-	s_PerFrameInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
-	s_PerFrameInfo.transferBufferPtr = RenderBackend::MapMemory(s_PerFrameInfo.perFrameTransferBuffer);
+	s_GlobalInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
+	s_GlobalInfo.transferBufferStart = RenderBackend::MapMemory(s_GlobalInfo.perFrameTransferBuffer);
+	s_GlobalInfo.transferBufferCameraStart = s_GlobalInfo.transferBufferStart;
+	s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(Camera));
+
+	s_GlobalInfo.cameraData = reinterpret_cast<Camera*>(s_GlobalInfo.transferBufferCameraStart);
 
 	const uint64_t t_perFrameBufferEntireSize = t_PerFrameBufferSingleFrame * s_RendererInst.frameBufferAmount;
 
@@ -213,7 +223,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
 	t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 	t_PerFrameBuffer.data = nullptr;
-	s_PerFrameInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
+	s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	int x, y, c;
 	stbi_uc* t_Pixels = stbi_load("../Resources/Textures/Test.jpg", &x, &y, &c, 4);
@@ -298,9 +308,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_BufferUpdate.set = t_Descriptor1;
 		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
 
-		t_BufferUpdate.buffer = s_PerFrameInfo.perFrameBuffer;
+		t_BufferUpdate.buffer = s_GlobalInfo.perFrameBuffer;
 		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(CameraBufferInfo);
+		t_BufferUpdate.bufferSize = sizeof(Camera);
 
 		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
 
@@ -425,9 +435,9 @@ void BB::Render::DestroyRenderer()
 
 	RenderBackend::DestroyDescriptor(t_Descriptor1);
 	RenderBackend::DestroyDescriptor(t_Descriptor2);
-	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameBuffer);
-	RenderBackend::UnmapMemory(s_PerFrameInfo.perFrameTransferBuffer);
-	RenderBackend::DestroyBuffer(s_PerFrameInfo.perFrameTransferBuffer);
+	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
+	RenderBackend::UnmapMemory(s_GlobalInfo.perFrameTransferBuffer);
+	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameTransferBuffer);
 
 	RenderBackend::DestroyPipeline(t_Pipeline);
 	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
@@ -457,18 +467,18 @@ void BB::Render::Update(const float a_DeltaTime)
 
 void BB::Render::SetProjection(const glm::mat4& a_Proj)
 {
-	memcpy(Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(glm::mat4)), &a_Proj, sizeof(glm::mat4));
+	s_GlobalInfo.cameraData->projection = a_Proj;
 }
 
 void BB::Render::SetView(const glm::mat4& a_View)
 {
-	memcpy(s_PerFrameInfo.transferBufferPtr, &a_View, sizeof(glm::mat4));
+	s_GlobalInfo.cameraData->view = a_View;
 }
 
 void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
 {
 	a_MatrixSpace = s_RendererInst.modelMatrixMax;
-	return Pointer::Add(s_PerFrameInfo.transferBufferPtr, sizeof(CameraBufferInfo));
+	return s_GlobalInfo.transferBufferMatrixStart;
 }
 
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)

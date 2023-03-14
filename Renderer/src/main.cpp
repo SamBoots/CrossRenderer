@@ -59,11 +59,11 @@ int main(int argc, char** argv)
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_RenderInfo);
-	CameraBufferInfo info;
-	info.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+	Camera t_Cam;
+	t_Cam.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
 		glm::vec3(0.0f, 0.0f, 0.0f),
 		glm::vec3(0.0f, 0.0f, 1.0f));
-	info.projection = glm::perspective(glm::radians(45.0f),
+	t_Cam.projection = glm::perspective(glm::radians(45.0f),
 		t_WindowWidth / (float)t_WindowHeight,
 		0.1f,
 		10.0f);
@@ -78,8 +78,8 @@ int main(int argc, char** argv)
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
 
-	Render::SetProjection(info.projection);
-	Render::SetView(info.view);
+	Render::SetProjection(t_Cam.projection);
+	Render::SetView(t_Cam.view);
 
 	Vertex t_Vertex[4];
 	t_Vertex[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };

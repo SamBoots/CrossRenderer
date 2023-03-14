@@ -69,11 +69,10 @@ namespace BB
 		MODEL_TYPE modelType;
 	};
 
-	struct CameraBufferInfo
+	struct Camera
 	{
 		glm::mat4 view;
 		glm::mat4 projection;
-		glm::mat4 pad[2];
 	};
 
 	struct DrawObject
