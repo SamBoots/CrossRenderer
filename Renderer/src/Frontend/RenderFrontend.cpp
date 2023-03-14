@@ -623,6 +623,8 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 		break;
 	}
 	
+	t_Model.image = t_ExampleImage;
+
 	return RModelHandle(s_RendererInst.models.insert(t_Model).handle);
 }
 
