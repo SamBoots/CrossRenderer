@@ -55,7 +55,7 @@ VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {
     VSOutput output = (VSOutput)0;
     
-    output.pos = mul(cam[0].proj, mul(cam[0].view, mul(modelInstances[indices.model].model, float4(input.inPosition.xy, 0.0, 1.0))));
+    output.pos = mul(cam[0].proj, mul(cam[0].view, mul(modelInstances[indices.model].model, float4(input.inPosition.xyz, 1.0))));
     output.fragUV = input.inUv;
     output.fragColor = input.inColor;
     return output;
