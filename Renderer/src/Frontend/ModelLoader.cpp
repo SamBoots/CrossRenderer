@@ -208,7 +208,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 						break;
 					}
-
+					BB_ASSERT(t_CurrentVertex > t_VertexCount, "Overwriting vertices in the gltf loader!");
 				}
 			}
 		}
