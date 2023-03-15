@@ -52,8 +52,11 @@ void PushInput(const InputEvent& a_Input)
 
 	//Since when we get the input we get all of it. 
 	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
+	{
+		BB_LOG("Added input");
 		++s_InputBuffer.used;
-	BB_LOG("Added input");
+	}
+
 }
 
 //Returns false if no input is left.
@@ -78,6 +81,73 @@ void BB::InitProgram()
 }
 
 //Custom callback for the Windows proc.
+LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
+{
+	HRAWINPUT t_HRawInput = reinterpret_cast<HRAWINPUT>(a_LParam);
+
+	if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
+		return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
+
+	UINT t_Size = 0;
+	GetRawInputData(t_HRawInput, RID_INPUT, NULL, &t_Size, sizeof(RAWINPUTHEADER));
+	if (t_Size == 0)
+		return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
+
+	//Allocate an input event.
+	InputEvent t_Event{};
+	RAWINPUT* t_Input = reinterpret_cast<RAWINPUT*>(BBalloc(s_LocalRingAllocator, t_Size));
+	GetRawInputData(t_HRawInput, RID_INPUT, t_Input, &t_Size, sizeof(RAWINPUTHEADER));
+
+	if (t_Input->header.dwType == RIM_TYPEKEYBOARD)
+	{
+		t_Event.inputType = INPUT_TYPE::KEYBOARD;
+		uint16_t scanCode = t_Input->data.keyboard.MakeCode;
+
+		// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
+		//scanCode |= (t_Input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
+		//scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
+
+		t_Event.keyInfo.scancode = s_translate_key[scanCode];
+		t_Event.keyInfo.keyPressed = !(t_Input->data.keyboard.Flags & RI_KEY_BREAK);
+		PushInput(t_Event);
+	}
+	else if (t_Input->header.dwType == RIM_TYPEMOUSE)
+	{
+		t_Event.inputType = INPUT_TYPE::MOUSE;
+		const float moveX = static_cast<float>(t_Input->data.mouse.lLastX);
+		const float moveY = static_cast<float>(t_Input->data.mouse.lLastY);
+		if (t_Input->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
+		{
+			t_Event.mouseInfo.xMove = moveX - s_InputInfo.mouse.oldXPos;
+			t_Event.mouseInfo.yMove = moveY - s_InputInfo.mouse.oldYPos;
+			s_InputInfo.mouse.oldXPos = moveX;
+			s_InputInfo.mouse.oldYPos = moveY;
+		}
+		else
+		{
+			t_Event.mouseInfo.xMove = moveX;
+			t_Event.mouseInfo.yMove = moveY;
+		}
+
+		t_Event.mouseInfo.left_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+		t_Event.mouseInfo.left_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
+		t_Event.mouseInfo.right_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
+		t_Event.mouseInfo.right_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
+		t_Event.mouseInfo.middle_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
+		t_Event.mouseInfo.middle_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
+		if (t_Input->data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
+		{
+			const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Input->data.mouse.usButtonData);
+			t_Event.mouseInfo.wheelMove = t_MouseMove / WHEEL_DELTA;
+		}
+		PushInput(t_Event);
+	}
+
+
+	return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
+}
+
+//Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
 {
 	switch (a_Msg)
@@ -92,7 +162,11 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
 		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
 		sPFN_ResizeEvent(a_Hwnd, t_X, t_Y);
+		break;
 	}
+	case WM_INPUT:
+		return wm_input(a_Hwnd, a_WParam, a_LParam);
+		break;
 	}
 
 	return DefWindowProcW(a_Hwnd, a_Msg, a_WParam, a_LParam);
@@ -384,12 +458,12 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 
 	t_Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
-	t_Rid[0].dwFlags = RIDEV_INPUTSINK;
+	t_Rid[0].dwFlags = 0;
 	t_Rid[0].hwndTarget = t_Window;
 
 	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	t_Rid[1].dwFlags = RIDEV_INPUTSINK;
+	t_Rid[1].dwFlags = 0;
 	t_Rid[1].hwndTarget = t_Window;
 
 	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
@@ -438,78 +512,8 @@ bool BB::ProcessMessages()
 
 	while (PeekMessage(&t_Msg, NULL, 0u, 0u, PM_REMOVE))
 	{
-		switch (t_Msg.message)
-		{
-		case WM_INPUT:
-		{
-			UINT dwSize = 0;
-
-			GetRawInputData((HRAWINPUT)t_Msg.lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
-			if (dwSize == 0)
-				return 0;
-
-			//Allocate an input event.
-			InputEvent t_Event{};
-
-			LPBYTE t_Lpb = BBnewArr(s_LocalRingAllocator,
-				dwSize,
-				BYTE);
-			GetRawInputData((HRAWINPUT)t_Msg.lParam, RID_INPUT, t_Lpb, &dwSize, sizeof(RAWINPUTHEADER));
-
-			RAWINPUT* t_Raw = (RAWINPUT*)t_Lpb;
-
-			if (t_Raw->header.dwType == RIM_TYPEKEYBOARD)
-			{
-				t_Event.inputType = INPUT_TYPE::KEYBOARD;
-				uint16_t scanCode = t_Raw->data.keyboard.MakeCode;
-
-				// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
-				scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
-				//scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
-
-				t_Event.keyInfo.scancode = s_translate_key[scanCode];
-				t_Event.keyInfo.keyPressed = !(t_Raw->data.keyboard.Flags & RI_KEY_BREAK);
-				PushInput(t_Event);
-			}
-			else if (t_Raw->header.dwType == RIM_TYPEMOUSE)
-			{
-				t_Event.inputType = INPUT_TYPE::MOUSE;
-				const float moveX = static_cast<float>(t_Raw->data.mouse.lLastX);
-				const float moveY = static_cast<float>(t_Raw->data.mouse.lLastY);
-				if (t_Raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
-				{
-					t_Event.mouseInfo.xMove = moveX - s_InputInfo.mouse.oldXPos;
-					t_Event.mouseInfo.yMove = moveY - s_InputInfo.mouse.oldYPos;
-					s_InputInfo.mouse.oldXPos = moveX;
-					s_InputInfo.mouse.oldYPos = moveY;
-				}
-				else
-				{
-					t_Event.mouseInfo.xMove = moveX;
-					t_Event.mouseInfo.yMove = moveY;
-				}
-
-				t_Event.mouseInfo.left_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
-				t_Event.mouseInfo.left_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
-				t_Event.mouseInfo.right_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
-				t_Event.mouseInfo.right_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
-				t_Event.mouseInfo.middle_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
-				t_Event.mouseInfo.middle_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
-				if (t_Raw->data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
-				{
-					const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Raw->data.mouse.usButtonData);
-					t_Event.mouseInfo.wheelMove = t_MouseMove / WHEEL_DELTA;
-				}
-			}
-
-
-			break;
-		}
-		default:
-			TranslateMessage(&t_Msg);
-			DispatchMessage(&t_Msg);
-			break;
-		}
+		TranslateMessage(&t_Msg);
+		DispatchMessage(&t_Msg);
 	}
 
 	return true;

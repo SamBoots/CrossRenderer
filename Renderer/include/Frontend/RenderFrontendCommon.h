@@ -1,7 +1,5 @@
 #pragma once
 #include "../Backend/RenderBackend.h"
-#define GLM_FORCE_RADIANS
-#define GLM_DEPTH_ZERO_TO_ONE
 #include "Transform.h"
 
 namespace BB

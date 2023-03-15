@@ -61,6 +61,8 @@ int main(int argc, char** argv)
 
 	Render::InitRenderer(t_RenderInfo);
 	Camera t_Cam;
+	float yaw = -90.0f;
+	float pitch = 0.f;
 	glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f);
 	glm::vec3 cameraFront = glm::vec3(-2.0f, -2.0f, -2.0f);
 	glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -152,7 +154,23 @@ int main(int argc, char** argv)
 					break;
 				}
 			}
+			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
+			{
+				yaw += t_Event.mouseInfo.yMove * 0.1f;	
+				pitch += t_Event.mouseInfo.xMove * 0.1f;
+
+				if (pitch > 89.0f)
+					pitch = 89.0f;
+				if (pitch < -89.0f)
+					pitch = -89.0f;
+			}
 		}
+
+		glm::vec3 t_Direction;
+		t_Direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		t_Direction.y = sin(glm::radians(pitch));
+		t_Direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		cameraFront = glm::normalize(t_Direction);
 
 		t_Cam.view = glm::lookAt(cameraPos,
 			cameraPos + cameraFront,
