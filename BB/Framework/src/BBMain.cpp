@@ -22,6 +22,8 @@ void BB::InitBB(const BBInitInfo& a_BBInfo)
 #ifdef _DEBUG
 	g_AllocationLogFile = CreateOSFile(L"allocationLogger.txt");
 #endif //_DEBUG
+
+	InitProgram();
 }
 
 const wchar* BB::GetProgramName()

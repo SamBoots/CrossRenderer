@@ -226,7 +226,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	int x, y, c;
-	stbi_uc* t_Pixels = stbi_load("../Resources/Textures/Test.jpg", &x, &y, &c, 4);
+	stbi_uc* t_Pixels = stbi_load("Resources/Textures/Test.jpg", &x, &y, &c, 4);
+	BB_ASSERT(t_Pixels, "Failed to load test image!");
 	STBI_FREE(t_Pixels); //HACK, will fix later.
 	{
 		RenderImageCreateInfo t_ImageInfo{};
@@ -339,8 +340,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BasicPipe.BindDescriptor(t_Descriptor2);
 
 	const wchar_t* t_ShaderPath[2];
-	t_ShaderPath[0] = L"../Resources/Shaders/HLSLShaders/DebugVert.hlsl";
-	t_ShaderPath[1] = L"../Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
+	t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 
 	Shader::ShaderCodeHandle t_ShaderHandles[2];
 	t_ShaderHandles[0] = Shader::CompileShader(

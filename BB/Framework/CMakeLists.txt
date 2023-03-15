@@ -37,6 +37,7 @@ set (BB_Public
 "include/BBMain.h")
 
 set (BB_Source
+"include/OS/HID.inl"
 "include/BBGlobal.h" 
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/BackingAllocator.cpp" 

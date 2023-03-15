@@ -38,25 +38,47 @@ int main(int argc, char** argv)
 	RUN_ALL_TESTS();
 	WindowHandle mainWindow = CreateOSWindow(OS_WINDOW_STYLE::MAIN, 250, 200, 250, 200, L"Unit Test Main Window");
 
-	WindowHandle childWindow = CreateOSWindow(OS_WINDOW_STYLE::CHILD, 100, 100, 250, 50, L"Unit Test Child Window 1");
-
-	WindowHandle destroyWindow = CreateOSWindow(OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, L"Unit Test childWindow window");
-
 	bool hasWindows = true;
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
 	size_t t_InputEventCount = 0;
 	while (hasWindows)
 	{
-		hasWindows = ProcessMessages();
 		BB::PollInputEvents(t_InputEvents, t_InputEventCount);
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
 			InputEvent& t_Event = t_InputEvents[i];
-			if (t_Event.mouseInfo.xMove || t_Event.mouseInfo.yMove)
+			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
-				BB_LOG("Mouse moved!");
+				switch (t_Event.keyInfo.scancode)
+				{
+				case KEYBOARD_KEY::_W:
+					if (t_Event.keyInfo.keyPressed)
+						BB_LOG("W pressed!");
+					else
+						BB_LOG("W released!");
+					break;
+				case KEYBOARD_KEY::_A:
+					if (t_Event.keyInfo.keyPressed)
+						BB_LOG("A pressed!");
+					else
+						BB_LOG("A released!");
+					break;
+				case KEYBOARD_KEY::_S:
+					if (t_Event.keyInfo.keyPressed)
+						BB_LOG("S pressed!");
+					else
+						BB_LOG("S released!");
+					break;
+				case KEYBOARD_KEY::_D:
+					if (t_Event.keyInfo.keyPressed)
+						BB_LOG("D pressed!");
+					else
+						BB_LOG("D released!");
+					break;
+				}
 			}
 		}
+		hasWindows = ProcessMessages();
 	}
 
 	return 0;

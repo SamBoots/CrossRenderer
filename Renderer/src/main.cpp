@@ -1,5 +1,6 @@
 #include "BBMain.h"
 #include "OS/Program.h"
+#include "OS/HID.h"
 #include "Frontend/RenderFrontend.h"
 
 #include <chrono>
@@ -60,9 +61,13 @@ int main(int argc, char** argv)
 
 	Render::InitRenderer(t_RenderInfo);
 	Camera t_Cam;
-	t_Cam.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
-		glm::vec3(0.0f, 0.0f, 0.0f),
-		glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f);
+	glm::vec3 cameraFront = glm::vec3(-2.0f, -2.0f, -2.0f);
+	glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
+
+	t_Cam.view = glm::lookAt(cameraPos,
+		cameraPos + cameraFront,
+		cameraUp);
 	t_Cam.projection = glm::perspective(glm::radians(45.0f),
 		t_WindowWidth / (float)t_WindowHeight,
 		0.1f,
@@ -94,12 +99,12 @@ int main(int argc, char** argv)
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
-	t_ModelInfo.imagePath = "../Resources/Textures/Test.jpg";
+	t_ModelInfo.imagePath = "Resources/Textures/Test.jpg";
 
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
-	t_LoadInfo.path = "../Resources/Models/cube.gltf";
+	t_LoadInfo.path = "Resources/Models/cube.gltf";
 	
 
 	//Start frame before we upload.
@@ -114,9 +119,46 @@ int main(int argc, char** argv)
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
+
+	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
+	size_t t_InputEventCount = 0;
+
+	const float t_CamSpeed = 0.15f;
 	while (!t_Quit)
 	{
 		ProcessMessages();
+		PollInputEvents(t_InputEvents, t_InputEventCount);
+
+		for (size_t i = 0; i < t_InputEventCount; i++)
+		{
+			InputEvent& t_Event = t_InputEvents[i];
+			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
+			{
+				switch (t_Event.keyInfo.scancode)
+				{
+				case KEYBOARD_KEY::_W:
+					cameraPos += t_CamSpeed * cameraFront;
+					break;
+				case KEYBOARD_KEY::_S:
+					cameraPos -= t_CamSpeed * cameraFront;
+					break;
+				case KEYBOARD_KEY::_A:
+					cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * t_CamSpeed;
+					break;
+				case KEYBOARD_KEY::_D:
+					cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * t_CamSpeed;
+					break;
+				default:
+					break;
+				}
+			}
+		}
+
+		t_Cam.view = glm::lookAt(cameraPos,
+			cameraPos + cameraFront,
+			cameraUp);
+
+		Render::SetView(t_Cam.view);
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 

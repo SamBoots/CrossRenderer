@@ -39,6 +39,9 @@ namespace BB
 #endif
 	};
 
+	//Hide this in the future so that users cannot access it.
+	void InitProgram();
+
 	//The size of a virtual memory page on the OS.
 	const size_t VirtualMemoryPageSize();
 	//The minimum virtual allocation size you can do. 
