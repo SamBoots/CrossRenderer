@@ -408,7 +408,7 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 			t_IndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
 			t_IndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
 			t_IndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
-			t_IndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE);
+			t_IndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE)
 		{
 			return t_PhysicalDevices[i];
 		}
@@ -905,7 +905,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
 		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		t_LayoutInfo.pBindings = t_LayoutBinds;
-		t_LayoutInfo.bindingCount = a_Info.bindings.size();
+		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bindings.size());
 		
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
@@ -913,7 +913,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 			VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{};
 			t_LayoutExtInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
-			t_LayoutExtInfo.bindingCount = a_Info.bindings.size();
+			t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_Info.bindings.size());
 			t_LayoutExtInfo.pBindingFlags = t_BindlessFlags;
 
 			t_LayoutInfo.pNext = &t_LayoutExtInfo;
@@ -1396,7 +1396,7 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 	}
 
 	t_BuildInfo->pipeInfo.pStages = t_PipelineShaderStageInfo;
-	t_BuildInfo->pipeInfo.stageCount = a_ShaderInfo.size();
+	t_BuildInfo->pipeInfo.stageCount = static_cast<uint32_t>(a_ShaderInfo.size());
 }
 
 PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)

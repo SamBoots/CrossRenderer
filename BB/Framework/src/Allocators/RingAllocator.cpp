@@ -52,7 +52,7 @@ void* RingAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 
 	void* t_ReturnPtr = Pointer::Add(m_BufferPos, t_Adjustment);
 	m_BufferPos = Pointer::Add(m_BufferPos, t_AdjustedSize);
-	m_Used += t_AdjustedSize;
+	m_Used += static_cast<uint32_t>(t_AdjustedSize);
 
 	return t_ReturnPtr;
 }

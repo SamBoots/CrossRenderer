@@ -15,9 +15,9 @@ static void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return t_Data;
 }
 
-static size_t GetChildNodeCount(const cgltf_node& a_Node)
+static uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 {
-	size_t t_NodeCount = 0;
+	uint32_t t_NodeCount = 0;
 	for (size_t i = 0; i < a_Node.children_count; i++)
 	{
 		t_NodeCount += GetChildNodeCount(*a_Node.children[i]);
@@ -39,11 +39,11 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 	BB_ASSERT(cgltf_validate(t_Data) == cgltf_result_success, "GLTF model validation failed!");
 
-	size_t t_IndexCount = 0;
-	size_t t_VertexCount = 0;
-	size_t t_LinearNodeCount = t_Data->nodes_count;
-	size_t t_MeshCount = t_Data->meshes_count;
-	size_t t_PrimitiveCount = 0;
+	uint32_t t_IndexCount = 0;
+	uint32_t t_VertexCount = 0;
+	uint32_t t_LinearNodeCount = static_cast<uint32_t>(t_Data->nodes_count);
+	uint32_t t_MeshCount = static_cast<uint32_t>(t_Data->meshes_count);
+	uint32_t t_PrimitiveCount = 0;
 
 	//Get the node count.
 	for (size_t nodeIndex = 0; nodeIndex < t_Data->nodes_count; nodeIndex++)
@@ -60,7 +60,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		{
 			++t_PrimitiveCount;
 			cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
-			t_IndexCount += t_Mesh.primitives[meshIndex].indices->count;
+			t_IndexCount += static_cast<uint32_t>(t_Mesh.primitives[meshIndex].indices->count);
 
 			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
 			{
@@ -68,7 +68,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 				if (t_Attribute.type == cgltf_attribute_type_position)
 				{
 					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position type is not a vec3!");
-					t_VertexCount += t_Attribute.data->count;
+					t_VertexCount += static_cast<uint32_t>(t_Attribute.data->count);
 				}
 			}
 		}
@@ -133,7 +133,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 			{
 				const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
 				Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
-				t_MeshPrimitive.indexCount = t_Primitive.indices->count;
+				t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);
 				t_MeshPrimitive.indexStart = t_CurrentIndex;
 
 				void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);

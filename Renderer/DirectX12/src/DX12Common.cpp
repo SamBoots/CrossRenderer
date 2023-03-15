@@ -242,7 +242,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 	*t_Descriptor = {};
 
 	t_Descriptor->shaderSpace = a_Info.bindingSet;
-	size_t t_ParamIndex = 0;
+	UINT t_ParamIndex = 0;
 
 	uint32_t t_TableDescriptorCount = 0;
 	uint32_t t_TableBindingCount = 0;
@@ -521,7 +521,7 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 	t_ReturnInfo.allocInfo.footRowPitch = t_Layouts->Footprint.RowPitch;
 	t_ReturnInfo.allocInfo.footHeight = t_Layouts->Footprint.Height;
 
-	t_ReturnInfo.width = t_Desc.Width;
+	t_ReturnInfo.width = static_cast<uint32_t>(t_Desc.Width);
 	t_ReturnInfo.height = t_Desc.Height;
 	t_ReturnInfo.depth = t_Desc.DepthOrArraySize;
 	t_ReturnInfo.arrayLayers = t_Desc.DepthOrArraySize;
@@ -571,7 +571,7 @@ void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle,
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 	const DXDescriptor* t_BindingSet = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
 
-	size_t t_ParamIndex = t_BuildInfo->rootParamCount;
+	uint32_t t_ParamIndex = t_BuildInfo->rootParamCount;
 	t_BuildInfo->buildPipeline.rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = t_ParamIndex;
 
 	if (t_BindingSet->tables.table.count != 0)
@@ -699,7 +699,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> t_InputElementDescs = VertexInputElements();
 
 	t_BuildInfo->PSOdesc.InputLayout.pInputElementDescs = t_InputElementDescs.data();
-	t_BuildInfo->PSOdesc.InputLayout.NumElements = t_InputElementDescs.size(); 
+	t_BuildInfo->PSOdesc.InputLayout.NumElements = static_cast<uint32_t>(t_InputElementDescs.size());
 
 
 	D3D12_BLEND_DESC t_BlendDesc;

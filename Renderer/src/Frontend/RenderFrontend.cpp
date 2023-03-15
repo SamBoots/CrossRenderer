@@ -103,7 +103,7 @@ static void Draw3DFrame()
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
 
-	uint32_t t_CamOffset = s_GlobalInfo.perFrameBufferSize * s_CurrentFrame;
+	uint32_t t_CamOffset = static_cast<uint32_t>(s_GlobalInfo.perFrameBufferSize * s_CurrentFrame);
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(Camera);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
 
@@ -529,7 +529,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferImageInfo t_CopyImage{};
 		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
-		t_CopyImage.srcBufferOffset = t_AlignedOffset;
+		t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_AlignedOffset);
 		t_CopyImage.dstImage = t_ExampleImage;
 		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
 		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(y);
