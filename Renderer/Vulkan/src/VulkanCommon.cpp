@@ -380,17 +380,17 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 
 	for (uint32_t i = 0; i < t_DeviceCount; i++)
 	{
-		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
-		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
 
 		VkPhysicalDeviceProperties2 t_DeviceProperties{};
 		t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-		t_DeviceProperties.pNext = &t_IndexingFeatures;
+		t_DeviceProperties.pNext = nullptr;
 		vkGetPhysicalDeviceProperties2(t_PhysicalDevices[i], &t_DeviceProperties);
 		
-
+		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
+		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
 		VkPhysicalDeviceTimelineSemaphoreFeatures t_SyncFeatures{};
 		t_SyncFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+		t_SyncFeatures.pNext = &t_IndexingFeatures;
 		VkPhysicalDeviceFeatures2 t_DeviceFeatures{};
 		t_DeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		t_DeviceFeatures.pNext = &t_SyncFeatures;

@@ -438,8 +438,6 @@ bool BB::ProcessMessages()
 
 	while (PeekMessage(&t_Msg, NULL, 0u, 0u, PM_REMOVE))
 	{
-		TranslateMessage(&t_Msg);
-		DispatchMessage(&t_Msg);
 		switch (t_Msg.message)
 		{
 		case WM_INPUT:
@@ -507,6 +505,10 @@ bool BB::ProcessMessages()
 
 			break;
 		}
+		default:
+			TranslateMessage(&t_Msg);
+			DispatchMessage(&t_Msg);
+			break;
 		}
 	}
 
