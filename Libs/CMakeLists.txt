@@ -22,6 +22,10 @@ add_library(stb_image INTERFACE
 "stb/stb_image.h"
 )
 
+add_library(cgltf INTERFACE
+"cgltf/cgltf.h"
+)
+
 find_package(GLM)
 #Not found
 if (${GLM_FOUND})

@@ -2,8 +2,11 @@
 #include "Logger.h"
 #include "RenderBackend.h"
 
+#pragma warning(push)
+#pragma warning(disable:4996)
 #define CGLTF_IMPLEMENTATION
 #include "cgltf/cgltf.h"
+#pragma warning (pop)
 
 using namespace BB;
 
