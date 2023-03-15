@@ -19,6 +19,7 @@ set (BB_Public
 "include/Allocators/BackingAllocator.h" 
 "include/Allocators/Allocators.h" 
 "include/Allocators/TemporaryAllocator.h"
+"include/Allocators/RingAllocator.h"
 "include/Storage/Array.h" 
 "include/Storage/Pool.h" 
 "include/Storage/GrowPool.h"
@@ -30,6 +31,7 @@ set (BB_Public
 "include/Utils/Slice.h"
 "include/Utils/Logger.h"
 "include/OS/Program.h" 
+"include/OS/HID.h"
 "include/Common.h"
 "include/BBMemory.h" 
 "include/BBMain.h")
@@ -52,10 +54,8 @@ add_library (BBFramework SHARED ${BB_Source})
 
 #Executable-Object
 set_target_properties (BBFramework PROPERTIES
-	PUBLIC_HEADER "${BB_Public}
-	include/Allocators/RingAllocator.h" #bro I hate cmake, why does this work but not putting it in BB_Public?!
-	RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:Renderer>
-)
+	PUBLIC_HEADER ${BB_Public}
+	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}>)
 
 #Include library
 target_include_directories(BBFramework PUBLIC

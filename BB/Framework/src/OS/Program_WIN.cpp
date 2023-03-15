@@ -1,12 +1,16 @@
 #include "BBGlobal.h"
 #include "Program.h"
+#include "HID.h"
 #include "Utils/Logger.h"
+#include "RingAllocator.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <fileapi.h>
 #include <memoryapi.h>
 #include <libloaderapi.h>
+#include <WinUser.h>
+#include <hidusage.h>
 
 using namespace BB;
 
@@ -16,13 +20,62 @@ void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y) {}
 static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
 static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
 
-//The OS window for Windows.
-struct OSWindow
+struct InputBuffer
 {
-	HWND hwnd = nullptr;
-	const wchar* windowName = nullptr;
-	HINSTANCE hInstance = nullptr;
+	InputEvent inputBuff[INPUT_EVENT_BUFFER_MAX];
+	uint32_t start = 0;
+	uint16_t pos = 0;
+	uint16_t used = 0;
 };
+
+struct InputInfo
+{
+	struct mouse
+	{
+		float oldXPos;
+		float oldYPos;
+	} mouse;
+};
+
+static InputBuffer s_InputBuffer{};
+static InputInfo s_InputInfo{};
+static MouseInfo s_MouseInfo{};
+static size_t s_OSRingAllocatorSize = 0; //This will be changed to the OS granulary minimum..
+static LocalRingAllocator s_LocalRingAllocator{ s_OSRingAllocatorSize };
+
+void PushInput(const InputEvent& a_Input)
+{
+	if (s_InputBuffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
+		s_InputBuffer.pos = 0;
+
+	s_InputBuffer.inputBuff[s_InputBuffer.pos++] = a_Input;
+
+	//Since when we get the input we get all of it. 
+	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
+		++s_InputBuffer.used;
+	
+}
+
+//Returns false if no input is left.
+void GetAllInput(InputEvent* a_InputBuffer)
+{
+	int t_FirstIndex = s_InputBuffer.start;
+	for (size_t i = 0; i < s_InputBuffer.used; i++)
+	{
+		a_InputBuffer[i] = s_InputBuffer.inputBuff[t_FirstIndex++];
+		//We go back to zero the read the data.
+		if (t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
+			t_FirstIndex = 0;
+	}
+
+	s_InputBuffer.start = s_InputBuffer.pos;
+	s_InputBuffer.used = 0;
+}
+
+void GetMouseInfo(MouseInfo& a_Info)
+{
+	a_Info = s_MouseInfo;
+}
 
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
@@ -39,6 +92,71 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
 		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
 		sPFN_ResizeEvent(a_Hwnd, t_X, t_Y);
+	}
+	case WM_INPUT:
+	{
+		UINT dwSize = 0;
+
+		GetRawInputData((HRAWINPUT)a_LParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+		if (dwSize == 0)
+			return 0;
+
+		//Allocate an input event.
+		InputEvent t_Event{};
+
+		LPBYTE t_Lpb = BBnewArr(s_LocalRingAllocator,
+			dwSize,
+			BYTE);
+		GetRawInputData((HRAWINPUT)a_LParam, RID_INPUT, t_Lpb, &dwSize, sizeof(RAWINPUTHEADER));
+
+		RAWINPUT* t_Raw = (RAWINPUT*)t_Lpb;
+
+		if (t_Raw->header.dwType = RIM_TYPEKEYBOARD)
+		{
+			uint16_t scanCode = t_Raw->data.keyboard.MakeCode;
+
+			// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
+			scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
+			scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
+
+			t_Event.keyInfo.scancode = scanCode;
+			t_Event.keyInfo.keyPressed = !(t_Raw->data.keyboard.Flags & RI_KEY_BREAK);
+		}
+		else if (t_Raw->header.dwType = RIM_TYPEMOUSE)
+		{
+			const float moveX = static_cast<float>(t_Raw->data.mouse.lLastX);
+			const float moveY = static_cast<float>(t_Raw->data.mouse.lLastY);
+			if (t_Raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) 
+			{
+				t_Event.mouseInfo.xMove = moveX - s_InputInfo.mouse.oldXPos;
+				t_Event.mouseInfo.yMove = moveY - s_InputInfo.mouse.oldYPos;
+				s_InputInfo.mouse.oldXPos = moveX;
+				s_InputInfo.mouse.oldYPos = moveY;
+			}
+			else
+			{
+				t_Event.mouseInfo.xMove = moveX;
+				t_Event.mouseInfo.yMove = moveY;
+			}
+
+			t_Event.mouseInfo.left_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+			t_Event.mouseInfo.left_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
+			t_Event.mouseInfo.right_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
+			t_Event.mouseInfo.right_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
+			t_Event.mouseInfo.middle_pressed = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
+			t_Event.mouseInfo.middle_released = t_Raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
+			if (t_Raw->data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL)) {
+				const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Raw->data.mouse.usButtonData);
+				t_Event.mouseInfo.wheelMove = t_MouseMove / WHEEL_DELTA;
+			}
+		}
+		else //if it's not keyboard not mouse, then just break and don't push the event.
+		{
+			return 0;
+		}
+		
+		PushInput(t_Event);
+		break;
 	}
 	break;
 	}
@@ -276,12 +394,12 @@ void BB::CloseOSFile(const OSFileHandle a_FileHandle)
 
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
-	OSWindow t_ReturnWindow;
-	t_ReturnWindow.windowName = a_WindowName;
+	HWND t_Window;
+	HINSTANCE t_HInstance;
 
 	WNDCLASSW t_WndClass = {};
-	t_WndClass.lpszClassName = t_ReturnWindow.windowName;
-	t_WndClass.hInstance = t_ReturnWindow.hInstance;
+	t_WndClass.lpszClassName = a_WindowName;
+	t_WndClass.hInstance = nullptr;
 	t_WndClass.hIcon = LoadIconW(NULL, IDI_WINLOGO);
 	t_WndClass.hCursor = LoadCursorW(NULL, IDC_ARROW);
 	t_WndClass.lpfnWndProc = WindowProc;
@@ -312,9 +430,9 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 
 	AdjustWindowRect(&t_Rect, t_Style, false);
 
-	t_ReturnWindow.hwnd = CreateWindowEx(
+	t_Window = CreateWindowEx(
 		0,
-		t_ReturnWindow.windowName,
+		a_WindowName,
 		g_ProgramName,
 		t_Style,
 		t_Rect.left,
@@ -323,11 +441,27 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 		t_Rect.bottom - t_Rect.top,
 		NULL,
 		NULL,
-		t_ReturnWindow.hInstance,
+		NULL,
 		NULL);
-	ShowWindow(t_ReturnWindow.hwnd, SW_SHOW);
+	ShowWindow(t_Window, SW_SHOW);
 
-	return WindowHandle(t_ReturnWindow.hwnd);
+	//Get the mouse and keyboard.
+	RAWINPUTDEVICE t_Rid[2]{};
+
+	t_Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	t_Rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+	t_Rid[0].dwFlags = 0;
+	t_Rid[0].hwndTarget = t_Window;
+
+	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
+	t_Rid[1].dwFlags = 0;
+	t_Rid[1].hwndTarget = t_Window;
+
+	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
+		"Failed to register raw input devices!");
+
+	return WindowHandle(t_Window);
 }
 
 void* BB::GetOSWindowHandle(const WindowHandle a_Handle)
@@ -375,4 +509,14 @@ bool BB::ProcessMessages()
 	}
 
 	return true;
+}
+
+void BB::PollInputEvents(InputEvent* a_EventBuffers, size_t& a_InputEventAmount)
+{
+	a_InputEventAmount = s_InputBuffer.used;
+	if (a_EventBuffers == nullptr)
+		return;
+	
+	//Overwrite could happen! But this is user's responsibility.
+	GetAllInput(a_EventBuffers);
 }

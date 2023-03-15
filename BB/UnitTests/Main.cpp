@@ -24,6 +24,7 @@
 
 #include "BBMain.h"
 #include "OS/Program.h"
+#include "OS/HID.h"
 
 using namespace BB;
 int main(int argc, char** argv)
@@ -42,9 +43,20 @@ int main(int argc, char** argv)
 	WindowHandle destroyWindow = CreateOSWindow(OS_WINDOW_STYLE::CHILD, 150, 100, 250, 100, L"Unit Test childWindow window");
 
 	bool hasWindows = true;
+	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
+	size_t t_InputEventCount = 0;
 	while (hasWindows)
 	{
 		hasWindows = ProcessMessages();
+		BB::PollInputEvents(t_InputEvents, t_InputEventCount);
+		for (size_t i = 0; i < t_InputEventCount; i++)
+		{
+			InputEvent& t_Event = t_InputEvents[i];
+			if (t_Event.mouseInfo.xMove || t_Event.mouseInfo.yMove)
+			{
+				BB_LOG("Mouse moved!");
+			}
+		}
 	}
 
 	return 0;

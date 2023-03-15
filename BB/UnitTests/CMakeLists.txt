@@ -36,5 +36,8 @@ include_directories(
 )
 target_link_libraries(Unittest_Project BBFramework gtest_main)
 
+#Executable-Object
+set_target_properties (Unittest_Project PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}>)
 #include(googletest)
 #gtest_discover_tests(Unit_Test_Proj)

@@ -1,10 +1,3 @@
-#pragma once
-#include <cstdlib>
-#include <cstdint>
-#include "Common.h"
-#include "BBMemory.h"
-#include "BBString.h"
-
 ////// PROGRAM.h //////
 /// Program abstracts most OS calls and handles creation of windows,
 /// loading of external files and book keeping of data that is part of
@@ -12,6 +5,13 @@
 /// 
 /// Replaces OSDevice.h from the older BB version
 ////// PROGRAM.h //////
+
+#pragma once
+#include <cstdlib>
+#include <cstdint>
+#include "Common.h"
+#include "BBMemory.h"
+#include "BBString.h"
 
 namespace BB
 {

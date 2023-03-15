@@ -60,6 +60,10 @@ add_subdirectory("DirectX12")
 add_dependencies(Renderer BB_VulkanDLL)
 add_dependencies(Renderer BB_DirectXDLL)
 
+#Executable-Object
+set_target_properties (Renderer PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}>)
+
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxcompiler.dll"
