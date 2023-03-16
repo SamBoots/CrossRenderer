@@ -62,10 +62,7 @@ int main(int argc, char** argv)
 
 	Render::InitRenderer(t_RenderInfo);
 
-	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f),
-	glm::vec3(-2.0f, -2.0f, -2.0f),
-	glm::vec3(0.0f, 0.0f, 1.0f),
-	0.35f};
+	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
 
 	uint32_t t_MatrixSize;
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
@@ -77,9 +74,9 @@ int main(int argc, char** argv)
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
 
-	Render::SetProjection(glm::perspective(glm::radians(90.0f),
+	Render::SetProjection(glm::perspective(glm::radians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
-		0.1f, 10.0f));
+		0.001f, 10000.0f));
 	Render::SetView(t_Cam.CalculateView());
 
 	Vertex t_Vertex[4];
@@ -148,7 +145,7 @@ int main(int argc, char** argv)
 					t_CamMove.x = -1;
 					t_Cam.Move(t_CamMove);
 					break;
-				case KEYBOARD_KEY::_SHIFTLEFT:
+				case KEYBOARD_KEY::_X:
 					t_CamMove.z = 1;
 					t_Cam.Move(t_CamMove);
 					break;

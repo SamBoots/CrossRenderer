@@ -6,7 +6,7 @@ namespace BB
 	class Camera
 	{
 	public:
-		Camera(const glm::vec3 a_Pos, const glm::vec3 a_Up, const glm::vec3 a_Right, const float a_CamSpeed = 0.15f);
+		Camera(const glm::vec3 a_Pos, const float a_CamSpeed = 0.15f);
 		~Camera();
 
 		void Move(const glm::vec3 a_Movement);
@@ -23,6 +23,5 @@ namespace BB
 		glm::vec3 m_Front;
 		glm::vec3 m_Right;
 		glm::vec3 m_Up;	
-		glm::quat m_Orientation;
 	};
 }
