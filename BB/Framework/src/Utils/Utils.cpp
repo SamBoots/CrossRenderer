@@ -1,4 +1,5 @@
 #include "Utils.h"
+#include "Math.inl"
 
 #include <immintrin.h>
 
@@ -185,7 +186,7 @@ namespace BB
 
 	bool BB::Memory::MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
 	{
-		const size_t t_Diff = Math::Max(
+		const size_t t_Diff = Max(
 			Pointer::AlignForwardAdjustment(a_Left, sizeof(size_t)),
 			Pointer::AlignForwardAdjustment(a_Right, sizeof(size_t)));
 
@@ -225,7 +226,7 @@ namespace BB
 
 	bool BB::Memory::MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size)
 	{
-		const size_t t_Diff = Math::Max(
+		const size_t t_Diff = Max(
 			Pointer::AlignForwardAdjustment(a_Left, sizeof(__m128i)),
 			Pointer::AlignForwardAdjustment(a_Right, sizeof(__m128i)));
 
@@ -271,7 +272,7 @@ namespace BB
 
 	bool BB::Memory::MemCmpSIMD256(const void* __restrict a_Left, const void* __restrict a_Right, size_t a_Size)
 	{
-		const size_t t_Diff = Math::Max(
+		const size_t t_Diff = Max(
 			Pointer::AlignForwardAdjustment(a_Left, sizeof(__m256i)),
 			Pointer::AlignForwardAdjustment(a_Right, sizeof(__m256i)));
 

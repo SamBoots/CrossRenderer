@@ -2,6 +2,7 @@
 #include "BackingAllocator.h"
 #include "Utils/Utils.h"
 #include "OS/Program.h"
+#include "Math.inl"
 
 using namespace BB;
 
@@ -15,7 +16,7 @@ void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const size_t a_ReserveSiz
 {
 	//Adjust the requested bytes by the page size and the minimum virtual allocaion size.
 	size_t t_PageAdjustedSize = Math::RoundUp(a_Size + sizeof(VirtualHeader), VirtualMemoryPageSize());
-	t_PageAdjustedSize = Math::Max(t_PageAdjustedSize, VirtualMemoryMinimumAllocation());
+	t_PageAdjustedSize = Max(t_PageAdjustedSize, VirtualMemoryMinimumAllocation());
 
 	//Set the reference of a_Size so that the allocator has enough memory until the end of the page.
 	a_Size = t_PageAdjustedSize - sizeof(VirtualHeader);

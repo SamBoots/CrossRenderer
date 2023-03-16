@@ -80,8 +80,7 @@ namespace BB
 
 	struct MouseInfo
 	{
-		float xMove;
-		float yMove;
+		float2 moveOffset;
 		//Might add more here.
 		int16_t wheelMove;
 		bool left_pressed;
@@ -107,6 +106,7 @@ namespace BB
 
 	struct InputEvent
 	{
+		InputEvent() {}; //WHY C++, had to do this as it appearantly deleted the standard constructor.
 		INPUT_TYPE inputType;
 		union
 		{

@@ -1,6 +1,7 @@
 #include "BBGlobal.h"
 #include "Program.h"
 #include "HID.inl"
+#include "Math.inl"
 #include "Utils/Logger.h"
 #include "RingAllocator.h"
 
@@ -32,8 +33,7 @@ struct InputInfo
 {
 	struct mouse
 	{
-		float oldXPos;
-		float oldYPos;
+		float2 oldPos;
 	} mouse;
 };
 
@@ -114,19 +114,15 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 	else if (t_Input->header.dwType == RIM_TYPEMOUSE)
 	{
 		t_Event.inputType = INPUT_TYPE::MOUSE;
-		const float moveX = static_cast<float>(t_Input->data.mouse.lLastX);
-		const float moveY = static_cast<float>(t_Input->data.mouse.lLastY);
+		const float2 t_MoveInput{ t_Input->data.mouse.lLastX , t_Input->data.mouse.lLastY };
 		if (t_Input->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
-			t_Event.mouseInfo.xMove = moveX - s_InputInfo.mouse.oldXPos;
-			t_Event.mouseInfo.yMove = moveY - s_InputInfo.mouse.oldYPos;
-			s_InputInfo.mouse.oldXPos = moveX;
-			s_InputInfo.mouse.oldYPos = moveY;
+			t_Event.mouseInfo.moveOffset = t_MoveInput - s_InputInfo.mouse.oldPos;
+			s_InputInfo.mouse.oldPos = t_MoveInput;
 		}
 		else
 		{
-			t_Event.mouseInfo.xMove = moveX;
-			t_Event.mouseInfo.yMove = moveY;
+			t_Event.mouseInfo.moveOffset = t_MoveInput;
 		}
 
 		t_Event.mouseInfo.left_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;

@@ -144,38 +144,6 @@ namespace BB
 		{
 			return ((a_NumToRound + a_Multiple - 1) / a_Multiple) * a_Multiple;
 		}
-
-		inline static size_t Max(const size_t a_A, const size_t a_B)
-		{
-			if (a_A > a_B)
-				return a_A;
-			return a_B;
-		}
-
-		inline static size_t Min(const size_t a_A, const size_t a_B)
-		{
-			if (a_A < a_B)
-				return a_A;
-			return a_B;
-		}
-
-		inline static float Lerp(const float a_A, const float a_B, const float a_T)
-		{
-			return a_A + a_T * (a_B - a_A);
-		}
-
-		inline static int clamp(int a_Value, int a_Min, int a_Max)
-		{
-			if (a_Value > a_Max)
-			{
-				return a_Max;
-			}
-			else if (a_Value < a_Min)
-			{
-				return a_Min;
-			}
-			return a_Value;
-		}
 	}
 
 	namespace Random

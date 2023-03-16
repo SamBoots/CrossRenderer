@@ -47,4 +47,44 @@ namespace BB
 		void* data;
 		uint64_t size;
 	};
+
+
+	struct float2
+	{
+		float x = 0;
+		float y = 0;
+	};
+
+	struct float3
+	{
+		float x = 0;
+		float y = 0;
+		float z = 0;
+	};
+
+	struct int2
+	{
+		int x = 0;
+		int y = 0;
+	};
+
+	struct int3
+	{
+		int x = 0;
+		int y = 0;
+		int z = 0;
+	};
+
+	struct uint2
+	{
+		uint32_t x = 0;
+		uint32_t y = 0;
+	};
+
+	struct uint3
+	{
+		uint32_t x = 0;
+		uint32_t y = 0;
+		uint32_t z = 0;
+	};
 }

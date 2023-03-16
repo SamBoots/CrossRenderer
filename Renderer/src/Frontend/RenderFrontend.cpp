@@ -33,7 +33,7 @@ struct RendererInst
 
 struct GlobalInfo
 {
-	Camera* cameraData;
+	CameraRenderData* cameraData;
 	uint64_t perFrameBufferSize;
 
 	RBufferHandle perFrameBuffer;
@@ -78,7 +78,7 @@ static void Draw3DFrame()
 	RenderCopyBufferInfo t_CopyInfo;
 	t_CopyInfo.src = s_GlobalInfo.perFrameTransferBuffer;
 	t_CopyInfo.dst = s_GlobalInfo.perFrameBuffer;
-	t_CopyInfo.size = sizeof(Camera) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
+	t_CopyInfo.size = sizeof(CameraRenderData) + (sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax);
 	t_CopyInfo.srcOffset = 0;
 	t_CopyInfo.dstOffset = t_CopyInfo.size * s_CurrentFrame;
 
@@ -104,7 +104,7 @@ static void Draw3DFrame()
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
 
 	uint32_t t_CamOffset = static_cast<uint32_t>(s_GlobalInfo.perFrameBufferSize * s_CurrentFrame);
-	uint32_t t_MatrixOffset = t_CamOffset + sizeof(Camera);
+	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
 	uint32_t t_DynOffSets[2]{ t_CamOffset, t_MatrixOffset };
 
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
@@ -202,7 +202,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 
 #pragma region PipelineCreation
-	const uint64_t t_PerFrameBufferSingleFrame = sizeof(Camera) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+	const uint64_t t_PerFrameBufferSingleFrame = sizeof(CameraRenderData) + sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
 	RenderBufferCreateInfo t_PerFrameTransferBuffer;
 	t_PerFrameTransferBuffer.size = t_PerFrameBufferSingleFrame;
@@ -212,9 +212,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_GlobalInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
 	s_GlobalInfo.transferBufferStart = RenderBackend::MapMemory(s_GlobalInfo.perFrameTransferBuffer);
 	s_GlobalInfo.transferBufferCameraStart = s_GlobalInfo.transferBufferStart;
-	s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(Camera));
+	s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(CameraRenderData));
 
-	s_GlobalInfo.cameraData = reinterpret_cast<Camera*>(s_GlobalInfo.transferBufferCameraStart);
+	s_GlobalInfo.cameraData = reinterpret_cast<CameraRenderData*>(s_GlobalInfo.transferBufferCameraStart);
 
 	const uint64_t t_perFrameBufferEntireSize = t_PerFrameBufferSingleFrame * s_RendererInst.frameBufferAmount;
 
@@ -311,7 +311,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		t_BufferUpdate.buffer = s_GlobalInfo.perFrameBuffer;
 		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(Camera);
+		t_BufferUpdate.bufferSize = sizeof(CameraRenderData);
 
 		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
 

@@ -2,6 +2,7 @@
 #include "OS/Program.h"
 #include "OS/HID.h"
 #include "Frontend/RenderFrontend.h"
+#include "Frontend/Camera.h"
 
 #include <chrono>
 
@@ -60,20 +61,11 @@ int main(int argc, char** argv)
 #endif //choose graphicsAPI.
 
 	Render::InitRenderer(t_RenderInfo);
-	Camera t_Cam;
-	float yaw = -90.0f;
-	float pitch = 0.f;
-	glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f);
-	glm::vec3 cameraFront = glm::vec3(-2.0f, -2.0f, -2.0f);
-	glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
 
-	t_Cam.view = glm::lookAt(cameraPos,
-		cameraPos + cameraFront,
-		cameraUp);
-	t_Cam.projection = glm::perspective(glm::radians(45.0f),
-		t_WindowWidth / (float)t_WindowHeight,
-		0.1f,
-		10.0f);
+	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f),
+	glm::vec3(-2.0f, -2.0f, -2.0f),
+	glm::vec3(0.0f, 0.0f, 1.0f),
+	0.35f};
 
 	uint32_t t_MatrixSize;
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
@@ -85,8 +77,10 @@ int main(int argc, char** argv)
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
 
-	Render::SetProjection(t_Cam.projection);
-	Render::SetView(t_Cam.view);
+	Render::SetProjection(glm::perspective(glm::radians(90.0f),
+		t_WindowWidth / (float)t_WindowHeight,
+		0.1f, 10.0f));
+	Render::SetView(t_Cam.CalculateView());
 
 	Vertex t_Vertex[4];
 	t_Vertex[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
@@ -122,10 +116,9 @@ int main(int argc, char** argv)
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
 
-	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
+	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
 
-	const float t_CamSpeed = 0.15f;
 	while (!t_Quit)
 	{
 		ProcessMessages();
@@ -136,19 +129,32 @@ int main(int argc, char** argv)
 			InputEvent& t_Event = t_InputEvents[i];
 			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
+				glm::vec3 t_CamMove{};
 				switch (t_Event.keyInfo.scancode)
 				{
 				case KEYBOARD_KEY::_W:
-					cameraPos += t_CamSpeed * cameraFront;
+					t_CamMove.y = 1;
+					t_Cam.Move(t_CamMove);
 					break;
 				case KEYBOARD_KEY::_S:
-					cameraPos -= t_CamSpeed * cameraFront;
+					t_CamMove.y = -1;
+					t_Cam.Move(t_CamMove);
 					break;
 				case KEYBOARD_KEY::_A:
-					cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * t_CamSpeed;
+					t_CamMove.x = 1;
+					t_Cam.Move(t_CamMove);
 					break;
 				case KEYBOARD_KEY::_D:
-					cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * t_CamSpeed;
+					t_CamMove.x = -1;
+					t_Cam.Move(t_CamMove);
+					break;
+				case KEYBOARD_KEY::_SHIFTLEFT:
+					t_CamMove.z = 1;
+					t_Cam.Move(t_CamMove);
+					break;
+				case KEYBOARD_KEY::_Z:
+					t_CamMove.z = -1;
+					t_Cam.Move(t_CamMove);
 					break;
 				default:
 					break;
@@ -156,27 +162,11 @@ int main(int argc, char** argv)
 			}
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
-				yaw += t_Event.mouseInfo.yMove * 0.1f;	
-				pitch += t_Event.mouseInfo.xMove * 0.1f;
-
-				if (pitch > 89.0f)
-					pitch = 89.0f;
-				if (pitch < -89.0f)
-					pitch = -89.0f;
+				t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
 			}
 		}
 
-		glm::vec3 t_Direction;
-		t_Direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-		t_Direction.y = sin(glm::radians(pitch));
-		t_Direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-		cameraFront = glm::normalize(t_Direction);
-
-		t_Cam.view = glm::lookAt(cameraPos,
-			cameraPos + cameraFront,
-			cameraUp);
-
-		Render::SetView(t_Cam.view);
+		Render::SetView(t_Cam.CalculateView());
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 

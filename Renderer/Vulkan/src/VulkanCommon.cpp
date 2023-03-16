@@ -12,6 +12,7 @@ constexpr int VULKAN_VERSION = 3;
 #include "Allocators/RingAllocator.h"
 #include "Allocators/TemporaryAllocator.h"
 #include "BBMemory.h"
+#include "Math.inl"
 
 #include "VulkanCommon.h"
 
@@ -616,10 +617,10 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 	VkSurfaceFormatKHR t_ChosenFormat = ChooseSurfaceFormat(t_SwapchainDetails.formats, t_SwapchainDetails.formatCount);
 	VkPresentModeKHR t_ChosenPresentMode = ChoosePresentMode(t_SwapchainDetails.presentModes, t_SwapchainDetails.presentModeCount);
 	VkExtent2D t_ChosenExtent{};
-	t_ChosenExtent.width = Math::clamp(t_SurfaceWidth,
+	t_ChosenExtent.width = Clamp(t_SurfaceWidth,
 		t_SwapchainDetails.capabilities.minImageExtent.width,
 		t_SwapchainDetails.capabilities.maxImageExtent.width);
-	t_ChosenExtent.height = Math::clamp(t_SurfaceHeight,
+	t_ChosenExtent.height = Clamp(t_SurfaceHeight,
 		t_SwapchainDetails.capabilities.minImageExtent.height,
 		t_SwapchainDetails.capabilities.maxImageExtent.height);
 	s_VKB.swapChain.extent = t_ChosenExtent;

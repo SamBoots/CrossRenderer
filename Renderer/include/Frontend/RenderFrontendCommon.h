@@ -67,7 +67,7 @@ namespace BB
 		MODEL_TYPE modelType;
 	};
 
-	struct Camera
+	struct CameraRenderData
 	{
 		glm::mat4 view;
 		glm::mat4 projection;

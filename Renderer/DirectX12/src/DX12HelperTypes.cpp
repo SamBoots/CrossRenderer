@@ -1,5 +1,6 @@
 #include "DX12HelperTypes.h"
 #include "Utils.h"
+#include "Math.inl"
 
 using namespace BB;
 
@@ -116,7 +117,7 @@ DXFence::~DXFence()
 
 uint64_t DXFence::PollFenceValue()
 {
-	m_LastCompleteValue = BB::Math::Max(m_LastCompleteValue, m_Fence->GetCompletedValue());
+	m_LastCompleteValue = Max(m_LastCompleteValue, m_Fence->GetCompletedValue());
 	return m_LastCompleteValue;
 }
 
