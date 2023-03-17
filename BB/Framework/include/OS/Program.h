@@ -64,6 +64,8 @@ namespace BB
 
 	//Write to the standard C++ console if it's available.
 	void WriteToConsole(const char* a_String, uint32_t a_StrLength);
+	//Write to the standard C++ console if it's available.
+	void WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength);
 
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
@@ -91,6 +93,8 @@ namespace BB
 	void* GetOSWindowHandle(const WindowHandle a_Handle);
 	void GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y);
 	void DirectDestroyOSWindow(const WindowHandle a_Handle);
+	void FreezeMouseOnWindow(const WindowHandle a_Handle);
+	void UnfreezeMouseOnWindow();
 
 	//The function that will be called when a window is closed.
 	void SetCloseWindowPtr(PFN_WindowCloseEvent a_Func);
@@ -101,7 +105,7 @@ namespace BB
 	void ExitApp();
 
 	//Process the OS (or window) messages
-	bool ProcessMessages();
+	bool ProcessMessages(const WindowHandle a_WindowHandle);
 
 	//Get the program name.
 	const wchar* ProgramName();

@@ -37,11 +37,17 @@ struct InputInfo
 	} mouse;
 };
 
+struct GlobalProgramInfo
+{
+	bool trackingMouse = true;
+};
+
+static GlobalProgramInfo s_ProgramInfo{};
 static InputBuffer s_InputBuffer{};
 static InputInfo s_InputInfo{};
 static MouseInfo s_MouseInfo{};
 static size_t s_OSRingAllocatorSize = 0; //This will be changed to the OS granulary minimum..
-static LocalRingAllocator s_LocalRingAllocator{ s_OSRingAllocatorSize };
+static LocalRingAllocator s_OSRingAllocator{ s_OSRingAllocatorSize };
 
 void PushInput(const InputEvent& a_Input)
 {
@@ -88,14 +94,12 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 	if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
 		return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
 
-	UINT t_Size = 0;
-	GetRawInputData(t_HRawInput, RID_INPUT, NULL, &t_Size, sizeof(RAWINPUTHEADER));
-	if (t_Size == 0)
-		return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
 
 	//Allocate an input event.
 	InputEvent t_Event{};
-	RAWINPUT* t_Input = reinterpret_cast<RAWINPUT*>(BBalloc(s_LocalRingAllocator, t_Size));
+
+	UINT t_Size = sizeof(RAWINPUT);
+	RAWINPUT* t_Input = reinterpret_cast<RAWINPUT*>(BBalloc(s_OSRingAllocator, t_Size));
 	GetRawInputData(t_HRawInput, RID_INPUT, t_Input, &t_Size, sizeof(RAWINPUTHEADER));
 
 	if (t_Input->header.dwType == RIM_TYPEKEYBOARD)
@@ -111,7 +115,7 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 		t_Event.keyInfo.keyPressed = !(t_Input->data.keyboard.Flags & RI_KEY_BREAK);
 		PushInput(t_Event);
 	}
-	else if (t_Input->header.dwType == RIM_TYPEMOUSE)
+	else if (t_Input->header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
 	{
 		t_Event.inputType = INPUT_TYPE::MOUSE;
 		const float2 t_MoveInput{ t_Input->data.mouse.lLastX , t_Input->data.mouse.lLastY };
@@ -160,6 +164,12 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		sPFN_ResizeEvent(a_Hwnd, t_X, t_Y);
 		break;
 	}
+	case WM_MOUSELEAVE:
+		s_ProgramInfo.trackingMouse = false;
+		break;
+	case WM_MOUSEMOVE:
+		s_ProgramInfo.trackingMouse = true;
+		break;
 	case WM_INPUT:
 		return wm_input(a_Hwnd, a_WParam, a_LParam);
 		break;
@@ -205,10 +215,10 @@ const uint32_t BB::LatestOSError()
 		return 0;
 	LPWSTR t_Message = nullptr;
 
-	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), t_Message, 0, NULL);
 
-	//BB_WARNING(false, t_Message, WarningType::HIGH);
+	BB_WARNING(false, t_Message, WarningType::HIGH);
 
 	LocalFree(t_Message);
 
@@ -247,6 +257,23 @@ void BB::WriteToConsole(const char* a_String, uint32_t a_StrLength)
 	DWORD t_Written = 0;
 	//Maybe check if a console is available, it could be null.
 	if (FALSE == WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE),
+		a_String,
+		a_StrLength,
+		&t_Written,
+		NULL))
+	{
+		BB_WARNING(false,
+			"OS, failed to write to console! This can be severe.",
+			WarningType::HIGH);
+		LatestOSError();
+	}
+}
+
+void BB::WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength)
+{
+	DWORD t_Written = 0;
+	//Maybe check if a console is available, it could be null.
+	if (FALSE == WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE),
 		a_String,
 		a_StrLength,
 		&t_Written,
@@ -465,6 +492,42 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
 		"Failed to register raw input devices!");
 
+	uint32_t t_NumConnectedDevices = 0;
+	UINT t_ErrCheck = GetRawInputDeviceList(nullptr, &t_NumConnectedDevices, sizeof(RAWINPUTDEVICELIST));
+	BB_ASSERT(t_ErrCheck != -1, "Failed to get the size of raw input devices!");
+	BB_ASSERT(t_NumConnectedDevices > 0, "Failed to get the size of raw input devices!");
+
+	RAWINPUTDEVICELIST* t_ConnectedDevices = BBnewArr(
+		s_OSRingAllocator,
+		t_NumConnectedDevices,
+		RAWINPUTDEVICELIST);
+
+	t_ErrCheck = GetRawInputDeviceList(t_ConnectedDevices, &t_NumConnectedDevices, sizeof(RAWINPUTDEVICELIST));
+	BB_ASSERT(t_ErrCheck != -1, "Failed to get the raw input devices!");
+	
+	constexpr size_t MAX_HID_STRING_LENGTH = 126;
+	wchar_t* t_ProductNameString = BBnewArr(
+		s_OSRingAllocator,
+		MAX_HID_STRING_LENGTH,
+		wchar_t);
+
+	//Lets log the devices, maybe do this better.
+	for (size_t i = 0; i < t_NumConnectedDevices; i++)
+	{
+		RID_DEVICE_INFO t_DeviceInfo{};
+		UINT t_RidDeviceSize = sizeof(RID_DEVICE_INFO);
+		UINT t_It = GetRawInputDeviceInfo(t_ConnectedDevices[i].hDevice, RIDI_DEVICEINFO, &t_DeviceInfo, &t_RidDeviceSize);
+
+		if (t_DeviceInfo.dwType == RIM_TYPEMOUSE)
+		{
+			
+		}
+		else if (t_DeviceInfo.dwType == RIM_TYPEMOUSE)
+		{
+
+		}
+	}
+
 	return WindowHandle(t_Window);
 }
 
@@ -487,6 +550,33 @@ void BB::DirectDestroyOSWindow(const WindowHandle a_Handle)
 	DestroyWindow(reinterpret_cast<HWND>(a_Handle.ptrHandle));
 }
 
+void BB::FreezeMouseOnWindow(const WindowHandle a_Handle)
+{
+	RECT t_Rect;
+	GetClientRect(reinterpret_cast<HWND>(a_Handle.ptrHandle), &t_Rect);
+
+	POINT t_LeftRightUpDown[2]{};
+	t_LeftRightUpDown[0].x = t_Rect.left;
+	t_LeftRightUpDown[0].y = t_Rect.top;
+	t_LeftRightUpDown[1].x = t_Rect.right;
+	t_LeftRightUpDown[1].y = t_Rect.bottom;
+
+	MapWindowPoints(reinterpret_cast<HWND>(a_Handle.ptrHandle), nullptr, t_LeftRightUpDown, _countof(t_LeftRightUpDown));
+
+	t_Rect.left = t_LeftRightUpDown[0].x;
+	t_Rect.top = t_LeftRightUpDown[0].y;
+
+	t_Rect.right = t_LeftRightUpDown[1].x;
+	t_Rect.bottom = t_LeftRightUpDown[1].y;
+
+	ClipCursor(&t_Rect);
+}
+
+void BB::UnfreezeMouseOnWindow()
+{
+	ClipCursor(nullptr);
+}
+
 void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
 {
 	sPFN_CloseEvent = a_Func;
@@ -502,11 +592,18 @@ void BB::ExitApp()
 	exit(EXIT_SUCCESS);
 }
 
-bool BB::ProcessMessages()
+bool BB::ProcessMessages(const WindowHandle a_WindowHandle)
 {
+	TRACKMOUSEEVENT t_MouseTrackE{};
+	t_MouseTrackE.cbSize = sizeof(TRACKMOUSEEVENT);
+	t_MouseTrackE.dwFlags = TME_LEAVE;
+	t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_WindowHandle.ptrHandle);
+	TrackMouseEvent(&t_MouseTrackE);
+
+
 	MSG t_Msg{};
 
-	while (PeekMessage(&t_Msg, NULL, 0u, 0u, PM_REMOVE))
+	while (PeekMessage(&t_Msg, reinterpret_cast<HWND>(a_WindowHandle.ptrHandle), 0u, 0u, PM_REMOVE))
 	{
 		TranslateMessage(&t_Msg);
 		DispatchMessage(&t_Msg);

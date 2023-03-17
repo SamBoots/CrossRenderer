@@ -33,15 +33,15 @@ int main(int argc, char** argv)
 
 	int t_WindowWidth = 1280;
 	int t_WindowHeight = 720;
-
-	RenderInitInfo t_RenderInfo{};
-	t_RenderInfo.windowHandle = BB::CreateOSWindow(
+	WindowHandle t_Window = BB::CreateOSWindow(
 		BB::OS_WINDOW_STYLE::MAIN,
 		250,
 		200,
 		t_WindowWidth,
 		t_WindowHeight,
 		L"CrossRenderer");
+	RenderInitInfo t_RenderInfo{};
+	t_RenderInfo.windowHandle = t_Window;
 	//Set the pointers later since resize event gets called for some reason on window creation.
 	SetCloseWindowPtr(WindowQuit);
 	SetResizeEventPtr(WindowResize);
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
 
 	while (!t_Quit)
 	{
-		ProcessMessages();
+		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
@@ -159,7 +159,13 @@ int main(int argc, char** argv)
 			}
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
+				MouseInfo& t_Mouse = t_Event.mouseInfo;
 				t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
+
+				if (t_Mouse.right_released)
+					FreezeMouseOnWindow(t_Window);
+				if (t_Mouse.left_released)
+					UnfreezeMouseOnWindow();
 			}
 		}
 

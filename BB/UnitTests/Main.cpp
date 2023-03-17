@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 				}
 			}
 		}
-		hasWindows = ProcessMessages();
+		hasWindows = ProcessMessages(mainWindow);
 	}
 
 	return 0;

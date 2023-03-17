@@ -16,19 +16,26 @@ namespace BB
 	{
 		//Use BB_LOG for better use.
 		void Log_Message(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Message(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_WARNING for better use.
 		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_WARNING for better use.
 		void Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Warning_Low(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_WARNING for better use.
 		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Warning_Medium(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_WARNING for better use.
 		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Warning_High(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_EXCEPTION for better use.
 		void Log_Exception(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Exception(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 		//Use BB_ASSERT for better use.
 		//IT DOES NOT ASSERT, BB_ASSERT DOES
 		void Log_Error(const char* a_FileName, int a_Line, const char* a_Message);
+		void Log_Error(const char* a_FileName, int a_Line, const wchar_t* a_Message);
 	}
 }
 
