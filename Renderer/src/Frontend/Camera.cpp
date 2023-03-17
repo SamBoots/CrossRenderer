@@ -11,7 +11,7 @@ Camera::Camera(const glm::vec3 a_Pos, const float a_CamSpeed)
 	m_Pos = a_Pos;
 	m_Speed = a_CamSpeed;
 
-	m_Yaw = 0;
+	m_Yaw = -90.f;
 	m_Pitch = 0;
 
 	Rotate(0, 0);
@@ -41,26 +41,17 @@ void Camera::Rotate(const float a_Yaw, const float a_Pitch)
 {
 	m_Yaw += a_Yaw * m_Speed;
 	m_Pitch += a_Pitch * m_Speed;
-	m_Pitch = Clampf(m_Pitch, -85.f, 85.f);
+	m_Pitch = Clampf(m_Pitch, -90.f, 90.f);
 
-	glm::quat rotation_pitch = glm::quat(glm::radians(m_Pitch), glm::vec3(1, 0, 0));
-	glm::quat rotation_yaw = glm::quat(glm::radians(m_Yaw), glm::vec3(0, 1, 0));
-	glm::quat orientation = rotation_pitch * rotation_yaw;
-
-	{ //Rotate the front.
-		glm::vec3 t_TempFront = STANDARD_CAM_FRONT;
-		glm::quat t_ForQ = glm::quat(0.f, t_TempFront);
-
-		glm::quat t_RotatedFront = orientation * t_ForQ;
-		t_RotatedFront = t_RotatedFront * glm::conjugate(orientation);
-
-		t_TempFront = glm::vec3(t_RotatedFront.x, t_RotatedFront.y, t_RotatedFront.z);
-		m_Front = t_TempFront;
-	}
-
-	glm::vec3 t_NFront = glm::normalize(m_Front);
-	m_Right = glm::normalize(glm::cross(STANDARD_CAM_UP, t_NFront));
-	m_Up = glm::normalize(glm::cross(t_NFront, m_Right));
+	// calculate the new Front vector
+	glm::vec3 t_Front;
+	t_Front.x = cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+	t_Front.y = sin(glm::radians(m_Pitch));
+	t_Front.z = sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+	m_Front = glm::normalize(t_Front);
+	// also re-calculate the Right and Up vector
+	m_Right = glm::normalize(glm::cross(m_Front, m_Up));  // normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
+	m_Up = glm::normalize(glm::cross(m_Right, m_Front));
 }
 
 void Camera::SetSpeed(const float a_SpeedModifier)
@@ -70,5 +61,5 @@ void Camera::SetSpeed(const float a_SpeedModifier)
 
 const glm::mat4 Camera::CalculateView()
 {
-	return glm::lookAt(m_Pos, m_Pos + m_Front, m_Up);
+	return glm::lookAtLH(m_Pos, m_Pos + m_Front, m_Up);
 }

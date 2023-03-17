@@ -91,8 +91,12 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 {
 	HRAWINPUT t_HRawInput = reinterpret_cast<HRAWINPUT>(a_LParam);
 
-	if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
-		return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
+	////IMPORTANT! 
+	//This is true when we use WM_KEYDOWN and WM_KEYUP but the keyboard and mouse clicks seem far more responsive now. So we keep it like this.
+	//So is for some reason input is weird. START HERE!
+
+	//if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
+		//return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
 
 
 	//Allocate an input event.
@@ -171,6 +175,13 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		s_ProgramInfo.trackingMouse = true;
 		break;
 	case WM_INPUT:
+		return wm_input(a_Hwnd, a_WParam, a_LParam);
+		break;
+		//WM_KEYDOWN and WM_KEYUP are often not used with RAWINPUT, but here it seems to increase reponsiveness of the keyboard.
+	case WM_KEYDOWN:
+		return wm_input(a_Hwnd, a_WParam, a_LParam);
+		break;
+	case WM_KEYUP:
 		return wm_input(a_Hwnd, a_WParam, a_LParam);
 		break;
 	}
