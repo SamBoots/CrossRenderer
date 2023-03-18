@@ -61,5 +61,5 @@ void Camera::SetSpeed(const float a_SpeedModifier)
 
 const glm::mat4 Camera::CalculateView()
 {
-	return glm::lookAtLH(m_Pos, m_Pos + m_Front, m_Up);
+	return glm::lookAt(m_Pos, m_Pos + m_Front, m_Up);
 }

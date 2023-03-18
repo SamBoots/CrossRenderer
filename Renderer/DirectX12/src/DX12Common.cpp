@@ -735,10 +735,22 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	t_RasterDesc.ForcedSampleCount = 0;
 	t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
+	constexpr D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	D3D12_DEPTH_STENCIL_DESC t_DepthStencil{};
+	t_DepthStencil.DepthEnable = TRUE;
+	t_DepthStencil.StencilEnable = FALSE;
+	t_DepthStencil.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	t_DepthStencil.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	t_DepthStencil.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	t_DepthStencil.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	t_DepthStencil.FrontFace = defaultStencilOp;
+	t_DepthStencil.BackFace = defaultStencilOp;
+
 	t_BuildInfo->PSOdesc.RasterizerState = t_RasterDesc;
 	t_BuildInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	t_BuildInfo->PSOdesc.DepthStencilState.DepthEnable = FALSE;
-	t_BuildInfo->PSOdesc.DepthStencilState.StencilEnable = FALSE;
+	t_BuildInfo->PSOdesc.DepthStencilState = t_DepthStencil;
+	t_BuildInfo->PSOdesc.DSVFormat = DEPTH_FORMAT;
 	t_BuildInfo->PSOdesc.SampleMask = UINT_MAX;
 	t_BuildInfo->PSOdesc.NumRenderTargets = 1;
 	t_BuildInfo->PSOdesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;

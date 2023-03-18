@@ -157,9 +157,9 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 				for (size_t i = 0; i < t_VertexCount; i++)
 				{
-					t_Vertices[i].color[0] = 1.0f;
-					t_Vertices[i].color[1] = 1.0f;
-					t_Vertices[i].color[2] = 1.0f;
+					t_Vertices[i].color.x = 1.0f;
+					t_Vertices[i].color.y = 1.0f;
+					t_Vertices[i].color.z = 1.0f;
 				}
 
 				for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
@@ -175,9 +175,9 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
 						{
-							t_Vertices[t_CurrentVertex].pos[0] = t_PosData[0];
-							t_Vertices[t_CurrentVertex].pos[1] = t_PosData[1];
-							t_Vertices[t_CurrentVertex].pos[2] = t_PosData[2];
+							t_Vertices[t_CurrentVertex].pos.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].pos.y = t_PosData[1];
+							t_Vertices[t_CurrentVertex].pos.z = t_PosData[2];
 
 							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
 							++t_CurrentVertex;
@@ -188,8 +188,8 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
 						{
-							t_Vertices[t_CurrentVertex].uv[0] = t_PosData[0];
-							t_Vertices[t_CurrentVertex].uv[1] = t_PosData[1];
+							t_Vertices[t_CurrentVertex].uv.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].uv.y = t_PosData[1];
 
 							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
 							++t_CurrentVertex;
@@ -201,9 +201,9 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 
 						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
 						{
-							t_Vertices[t_CurrentVertex].normal[0] = t_PosData[0];
-							t_Vertices[t_CurrentVertex].normal[1] = t_PosData[1];
-							t_Vertices[t_CurrentVertex].normal[2] = t_PosData[2];
+							t_Vertices[t_CurrentVertex].normal.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].normal.y = t_PosData[1];
+							t_Vertices[t_CurrentVertex].normal.z = t_PosData[2];
 
 							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
 							++t_CurrentVertex;

@@ -267,7 +267,7 @@ DXImage::DXImage(const RenderImageCreateInfo& a_Info)
 	if (t_IsDepth)
 	{
 		D3D12_DEPTH_STENCIL_VIEW_DESC t_DepthStencilDesc = {};
-		t_DepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		t_DepthStencilDesc.Format = DEPTH_FORMAT;
 		t_DepthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		t_DepthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
