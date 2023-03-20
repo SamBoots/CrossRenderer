@@ -61,6 +61,13 @@ namespace BB
 		float y = 0;
 		float z = 0;
 	};
+	struct float4
+	{
+		float x = 0;
+		float y = 0;
+		float z = 0;
+		float w = 0;
+	};
 
 	struct int2
 	{
@@ -75,6 +82,14 @@ namespace BB
 		int z = 0;
 	};
 
+	struct int4
+	{
+		int x = 0;
+		int y = 0;
+		int z = 0;
+		int w = 0;
+	};
+
 	struct uint2
 	{
 		uint32_t x = 0;
@@ -86,5 +101,13 @@ namespace BB
 		uint32_t x = 0;
 		uint32_t y = 0;
 		uint32_t z = 0;
+	};
+
+	struct uint4
+	{
+		uint32_t x = 0;
+		uint32_t y = 0;
+		uint32_t z = 0;
+		uint32_t w = 0;
 	};
 }

@@ -78,4 +78,11 @@ namespace BB
 		RModelHandle modelHandle;
 		TransformHandle transformHandle;
 	};
+
+	struct RenderBufferPart
+	{
+		RBufferHandle bufferHandle;
+		uint32_t size; //the size of the buffer part.
+		uint32_t offset; //offset starting from the bufferhandle
+	};
 }

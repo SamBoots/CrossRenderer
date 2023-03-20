@@ -254,6 +254,18 @@ namespace BB
 
 			return t_AlignedPtr - t_UPtr;
 		}
+		/// <summary>
+		/// Returns the required forward alignment.
+		/// </summary>
+		/// <param name="a_Value:"> The value you want to align </param>
+		/// <param name="a_Alignment:"> The alignment of the data. </param>
+		/// <returns>The given address but aligned forward. </returns>
+		inline static size_t AlignForwardAdjustment(const size_t a_Value, const size_t a_Alignment)
+		{
+			const uintptr_t t_AlignedPtr = (a_Value - 1u + a_Alignment) & -a_Alignment;
+
+			return t_AlignedPtr - a_Value;
+		}
 #pragma warning(default:4146)
 		/// <summary>
 		/// Align a given pointer forward.

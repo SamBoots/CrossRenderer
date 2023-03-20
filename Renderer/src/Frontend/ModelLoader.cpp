@@ -208,7 +208,6 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
 							++t_CurrentVertex;
 						}
-
 						break;
 					}
 					BB_ASSERT(t_VertexCount >= t_CurrentVertex, "Overwriting vertices in the gltf loader!");

@@ -1,7 +1,7 @@
 #include "BBMain.h"
 #include "OS/Program.h"
 #include "OS/HID.h"
-#include "Frontend/RenderFrontend.h"
+#include "Frontend/LightSystem.h"
 #include "Frontend/Camera.h"
 
 #include <chrono>
@@ -55,13 +55,23 @@ int main(int argc, char** argv)
 	//load DLL
 	t_RenderInfo.renderDll = BB::LoadLib(L"BB_VulkanDLL");
 #elif USE_DIRECTX12
-	t_RenderInfo .renderAPI = RENDER_API::DX12;
+	t_RenderInfo.renderAPI = RENDER_API::DX12;
 	//load DLL
 	t_RenderInfo.renderDll = BB::LoadLib(L"BB_DirectXDLL");
 #endif //choose graphicsAPI.
 
-	Render::InitRenderer(t_RenderInfo);
 
+	constexpr size_t LIGHT_COUNT_MAX = 1024;
+	constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
+
+	Render::InitRenderer(t_RenderInfo);
+	RenderBufferCreateInfo t_BufferCreateInfo{};
+	t_BufferCreateInfo.size = LIGHT_ALLOC_SIZE;
+	t_BufferCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+	t_BufferCreateInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
+	LinearRenderBuffer t_LightBuffer(t_BufferCreateInfo);
+
+	LightPool t_LightPool(t_LightBuffer, LIGHT_COUNT_MAX);
 	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
 
 	uint32_t t_MatrixSize;
