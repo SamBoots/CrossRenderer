@@ -6,6 +6,22 @@
 #define _BBEXT(num)
 #endif
 
+struct BaseFrameInfo
+{
+    uint staticLightCount;
+};
+
+//pointlight
+struct Light
+{
+    float3 pos;
+    float radius;
+    float4 color;
+};
+//Maybe add in common if I find a way to combine them.
+StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
+StructuredBuffer<Light> lights : register(t3, space0);
+
 Texture2D text : register(t0, space1);
 SamplerState samplerColor : register(s0, space1);
 

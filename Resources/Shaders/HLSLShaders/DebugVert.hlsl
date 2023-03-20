@@ -48,8 +48,15 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-StructuredBuffer<Camera> cam : register(t0, space0);
-StructuredBuffer<ModelInstance> modelInstances : register(t1, space0);
+struct BaseFrameInfo
+{
+    uint staticLightCount;
+};
+//Maybe add in common if I find a way to combine them.
+StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
+
+StructuredBuffer<Camera> cam : register(t1, space0);
+StructuredBuffer<ModelInstance> modelInstances : register(t2, space0);
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {

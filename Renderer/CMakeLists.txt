@@ -19,6 +19,7 @@ add_executable (Renderer
 #Frontend .h
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
+"include/Frontend/RenderBuffers.h"
 "include/Frontend/LightSystem.h"
 "include/Frontend/ModelLoader.h"
 "include/Frontend/Transform.h" 
@@ -30,6 +31,7 @@ add_executable (Renderer
 "src/Backend/ShaderCompiler.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
+"src/Frontend/RenderBuffers.cpp"
 "src/Frontend/LightSystem.cpp"
 "src/Frontend/ModelLoader.cpp"
 "src/Frontend/Transform.cpp"

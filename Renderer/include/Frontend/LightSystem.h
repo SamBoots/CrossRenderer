@@ -1,5 +1,6 @@
 #pragma once
 #include "RenderFrontend.h"
+#include "RenderBuffers.h"
 
 namespace BB
 {

@@ -73,6 +73,12 @@ namespace BB
 		glm::mat4 projection;
 	};
 
+	struct BaseFrameInfo
+	{
+		uint32_t staticLightCount = 0;
+		uint3 padding;
+	};
+
 	struct DrawObject
 	{
 		RModelHandle modelHandle;

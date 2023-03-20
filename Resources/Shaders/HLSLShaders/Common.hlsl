@@ -9,5 +9,12 @@
 #define _BBEXT(num)
 #endif
 
+struct BaseFrameInfo
+{
+    uint staticLightCount;
+};
+
+//Maybe add in common if I find a way to combine them.
+StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
 
 #endif //COMMON_HLSL

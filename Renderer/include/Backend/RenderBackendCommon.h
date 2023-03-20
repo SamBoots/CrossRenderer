@@ -128,6 +128,7 @@ namespace BB
 
 	enum class RENDER_SHADER_STAGE : uint32_t
 	{
+		ALL,
 		VERTEX,
 		FRAGMENT_PIXEL
 	};
