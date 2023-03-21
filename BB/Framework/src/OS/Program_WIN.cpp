@@ -71,10 +71,10 @@ void GetAllInput(InputEvent* a_InputBuffer)
 	int t_FirstIndex = s_InputBuffer.start;
 	for (size_t i = 0; i < s_InputBuffer.used; i++)
 	{
-		a_InputBuffer[i] = s_InputBuffer.inputBuff[t_FirstIndex++];
-		//We go back to zero the read the data.
-		if (t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
+		if (++t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
 			t_FirstIndex = 0;
+		a_InputBuffer[i] = s_InputBuffer.inputBuff[t_FirstIndex];
+		//We go back to zero the read the data.
 	}
 
 	s_InputBuffer.start = s_InputBuffer.pos;
@@ -122,7 +122,9 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 	else if (t_Input->header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
 	{
 		t_Event.inputType = INPUT_TYPE::MOUSE;
-		const float2 t_MoveInput{ t_Input->data.mouse.lLastX , t_Input->data.mouse.lLastY };
+		const float2 t_MoveInput{ 
+			static_cast<float>(t_Input->data.mouse.lLastX), 
+			static_cast<float>(t_Input->data.mouse.lLastY) };
 		if (t_Input->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
 			t_Event.mouseInfo.moveOffset = t_MoveInput - s_InputInfo.mouse.oldPos;

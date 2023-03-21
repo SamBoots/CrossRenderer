@@ -2,8 +2,7 @@
 #include "Logger.h"
 #include "RenderBackend.h"
 
-#pragma warning(push)
-#pragma warning(disable:4996)
+#pragma warning(push, 0)
 #define CGLTF_IMPLEMENTATION
 #include "cgltf/cgltf.h"
 #pragma warning (pop)

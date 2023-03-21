@@ -2,7 +2,7 @@
 namespace BB
 {
 	//array size is last one of the KEYBOARD_KEY list.
-	static KEYBOARD_KEY s_translate_key[0x3A];
+	static KEYBOARD_KEY s_translate_key[0x3A + 1];
 
 	static void SetupHIDTranslates()
 	{
