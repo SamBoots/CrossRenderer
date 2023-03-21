@@ -17,8 +17,11 @@ namespace BB
 		LightPool(LinearRenderBuffer& a_GPUBuffer, const uint32_t a_LightCount);
 		~LightPool();
 
-		void SubmitLights(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const Light* a_Lights, const uint32_t a_Count);
+		void SubmitLights(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<Light> a_Lights);
 		void ResetLights();
+
+		const uint32_t GetLightCount() const { return m_LightCount; }
+		const uint32_t GetLightMax() const { return m_LightMax; }
 
 	private:
 		RenderBufferPart m_BufferPart;

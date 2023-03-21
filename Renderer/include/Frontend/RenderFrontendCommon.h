@@ -8,6 +8,11 @@ namespace BB
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
 	using DrawObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
 
+	enum class LIGHT_TYPE
+	{
+		POINT
+	};
+
 	constexpr const uint32_t MESH_INVALID_INDEX = UINT32_MAX;
 	struct Model
 	{

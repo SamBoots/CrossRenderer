@@ -15,17 +15,17 @@ BB::LightPool::~LightPool()
 
 }
 
-void BB::LightPool::SubmitLights(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const Light* a_Lights, const uint32_t a_Count)
+void BB::LightPool::SubmitLights(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<Light> a_Lights)
 {
-	BB_ASSERT(m_LightCount + a_Count > m_LightMax, "Light pool gone over the amount of lights!");
+	BB_ASSERT(m_LightMax > m_LightCount + a_Lights.size(), "Light pool gone over the amount of lights!");
 
-	const uint32_t t_AllocSize = sizeof(Light) * a_Count;
-	const uint32_t t_DstBufferOffset = sizeof(Light) * m_LightCount;
+	const uint64_t t_AllocSize = sizeof(Light) * a_Lights.size();
+	const uint64_t t_DstBufferOffset = sizeof(Light) * m_LightCount;
 
 	//Add the lights here.
 	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(t_AllocSize);
 
-	Memory::Copy(reinterpret_cast<Light*>(t_UploadChunk.memory), a_Lights, a_Count);
+	Memory::Copy(reinterpret_cast<Light*>(t_UploadChunk.memory), a_Lights.data(), a_Lights.size());
 
 	RenderCopyBufferInfo t_CopyInfo{};
 	t_CopyInfo.dst = m_BufferPart.bufferHandle;
@@ -36,7 +36,7 @@ void BB::LightPool::SubmitLights(const RecordingCommandListHandle t_RecordingCmd
 
 	RenderBackend::CopyBuffer(t_RecordingCmdList, t_CopyInfo);
 
-	m_LightCount += a_Count;
+	m_LightCount += static_cast<uint32_t>(a_Lights.size());
 }
 
 void BB::LightPool::ResetLights()

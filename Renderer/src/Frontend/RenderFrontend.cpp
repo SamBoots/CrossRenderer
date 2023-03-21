@@ -8,9 +8,10 @@
 #include "ModelLoader.h"
 #include "LightSystem.h"
 
+#pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
-
+#pragma warning (pop)
 
 using namespace BB;
 using namespace BB::Render;
@@ -23,7 +24,7 @@ struct RendererInst
 	uint32_t swapchainWidth = 0;
 	uint32_t swapchainHeight = 0;
 
-	uint32_t frameBufferAmount;
+	uint32_t frameBufferAmount = 0;
 	const uint32_t modelMatrixMax = 1024;
 
 	RENDER_API renderAPI = RENDER_API::NONE;
@@ -34,17 +35,20 @@ struct RendererInst
 
 struct GlobalInfo
 {
-	CameraRenderData* cameraData;
-	uint64_t perFrameBufferSize;
-	BaseFrameInfo currentPerFrameInfo;
+	LinearRenderBuffer* lightBuffer;
+	LightPool* staticLights;
 
-	RBufferHandle perFrameBuffer;
-	RBufferHandle perFrameTransferBuffer;
+	CameraRenderData* cameraData = nullptr;
+	uint64_t perFrameBufferSize = 0;
+	BaseFrameInfo currentPerFrameInfo{};
 
-	void* transferBufferStart;
-	void* transferBufferBaseFrameInfoStart;
-	void* transferBufferCameraStart;
-	void* transferBufferMatrixStart;
+	RBufferHandle perFrameBuffer{};
+	RBufferHandle perFrameTransferBuffer{};
+
+	void* transferBufferStart = nullptr;
+	void* transferBufferBaseFrameInfoStart = nullptr;
+	void* transferBufferCameraStart = nullptr;
+	void* transferBufferMatrixStart = nullptr;
 };
 
 CommandQueueHandle t_GraphicsQueue;
@@ -69,9 +73,6 @@ UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
 RImageHandle t_DepthImage;
-
-LinearRenderBuffer* t_LightBuffer;
-LightPool* t_StaticLights;
 
 static FrameIndex s_CurrentFrame;
 
@@ -222,9 +223,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BufferCreateInfo.size = LIGHT_ALLOC_SIZE;
 	t_BufferCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 	t_BufferCreateInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
-	t_LightBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_BufferCreateInfo);
+	s_GlobalInfo.lightBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_BufferCreateInfo);
 
-	LightPool t_LightPool(*t_LightBuffer, LIGHT_COUNT_MAX);
+	s_GlobalInfo.staticLights = BBnew(m_SystemAllocator, LightPool)(*s_GlobalInfo.lightBuffer, LIGHT_COUNT_MAX);
 #pragma endregion //LightSystem
 
 #pragma region PipelineCreation
@@ -395,7 +396,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BasicPipe.BindDescriptor(t_Descriptor1);
 	t_BasicPipe.BindDescriptor(t_Descriptor2);
 
-	const wchar_t* t_ShaderPath[2];
+	const wchar_t* t_ShaderPath[2]{};
 	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 
@@ -428,14 +429,14 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 #pragma endregion //PipelineCreation
 
 
-	RenderCommandQueueCreateInfo t_QueueCreateInfo;
+	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_QueueCreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
 	t_GraphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::TRANSFER_COPY;
 	t_TransferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
 
-	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo;
+	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
 	t_AllocatorCreateInfo.commandListCount = 10;
 	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
@@ -463,14 +464,14 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[2];
 	t_TransferCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
-	FenceCreateInfo t_CreateInfo;
+	FenceCreateInfo t_CreateInfo{};
 	t_CreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
 
 	for (size_t i = 0; i < _countof(t_SwapchainFence); i++)
 		t_SwapchainFence[i] = RenderBackend::CreateFence(t_CreateInfo);
 
 	//Create upload buffer.
-	constexpr const uint64_t UPLOAD_BUFFER_SIZE = mbSize * 32;
+	constexpr const uint64_t UPLOAD_BUFFER_SIZE = static_cast<uint64_t>(mbSize * 32);
 	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
 
 	for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
@@ -570,7 +571,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		size_t t_AlignedOffset = Pointer::AlignPad(t_UploadBuffer->GetCurrentOffset(), TEXTURE_BYTE_ALIGNMENT);
 		size_t t_AllocAddition = t_AlignedOffset - t_UploadBuffer->GetCurrentOffset();
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize + t_AllocAddition);
-		const UINT64 t_SourcePitch = t_ImageInfo.width * sizeof(uint32_t);
+		const UINT64 t_SourcePitch = static_cast<UINT64>(t_ImageInfo.width) * sizeof(uint32_t);
 
 		void* t_ImageSrc = t_Pixels;
 		void* t_ImageDst = Pointer::Add(t_StageBuffer.memory, t_AllocAddition);
@@ -755,9 +756,21 @@ void BB::Render::EndFrame()
 
 	RenderBackend::ExecutePresentCommands(t_GraphicsQueue, t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
-	//t_PresentFrame = 1;
-	//t_PresentFrame.waitSemaphores = &t_RenderSemaphores[s_CurrentFrame];
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
+}
+
+void BB::Render::SubmitLight(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
+{
+	switch (a_LightType)
+	{
+	case LIGHT_TYPE::POINT:
+		s_GlobalInfo.staticLights->SubmitLights(t_RecordingTransfer,
+			*t_UploadBuffer,
+			a_Lights);
+
+		s_GlobalInfo.currentPerFrameInfo.staticLightCount += a_Lights.size();
+		break;
+	}
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)

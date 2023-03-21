@@ -1,8 +1,11 @@
 #pragma once
 #include "RenderFrontendCommon.h"
+#include "Slice.h"
 
 namespace BB
 {
+	struct Light;
+
 	namespace Render
 	{
 		void InitRenderer(const RenderInitInfo& a_InitInfo);
@@ -20,6 +23,8 @@ namespace BB
 
 		void StartFrame();
 		void EndFrame();
+
+		void SubmitLight(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType);
 
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 	};

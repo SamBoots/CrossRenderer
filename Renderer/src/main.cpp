@@ -116,6 +116,14 @@ int main(int argc, char** argv)
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
 
+
+	Light t_StandardLight{};
+	t_StandardLight.color = { 255, 255, 255 };
+	t_StandardLight.pos = { 0.f, 0.f, 0.f };
+	t_StandardLight.radius = 10.f;
+
+	Render::SubmitLight({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
+
 	while (!t_Quit)
 	{
 		ProcessMessages(t_Window);
