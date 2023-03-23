@@ -39,8 +39,8 @@ struct GlobalInfo
 	LightPool* staticLights;
 
 	CameraRenderData* cameraData = nullptr;
+	BaseFrameInfo* perFrameInfo = nullptr;
 	uint64_t perFrameBufferSize = 0;
-	BaseFrameInfo currentPerFrameInfo{};
 
 	RBufferHandle perFrameBuffer{};
 	RBufferHandle perFrameTransferBuffer{};
@@ -86,6 +86,11 @@ sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
 static void Draw3DFrame()
 {
+	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
+	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
+	s_GlobalInfo.perFrameInfo->staticLightCount = s_GlobalInfo.staticLights->GetLightCount();
+
+
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
 	t_CopyInfo.src = s_GlobalInfo.perFrameTransferBuffer;
@@ -241,6 +246,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_GlobalInfo.transferBufferCameraStart = Pointer::Add(s_GlobalInfo.transferBufferBaseFrameInfoStart, sizeof(BaseFrameInfo));
 	s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(CameraRenderData));
 
+	s_GlobalInfo.perFrameInfo = reinterpret_cast<BaseFrameInfo*>(s_GlobalInfo.transferBufferBaseFrameInfoStart);
 	s_GlobalInfo.cameraData = reinterpret_cast<CameraRenderData*>(s_GlobalInfo.transferBufferCameraStart);
 
 	const uint64_t t_perFrameBufferEntireSize = PERFRAME_TRANSFER_BUFFER_SIZE * s_RendererInst.frameBufferAmount;
@@ -767,8 +773,6 @@ void BB::Render::SubmitLight(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a
 		s_GlobalInfo.staticLights->SubmitLights(t_RecordingTransfer,
 			*t_UploadBuffer,
 			a_Lights);
-
-		s_GlobalInfo.currentPerFrameInfo.staticLightCount += a_Lights.size();
 		break;
 	}
 }

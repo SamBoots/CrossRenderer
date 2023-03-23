@@ -9,6 +9,10 @@
 struct BaseFrameInfo
 {
     uint staticLightCount;
+    uint3 pad;
+    
+    float3 ambientLight;
+    float ambientStrength;
 };
 
 //pointlight
@@ -27,15 +31,36 @@ SamplerState samplerColor : register(s0, space1);
 
 struct VSoutput
 {
+    //not sure if needed, check directx12 later.
     float4 pos : SV_POSITION;
-    _BBEXT(0)  float2 fragUV : UV0;
-    _BBEXT(1)  float3 fragColor : COLOR0;
+    _BBEXT(0)  float3 fragPos   : POSITION0;
+    _BBEXT(1)  float3 color     : COLOR0;
+    _BBEXT(2)  float2 uv        : UV0;
+    _BBEXT(3)  float3 normal    : NORMAL0;
 };
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 textureColor = text.Sample(samplerColor, input.fragUV);
-    float4 color = textureColor * float4(input.fragColor.xyz, 1.0f);
-    return color;
+    float4 textureColor = text.Sample(samplerColor, input.uv);
+    float4 color = textureColor * float4(input.color.xyz, 1.0f);
+    
+    float4 t_LightColor;
+    //Apply lights
+    for (int i = 0; i < baseFrameInfo[0].staticLightCount; i++)
+    {
+        float3 t_Normal = normalize(input.normal);
+        float3 t_Dir = normalize(lights[i].pos - input.fragPos);
 
+        float t_Diff = max(dot(t_Normal, t_Dir), 0.0f);
+        float3 t_Diffuse = mul(t_Diff, lights[i].color);
+        
+        t_LightColor = float4(t_Diffuse, 1.0f);
+
+    }
+
+    //Apply the Light colors;
+    float3 t_Ambient = mul(baseFrameInfo[0].ambientLight, baseFrameInfo[0].ambientStrength);
+    
+    color *= mul(t_LightColor, t_Ambient);
+    return color;
 }

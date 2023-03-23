@@ -12,6 +12,10 @@
 struct BaseFrameInfo
 {
     uint staticLightCount;
+    uint3 pad;
+    
+    float3 ambientLight;
+    float ambientStrength;
 };
 
 //Maybe add in common if I find a way to combine them.

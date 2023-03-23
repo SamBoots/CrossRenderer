@@ -82,6 +82,9 @@ namespace BB
 	{
 		uint32_t staticLightCount = 0;
 		uint3 padding;
+
+		float3 ambientLight;
+		float ambientStrength;
 	};
 
 	struct DrawObject
