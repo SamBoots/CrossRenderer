@@ -59,6 +59,7 @@ void PushInput(const InputEvent& a_Input)
 	//Since when we get the input we get all of it. 
 	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
 	{
+		BB_LOG("input achieved");
 		++s_InputBuffer.used;
 	}
 
@@ -70,10 +71,10 @@ void GetAllInput(InputEvent* a_InputBuffer)
 	int t_FirstIndex = s_InputBuffer.start;
 	for (size_t i = 0; i < s_InputBuffer.used; i++)
 	{
-		if (++t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
-			t_FirstIndex = 0;
 		a_InputBuffer[i] = s_InputBuffer.inputBuff[t_FirstIndex];
 		//We go back to zero the read the data.
+		if (++t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
+			t_FirstIndex = 0;
 	}
 
 	s_InputBuffer.start = s_InputBuffer.pos;
@@ -493,12 +494,12 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 
 	t_Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
-	t_Rid[0].dwFlags = 0;
+	t_Rid[0].dwFlags = RIDEV_NOLEGACY;
 	t_Rid[0].hwndTarget = t_Window;
 
 	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	t_Rid[1].dwFlags = 0;
+	t_Rid[1].dwFlags = RIDEV_NOLEGACY;
 	t_Rid[1].hwndTarget = t_Window;
 
 	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
@@ -606,11 +607,11 @@ void BB::ExitApp()
 
 bool BB::ProcessMessages(const WindowHandle a_WindowHandle)
 {
-	TRACKMOUSEEVENT t_MouseTrackE{};
-	t_MouseTrackE.cbSize = sizeof(TRACKMOUSEEVENT);
-	t_MouseTrackE.dwFlags = TME_LEAVE;
-	t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_WindowHandle.ptrHandle);
-	TrackMouseEvent(&t_MouseTrackE);
+	//TRACKMOUSEEVENT t_MouseTrackE{};
+	//t_MouseTrackE.cbSize = sizeof(TRACKMOUSEEVENT);
+	//t_MouseTrackE.dwFlags = TME_LEAVE;
+	//t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_WindowHandle.ptrHandle);
+	//TrackMouseEvent(&t_MouseTrackE);
 
 
 	MSG t_Msg{};

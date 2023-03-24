@@ -20,7 +20,7 @@ namespace BB
 		float m_Speed;
 
 		glm::vec3 m_Pos;
-		glm::vec3 m_Front;
+		glm::vec3 m_Forward;
 		glm::vec3 m_Right;
 		glm::vec3 m_Up;	
 	};
