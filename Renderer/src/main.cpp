@@ -119,7 +119,7 @@ int main(int argc, char** argv)
 
 	Light t_StandardLight{};
 	t_StandardLight.color = { 255, 255, 255 };
-	t_StandardLight.pos = { 0.f, 0.f, 0.f };
+	t_StandardLight.pos = { 0.f, 10.f, 0.f };
 	t_StandardLight.radius = 10.f;
 
 	Render::SubmitLight({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
@@ -181,8 +181,8 @@ int main(int argc, char** argv)
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		t_Transform1.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(-90.0f * t_DeltaTime));
-		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
+		//t_Transform1.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(-90.0f * t_DeltaTime));
+		//t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 		t_TransformPool.UpdateTransforms();
 
 		Render::Update(t_DeltaTime);

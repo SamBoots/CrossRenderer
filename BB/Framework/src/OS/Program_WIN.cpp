@@ -59,7 +59,6 @@ void PushInput(const InputEvent& a_Input)
 	//Since when we get the input we get all of it. 
 	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
 	{
-		BB_LOG("Added input");
 		++s_InputBuffer.used;
 	}
 
@@ -93,7 +92,7 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 
 	////IMPORTANT! 
 	//This is true when we use WM_KEYDOWN and WM_KEYUP but the keyboard and mouse clicks seem far more responsive now. So we keep it like this.
-	//So is for some reason input is weird. START HERE!
+	//So if for some reason input is weird. START HERE!
 
 	//if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
 		//return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);

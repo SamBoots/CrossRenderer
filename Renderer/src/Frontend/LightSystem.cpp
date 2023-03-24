@@ -19,8 +19,8 @@ void BB::LightPool::SubmitLights(const RecordingCommandListHandle t_RecordingCmd
 {
 	BB_ASSERT(m_LightMax > m_LightCount + a_Lights.size(), "Light pool gone over the amount of lights!");
 
-	const uint64_t t_AllocSize = sizeof(Light) * a_Lights.size();
-	const uint64_t t_DstBufferOffset = sizeof(Light) * m_LightCount;
+	const uint64_t t_AllocSize = static_cast<uint64_t>(a_Lights.size() * sizeof(Light));
+	const uint64_t t_DstBufferOffset = static_cast<uint64_t>(m_LightCount * sizeof(Light));
 
 	//Add the lights here.
 	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(t_AllocSize);

@@ -41,10 +41,10 @@ struct VSoutput
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 textureColor = text.Sample(samplerColor, input.uv);
-    float4 color = textureColor * float4(input.color.xyz, 1.0f);
+    float4 t_TextureColor = text.Sample(samplerColor, input.uv);
+    float4 t_Color = t_TextureColor * float4(input.color.xyz, 1.0f);
     
-    float4 t_LightColor;
+    float4 t_Diffuse;
     //Apply lights
     for (int i = 0; i < baseFrameInfo[0].staticLightCount; i++)
     {
@@ -52,15 +52,12 @@ float4 main(VSoutput input) : SV_Target
         float3 t_Dir = normalize(lights[i].pos - input.fragPos);
 
         float t_Diff = max(dot(t_Normal, t_Dir), 0.0f);
-        float3 t_Diffuse = mul(t_Diff, lights[i].color);
-        
-        t_LightColor = float4(t_Diffuse, 1.0f);
-
+        t_Diffuse = mul(t_Diff, lights[i].color);
     }
 
     //Apply the Light colors;
-    float3 t_Ambient = mul(baseFrameInfo[0].ambientLight, baseFrameInfo[0].ambientStrength);
+    float4 t_Ambient = float4(mul(baseFrameInfo[0].ambientLight, baseFrameInfo[0].ambientStrength), 1.0f);
     
-    color *= mul(t_LightColor, t_Ambient);
-    return color;
+    float4 t_Result = (t_Ambient + t_Diffuse) * t_Color;
+    return t_Result;
 }

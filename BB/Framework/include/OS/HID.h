@@ -36,7 +36,7 @@ namespace BB
 		_P = 0x19,
 		_BRACKETLEFT = 0x1A,
 		_BRACKETRIGHT = 0x1B,
-		_RETURN = 0x1C,//I think this is non-numpad enter?
+		_RETURN = 0x1C, //I think this is non-numpad enter?
 		_CONTROLLEFT = 0x1D,
 		_A = 0x1E,
 		_S = 0x1F,
@@ -67,15 +67,6 @@ namespace BB
 		_ALTLEFT = 0x38,
 		_SPACEBAR = 0x39,
 		_CAPSLOCK = 0x3A,
-	};
-
-
-	enum class KEY
-	{
-		W,
-		A,
-		S,
-		D
 	};
 
 	struct MouseInfo

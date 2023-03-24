@@ -71,7 +71,7 @@ VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
     float4x4 t_ModelMatrix = modelInstances[indices.model].model;
     
     output.pos = mul(cam[0].proj, mul(cam[0].view, mul(t_ModelMatrix, float4(input.inPosition.xyz, 1.0))));
-    output.fragPos = (float3)float4((mul(t_ModelMatrix, float4(input.inPosition, 1.f))));
+    output.fragPos = float4(mul(t_ModelMatrix, float4(input.inPosition, 1.0f))).xyz;
     output.uv = input.inUv;
     output.color = input.inColor;
     output.normal = input.inNormal;
