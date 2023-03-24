@@ -102,11 +102,14 @@ void TransformPool::UpdateTransforms()
 	{
 		if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
+			ModelBufferInfo t_Pack{};
+			t_Pack.model = m_Pool[i].CreateModelMatrix();
+			t_Pack.inverseModel = glm::inverse(t_Pack.model);
+
 			//Copy the model matrix into the transfer buffer.
 			memcpy(Pointer::Add(m_MemoryRegion, m_MemoryRegionOffsets[i]),
-				&m_Pool[i].CreateModelMatrix(), 
-				sizeof(glm::mat4));
-
+				&t_Pack,
+				sizeof(ModelBufferInfo));
 		}
 	}
 }

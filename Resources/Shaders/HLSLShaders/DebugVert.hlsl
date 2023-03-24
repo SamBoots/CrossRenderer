@@ -28,7 +28,7 @@ struct VSOutput
 struct ModelInstance
 {
     float4x4 model;
-    float4x4 normalModel;
+    float4x4 inverse;
 };
 
 struct Camera
@@ -68,12 +68,13 @@ StructuredBuffer<ModelInstance> modelInstances : register(t2, space0);
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {
     VSOutput output = (VSOutput)0;
-    float4x4 t_ModelMatrix = modelInstances[indices.model].model;
+    float4x4 t_Model = modelInstances[indices.model].model;
+    float4x4 t_InverseModel = modelInstances[indices.model].inverse;
     
-    output.pos = mul(cam[0].proj, mul(cam[0].view, mul(t_ModelMatrix, float4(input.inPosition.xyz, 1.0))));
-    output.fragPos = float4(mul(t_ModelMatrix, float4(input.inPosition, 1.0f))).xyz;
+    output.pos = mul(cam[0].proj, mul(cam[0].view, mul(t_Model, float4(input.inPosition.xyz, 1.0))));
+    output.fragPos = float4(mul(t_Model, float4(input.inPosition, 1.0f))).xyz;
     output.uv = input.inUv;
     output.color = input.inColor;
-    output.normal = input.inNormal;
+    output.normal = mul(transpose(t_InverseModel), float4(input.inNormal, 1.0f)).xyz;
     return output;
 }

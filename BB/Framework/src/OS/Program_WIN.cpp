@@ -59,7 +59,6 @@ void PushInput(const InputEvent& a_Input)
 	//Since when we get the input we get all of it. 
 	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
 	{
-		BB_LOG("input achieved");
 		++s_InputBuffer.used;
 	}
 

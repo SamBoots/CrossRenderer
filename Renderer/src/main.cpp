@@ -119,7 +119,7 @@ int main(int argc, char** argv)
 
 	Light t_StandardLight{};
 	t_StandardLight.color = { 255, 255, 255 };
-	t_StandardLight.pos = { 0.f, 10.f, 0.f };
+	t_StandardLight.pos = { 0.f, 0.f, 0.f };
 	t_StandardLight.radius = 10.f;
 
 	Render::SubmitLight({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
