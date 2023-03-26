@@ -9,7 +9,7 @@
 
 using namespace BB;
 
-static void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
+static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 {
 	void* t_Data = a_Accessor->buffer_view->buffer->data;
 	t_Data = Pointer::Add(t_Data, a_Accessor->buffer_view->offset);
@@ -17,7 +17,7 @@ static void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return t_Data;
 }
 
-static uint32_t GetChildNodeCount(const cgltf_node& a_Node)
+static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 {
 	uint32_t t_NodeCount = 0;
 	for (size_t i = 0; i < a_Node.children_count; i++)
