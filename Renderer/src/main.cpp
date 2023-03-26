@@ -74,9 +74,11 @@ int main(int argc, char** argv)
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
 
-	Render::SetProjection(glm::perspective(glm::radians(60.0f),
+	glm::mat4 t_Proj = glm::perspective(glm::radians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
-		0.001f, 10000.0f));
+		0.001f, 10000.0f);
+
+	Render::SetProjection(t_Proj);
 	Render::SetView(t_Cam.CalculateView());
 
 	Vertex t_Vertex[4];
@@ -97,7 +99,7 @@ int main(int argc, char** argv)
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
-	t_LoadInfo.path = "Resources/Models/cube.gltf";
+	t_LoadInfo.path = "Resources/Models/box.gltf";
 	
 
 	//Start frame before we upload.
