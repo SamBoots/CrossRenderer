@@ -263,15 +263,20 @@ namespace BB
 	enum class DESC_TYPE : uint32_t
 	{
 		CONSTANT,
-		ROOT,
+		ROOT_CBV,
+		ROOT_SRV,
+		ROOT_UAV,
 		TABLE
 	};
 
-	struct DescriptorPipelineAttachment
+	struct DescriptorAttachment
 	{
-		DESC_TYPE type;
-		UINT srv_cbv_uav_register = 0;
+		D3D12_GPU_VIRTUAL_ADDRESS virtAddress = 0;
+		DESC_TYPE type{};
+		uint32_t paramIndex = UINT32_MAX;
 	};
+
+
 
 	//This somewhat represents a vkDescriptorSet.
 	struct DXDescriptor
@@ -283,13 +288,8 @@ namespace BB
 		uint32_t tableDescRangeCount = 0;
 		D3D12_DESCRIPTOR_RANGE1* tableDescRanges = nullptr;
 
-		uint32_t rootConstantCount = 0;
-		RootConstant rootConstant[4];
-
-		uint32_t cbvCount = 0;
-		RootDescriptor rootCBV[4];
-		uint32_t srvCount = 0;
-		RootDescriptor rootSRV[4];
+		uint32_t descriptorAttachmentCount = 0;
+		DescriptorAttachment* descriptorAttachments{};
 	};
 
 	//Maybe create a class and a builder for this?

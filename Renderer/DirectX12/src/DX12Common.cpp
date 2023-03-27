@@ -250,6 +250,8 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 	uint32_t t_TableDescriptorCount = 0;
 	uint32_t t_TableBindingCount = 0;
 
+	uint32_t t_AttachmentCount = 0;
+
 	DescriptorBinding** t_TableBindings = BBnewArr(
 		s_DX12TempAllocator,
 		a_Info.bindings.size(),
@@ -285,6 +287,8 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 
 	if (t_TableBindingCount != 0)
 	{
+		//Create one more attachment for the table.
+		++t_AttachmentCount;
 		uint32_t t_TableOffset = 0;
 
 		t_Descriptor->tables.table = s_DX12B.CBV_SRV_UAVHeap->Allocate(t_TableDescriptorCount);
@@ -304,7 +308,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 				t_Descriptor->tableDescRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
 
 			switch (t_TableBindings[i]->type)
-			{	
+			{
 			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
 				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 				break;
@@ -317,6 +321,13 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 			case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
 				t_Descriptor->tableDescRanges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 				break;
+				//Just add more attachments
+			case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:
+				++t_AttachmentCount;
+				break;
+			case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
+				++t_AttachmentCount;
+				break;
 			}
 			
 			t_Descriptor->tableDescRanges[i].OffsetInDescriptorsFromTableStart = t_TableOffset;
@@ -326,18 +337,24 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 		}
 	}
 
+	t_Descriptor->descriptorAttachments = BBnewArr(s_DX12Allocator,
+		t_AttachmentCount,
+		DescriptorAttachment);
+
+	uint32_t t_Count = 0;
 	//Go through all the buffers.
 	for (size_t i = 0; i < a_Info.bindings.size(); i++)
 	{
 		switch (a_Info.bindings[i].type)
 		{
 		case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:
-			t_Descriptor->rootCBV[t_Descriptor->cbvCount++].rootIndex = t_ParamIndex++;
+			t_Descriptor->descriptorAttachments[t_Count].paramIndex = t_ParamIndex++;
+			t_Descriptor->descriptorAttachments[t_Count].type = DESC_TYPE::ROOT_CBV;
 
 			break;
 		case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:
-			t_Descriptor->rootSRV[t_Descriptor->srvCount++].rootIndex = t_ParamIndex++;
-
+			t_Descriptor->descriptorAttachments[t_Count].paramIndex = t_ParamIndex++;
+			t_Descriptor->descriptorAttachments[t_Count].type = DESC_TYPE::ROOT_CBV;
 			break;
 		}
 	}
