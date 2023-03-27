@@ -68,7 +68,7 @@ int main(int argc, char** argv)
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
 	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
 
-	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1));
+	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f);
 	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
 
 	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
@@ -94,12 +94,12 @@ int main(int argc, char** argv)
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
-	t_ModelInfo.imagePath = "Resources/Textures/Test.jpg";
+	t_ModelInfo.imagePath = "Resources/Textures/DuckCM.png";
 
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
-	t_LoadInfo.path = "Resources/Models/box.gltf";
+	t_LoadInfo.path = "Resources/Models/Duck.gltf";
 	
 
 	//Start frame before we upload.
@@ -109,6 +109,7 @@ int main(int argc, char** argv)
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_gltfCube,
 		t_TransHandle1);
+	t_Transform1.SetScale(glm::vec3(0.01f, 0.01f, 0.01f));
 	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
 		t_TransHandle2);
 
@@ -183,7 +184,7 @@ int main(int argc, char** argv)
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		t_Transform1.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(-90.0f * t_DeltaTime));
+		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 		t_TransformPool.UpdateTransforms();
 

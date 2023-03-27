@@ -259,7 +259,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	int x, y, c;
-	stbi_uc* t_Pixels = stbi_load("Resources/Textures/Test.jpg", &x, &y, &c, 4);
+	stbi_uc* t_Pixels = stbi_load("Resources/Textures/DuckCM.png", &x, &y, &c, 4);
 	BB_ASSERT(t_Pixels, "Failed to load test image!");
 	STBI_FREE(t_Pixels); //HACK, will fix later.
 	{

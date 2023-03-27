@@ -13,7 +13,7 @@ Transform::Transform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const f
 	: m_Pos(a_Position), m_Scale(a_Scale) 
 {
 	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
-	m_Rot = glm::angleAxis(a_Radians, a_Axis);
+	m_Rot = glm::angleAxis(glm::radians(a_Radians), a_Axis);
 }
 
 void Transform::Translate(const glm::vec3 a_Translation)

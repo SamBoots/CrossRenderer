@@ -419,7 +419,7 @@ uint64_t BB::GetOSFileSize(const OSFileHandle a_FileHandle)
 void BB::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint)
 {
 	DWORD t_Err = SetFilePointer(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle), a_Offset, NULL, static_cast<DWORD>(a_FileReadPoint));
-#ifdef DEBUG
+#ifdef _DEBUG
 	if (t_Err == INVALID_SET_FILE_POINTER && 
 		LatestOSError() == ERROR_NEGATIVE_SEEK)
 	{
@@ -498,7 +498,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 
 	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	t_Rid[1].dwFlags = RIDEV_NOLEGACY;
+	t_Rid[1].dwFlags = 0;
 	t_Rid[1].hwndTarget = t_Window;
 
 	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
