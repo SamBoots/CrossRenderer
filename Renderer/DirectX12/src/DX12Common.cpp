@@ -26,12 +26,15 @@ struct DXPipelineBuildInfo
 		UINT regSRV = 0;
 		UINT regUAV = 0;
 	};
-	RegSpace regSpaces[4];
+	RegSpace regSpaces[BINDING_MAX]{};
 
 	//Maximum of 4 bindings.
 	uint32_t rootParamCount = 0;
 	//Use this as if it always picks constants
 	D3D12_ROOT_PARAMETER1* rootParams{};
+
+	uint32_t tableCount;
+	D3D12_DESCRIPTOR_RANGE1* tableRanges[BINDING_MAX]{};
 };
 
 enum class ShaderType
@@ -246,6 +249,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 
 	uint32_t t_TableDescriptorCount = 0;
 	uint32_t t_TableBindingCount = 0;
+
 	DescriptorBinding** t_TableBindings = BBnewArr(
 		s_DX12TempAllocator,
 		a_Info.bindings.size(),
@@ -317,7 +321,6 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 			
 			t_Descriptor->tableDescRanges[i].OffsetInDescriptorsFromTableStart = t_TableOffset;
 			t_Descriptor->tableDescRanges[i].NumDescriptors = t_TableBindings[i]->descriptorCount;
-			t_Descriptor->tableDescRanges[i].RegisterSpace = static_cast<UINT>(t_Descriptor->shaderSpace);
 
 			t_TableOffset += t_TableBindings[i]->descriptorCount;
 		}
@@ -569,24 +572,29 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_BindingSetHandle)
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
-	const DXDescriptor* t_BindingSet = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
+	const DXDescriptor const* t_BindingSet = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
 
 	uint32_t t_ParamIndex = t_BuildInfo->rootParamCount;
 	t_BuildInfo->buildPipeline.rootParamBindingOffset[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = t_ParamIndex;
 
 	if (t_BindingSet->tables.table.count != 0)
 	{
+		t_BuildInfo->tableRanges[static_cast<uint32_t>(t_BindingSet->shaderSpace)] = BBnewArr(
+			t_BuildInfo->buildAllocator,
+			t_BindingSet->tableDescRangeCount,
+			D3D12_DESCRIPTOR_RANGE1);
+
 		for (uint32_t i = 0; i < t_BindingSet->tableDescRangeCount; i++)
 		{
-			t_BindingSet->tableDescRanges[i].RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
+			t_BuildInfo->tableRanges[i]->RegisterSpace = static_cast<uint32_t>(t_BindingSet->shaderSpace);
 
 			switch (t_BindingSet->tableDescRanges[i].RangeType)
 			{
 			case D3D12_DESCRIPTOR_RANGE_TYPE_CBV:
-				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regCBV++;
+				t_BuildInfo->tableRanges[i]->BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regCBV++;
 				break;
 			case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
-				t_BindingSet->tableDescRanges[i].BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regSRV++;
+				t_BuildInfo->tableRanges[i]->BaseShaderRegister = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_BindingSet->shaderSpace)].regSRV++;
 				break;
 			default:
 				BB_ASSERT(false, "DirectX12, Descriptor range type not yet supported!");

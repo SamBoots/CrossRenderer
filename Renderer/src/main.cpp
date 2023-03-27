@@ -25,7 +25,7 @@ LinearAllocator_t m_ScopeAllocator{2 * kbSize};
 
 int main(int argc, char** argv)
 {
-	BBInitInfo t_BBInitInfo;
+	BBInitInfo t_BBInitInfo{};
 	t_BBInitInfo.exePath = argv[0];
 	t_BBInitInfo.programName = L"Crossrenderer";
 	InitBB(t_BBInitInfo);

@@ -260,6 +260,19 @@ namespace BB
 		UINT rootIndex{};
 	};
 
+	enum class DESC_TYPE : uint32_t
+	{
+		CONSTANT,
+		ROOT,
+		TABLE
+	};
+
+	struct DescriptorPipelineAttachment
+	{
+		DESC_TYPE type;
+		UINT srv_cbv_uav_register = 0;
+	};
+
 	//This somewhat represents a vkDescriptorSet.
 	struct DXDescriptor
 	{
