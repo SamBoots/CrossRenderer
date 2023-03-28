@@ -22,6 +22,7 @@ namespace BB
 
 		const uint32_t GetLightCount() const { return m_LightCount; }
 		const uint32_t GetLightMax() const { return m_LightMax; }
+		const RenderBufferPart GetBufferAllocInfo() const { return m_BufferPart; }
 
 	private:
 		RenderBufferPart m_BufferPart;

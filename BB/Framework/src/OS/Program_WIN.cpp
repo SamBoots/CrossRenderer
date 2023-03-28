@@ -498,7 +498,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 
 	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	t_Rid[1].dwFlags = RIDEV_NOLEGACY;
+	t_Rid[1].dwFlags = 0;
 	t_Rid[1].hwndTarget = t_Window;
 
 	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),

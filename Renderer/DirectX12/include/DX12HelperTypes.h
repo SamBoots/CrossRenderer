@@ -18,6 +18,7 @@ namespace BB
 	//Some globals
 	constexpr DXGI_FORMAT DEPTH_FORMAT = DXGI_FORMAT_D32_FLOAT;
 	constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
+	constexpr UINT INVALID_ROOT_INDEX = UINT_MAX;
 
 
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
@@ -244,23 +245,23 @@ namespace BB
 
 	struct RootConstant
 	{
-		uint32_t dwordCount;
-		UINT rootIndex{};
+		uint32_t dwordCount = 0;
+		UINT rootIndex = INVALID_ROOT_INDEX;
 	};
 
 	struct RootDescriptor 
 	{
 		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
-		UINT rootIndex{};
+		UINT rootIndex = INVALID_ROOT_INDEX;
 	};
 
 	struct DescTable
 	{
 		DescriptorHeapHandle table{};
-		UINT rootIndex{};
+		UINT rootIndex = INVALID_ROOT_INDEX;
 	};
 
-	enum class DESC_TYPE : uint32_t
+	enum class DESC_ATTACHMENT_TYPE : uint32_t
 	{
 		CONSTANT,
 		ROOT_CBV,
@@ -269,14 +270,28 @@ namespace BB
 		TABLE
 	};
 
-	struct DescriptorAttachment
+	struct TableContent //8 bytes
 	{
+		D3D12_DESCRIPTOR_RANGE_TYPE rangeType{};
+		uint32_t descriptorCount = UINT32_MAX;
+		uint32_t tableIndex = 0;
+	};
+	struct RootContent //8 bytes
+	{
+		D3D12_DESCRIPTOR_RANGE_TYPE rangeType{};
 		D3D12_GPU_VIRTUAL_ADDRESS virtAddress = 0;
-		DESC_TYPE type{};
-		uint32_t paramIndex = UINT32_MAX;
+		uint32_t rootIndex = UINT32_MAX;
 	};
 
-
+	struct DescriptorAttachment
+	{
+		DESC_ATTACHMENT_TYPE attachType;
+		union
+		{
+			TableContent tableContent{};
+			RootContent rootContent;
+		};
+	};
 
 	//This somewhat represents a vkDescriptorSet.
 	struct DXDescriptor
@@ -284,12 +299,14 @@ namespace BB
 		//Maximum of 4 bindings.
 		RENDER_BINDING_SET shaderSpace = {};
 
+		uint32_t tableParamCount = 0;
 		DescTable tables;
-		uint32_t tableDescRangeCount = 0;
-		D3D12_DESCRIPTOR_RANGE1* tableDescRanges = nullptr;
 
 		uint32_t descriptorAttachmentCount = 0;
 		DescriptorAttachment* descriptorAttachments{};
+
+		uint32_t dynamicBufferCount = 0;
+		RootContent** dynamicBuffers{};
 	};
 
 	//Maybe create a class and a builder for this?
