@@ -364,7 +364,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		t_BufferUpdate.binding = 1;
 		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.buffer = s_GlobalInfo.perFrameBuffer;
 		t_BufferUpdate.bufferOffset = 0;
 		t_BufferUpdate.bufferSize = sizeof(CameraRenderData);
 
@@ -377,10 +376,12 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
 
+		RenderBufferPart t_LightBufferPart = s_GlobalInfo.staticLights->GetBufferAllocInfo();
 		t_BufferUpdate.binding = 3;
 		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = LIGHT_ALLOC_SIZE;
+		t_BufferUpdate.bufferOffset = t_LightBufferPart.offset;
+		t_BufferUpdate.bufferSize = t_LightBufferPart.size;
+		t_BufferUpdate.buffer = t_LightBufferPart.bufferHandle;
 		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 
 		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);

@@ -52,9 +52,10 @@ namespace BB
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
 		READONLY_BUFFER, //SRV or Storage buffer
+		READWRITE, //UAV or readwrite storage buffer(?)
 		READONLY_CONSTANT_DYNAMIC, //Root CBV or dynamic constant buffer
 		READONLY_BUFFER_DYNAMIC, //Root SRV or dynamic storage buffer
-		READWRITE, //UAV or write storage buffer(?)
+		READWRITE_DYNAMIC, //Root UAV or readwrite dynamic storage buffer(?)
 		COMBINED_IMAGE_SAMPLER
 	};
 

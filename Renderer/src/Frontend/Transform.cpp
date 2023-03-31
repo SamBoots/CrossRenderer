@@ -74,6 +74,7 @@ TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position)
 	m_Pool.emplace_back(a_Position);
 	return TransformHandle(m_Pool.size() - 1);
 }
+
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians)
 {
 	m_Pool.emplace_back(a_Position, a_Axis, a_Radians);
