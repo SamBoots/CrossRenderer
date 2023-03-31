@@ -12,31 +12,18 @@ message(STATUS "Vulkan found")
 message(STATUS ${Vulkan_INCLUDE_DIRS})
 endif()
 
-#compile Definitions.
-if (WIN32)
-set(PLATFORM_NAME "_WIN")
-add_compile_definitions(PUBLIC VK_USE_PLATFORM_WIN32_KHR)
-elseif(UNIX)
-set(PLATFORM_NAME "_LINUX")
-add_compile_definitions(PUBLIC VK_USE_PLATFORM_XLIB_KHR)
-endif ()
-
-set (Vulkan_DLL_Source
+#Add source to this project's executable.
+add_library (BB_VulkanDLL SHARED 
 "src/VulkanHelperTypes.cpp"
 "src/VulkanBackend.cpp"
 "src/VulkanCommon.cpp"
 "include/VulkanHelperTypes.h"
-"include/VulkanCommon.h")
-
-#Add source to this project's executable.
-add_library (BB_VulkanDLL SHARED ${Vulkan_DLL_Source})
-
-set (Vulkan_DLL_Headers
-"include/VulkanBackend.h")
+"include/VulkanCommon.h"
+"imgui/imgui_impl_vulkan.cpp")
 
 #Executable-Object
 set_target_properties ( BB_VulkanDLL PROPERTIES
-	PUBLIC_HEADER ${Vulkan_DLL_Headers}
+	PUBLIC_HEADER "include/VulkanBackend.h"
 	RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:Renderer>
 )
 
@@ -51,7 +38,17 @@ ${Vulkan_INCLUDE_DIRS}
 target_link_libraries(BB_VulkanDLL 
     BBFramework 
     Vulkan::Vulkan
-    VMA)
+    VMA
+    IMGUI)
+
+#compile Definitions.
+if (WIN32)
+set(PLATFORM_NAME "_WIN")
+target_compile_definitions(BB_VulkanDLL PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+elseif(UNIX)
+set(PLATFORM_NAME "_LINUX")
+target_compile_definitions(BB_VulkanDLL PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+endif ()
 
 install(TARGETS BB_VulkanDLL
 DESTINATION  $<TARGET_FILE_DIR:Renderer>)

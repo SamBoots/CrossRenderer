@@ -42,3 +42,5 @@ message(STATUS "glm downloaded, version ${GLM_VERSION}")
 endif()
 
 message(STATUS "GLM Source dir: ${glm_SOURCE_DIR}")
+
+add_subdirectory("imgui")
