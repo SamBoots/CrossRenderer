@@ -7,6 +7,8 @@
 #include "OS/Program.h"
 #include "ModelLoader.h"
 #include "LightSystem.h"
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_win32.h"
 
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
@@ -116,6 +118,13 @@ static void Draw3DFrame()
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
+
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+	bool show_demo_window = true;
+	ImGui::ShowDemoWindow(&show_demo_window);
+
+	ImGui::Render();
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
@@ -215,6 +224,13 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BackendCreateInfo.engineName = "TestEngine";
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
+
+
+	//implement imgui here.
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::StyleColorsDark();
+	ImGui_ImplWin32_Init(a_InitInfo.windowHandle.ptrHandle);
 
 	RenderBackend::InitBackend(t_BackendCreateInfo);
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();

@@ -15,6 +15,8 @@ constexpr int VULKAN_VERSION = 3;
 #include "Math.inl"
 
 #include "VulkanCommon.h"
+#define IMGUI_VULKAN_DEBUG_REPORT
+#include "../imgui/imgui_impl_vulkan.h"
 
 #include <iostream>
 
@@ -535,12 +537,6 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 		&t_ReturnDevice),
 		"Failed to create logical device Vulkan.");
 
-	//Get the present queue.
-	vkGetDeviceQueue(t_ReturnDevice,
-		s_VKB.queueIndices.present,
-		0,
-		&s_VKB.presentQueue);
-
 	VkPhysicalDeviceProperties2 t_DeviceProperties{};
 	t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 	vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
@@ -829,7 +825,11 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		a_CreateInfo.windowWidth,
 		a_CreateInfo.windowHeight);
 
-
+	//Get the present queue.
+	vkGetDeviceQueue(s_VKB.device,
+		s_VKB.queueIndices.present,
+		0,
+		&s_VKB.presentQueue);
 
 	//Setup the Vulkan Memory Allocator
 	VmaVulkanFunctions t_VkFunctions{};
@@ -852,6 +852,24 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	BackendInfo t_BackendInfo;
 	t_BackendInfo.currentFrame = s_VKB.currentFrame;
 	t_BackendInfo.framebufferCount = s_VKB.frameCount;
+
+	//Setup IMGUI for vulkan now as well. Maybe only do this on debug?
+	ImGui_ImplVulkan_InitInfo t_InitInfo{};
+	t_InitInfo.Allocator = nullptr;
+	t_InitInfo.Instance = s_VKB.instance;
+	t_InitInfo.PhysicalDevice = s_VKB.physicalDevice;
+	t_InitInfo.Device = s_VKB.device;
+	t_InitInfo.QueueFamily = s_VKB.queueIndices.graphics;
+	t_InitInfo.Queue = s_VKB.presentQueue;
+	t_InitInfo.PipelineCache = VK_NULL_HANDLE;
+	t_InitInfo.DescriptorPool = s_VKB.descriptorAllocator.GetPool();
+	t_InitInfo.Allocator = VK_NULL_HANDLE;
+	t_InitInfo.MinImageCount = s_VKB.frameCount;
+	t_InitInfo.ImageCount = s_VKB.frameCount;
+	t_InitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+	t_InitInfo.dynamicRenderingFormat = s_VKB.swapChain.imageFormat;
+
+	ImGui_ImplVulkan_Init(&t_InitInfo);
 
 	return t_BackendInfo;
 }
@@ -1705,6 +1723,8 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	ImDrawData* draw_data = ImGui::GetDrawData();
+	ImGui_ImplVulkan_RenderDrawData(draw_data, t_Cmdlist->Buffer());
 	vkCmdEndRendering(t_Cmdlist->Buffer());
 
 	VkImageMemoryBarrier t_PresentBarrier{};

@@ -39,10 +39,10 @@ endif()
 
 if (MSVC)
     # warning level 4 and all warnings as errors
-    add_compile_definitions(PUBLIC /W4)
+    add_compile_definitions(PUBLIC /W4 /WX)
 elseif(CMAKE_COMPILER_IS_GNUCXX)
     # lots of warnings and all warnings as errors
-    add_compile_definitions(PUBLIC Wall Wextra)
+    add_compile_definitions(PUBLIC -Wall -Wextra)
 endif()
 
 #compile Definitions.

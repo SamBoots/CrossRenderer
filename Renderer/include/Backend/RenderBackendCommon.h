@@ -424,7 +424,7 @@ namespace BB
 
 	struct BackendInfo
 	{
-		uint32_t framebufferCount;
+		uint32_t framebufferCount = 0;
 		FrameIndex currentFrame = 0;
 	};
 

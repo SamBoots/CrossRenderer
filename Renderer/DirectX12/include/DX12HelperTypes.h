@@ -313,7 +313,7 @@ namespace BB
 	struct DXPipeline
 	{
 		//Optmize Rootsignature and pipelinestate to cache them somewhere and reuse them.
-		ID3D12PipelineState* pipelineState;
+		ID3D12PipelineState* pipelineState{};
 		ID3D12RootSignature* rootSig{};
 
 		//Each index indicates the start paramindex for a binding.

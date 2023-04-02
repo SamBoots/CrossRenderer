@@ -501,7 +501,7 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 		t_Descriptor->descriptorAttachments[a_Info.binding].rootContent.virtAddress = t_Address;
 		break;
 	default:
-		DXASSERT(false, "DX12, Trying to update a buffer descriptor with an invalid type.");
+		BB_ASSERT(false, "DX12, Trying to update a buffer descriptor with an invalid type.");
 		break;
 	}
 }
@@ -528,7 +528,7 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	}
 		break;
 	default:
-		DXASSERT(false, "DX12, Trying to update a image descriptor with an invalid type.");
+		BB_ASSERT(false, "DX12, Trying to update a image descriptor with an invalid type.");
 		break;
 	}
 }
@@ -609,7 +609,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_BindingSetHandle)
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
-	const DXDescriptor const* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
+	const DXDescriptor* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
 
 	DXPipelineBuildInfo::RegSpace& t_Reg = t_BuildInfo->regSpaces[static_cast<uint32_t>(t_Descriptor->shaderSpace)];
 
@@ -778,7 +778,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	t_BuildInfo->PSOdesc.InputLayout.NumElements = static_cast<uint32_t>(t_InputElementDescs.size());
 
 
-	D3D12_BLEND_DESC t_BlendDesc;
+	D3D12_BLEND_DESC t_BlendDesc{};
 	t_BlendDesc.AlphaToCoverageEnable = FALSE;
 	t_BlendDesc.IndependentBlendEnable = FALSE;
 	const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
@@ -913,7 +913,7 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	default: BB_ASSERT(false, "DX12: invalid initial state for end rendering!");
 	}
 
-	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier;
+	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier{};
 	t_RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	t_RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 	t_RenderTargetBarrier.Transition.pResource = t_CommandList->rtv;
@@ -990,7 +990,7 @@ void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle,
 	}
 
 	//// Indicate that the back buffer will now be used to present.
-	D3D12_RESOURCE_BARRIER t_PresentBarrier;
+	D3D12_RESOURCE_BARRIER t_PresentBarrier{};
 	t_PresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	t_PresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 	t_PresentBarrier.Transition.pResource = t_CommandList->rtv;
