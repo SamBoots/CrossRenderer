@@ -38,6 +38,10 @@ add_executable (Renderer
 "src/Frontend/Materials.cpp"
 "src/Frontend/Camera.cpp"
 
+#Imgui
+"Imgui/imgui_impl_CrossRenderer.h"
+"Imgui/imgui_impl_CrossRenderer.cpp"
+
 #temporary to test
 "src/main.cpp")
 
