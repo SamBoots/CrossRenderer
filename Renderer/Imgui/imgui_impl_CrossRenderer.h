@@ -3,11 +3,6 @@
 #include "imgui.h"      // IMGUI_IMPL_API
 #include "RenderBackendCommon.h"
 
-struct ImGui_ImplCross_InitInfo
-{
-
-};
-
 // Called by user code
 IMGUI_IMPL_API bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info);
 IMGUI_IMPL_API void ImGui_ImplCross_Shutdown();
