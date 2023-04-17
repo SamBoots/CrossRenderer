@@ -118,13 +118,6 @@ static void Draw3DFrame()
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
-
-	ImGui_ImplWin32_NewFrame();
-	ImGui::NewFrame();
-	bool show_demo_window = true;
-	ImGui::ShowDemoWindow(&show_demo_window);
-
-	ImGui::Render();
 	
 	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
 	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
@@ -447,6 +440,37 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	t_BasicPipe.BindShaders(BB::Slice(t_ShaderBuffers, 2));
 
+	{ //bind attributes
+		FixedArray<VertexAttributeDesc, 4> t_AttributeDescriptions;
+		t_AttributeDescriptions[0].semanticName = "POSITION";
+		t_AttributeDescriptions[0].format = RENDER_INPUT_FORMAT::RGB32;
+		t_AttributeDescriptions[0].location = 0;
+		t_AttributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+		t_AttributeDescriptions[1].semanticName = "NORMAL";
+		t_AttributeDescriptions[1].format = RENDER_INPUT_FORMAT::RGB32;
+		t_AttributeDescriptions[1].location = 1;
+		t_AttributeDescriptions[1].offset = offsetof(Vertex, normal);
+
+		t_AttributeDescriptions[2].semanticName = "UV";
+		t_AttributeDescriptions[2].format = RENDER_INPUT_FORMAT::RG32;
+		t_AttributeDescriptions[2].location = 2;
+		t_AttributeDescriptions[2].offset = offsetof(Vertex, uv);
+
+		t_AttributeDescriptions[3].semanticName = "COLOR";
+		t_AttributeDescriptions[3].format = RENDER_INPUT_FORMAT::RGB32;
+		t_AttributeDescriptions[3].location = 3;
+		t_AttributeDescriptions[3].offset = offsetof(Vertex, color);
+
+		PipelineAttributes t_Attribs{};
+		t_Attribs.stride = sizeof(Vertex);
+		t_Attribs.attributes = BB::Slice(
+			t_AttributeDescriptions.data(),
+			t_AttributeDescriptions.size());
+
+		t_BasicPipe.BindAttributes(t_Attribs);
+	}
+
 	t_Pipeline = t_BasicPipe.BuildPipeline();
 
 #pragma endregion //PipelineCreation
@@ -745,8 +769,6 @@ void BB::Render::StartFrame()
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
 
 }
-
-bool firstTimeTransfer = true;
 
 void BB::Render::EndFrame()
 {

@@ -177,6 +177,14 @@ namespace BB
 		PER_OBJECT = 3
 	};
 
+	enum class RENDER_INPUT_FORMAT : uint32_t
+	{
+		RGBA32,
+		RGB32,
+		RG32,
+		R32
+	};
+
 	struct UpdateDescriptorImageInfo
 	{
 		RDescriptorHandle set;
@@ -373,6 +381,12 @@ namespace BB
 		float clearColor[4]{};
 	};
 
+	struct ScissorInfo
+	{
+		int2 offset;
+		uint2 extent;
+	};
+
 	struct EndRenderingInfo
 	{
 		RENDER_IMAGE_LAYOUT colorInitialLayout{};
@@ -388,6 +402,21 @@ namespace BB
 	{
 		//can be null
 		RImageHandle depthStencil;
+	};
+
+	struct VertexAttributeDesc
+	{
+		uint32_t location = 0;
+		RENDER_INPUT_FORMAT format;
+		uint32_t offset = 0;
+		char* semanticName = nullptr;
+	};
+
+	struct PipelineAttributes
+	{
+		uint32_t stride = 0;
+		//Maybe add input rate.
+		BB::Slice<VertexAttributeDesc> attributes;
 	};
 
 	struct ShaderCreateInfo
@@ -447,6 +476,7 @@ namespace BB
 	typedef PipelineBuilderHandle	(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
 	typedef void					(*PFN_RenderAPIDX12PipelineBuilderBindDescriptor)(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
 	typedef void					(*PFN_RenderAPIPipelineBuilderBindShaders)(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+	typedef void					(*PFN_RenderAPIPipelineBuilderBindAttributes)(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo);
 	typedef PipelineHandle			(*PFN_RenderAPIBuildPipeline)(const PipelineBuilderHandle a_Handle);
 
 	//Commandlist handling
@@ -454,6 +484,7 @@ namespace BB
 	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
 	typedef void (*PFN_RenderAPIStartRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+	typedef void (*PFN_RenderAPISetScissor)(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
 	typedef void (*PFN_RenderAPIEndRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	
 	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
@@ -514,12 +545,14 @@ namespace BB
 		PFN_RenderAPIPipelineBuilderInit pipelineBuilderInit;
 		PFN_RenderAPIDX12PipelineBuilderBindDescriptor pipelineBuilderBindDescriptor;
 		PFN_RenderAPIPipelineBuilderBindShaders pipelineBuilderBindShaders;
+		PFN_RenderAPIPipelineBuilderBindAttributes pipelineBuilderBindAttributes;
 		PFN_RenderAPIBuildPipeline pipelineBuilderBuildPipeline;
 
 		PFN_RenderAPIStartCommandList startCommandList;
 		PFN_RenderAPIResetCommandAllocator resetCommandAllocator;
 		PFN_RenderAPIEndCommandList endCommandList;
 		PFN_RenderAPIStartRendering startRendering;
+		PFN_RenderAPISetScissor setScissor;
 		PFN_RenderAPIEndRendering endRendering;
 
 		PFN_RenderAPICopyBuffer copyBuffer;

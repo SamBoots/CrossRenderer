@@ -3,6 +3,12 @@
 #include "imgui.h"      // IMGUI_IMPL_API
 #include "RenderBackendCommon.h"
 
+struct ImGui_ImplCross_InitInfo
+{
+	uint32_t imageCount = 0;
+	uint32_t minImageCount = 0;
+};
+
 // Called by user code
 IMGUI_IMPL_API bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info);
 IMGUI_IMPL_API void ImGui_ImplCross_Shutdown();

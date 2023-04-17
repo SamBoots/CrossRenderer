@@ -722,6 +722,46 @@ void BB::DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, co
 	}
 }
 
+void BB::DX12PipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo)
+{
+	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
+	BB_ASSERT(t_BuildInfo->PSOdesc.InputLayout.NumElements == 0, "DX12: Already bound attributes to this pipeline builder!");
+
+
+	D3D12_INPUT_ELEMENT_DESC* t_InputDesc = BBnewArr(
+		t_BuildInfo->buildAllocator,
+		a_AttributeInfo.attributes.size(),
+		D3D12_INPUT_ELEMENT_DESC);
+
+	for (size_t i = 0; i < a_AttributeInfo.attributes.size(); i++)
+	{
+		t_InputDesc[i].SemanticName = a_AttributeInfo.attributes[i].semanticName;
+		t_InputDesc[i].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+		t_InputDesc[i].AlignedByteOffset = a_AttributeInfo.attributes[i].offset;
+		switch(a_AttributeInfo.attributes[i].format)
+		{
+		case RENDER_INPUT_FORMAT::R32:
+			t_InputDesc[i].Format = DXGI_FORMAT_R32_FLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RG32:
+			t_InputDesc[i].Format = DXGI_FORMAT_R32G32_FLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RGB32:
+			t_InputDesc[i].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RGBA32:
+			t_InputDesc[i].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			break;
+		default:
+			BB_ASSERT(false, "Vulkan: Input format not supported!");
+			break;
+		}
+	}
+
+	t_BuildInfo->PSOdesc.InputLayout.NumElements = static_cast<UINT>(a_AttributeInfo.attributes.size());
+	t_BuildInfo->PSOdesc.InputLayout.pInputElementDescs = t_InputDesc;
+}
+
 PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
@@ -771,12 +811,6 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	}
 
 	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
-
-	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> t_InputElementDescs = VertexInputElements();
-
-	t_BuildInfo->PSOdesc.InputLayout.pInputElementDescs = t_InputElementDescs.data();
-	t_BuildInfo->PSOdesc.InputLayout.NumElements = static_cast<uint32_t>(t_InputElementDescs.size());
-
 
 	D3D12_BLEND_DESC t_BlendDesc{};
 	t_BlendDesc.AlphaToCoverageEnable = FALSE;
@@ -946,6 +980,19 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 	t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
 	t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+}
+
+void BB::DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+{
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	D3D12_RECT t_Rect{};
+	t_Rect.left = static_cast<LONG>(a_ScissorInfo.offset.x);
+	t_Rect.top = static_cast<LONG>(a_ScissorInfo.offset.y);
+	t_Rect.right = static_cast<LONG>(a_ScissorInfo.extent.x);
+	t_Rect.bottom = static_cast<LONG>(a_ScissorInfo.extent.y);
+
+	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 }
 
 void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)

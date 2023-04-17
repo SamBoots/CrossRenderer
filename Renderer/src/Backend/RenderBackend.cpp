@@ -30,6 +30,11 @@ void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo
 	s_ApiFunc.pipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
 }
 
+void PipelineBuilder::BindAttributes(const PipelineAttributes& a_AttributeInfo)
+{
+	s_ApiFunc.pipelineBuilderBindAttributes(m_BuilderHandle, a_AttributeInfo);
+}
+
 PipelineHandle PipelineBuilder::BuildPipeline()
 {
 	//Buildpipeline will also destroy the builder information. 
@@ -161,6 +166,11 @@ void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_Record
 void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo)
 {
 	s_ApiFunc.startRendering(a_RecordingCmdHandle, a_StartInfo);
+}
+
+void BB::RenderBackend::SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+{
+	s_ApiFunc.setScissor(a_RecordingCmdHandle, a_ScissorInfo);
 }
 
 void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)

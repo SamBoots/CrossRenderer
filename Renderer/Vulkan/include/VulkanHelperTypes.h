@@ -16,44 +16,6 @@ namespace BB
 #define VKASSERT(a_VKResult, a_Msg) a_VKResult
 #endif //_DEBUG
 
-#pragma region BufferData
-	static VkVertexInputBindingDescription VertexBindingDescription()
-	{
-		VkVertexInputBindingDescription t_BindingDescription{};
-		t_BindingDescription.binding = 0;
-		t_BindingDescription.stride = sizeof(Vertex);
-		t_BindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return t_BindingDescription;
-	}
-
-	static FixedArray<VkVertexInputAttributeDescription, 4> VertexAttributeDescriptions()
-	{
-		FixedArray<VkVertexInputAttributeDescription, 4> t_AttributeDescriptions;
-		t_AttributeDescriptions[0].binding = 0;
-		t_AttributeDescriptions[0].location = 0;
-		t_AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		t_AttributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-		t_AttributeDescriptions[1].binding = 0;
-		t_AttributeDescriptions[1].location = 1;
-		t_AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		t_AttributeDescriptions[1].offset = offsetof(Vertex, normal);
-
-		t_AttributeDescriptions[2].binding = 0;
-		t_AttributeDescriptions[2].location = 2;
-		t_AttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		t_AttributeDescriptions[2].offset = offsetof(Vertex, uv);
-
-		t_AttributeDescriptions[3].binding = 0;
-		t_AttributeDescriptions[3].location = 3;
-		t_AttributeDescriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-		t_AttributeDescriptions[3].offset = offsetof(Vertex, color);
-
-		return t_AttributeDescriptions;
-	}
-#pragma endregion
-
 	namespace VKConv
 	{
 		inline VkBufferUsageFlags RenderBufferUsage(const RENDER_BUFFER_USAGE a_Usage)

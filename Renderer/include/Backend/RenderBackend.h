@@ -12,6 +12,7 @@ namespace BB
 		
 		void BindDescriptor(const RDescriptorHandle a_Handle);
 		void BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+		void BindAttributes(const PipelineAttributes& a_AttributeInfo);
 		PipelineHandle BuildPipeline();
 
 	private:
@@ -67,6 +68,7 @@ namespace BB
 		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
 		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+		void SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
 		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 		
 		void CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);

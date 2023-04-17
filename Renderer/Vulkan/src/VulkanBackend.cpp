@@ -21,6 +21,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
 	a_FuncCreateInfo.pipelineBuilderBindDescriptor = VulkanPipelineBuilderBindDescriptor;
 	a_FuncCreateInfo.pipelineBuilderBindShaders = VulkanPipelineBuilderBindShaders;
+	a_FuncCreateInfo.pipelineBuilderBindAttributes = VulkanPipelineBuilderBindAttributes;
 	a_FuncCreateInfo.pipelineBuilderBuildPipeline = VulkanPipelineBuildPipeline;
 
 	a_FuncCreateInfo.resetCommandAllocator = VulkanResetCommandAllocator;
@@ -28,6 +29,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.startCommandList = VulkanStartCommandList;
 	a_FuncCreateInfo.endCommandList = VulkanEndCommandList;
 	a_FuncCreateInfo.startRendering = VulkanStartRendering;
+	a_FuncCreateInfo.setScissor = VulkanSetScissor;
 	a_FuncCreateInfo.endRendering = VulkanEndRendering;
 
 	a_FuncCreateInfo.copyBuffer = VulkanCopyBuffer;

@@ -29,6 +29,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.pipelineBuilderInit = DX12PipelineBuilderInit;
 	a_FuncCreateInfo.pipelineBuilderBindDescriptor = DX12PipelineBuilderBindDescriptor;
 	a_FuncCreateInfo.pipelineBuilderBindShaders = DX12PipelineBuilderBindShaders;
+	a_FuncCreateInfo.pipelineBuilderBindAttributes = DX12PipelineBuilderBindAttributes;
 	a_FuncCreateInfo.pipelineBuilderBuildPipeline = DX12PipelineBuildPipeline;
 
 	a_FuncCreateInfo.copyBuffer = DX12CopyBuffer;
@@ -39,7 +40,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = DX12EndCommandList;
 	a_FuncCreateInfo.startRendering = DX12StartRendering;
+	a_FuncCreateInfo.setScissor = DX12SetScissor;
 	a_FuncCreateInfo.endRendering = DX12EndRendering;
+
 	a_FuncCreateInfo.bindPipeline = DX12BindPipeline;
 	a_FuncCreateInfo.bindVertBuffers = DX12BindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = DX12BindIndexBuffer;

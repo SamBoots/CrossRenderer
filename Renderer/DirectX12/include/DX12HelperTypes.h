@@ -24,9 +24,6 @@ namespace BB
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 	static RingAllocator s_DX12TempAllocator{ s_DX12Allocator, kbSize * 64 };
 
-	FixedArray<D3D12_INPUT_ELEMENT_DESC, 4> VertexInputElements();
-
-
 	namespace DXConv
 	{
 		const D3D12_RESOURCE_STATES ResourceStates(const RENDER_BUFFER_USAGE a_Usage);

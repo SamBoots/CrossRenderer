@@ -15,8 +15,6 @@ constexpr int VULKAN_VERSION = 3;
 #include "Math.inl"
 
 #include "VulkanCommon.h"
-#define IMGUI_VULKAN_DEBUG_REPORT
-#include "../imgui/imgui_impl_vulkan.h"
 
 #include <iostream>
 
@@ -853,24 +851,6 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	t_BackendInfo.currentFrame = s_VKB.currentFrame;
 	t_BackendInfo.framebufferCount = s_VKB.frameCount;
 
-	//Setup IMGUI for vulkan now as well. Maybe only do this on debug?
-	ImGui_ImplVulkan_InitInfo t_InitInfo{};
-	t_InitInfo.Allocator = nullptr;
-	t_InitInfo.Instance = s_VKB.instance;
-	t_InitInfo.PhysicalDevice = s_VKB.physicalDevice;
-	t_InitInfo.Device = s_VKB.device;
-	t_InitInfo.QueueFamily = s_VKB.queueIndices.graphics;
-	t_InitInfo.Queue = s_VKB.presentQueue;
-	t_InitInfo.PipelineCache = VK_NULL_HANDLE;
-	t_InitInfo.DescriptorPool = s_VKB.descriptorAllocator.GetPool();
-	t_InitInfo.Allocator = VK_NULL_HANDLE;
-	t_InitInfo.MinImageCount = s_VKB.frameCount;
-	t_InitInfo.ImageCount = s_VKB.frameCount;
-	t_InitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-	t_InitInfo.dynamicRenderingFormat = s_VKB.swapChain.imageFormat;
-
-	ImGui_ImplVulkan_Init(&t_InitInfo);
-
 	return t_BackendInfo;
 }
 
@@ -1418,6 +1398,62 @@ void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, 
 	t_BuildInfo->pipeInfo.stageCount = static_cast<uint32_t>(a_ShaderInfo.size());
 }
 
+void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo)
+{
+	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
+	BB_ASSERT(t_BuildInfo->pipeInfo.pVertexInputState == nullptr, "Vulkan: Already bound attributes to this pipeline builder!");
+
+
+	VkVertexInputBindingDescription* t_BindingDescription = BBnew(
+		t_BuildInfo->buildAllocator,
+		VkVertexInputBindingDescription);
+	t_BindingDescription->binding = 0;
+	t_BindingDescription->stride = a_AttributeInfo.stride;
+	t_BindingDescription->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VkVertexInputAttributeDescription* t_AttributeDescriptions = BBnewArr(
+		t_BuildInfo->buildAllocator,
+		a_AttributeInfo.attributes.size(),
+		VkVertexInputAttributeDescription);
+	for (size_t i = 0; i < a_AttributeInfo.attributes.size(); i++)
+	{
+		t_AttributeDescriptions[i].binding = 0;
+		t_AttributeDescriptions[i].location = a_AttributeInfo.attributes[i].location;
+		t_AttributeDescriptions[i].offset = a_AttributeInfo.attributes[i].offset;
+		switch (a_AttributeInfo.attributes[i].format)
+		{
+		case RENDER_INPUT_FORMAT::R32:
+			t_AttributeDescriptions[i].format = VK_FORMAT_R32_SFLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RG32:
+			t_AttributeDescriptions[i].format = VK_FORMAT_R32G32_SFLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RGB32:
+			t_AttributeDescriptions[i].format = VK_FORMAT_R32G32B32_SFLOAT;
+			break;
+		case RENDER_INPUT_FORMAT::RGBA32:
+			t_AttributeDescriptions[i].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			break;
+		default:
+			BB_ASSERT(false, "Vulkan: Input format not supported!");
+			break;
+		}
+	}
+
+	VkVertexInputBindingDescription t_BindingDesc{};
+	VkVertexInputAttributeDescription t_AttribDescription;
+
+	VkPipelineVertexInputStateCreateInfo* t_VertexInputInfo = BBnew(
+		t_BuildInfo->buildAllocator,
+		VkPipelineVertexInputStateCreateInfo);
+	t_VertexInputInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	t_VertexInputInfo->vertexBindingDescriptionCount = 1;
+	t_VertexInputInfo->pVertexBindingDescriptions = t_BindingDescription;
+	t_VertexInputInfo->vertexAttributeDescriptionCount = static_cast<uint32_t>(a_AttributeInfo.attributes.size());
+	t_VertexInputInfo->pVertexAttributeDescriptions = t_AttributeDescriptions;
+	t_BuildInfo->pipeInfo.pVertexInputState = t_VertexInputInfo;
+}
+
 PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	VulkanPipeline t_Pipeline{};
@@ -1473,16 +1509,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_ViewportState.scissorCount = 1;
 		t_ViewportState.pScissors = nullptr;
 
-		auto t_BindingDescription = VertexBindingDescription();
-		auto t_AttributeDescription = VertexAttributeDescriptions();
-
-		VkPipelineVertexInputStateCreateInfo t_VertexInputInfo{};
-		t_VertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		t_VertexInputInfo.vertexBindingDescriptionCount = 1;
-		t_VertexInputInfo.pVertexBindingDescriptions = &t_BindingDescription;
-		t_VertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(t_AttributeDescription.size());
-		t_VertexInputInfo.pVertexAttributeDescriptions = t_AttributeDescription.data();
-
 		VkPipelineInputAssemblyStateCreateInfo t_InputAssembly{};
 		t_InputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		t_InputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -1513,7 +1539,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		//viewport is always controlled by the dynamic state so we just initialize them here.
 		t_BuildInfo->pipeInfo.pViewportState = &t_ViewportState;
 		t_BuildInfo->pipeInfo.pDynamicState = &t_DynamicPipeCreateInfo;
-		t_BuildInfo->pipeInfo.pVertexInputState = &t_VertexInputInfo;
 		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
 		t_BuildInfo->pipeInfo.pRasterizationState = &t_Rasterizer;
 		t_BuildInfo->pipeInfo.pMultisampleState = &t_Multisampling;
@@ -1720,11 +1745,22 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
+void BB::VulkanSetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+{
+	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+
+	VkRect2D t_Scissor{};
+	t_Scissor.offset.x = a_ScissorInfo.offset.x;
+	t_Scissor.offset.y = a_ScissorInfo.offset.y;
+	t_Scissor.extent.width = a_ScissorInfo.extent.x;
+	t_Scissor.extent.height = a_ScissorInfo.extent.y;
+
+	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
+}
+
 void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	ImDrawData* draw_data = ImGui::GetDrawData();
-	ImGui_ImplVulkan_RenderDrawData(draw_data, t_Cmdlist->Buffer());
 	vkCmdEndRendering(t_Cmdlist->Buffer());
 
 	VkImageMemoryBarrier t_PresentBarrier{};

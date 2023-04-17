@@ -26,6 +26,7 @@ namespace BB
 	PipelineBuilderHandle DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
 	void DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
 	void DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
+	void DX12PipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo);
 	PipelineHandle DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle);
 
 	void DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
@@ -33,6 +34,7 @@ namespace BB
 	RecordingCommandListHandle DX12StartCommandList(const CommandListHandle a_CmdHandle);
 	void DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
 	void DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
+	void DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
 	void DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	
 	void DX12CopyBuffer(const RecordingCommandListHandle transferCommandHandle, const RenderCopyBufferInfo& a_CopyInfo);
