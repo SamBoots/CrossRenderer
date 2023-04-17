@@ -752,6 +752,12 @@ void BB::DX12PipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle,
 		case RENDER_INPUT_FORMAT::RGBA32:
 			t_InputDesc[i].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 			break;
+		case RENDER_INPUT_FORMAT::RG8:
+			t_InputDesc[i].Format = DXGI_FORMAT_R8G8_UNORM;
+			break;
+		case RENDER_INPUT_FORMAT::RGBA8:
+			t_InputDesc[i].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			break;
 		default:
 			BB_ASSERT(false, "Vulkan: Input format not supported!");
 			break;

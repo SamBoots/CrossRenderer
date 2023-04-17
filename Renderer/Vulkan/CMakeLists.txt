@@ -18,8 +18,7 @@ add_library (BB_VulkanDLL SHARED
 "src/VulkanBackend.cpp"
 "src/VulkanCommon.cpp"
 "include/VulkanHelperTypes.h"
-"include/VulkanCommon.h"
-"imgui/imgui_impl_vulkan.cpp")
+"include/VulkanCommon.h")
 
 #Executable-Object
 set_target_properties ( BB_VulkanDLL PROPERTIES
@@ -38,8 +37,7 @@ ${Vulkan_INCLUDE_DIRS}
 target_link_libraries(BB_VulkanDLL 
     BBFramework 
     Vulkan::Vulkan
-    VMA
-    IMGUI)
+    VMA)
 
 #compile Definitions.
 if (WIN32)

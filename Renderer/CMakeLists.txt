@@ -50,8 +50,7 @@ target_link_libraries(Renderer
     "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
     BBFramework 
     stb_image
-    IMGUI
-)
+    IMGUI)
 
 #Include library
 target_include_directories(Renderer PUBLIC

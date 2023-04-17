@@ -182,7 +182,9 @@ namespace BB
 		RGBA32,
 		RGB32,
 		RG32,
-		R32
+		R32,
+		RGBA8,
+		RG8
 	};
 
 	struct UpdateDescriptorImageInfo

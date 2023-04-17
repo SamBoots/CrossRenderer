@@ -9,8 +9,7 @@ set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 add_library (BB_DirectXDLL SHARED
 "src/DX12Backend.cpp"
 "src/DX12Common.cpp"
-"src/DX12HelperTypes.cpp"
-"imgui/imgui_impl_dx12.cpp")
+"src/DX12HelperTypes.cpp")
 
 #Executable-Object
 set_target_properties ( BB_DirectXDLL PROPERTIES
@@ -30,8 +29,7 @@ target_link_libraries(BB_DirectXDLL
     DX12MA
     d3d12.lib
     dxgi.lib
-    dxguid.lib
-    IMGUI)
+    dxguid.lib)
 
 install(TARGETS BB_DirectXDLL
 DESTINATION $<TARGET_FILE_DIR:Renderer>)

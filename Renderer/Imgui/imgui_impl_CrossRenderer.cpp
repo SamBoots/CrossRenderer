@@ -2,8 +2,8 @@
 
 
 #include "imgui_impl_CrossRenderer.h"
-#include "RenderFrontend.h"
 #include "Backend/ShaderCompiler.h"
+#include "Backend/RenderBackend.h"
 using namespace BB;
 
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplVulkan_RenderDrawData()
@@ -59,81 +59,6 @@ void ImGui_ImplVulkanH_DestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulk
 void ImGui_ImplVulkanH_DestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
 void ImGui_ImplVulkanH_CreateWindowSwapChain(VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator, int w, int h, uint32_t min_image_count);
 void ImGui_ImplVulkanH_CreateWindowCommandBuffers(VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator);
-
-// Vulkan prototypes for use with custom loaders
-// (see description of IMGUI_IMPL_VULKAN_NO_PROTOTYPES in imgui_impl_vulkan.h
-#ifdef VK_NO_PROTOTYPES
-static bool g_FunctionsLoaded = false;
-#else
-static bool g_FunctionsLoaded = true;
-#endif
-#ifdef VK_NO_PROTOTYPES
-#define IMGUI_VULKAN_FUNC_MAP(IMGUI_VULKAN_FUNC_MAP_MACRO) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkAllocateCommandBuffers) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkAllocateDescriptorSets) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkAllocateMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkBindBufferMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkBindImageMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdBindDescriptorSets) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdBindIndexBuffer) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdBindPipeline) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdBindVertexBuffers) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdCopyBufferToImage) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdDrawIndexed) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdPipelineBarrier) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdPushConstants) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdSetScissor) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCmdSetViewport) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateBuffer) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateCommandPool) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateDescriptorSetLayout) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateFence) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateFramebuffer) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateGraphicsPipelines) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateImage) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateImageView) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreatePipelineLayout) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateRenderPass) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateSampler) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateSemaphore) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateShaderModule) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkCreateSwapchainKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyBuffer) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyCommandPool) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyDescriptorSetLayout) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyFence) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyFramebuffer) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyImage) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyImageView) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyPipeline) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyPipelineLayout) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyRenderPass) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroySampler) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroySemaphore) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroyShaderModule) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroySurfaceKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDestroySwapchainKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkDeviceWaitIdle) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkFlushMappedMemoryRanges) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkFreeCommandBuffers) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkFreeDescriptorSets) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkFreeMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetBufferMemoryRequirements) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetImageMemoryRequirements) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetPhysicalDeviceMemoryProperties) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetPhysicalDeviceSurfaceCapabilitiesKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetPhysicalDeviceSurfaceFormatsKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetPhysicalDeviceSurfacePresentModesKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkGetSwapchainImagesKHR) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkMapMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkUnmapMemory) \
-    IMGUI_VULKAN_FUNC_MAP_MACRO(vkUpdateDescriptorSets)
-
-// Define function pointers
-#define IMGUI_VULKAN_FUNC_DEF(func) static PFN_##func func;
-IMGUI_VULKAN_FUNC_MAP(IMGUI_VULKAN_FUNC_DEF)
-#undef IMGUI_VULKAN_FUNC_DEF
-#endif // VK_NO_PROTOTYPES
 
 //-----------------------------------------------------------------------------
 // FUNCTIONS
@@ -329,7 +254,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     // We perform a call to vkCmdSetScissor() to set back a full viewport which is likely to fix things for 99% users but technically this is not perfect. (See github #4644)
     ScissorInfo t_SciInfo;
     t_SciInfo.offset = { 0, 0 };
-    t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height }}
+    t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
     RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 }
 
@@ -425,24 +350,65 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t 
 
     PipelineInitInfo t_PipeInfo{};
     PipelineBuilder t_Builder{t_PipeInfo};
-
+    Shader::ShaderCodeHandle t_ShaderHandles[2];
     {
+        const wchar_t* t_ShaderPath[2]{};
+        t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/ImguiVert.hlsl";
+        t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/ImguiFrag.hlsl";
+
+        Shader::ShaderCodeHandle t_ShaderHandles[2];
+        t_ShaderHandles[0] = Shader::CompileShader(
+            t_ShaderPath[0],
+            L"main",
+            RENDER_SHADER_STAGE::VERTEX,
+            s_RendererInst.renderAPI);
+        t_ShaderHandles[1] = Shader::CompileShader(
+            t_ShaderPath[1],
+            L"main",
+            RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
+            s_RendererInst.renderAPI);
+
         ShaderCreateInfo t_ShaderInfos[2];
         t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-        t_ShaderInfos[0].buffer = 
+        Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderInfos[0].buffer);
 
         t_ShaderInfos[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderInfos[1].buffer);
 
-
-        t_Builder.BindShaders();
+        t_Builder.BindShaders(BB::Slice(t_ShaderInfos, _countof(t_ShaderInfos)));
     }
 
     {
+        VertexAttributeDesc t_VertexAttributes[3]{};
+        t_VertexAttributes[0].semanticName = "POSITION";
+        t_VertexAttributes[0].location = 0;
+        t_VertexAttributes[0].format = RENDER_INPUT_FORMAT::RG32;
+        t_VertexAttributes[0].offset = IM_OFFSETOF(ImDrawVert, pos);
 
+        t_VertexAttributes[2].semanticName = "UV";
+        t_VertexAttributes[1].location = 1;
+        t_VertexAttributes[1].format = RENDER_INPUT_FORMAT::RG32;
+        t_VertexAttributes[1].offset = IM_OFFSETOF(ImDrawVert, uv);
+
+        t_VertexAttributes[2].semanticName = "COLOR";
+        t_VertexAttributes[2].location = 2;
+        t_VertexAttributes[2].format = RENDER_INPUT_FORMAT::RGBA8;
+        t_VertexAttributes[2].offset = IM_OFFSETOF(ImDrawVert, col);
+
+        PipelineAttributes t_Attribs{};
+        t_Attribs.stride = sizeof(ImDrawVert);
+        t_Attribs.attributes = Slice(t_VertexAttributes, 3);
+
+        t_Builder.BindAttributes(t_Attribs);
     }
 
     t_Builder.BindDescriptor(bd->fontDescriptor);
     t_Builder.BuildPipeline();
+
+    for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
+    {
+        Shader::ReleaseShaderCode(t_ShaderHandles[i]);
+    }
 
     ImGui_ImplVulkan_CreateShaderModules(device, allocator);
 
@@ -455,24 +421,6 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t 
     stage[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     stage[1].module = bd->ShaderModuleFrag;
     stage[1].pName = "main";
-
-    VkVertexInputBindingDescription binding_desc[1] = {};
-    binding_desc[0].stride = sizeof(ImDrawVert);
-    binding_desc[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    VkVertexInputAttributeDescription attribute_desc[3] = {};
-    attribute_desc[0].location = 0;
-    attribute_desc[0].binding = binding_desc[0].binding;
-    attribute_desc[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attribute_desc[0].offset = IM_OFFSETOF(ImDrawVert, pos);
-    attribute_desc[1].location = 1;
-    attribute_desc[1].binding = binding_desc[0].binding;
-    attribute_desc[1].format = VK_FORMAT_R32G32_SFLOAT;
-    attribute_desc[1].offset = IM_OFFSETOF(ImDrawVert, uv);
-    attribute_desc[2].location = 2;
-    attribute_desc[2].binding = binding_desc[0].binding;
-    attribute_desc[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-    attribute_desc[2].offset = IM_OFFSETOF(ImDrawVert, col);
 
     VkPipelineVertexInputStateCreateInfo vertex_info = {};
     vertex_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
