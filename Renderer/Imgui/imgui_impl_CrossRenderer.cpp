@@ -593,9 +593,24 @@ static void ImGui_ImplVulkan_CreateShaderModules(VkDevice device, const VkAlloca
     }
 }
 
-static void ImGui_ImplVulkan_CreatePipeline(VkDevice device, const VkAllocationCallbacks* allocator, VkPipelineCache pipelineCache, VkSampleCountFlagBits MSAASamples, VkPipeline* pipeline, uint32_t subpass, VkFormat renderingFormat)
+static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t subpass, RENDER_IMAGE_FORMAT a_RenderingFormat)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+
+    PipelineInitInfo t_PipeInfo{};
+    PipelineBuilder t_Builder{t_PipeInfo};
+
+    {
+        ShaderCreateInfo t_ShaderInfos[2];
+        t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+        t_ShaderInfos[0].buffer;
+
+        t_ShaderInfos[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+
+
+        t_Builder.BindShaders();
+    }
+
     ImGui_ImplVulkan_CreateShaderModules(device, allocator);
 
     VkPipelineShaderStageCreateInfo stage[2] = {};
