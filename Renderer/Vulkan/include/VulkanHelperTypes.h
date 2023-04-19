@@ -92,6 +92,19 @@ namespace BB
 			}
 		}
 
+		inline VkLogicOp LogicOp(const RENDER_LOGIC_OP a_LogicOp)
+		{
+			switch (a_LogicOp)
+			{
+			case BB::RENDER_LOGIC_OP::CLEAR:					return VK_LOGIC_OP_CLEAR;
+			case BB::RENDER_LOGIC_OP::COPY:						return VK_LOGIC_OP_COPY;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_STORE_OP failed to convert to a VkAttachmentStoreOp.");
+				return VK_LOGIC_OP_CLEAR;
+				break;
+			}
+		}
+
 		inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 		{
 			switch (a_ImageLayout)
@@ -135,11 +148,54 @@ namespace BB
 			{
 			case RENDER_ACCESS_MASK::NONE:						return VK_ACCESS_NONE;
 			case RENDER_ACCESS_MASK::TRANSFER_WRITE:			return VK_ACCESS_TRANSFER_WRITE_BIT;
-			case RENDER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;;
+			case RENDER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			case RENDER_ACCESS_MASK::SHADER_READ:				return VK_ACCESS_SHADER_READ_BIT;
 			default:
-				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_TYPE failed to convert to a VkImageType.");
+				BB_ASSERT(false, "Vulkan: RENDER_IMAGE_TYPE failed to convert to a VkAccessFlags.");
 				return VK_IMAGE_TYPE_1D;
+				break;
+			}
+		}
+
+		inline VkBlendFactor BlendFactors(const RENDER_BLEND_FACTOR a_Factor)
+		{
+			switch (a_Factor)
+			{
+			case RENDER_BLEND_FACTOR::ZERO:						return VK_BLEND_FACTOR_ZERO;
+			case RENDER_BLEND_FACTOR::ONE:						return VK_BLEND_FACTOR_ONE;
+			case RENDER_BLEND_FACTOR::SRC_ALPHA:					return VK_BLEND_FACTOR_SRC_ALPHA;
+			case RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA:		return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_BLEND_FACTOR failed to convert to a VkBlendFactor.");
+				return VK_BLEND_FACTOR_ZERO;
+				break;
+			}
+		}
+
+		inline VkBlendOp BlendOp(const RENDER_BLEND_OP a_BlendOp)
+		{
+			switch (a_BlendOp)
+			{
+			case RENDER_BLEND_OP::ADD:						return VK_BLEND_OP_ADD;
+			case RENDER_BLEND_OP::SUBTRACT:					return VK_BLEND_OP_SUBTRACT;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_BLEND_OP failed to convert to a VkBlendOp.");
+				return VK_BLEND_OP_ADD;
+				break;
+			}
+		}
+
+		inline VkCullModeFlags CullMode(const RENDER_CULL_MODE a_BlendOp)
+		{
+			switch (a_BlendOp)
+			{
+			case RENDER_CULL_MODE::NONE:					return VK_CULL_MODE_NONE;
+			case RENDER_CULL_MODE::FRONT:					return VK_CULL_MODE_FRONT_BIT;
+			case RENDER_CULL_MODE::BACK:					return VK_CULL_MODE_BACK_BIT;
+			case RENDER_CULL_MODE::FRONT_AND_BACK:			return VK_CULL_MODE_FRONT_AND_BACK;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_CULL_MODE failed to convert to a VkCullModeFlags.");
+				return VK_CULL_MODE_NONE;
 				break;
 			}
 		}

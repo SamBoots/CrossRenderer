@@ -817,7 +817,6 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	}
 
 	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
-
 	D3D12_BLEND_DESC t_BlendDesc{};
 	t_BlendDesc.AlphaToCoverageEnable = FALSE;
 	t_BlendDesc.IndependentBlendEnable = FALSE;

@@ -147,6 +147,12 @@ namespace BB
 		DONT_CARE
 	};
 
+	enum class RENDER_LOGIC_OP : uint32_t
+	{
+		CLEAR,
+		COPY
+	};
+
 	enum class RENDER_EXTENSIONS : uint32_t
 	{
 		STANDARD_VULKAN_INSTANCE,
@@ -185,6 +191,28 @@ namespace BB
 		R32,
 		RGBA8,
 		RG8
+	};
+
+	enum class RENDER_BLEND_FACTOR
+	{
+		ZERO,
+		ONE,
+		SRC_ALPHA,
+		ONE_MINUS_SRC_ALPHA
+	};
+
+	enum class RENDER_BLEND_OP
+	{
+		ADD,
+		SUBTRACT
+	};
+
+	enum class RENDER_CULL_MODE
+	{
+		NONE,
+		FRONT,
+		BACK,
+		FRONT_AND_BACK
 	};
 
 	struct UpdateDescriptorImageInfo
@@ -400,10 +428,34 @@ namespace BB
 
 	};
 
+	struct PipelineRenderTargetBlend
+	{
+		bool blendEnable = false;
+		RENDER_BLEND_FACTOR srcBlend;
+		RENDER_BLEND_FACTOR dstBlend;
+		RENDER_BLEND_OP blendOp;
+		RENDER_BLEND_FACTOR srcBlendAlpha;
+		RENDER_BLEND_FACTOR dstBlendAlpha;
+		RENDER_BLEND_OP blendOpAlpha;
+		//uint8_t renderTargetWriteMask;
+	};
+
+	struct PipelineRasterState
+	{
+		bool frontCounterClockwise = false;
+		RENDER_CULL_MODE cullMode;
+		float lineWidth = 0;
+	};
+
 	struct PipelineInitInfo
 	{
 		//can be null
 		RImageHandle depthStencil;
+		PipelineRasterState rasterizerState{};
+		bool blendLogicOpEnable = false;
+		RENDER_LOGIC_OP blendLogicOp;
+		uint32_t renderTargetBlendCount = 0;
+		PipelineRenderTargetBlend* renderTargetBlends = nullptr;
 	};
 
 	struct VertexAttributeDesc

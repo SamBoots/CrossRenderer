@@ -1319,7 +1319,7 @@ ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
 	return t_ReturnInfo;
 }
 
-PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
+PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
 	VKPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, VKPipelineBuildInfo);
 
@@ -1334,23 +1334,78 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& t_In
 	t_BuildInfo->pipeInfo.renderPass = nullptr; //We not using em anymore! Dynamic rendering enabled.
 	t_BuildInfo->pipeInfo.pNext = &t_BuildInfo->dynamicRenderingInfo;
 
-	VkPipelineDepthStencilStateCreateInfo* t_DepthCreateInfo = BBnew(
-		t_BuildInfo->buildAllocator,
-		VkPipelineDepthStencilStateCreateInfo);
-	t_DepthCreateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	t_DepthCreateInfo->depthTestEnable = VK_TRUE;
-	t_DepthCreateInfo->depthWriteEnable = VK_TRUE;
-	t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS;
-	t_DepthCreateInfo->depthBoundsTestEnable = VK_FALSE;
-	t_DepthCreateInfo->minDepthBounds = 0.0f;
-	t_DepthCreateInfo->maxDepthBounds = 1.0f;
-	t_DepthCreateInfo->stencilTestEnable = VK_FALSE;
-	t_DepthCreateInfo->front = {};
-	t_DepthCreateInfo->back = {};
+	{ //Depth stencil create;
+		VkPipelineDepthStencilStateCreateInfo* t_DepthCreateInfo = BBnew(
+			t_BuildInfo->buildAllocator,
+			VkPipelineDepthStencilStateCreateInfo);
+		t_DepthCreateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		t_DepthCreateInfo->depthTestEnable = VK_TRUE;
+		t_DepthCreateInfo->depthWriteEnable = VK_TRUE;
+		t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS;
+		t_DepthCreateInfo->depthBoundsTestEnable = VK_FALSE;
+		t_DepthCreateInfo->minDepthBounds = 0.0f;
+		t_DepthCreateInfo->maxDepthBounds = 1.0f;
+		t_DepthCreateInfo->stencilTestEnable = VK_FALSE;
+		t_DepthCreateInfo->front = {};
+		t_DepthCreateInfo->back = {};
 
-	t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
-	t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
-	t_BuildInfo->dynamicRenderingInfo.stencilAttachmentFormat = DEPTH_FORMAT;
+		t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
+		t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
+		t_BuildInfo->dynamicRenderingInfo.stencilAttachmentFormat = DEPTH_FORMAT;
+	}
+
+
+	{
+		VkPipelineColorBlendAttachmentState* t_ColorBlendAttachment = BBnewArr(
+			t_BuildInfo->buildAllocator,
+			a_InitInfo.renderTargetBlendCount,
+			VkPipelineColorBlendAttachmentState);
+		for (size_t i = 0; i < a_InitInfo.renderTargetBlendCount; i++)
+		{
+			t_ColorBlendAttachment->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			t_ColorBlendAttachment->blendEnable = a_InitInfo.renderTargetBlends[0].blendEnable;
+			t_ColorBlendAttachment->srcColorBlendFactor = VKConv::BlendFactors(a_InitInfo.renderTargetBlends[0].srcBlend);
+			t_ColorBlendAttachment->dstColorBlendFactor = VKConv::BlendFactors(a_InitInfo.renderTargetBlends[0].dstBlend);
+			t_ColorBlendAttachment->colorBlendOp = VKConv::BlendOp(a_InitInfo.renderTargetBlends[0].blendOp);
+			t_ColorBlendAttachment->srcAlphaBlendFactor = VKConv::BlendFactors(a_InitInfo.renderTargetBlends[0].srcBlendAlpha);
+			t_ColorBlendAttachment->dstAlphaBlendFactor = VKConv::BlendFactors(a_InitInfo.renderTargetBlends[0].dstBlendAlpha);
+			t_ColorBlendAttachment->alphaBlendOp = VKConv::BlendOp(a_InitInfo.renderTargetBlends[0].blendOpAlpha);
+		}
+
+		VkPipelineColorBlendStateCreateInfo* t_ColorBlending = BBnew(
+			t_BuildInfo->buildAllocator,
+			VkPipelineColorBlendStateCreateInfo);
+		t_ColorBlending->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		t_ColorBlending->logicOpEnable = a_InitInfo.blendLogicOpEnable;
+		t_ColorBlending->logicOp = VKConv::LogicOp(a_InitInfo.blendLogicOp);
+		t_ColorBlending->attachmentCount = a_InitInfo.renderTargetBlendCount;
+		t_ColorBlending->pAttachments = t_ColorBlendAttachment;
+
+		t_BuildInfo->pipeInfo.pColorBlendState = t_ColorBlending;
+	}
+
+	{
+		VkPipelineRasterizationStateCreateInfo* t_Rasterizer = BBnew(
+			t_BuildInfo->buildAllocator,
+			VkPipelineRasterizationStateCreateInfo);
+		t_Rasterizer->sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		t_Rasterizer->depthClampEnable = VK_FALSE;
+		t_Rasterizer->depthBiasEnable = VK_FALSE;
+		t_Rasterizer->rasterizerDiscardEnable = VK_FALSE;
+		t_Rasterizer->polygonMode = VK_POLYGON_MODE_FILL;
+		t_Rasterizer->cullMode = VKConv::CullMode(a_InitInfo.rasterizerState.cullMode);
+		if (a_InitInfo.rasterizerState.frontCounterClockwise)
+			t_Rasterizer->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+		else
+			t_Rasterizer->frontFace = VK_FRONT_FACE_CLOCKWISE;
+		t_Rasterizer->lineWidth = a_InitInfo.rasterizerState.lineWidth;
+		t_Rasterizer->depthBiasConstantFactor = 0.0f; // Optional
+		t_Rasterizer->depthBiasClamp = 0.0f; // Optional
+		t_Rasterizer->depthBiasSlopeFactor = 0.0f; // Optional
+
+		t_BuildInfo->pipeInfo.pRasterizationState = t_Rasterizer;
+	}
+
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
@@ -1460,6 +1515,8 @@ void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handl
 	t_BuildInfo->pipeInfo.pVertexInputState = t_VertexInputInfo;
 }
 
+
+
 PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Handle)
 {
 	VulkanPipeline t_Pipeline{};
@@ -1520,18 +1577,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_InputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		t_InputAssembly.primitiveRestartEnable = VK_FALSE;
 
-		VkPipelineRasterizationStateCreateInfo t_Rasterizer{};
-		t_Rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		t_Rasterizer.depthClampEnable = VK_FALSE;
-		t_Rasterizer.depthBiasEnable = VK_FALSE;
-		t_Rasterizer.rasterizerDiscardEnable = VK_FALSE;
-		t_Rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-		t_Rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-		t_Rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		t_Rasterizer.lineWidth = 1.0f;
-		t_Rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-		t_Rasterizer.depthBiasClamp = 0.0f; // Optional
-		t_Rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+
 
 		VkPipelineMultisampleStateCreateInfo t_Multisampling{};
 		t_Multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -1546,7 +1592,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_BuildInfo->pipeInfo.pViewportState = &t_ViewportState;
 		t_BuildInfo->pipeInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
-		t_BuildInfo->pipeInfo.pRasterizationState = &t_Rasterizer;
 		t_BuildInfo->pipeInfo.pMultisampleState = &t_Multisampling;
 
 		//THIS IS TEMP! We want to build these ourselves with the builder.
@@ -1560,25 +1605,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_DepthStencil.minDepthBounds = 0.0; // Optional
 		t_DepthStencil.maxDepthBounds = 1.0f; // Optional
 
-		VkPipelineColorBlendAttachmentState t_ColorBlendAttachment{};
-		t_ColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		t_ColorBlendAttachment.blendEnable = VK_FALSE;
-		t_ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-		t_ColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-		t_ColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-		t_ColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-		t_ColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-		t_ColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
-
-		VkPipelineColorBlendStateCreateInfo t_ColorBlending{};
-		t_ColorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		t_ColorBlending.logicOpEnable = VK_FALSE;
-		t_ColorBlending.logicOp = VK_LOGIC_OP_COPY;
-		t_ColorBlending.attachmentCount = 1;
-		t_ColorBlending.pAttachments = &t_ColorBlendAttachment;
-
 		t_BuildInfo->pipeInfo.pDepthStencilState = &t_DepthStencil;
-		t_BuildInfo->pipeInfo.pColorBlendState = &t_ColorBlending;
 
 		//Optimalization for later.
 		t_BuildInfo->pipeInfo.basePipelineHandle = VK_NULL_HANDLE;
