@@ -18,6 +18,20 @@ namespace BB
 
 	namespace VKConv
 	{
+		inline VkShaderStageFlags ShaderVisibility(const RENDER_SHADER_STAGE a_Stage)
+		{
+			switch (a_Stage)
+			{
+			case RENDER_SHADER_STAGE::ALL:						return VK_SHADER_STAGE_ALL;
+			case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:			return VK_SHADER_STAGE_FRAGMENT_BIT;
+			case RENDER_SHADER_STAGE::VERTEX:					return VK_SHADER_STAGE_VERTEX_BIT;
+			default:
+				BB_ASSERT(false, "Vulkan: RENDER_SHADER_STAGE failed to convert to a VkShaderStageFlags.");
+				return VK_SHADER_STAGE_ALL;
+				break;
+			}
+		}
+
 		inline VkBufferUsageFlags RenderBufferUsage(const RENDER_BUFFER_USAGE a_Usage)
 		{
 			switch (a_Usage)
@@ -28,7 +42,7 @@ namespace BB
 			case RENDER_BUFFER_USAGE::STORAGE:					return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 			case RENDER_BUFFER_USAGE::STAGING:					return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			default:
-				BB_ASSERT(false, "this buffer usage is not supported by the vulkan backend!");
+				BB_ASSERT(false, "Vulkan: RENDER_BUFFER_USAGE failed to convert to a VkBufferUsageFlags.");
 				return 0;
 				break;
 			}
@@ -45,7 +59,7 @@ namespace BB
 			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 			case BB::RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:	return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 			default:
-				BB_ASSERT(false, "this descriptor_type usage is not supported by the vulkan backend!");
+				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 				break;
 			}

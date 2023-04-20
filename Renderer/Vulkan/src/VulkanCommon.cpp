@@ -126,6 +126,8 @@ struct VKPipelineBuildInfo
 	VkGraphicsPipelineCreateInfo pipeInfo{};
 	VkPipelineRenderingCreateInfo dynamicRenderingInfo{}; //attachment for dynamic rendering.
 
+	VkPipelineLayoutCreateInfo pipeLayoutInfo{};
+
 	uint32_t layoutCount;
 	VkDescriptorSetLayout layout[BINDING_MAX];
 };
@@ -1406,6 +1408,19 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 		t_BuildInfo->pipeInfo.pRasterizationState = t_Rasterizer;
 	}
 
+	{ //If we have constant data we will add a push constant. We will create one that will manage all the push ranges.
+		VkPushConstantRange* t_ConstantRanges = BBnew(
+			t_BuildInfo->buildAllocator,
+			VkPushConstantRange);
+		t_ConstantRanges->offset = 0;
+		t_ConstantRanges->size = a_InitInfo.constantData.dwordSize * sizeof(unsigned int);
+		t_ConstantRanges->stageFlags = VKConv::ShaderVisibility(a_InitInfo.constantData.shaderStage);
+
+		t_BuildInfo->pipeLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		t_BuildInfo->pipeLayoutInfo.pushConstantRangeCount = 1;
+		t_BuildInfo->pipeLayoutInfo.pPushConstantRanges = t_ConstantRanges;
+	}
+
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
@@ -1523,19 +1538,10 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 
 	{
-		VkPushConstantRange t_ConstantRanges{};
-		t_ConstantRanges.offset = 0;
-		t_ConstantRanges.size = 128;
-		t_ConstantRanges.stageFlags = VK_SHADER_STAGE_ALL;
+		t_BuildInfo->pipeLayoutInfo.setLayoutCount = t_BuildInfo->layoutCount;
+		t_BuildInfo->pipeLayoutInfo.pSetLayouts = t_BuildInfo->layout;
 
-		VkPipelineLayoutCreateInfo t_LayoutCreateInfo{};
-		t_LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		t_LayoutCreateInfo.setLayoutCount = t_BuildInfo->layoutCount;
-		t_LayoutCreateInfo.pSetLayouts = t_BuildInfo->layout;
-		t_LayoutCreateInfo.pushConstantRangeCount = 1;
-		t_LayoutCreateInfo.pPushConstantRanges = &t_ConstantRanges;
-
-		PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_LayoutCreateInfo);
+		PipelineLayoutHash t_DescriptorHash = HashPipelineLayoutInfo(t_BuildInfo->pipeLayoutInfo);
 		VkPipelineLayout* t_FoundLayout = s_VKB.pipelineLayouts.find(t_DescriptorHash);
 
 		if (t_FoundLayout != nullptr)
@@ -1545,7 +1551,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		else
 		{
 			VKASSERT(vkCreatePipelineLayout(s_VKB.device,
-				&t_LayoutCreateInfo,
+				&t_BuildInfo->pipeLayoutInfo,
 				nullptr,
 				&t_Pipeline.layout),
 				"Vulkan: Failed to create pipelinelayout.");

@@ -244,7 +244,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     // If you use VK_DYNAMIC_STATE_VIEWPORT or VK_DYNAMIC_STATE_SCISSOR you are responsible for setting the values before rendering.
     // In theory we should aim to backup/restore those values but I am not sure this is possible.
     // We perform a call to vkCmdSetScissor() to set back a full viewport which is likely to fix things for 99% users but technically this is not perfect. (See github #4644)
-    ScissorInfo t_SciInfo;
+    ScissorInfo t_SciInfo{};
     t_SciInfo.offset = { 0, 0 };
     t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
     RenderBackend::SetScissor(a_CmdList, t_SciInfo);

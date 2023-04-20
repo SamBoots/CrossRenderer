@@ -6,6 +6,20 @@ using namespace BB;
 
 DX12Backend_inst BB::s_DX12B{};
 
+const D3D12_SHADER_VISIBILITY BB::DXConv::ShaderVisibility(const RENDER_SHADER_STAGE a_Stage)
+{
+	switch (a_Stage)
+	{
+	case RENDER_SHADER_STAGE::ALL:					return D3D12_SHADER_VISIBILITY_ALL;
+	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:		return D3D12_SHADER_VISIBILITY_PIXEL;
+	case RENDER_SHADER_STAGE::VERTEX:				return D3D12_SHADER_VISIBILITY_VERTEX;
+	default:
+		BB_ASSERT(false, "DX12, this RENDER_SHADER_STAGE not supported by DX12!");
+		return D3D12_SHADER_VISIBILITY_ALL;
+		break;
+	}
+}
+
 const D3D12_RESOURCE_STATES BB::DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
 {
 	switch (a_Usage)

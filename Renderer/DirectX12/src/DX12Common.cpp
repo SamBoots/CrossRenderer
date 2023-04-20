@@ -646,13 +646,16 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 		MAXIMUM_ROOT_PARAMETERS,
 		D3D12_ROOT_PARAMETER1);
 
-	//Reserve one space for the root constants
-	t_BuildInfo->rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	t_BuildInfo->rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	t_BuildInfo->rootParams[0].Constants.RegisterSpace = 0;
-	t_BuildInfo->rootParams[0].Constants.ShaderRegister = t_BuildInfo->regSpaces[0].regCBV++;
-	t_BuildInfo->rootParams[0].Constants.Num32BitValues = 1;
-	++t_BuildInfo->rootParamCount;
+	if (a_InitInfo.constantData.dwordSize > 0)
+	{
+		//Reserve one space for the root constants
+		t_BuildInfo->rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		t_BuildInfo->rootParams[0].ShaderVisibility = DXConv::ShaderVisibility(a_InitInfo.constantData.shaderStage);
+		t_BuildInfo->rootParams[0].Constants.RegisterSpace = 0;
+		t_BuildInfo->rootParams[0].Constants.ShaderRegister = t_BuildInfo->regSpaces[0].regCBV++;
+		t_BuildInfo->rootParams[0].Constants.Num32BitValues = a_InitInfo.constantData.dwordSize;
+		++t_BuildInfo->rootParamCount;
+	}
 
 	return PipelineBuilderHandle(t_BuildInfo);
 }

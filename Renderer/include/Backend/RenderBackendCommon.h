@@ -445,11 +445,18 @@ namespace BB
 		RENDER_CULL_MODE cullMode;
 	};
 
+	struct PipelineConstantData
+	{
+		//0 means this pipeline does not use push constants/root constants.
+		uint32_t dwordSize;
+		RENDER_SHADER_STAGE shaderStage;
+	};
+
 	struct PipelineInitInfo
 	{
-		//can be null
-		RImageHandle depthStencil;
 		PipelineRasterState rasterizerState{};
+		PipelineConstantData constantData{};
+
 		bool blendLogicOpEnable = false;
 		RENDER_LOGIC_OP blendLogicOp;
 		uint32_t renderTargetBlendCount = 0;

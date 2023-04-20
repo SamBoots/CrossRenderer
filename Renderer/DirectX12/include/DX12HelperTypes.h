@@ -26,6 +26,7 @@ namespace BB
 
 	namespace DXConv
 	{
+		const D3D12_SHADER_VISIBILITY ShaderVisibility(const RENDER_SHADER_STAGE a_Stage);
 		const D3D12_RESOURCE_STATES ResourceStates(const RENDER_BUFFER_USAGE a_Usage);
 		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
 		const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties);
