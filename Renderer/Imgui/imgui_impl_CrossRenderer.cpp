@@ -56,6 +56,24 @@ void ImGui_ImplCross_DestroyDeviceObjects();
 // FUNCTIONS
 //-----------------------------------------------------------------------------
 
+//Will likely just create and after that check for resizes.
+static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
+{
+    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+
+    if (a_Buffer.handle != 0)
+        RenderBackend::DestroyBuffer(a_Buffer);
+
+    RenderBufferCreateInfo t_CreateInfo{};
+    t_CreateInfo.usage = a_Usage;
+    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+    t_CreateInfo.size = a_NewSize;
+
+    a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
+    //Do some alignment here.
+    a_BufferSize = a_NewSize;
+}
+
 static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplCrossRenderer_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
@@ -147,20 +165,17 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     if (a_DrawData.TotalVtxCount > 0)
     {
         // Create or resize the vertex/index buffers
-        size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
-        size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
+        const size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
+        const size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
         if (rb.vertexBuffer.ptrHandle == nullptr || rb.vertexSize < vertex_size)
-            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
-            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = nullptr;
-        ImDrawIdx* idx_dst = nullptr;
-        VkResult err = vkMapMemory(v->Device, rb->VertexBufferMemory, 0, rb->VertexBufferSize, 0, (void**)(&vtx_dst));
-        check_vk_result(err);
-        err = vkMapMemory(v->Device, rb->IndexBufferMemory, 0, rb->IndexBufferSize, 0, (void**)(&idx_dst));
-        check_vk_result(err);
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(RenderBackend::MapMemory(rb.vertexBuffer));
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(RenderBackend::MapMemory(rb.indexBuffer));
+       
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
             const ImDrawList* cmd_list = a_DrawData.CmdLists[n];
@@ -357,6 +372,11 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline)
     t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
     t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
 
+    // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
+    t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::VERTEX;
+    //2 vec2's so 4 dwords.
+    t_PipeInitInfo.constantData.dwordSize = 4;
+
     PipelineBuilder t_Builder{ t_PipeInitInfo };
     Shader::ShaderCodeHandle t_ShaderHandles[2];
 
@@ -426,17 +446,12 @@ bool ImGui_ImplCross_CreateDeviceObjects()
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     {
-        DescriptorBinding t_Bindings[2]{};
+        DescriptorBinding t_Bindings[1]{};
         //image binding for font.
         t_Bindings[0].binding = 0; 
         t_Bindings[0].descriptorCount = 1;
         t_Bindings[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
         t_Bindings[0].type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
-        //buffer binding for all the offsets.
-        t_Bindings[1].binding = 1;
-        t_Bindings[1].descriptorCount = 1;
-        t_Bindings[1].stage = RENDER_SHADER_STAGE::VERTEX;
-        t_Bindings[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC;
 
         RenderDescriptorCreateInfo t_Info{};
         t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
@@ -444,55 +459,37 @@ bool ImGui_ImplCross_CreateDeviceObjects()
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }
 
-    if (!bd->)
-    {
-        // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
-        VkSamplerCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        info.magFilter = VK_FILTER_LINEAR;
-        info.minFilter = VK_FILTER_LINEAR;
-        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.minLod = -1000;
-        info.maxLod = 1000;
-        info.maxAnisotropy = 1.0f;
-        err = vkCreateSampler(v->Device, &info, v->Allocator, &bd->FontSampler);
-        check_vk_result(err);
-    }
+    ////lets experiment with the default sampler state.
+    //{
+    //    // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
+    //    VkSamplerCreateInfo info = {};
+    //    info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    //    info.magFilter = VK_FILTER_LINEAR;
+    //    info.minFilter = VK_FILTER_LINEAR;
+    //    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    //    info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    //    info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    //    info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    //    info.minLod = -1000;
+    //    info.maxLod = 1000;
+    //    info.maxAnisotropy = 1.0f;
+    //    err = vkCreateSampler(v->Device, &info, v->Allocator, &bd->FontSampler);
+    //    check_vk_result(err);
+    //}
 
-    if (!bd->DescriptorSetLayout)
-    {
-        VkDescriptorSetLayoutBinding binding[1] = {};
-        binding[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        binding[0].descriptorCount = 1;
-        binding[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        VkDescriptorSetLayoutCreateInfo info = {};
-        info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        info.bindingCount = 1;
-        info.pBindings = binding;
-        err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->DescriptorSetLayout);
-        check_vk_result(err);
-    }
-
-    if (!bd->PipelineLayout)
-    {
-        // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
-        VkPushConstantRange push_constants[1] = {};
-        push_constants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_constants[0].offset = sizeof(float) * 0;
-        push_constants[0].size = sizeof(float) * 4;
-        VkDescriptorSetLayout set_layout[1] = { bd->DescriptorSetLayout };
-        VkPipelineLayoutCreateInfo layout_info = {};
-        layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layout_info.setLayoutCount = 1;
-        layout_info.pSetLayouts = set_layout;
-        layout_info.pushConstantRangeCount = 1;
-        layout_info.pPushConstantRanges = push_constants;
-        err = vkCreatePipelineLayout(v->Device, &layout_info, v->Allocator, &bd->PipelineLayout);
-        check_vk_result(err);
-    }
+    //if (!bd->DescriptorSetLayout)
+    //{
+    //    VkDescriptorSetLayoutBinding binding[1] = {};
+    //    binding[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    //    binding[0].descriptorCount = 1;
+    //    binding[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    //    VkDescriptorSetLayoutCreateInfo info = {};
+    //    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    //    info.bindingCount = 1;
+    //    info.pBindings = binding;
+    //    err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->DescriptorSetLayout);
+    //    check_vk_result(err);
+    //}
 
     ImGui_ImplCross_CreatePipeline(bd->Pipeline);
 
@@ -513,7 +510,7 @@ bool ImGui_ImplCross_Init(ImGui_ImplCross_InitInfo* info)
     IM_ASSERT(info->minImageCount >= 2);
     IM_ASSERT(info->imageCount >= info->minImageCount);
 
-    ImGui_ImplVulkan_CreateDeviceObjects();
+    ImGui_ImplCross_CreateDeviceObjects();
 
     return true;
 }
@@ -546,7 +543,7 @@ void ImGui_ImplCross_SetMinImageCount(uint32_t min_image_count)
         return;
 
     RenderBackend::WaitGPUReady();
-    ImGui_ImplCross_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
+    //ImGui_ImplCross_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
     bd->minImageCount = min_image_count;
 }
 
