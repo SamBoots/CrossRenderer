@@ -299,8 +299,24 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_DepthImage = RenderBackend::CreateImage(t_DepthInfo);
 	}
 
-
+	PipelineRenderTargetBlend t_BlendInfo;
+	t_BlendInfo.blendEnable = true;
+	t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
+	t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+	t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
+	t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
+	t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ZERO;
+	t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
+	
 	PipelineInitInfo t_PipeInitInfo{};
+	t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
+	t_PipeInitInfo.renderTargetBlendCount = 1;
+	t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::COPY;
+	t_PipeInitInfo.blendLogicOpEnable = true;
+	t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::BACK;
+	t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
+	t_PipeInitInfo.rasterizerState.lineWidth = 1.0f;
+
 
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 	

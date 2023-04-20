@@ -6,9 +6,8 @@
 #include "Backend/RenderBackend.h"
 using namespace BB;
 
-// Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplVulkan_RenderDrawData()
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_FrameRenderBuffers
+// Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
+struct ImGui_ImplCross_FrameRenderBuffers
 {
     uint64_t vertexSize;
     uint64_t indexSize;
@@ -16,16 +15,15 @@ struct ImGui_ImplVulkanH_FrameRenderBuffers
     RBufferHandle indexBuffer;
 };
 
-// Each viewport will hold 1 ImGui_ImplVulkanH_WindowRenderBuffers
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_WindowRenderBuffers
+// Each viewport will hold 1 ImGui_ImplCross_FrameRenderBuffers
+struct ImGui_ImplCross_WindowRenderBuffers
 {
     uint32_t            Index;
     uint32_t            Count;
-    ImGui_ImplVulkanH_FrameRenderBuffers*   FrameRenderBuffers;
+    ImGui_ImplCross_FrameRenderBuffers*   FrameRenderBuffers;
 };
 
-// Vulkan data
+// CrossRenderer data
 struct ImGui_ImplCrossRenderer_Data
 {
     uint64_t                    BufferMemoryAlignment;
@@ -41,7 +39,7 @@ struct ImGui_ImplCrossRenderer_Data
     uint32_t                    minImageCount;
 
     // Render buffers for main window
-    ImGui_ImplVulkanH_WindowRenderBuffers MainWindowRenderBuffers;
+    ImGui_ImplCross_WindowRenderBuffers MainWindowRenderBuffers;
 
     ImGui_ImplCrossRenderer_Data()
     {
@@ -53,12 +51,6 @@ struct ImGui_ImplCrossRenderer_Data
 // Forward Declarations
 bool ImGui_ImplCross_CreateDeviceObjects();
 void ImGui_ImplCross_DestroyDeviceObjects();
-void ImGui_ImplVulkanH_DestroyFrame(VkDevice device, ImGui_ImplVulkanH_Frame* fd, const VkAllocationCallbacks* allocator);
-void ImGui_ImplVulkanH_DestroyFrameSemaphores(VkDevice device, ImGui_ImplVulkanH_FrameSemaphores* fsd, const VkAllocationCallbacks* allocator);
-void ImGui_ImplVulkanH_DestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulkanH_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
-void ImGui_ImplVulkanH_DestroyWindowRenderBuffers(VkDevice device, ImGui_ImplVulkanH_WindowRenderBuffers* buffers, const VkAllocationCallbacks* allocator);
-void ImGui_ImplVulkanH_CreateWindowSwapChain(VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, const VkAllocationCallbacks* allocator, int w, int h, uint32_t min_image_count);
-void ImGui_ImplVulkanH_CreateWindowCommandBuffers(VkPhysicalDevice physical_device, VkDevice device, ImGui_ImplVulkanH_Window* wd, uint32_t queue_family, const VkAllocationCallbacks* allocator);
 
 //-----------------------------------------------------------------------------
 // FUNCTIONS
@@ -72,7 +64,7 @@ static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
     const PipelineHandle a_Pipeline, 
     const RecordingCommandListHandle a_CmdList, 
-    const ImGui_ImplVulkanH_FrameRenderBuffers& a_RenderBuffers, 
+    const ImGui_ImplCross_FrameRenderBuffers& a_RenderBuffers, 
     const RENDER_IMAGE_LAYOUT a_InitialLayout,
     const RENDER_IMAGE_LAYOUT a_FinalLayout,
     const int a_FbWidth, 
@@ -125,7 +117,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
 }
 
 // Render function
-void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const BB::PipelineHandle a_Pipeline = nullptr)
+void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const RENDER_IMAGE_LAYOUT a_OldLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout, const BB::PipelineHandle a_Pipeline = nullptr)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
@@ -140,17 +132,17 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         t_UsedPipeline = bd->Pipeline;
 
     // Allocate array to store enough vertex/index buffers
-    ImGui_ImplVulkanH_WindowRenderBuffers& wrb = bd->MainWindowRenderBuffers;
+    ImGui_ImplCross_WindowRenderBuffers& wrb = bd->MainWindowRenderBuffers;
     if (wrb.FrameRenderBuffers == nullptr)
     {
         wrb.Index = 0;
         wrb.Count = bd->imageCount;
-        wrb.FrameRenderBuffers = (ImGui_ImplVulkanH_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplVulkanH_FrameRenderBuffers) * wrb.Count);
-        memset(wrb.FrameRenderBuffers, 0, sizeof(ImGui_ImplVulkanH_FrameRenderBuffers) * wrb.Count);
+        wrb.FrameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * wrb.Count);
+        memset(wrb.FrameRenderBuffers, 0, sizeof(ImGui_ImplCross_FrameRenderBuffers) * wrb.Count);
     }
     IM_ASSERT(wrb.Count == bd->imageCount);
     wrb.Index = (wrb.Index + 1) % wrb.Count;
-    ImGui_ImplVulkanH_FrameRenderBuffers& rb = wrb.FrameRenderBuffers[wrb.Index];
+    ImGui_ImplCross_FrameRenderBuffers& rb = wrb.FrameRenderBuffers[wrb.Index];
 
     if (a_DrawData.TotalVtxCount > 0)
     {
@@ -179,8 +171,8 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         }
     }
 
-    // Setup desired Vulkan state
-    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
+    // Setup desired CrossRenderer state
+    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, a_OldLayout, a_FinalLayout, fb_width, fb_height);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
@@ -201,7 +193,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
+                    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, a_OldLayout, a_FinalLayout, fb_width, fb_height);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -258,7 +250,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 }
 
-bool ImGui_ImplVulkan_CreateFontsTexture(RecordingCommandListHandle a_CmdList)
+bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdList)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
@@ -344,13 +336,31 @@ bool ImGui_ImplVulkan_CreateFontsTexture(RecordingCommandListHandle a_CmdList)
     return true;
 }
 
-static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t subpass, RENDER_IMAGE_FORMAT a_RenderingFormat)
+static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
-    PipelineInitInfo t_PipeInfo{};
-    PipelineBuilder t_Builder{t_PipeInfo};
+    PipelineRenderTargetBlend t_BlendInfo;
+    t_BlendInfo.blendEnable = true;
+    t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
+    t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+    t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
+    t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
+    t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+    t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
+
+    PipelineInitInfo t_PipeInitInfo{};
+    t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
+    t_PipeInitInfo.renderTargetBlendCount = 1;
+    t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
+    t_PipeInitInfo.blendLogicOpEnable = false;
+    t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
+    t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
+    t_PipeInitInfo.rasterizerState.lineWidth = 1.0f;
+
+    PipelineBuilder t_Builder{ t_PipeInitInfo };
     Shader::ShaderCodeHandle t_ShaderHandles[2];
+
     {
         const wchar_t* t_ShaderPath[2]{};
         t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/ImguiVert.hlsl";
@@ -361,12 +371,12 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t 
             t_ShaderPath[0],
             L"main",
             RENDER_SHADER_STAGE::VERTEX,
-            s_RendererInst.renderAPI);
+            RENDER_API::VULKAN);
         t_ShaderHandles[1] = Shader::CompileShader(
             t_ShaderPath[1],
             L"main",
             RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
-            s_RendererInst.renderAPI);
+            RENDER_API::VULKAN);
 
         ShaderCreateInfo t_ShaderInfos[2];
         t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
@@ -403,109 +413,37 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline, uint32_t 
     }
 
     t_Builder.BindDescriptor(bd->fontDescriptor);
-    t_Builder.BuildPipeline();
+    a_Pipeline = t_Builder.BuildPipeline();
 
     for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
     {
         Shader::ReleaseShaderCode(t_ShaderHandles[i]);
     }
-
-    ImGui_ImplVulkan_CreateShaderModules(device, allocator);
-
-    VkPipelineShaderStageCreateInfo stage[2] = {};
-    stage[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stage[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    stage[0].module = bd->ShaderModuleVert;
-    stage[0].pName = "main";
-    stage[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stage[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stage[1].module = bd->ShaderModuleFrag;
-    stage[1].pName = "main";
-
-    VkPipelineVertexInputStateCreateInfo vertex_info = {};
-    vertex_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_info.vertexBindingDescriptionCount = 1;
-    vertex_info.pVertexBindingDescriptions = binding_desc;
-    vertex_info.vertexAttributeDescriptionCount = 3;
-    vertex_info.pVertexAttributeDescriptions = attribute_desc;
-
-    VkPipelineInputAssemblyStateCreateInfo ia_info = {};
-    ia_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    ia_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-    VkPipelineViewportStateCreateInfo viewport_info = {};
-    viewport_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewport_info.viewportCount = 1;
-    viewport_info.scissorCount = 1;
-
-    VkPipelineRasterizationStateCreateInfo raster_info = {};
-    raster_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    raster_info.polygonMode = VK_POLYGON_MODE_FILL;
-    raster_info.cullMode = VK_CULL_MODE_NONE;
-    raster_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    raster_info.lineWidth = 1.0f;
-
-    VkPipelineMultisampleStateCreateInfo ms_info = {};
-    ms_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    ms_info.rasterizationSamples = (MSAASamples != 0) ? MSAASamples : VK_SAMPLE_COUNT_1_BIT;
-
-    VkPipelineColorBlendAttachmentState color_attachment[1] = {};
-    color_attachment[0].blendEnable = VK_TRUE;
-    color_attachment[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    color_attachment[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    color_attachment[0].colorBlendOp = VK_BLEND_OP_ADD;
-    color_attachment[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    color_attachment[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    color_attachment[0].alphaBlendOp = VK_BLEND_OP_ADD;
-    color_attachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-    VkPipelineDepthStencilStateCreateInfo depth_info = {};
-    depth_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-
-    VkPipelineColorBlendStateCreateInfo blend_info = {};
-    blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blend_info.attachmentCount = 1;
-    blend_info.pAttachments = color_attachment;
-
-    VkDynamicState dynamic_states[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamic_state = {};
-    dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamic_state.dynamicStateCount = (uint32_t)IM_ARRAYSIZE(dynamic_states);
-    dynamic_state.pDynamicStates = dynamic_states;
-
-    //BB CUSTOM!
-    //We do dynamic rendering to avoid having to handle renderpasses and such.
-    VkPipelineRenderingCreateInfo t_DynamicRenderingInfo{};
-    t_DynamicRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    t_DynamicRenderingInfo.colorAttachmentCount = 1;
-    t_DynamicRenderingInfo.pColorAttachmentFormats = &renderingFormat;
-    t_DynamicRenderingInfo.pNext = nullptr;
-
-    VkGraphicsPipelineCreateInfo info = {};
-    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    info.flags = bd->PipelineCreateFlags;
-    info.stageCount = 2;
-    info.pStages = stage;
-    info.pVertexInputState = &vertex_info;
-    info.pInputAssemblyState = &ia_info;
-    info.pViewportState = &viewport_info;
-    info.pRasterizationState = &raster_info;
-    info.pMultisampleState = &ms_info;
-    info.pDepthStencilState = &depth_info;
-    info.pColorBlendState = &blend_info;
-    info.pDynamicState = &dynamic_state;
-    info.layout = bd->PipelineLayout;
-    info.renderPass = nullptr;
-    info.subpass = subpass;
-    info.pNext = &t_DynamicRenderingInfo;
-    VkResult err = vkCreateGraphicsPipelines(device, pipelineCache, 1, &info, allocator, pipeline);
-    check_vk_result(err);
 }
 
 //rendering format is BB extension for dynamic_rendering
-bool ImGui_ImplVulkan_CreateDeviceObjects()
+bool ImGui_ImplCross_CreateDeviceObjects()
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+
+    {
+        DescriptorBinding t_Bindings[2]{};
+        //image binding for font.
+        t_Bindings[0].binding = 0; 
+        t_Bindings[0].descriptorCount = 1;
+        t_Bindings[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        t_Bindings[0].type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+        //buffer binding for all the offsets.
+        t_Bindings[1].binding = 1;
+        t_Bindings[1].descriptorCount = 1;
+        t_Bindings[1].stage = RENDER_SHADER_STAGE::VERTEX;
+        t_Bindings[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC;
+
+        RenderDescriptorCreateInfo t_Info{};
+        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+        t_Info.bindings = BB::Slice(t_Bindings, _countof(t_Bindings));
+        bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
+    }
 
     if (!bd->)
     {
@@ -557,22 +495,20 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         check_vk_result(err);
     }
 
-    ImGui_ImplVulkan_CreatePipeline(v->Device, v->Allocator, v->PipelineCache, v->MSAASamples, &bd->Pipeline, bd->Subpass, dynamicRenderingFormat);
+    ImGui_ImplCross_CreatePipeline(bd->Pipeline);
 
     return true;
 }
 
 bool ImGui_ImplCross_Init(ImGui_ImplCross_InitInfo* info)
 {
-    IM_ASSERT(g_FunctionsLoaded && "Need to call ImGui_ImplVulkan_LoadFunctions() if IMGUI_IMPL_VULKAN_NO_PROTOTYPES or VK_NO_PROTOTYPES are set!");
-
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
     // Setup backend capabilities flags
     ImGui_ImplCrossRenderer_Data* bd = IM_NEW(ImGui_ImplCrossRenderer_Data)();
     io.BackendRendererUserData = (void*)bd;
-    io.BackendRendererName = "imgui_impl_vulkan";
+    io.BackendRendererName = "imgui_impl_crossrenderer";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
     IM_ASSERT(info->minImageCount >= 2);
@@ -583,7 +519,7 @@ bool ImGui_ImplCross_Init(ImGui_ImplCross_InitInfo* info)
     return true;
 }
 
-void ImGui_ImplVulkan_Shutdown()
+void ImGui_ImplCross_Shutdown()
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     IM_ASSERT(bd != nullptr && "No renderer backend to shutdown, or already shutdown?");
@@ -596,14 +532,14 @@ void ImGui_ImplVulkan_Shutdown()
     IM_DELETE(bd);
 }
 
-void ImGui_ImplVulkan_NewFrame()
+void ImGui_ImplCross_NewFrame()
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     IM_ASSERT(bd != nullptr && "Did you call ImGui_ImplCross_Init()?");
     IM_UNUSED(bd);
 }
 
-void ImGui_ImplVulkan_SetMinImageCount(uint32_t min_image_count)
+void ImGui_ImplCross_SetMinImageCount(uint32_t min_image_count)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     IM_ASSERT(min_image_count >= 2);
@@ -611,7 +547,7 @@ void ImGui_ImplVulkan_SetMinImageCount(uint32_t min_image_count)
         return;
 
     RenderBackend::WaitGPUReady();
-    ImGui_ImplVulkanH_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
+    ImGui_ImplCross_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
     bd->minImageCount = min_image_count;
 }
 
@@ -621,7 +557,7 @@ RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
-    // Create Descriptor Set:
+    // Create Descriptor Set: //MOVED TO CREATE OBJECTS!
     RDescriptorHandle t_Set;
     {
         DescriptorBinding t_Binding{};
@@ -652,7 +588,7 @@ RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
     return t_Set;
 }
 
-void ImGui_ImplVulkan_RemoveTexture(const RDescriptorHandle a_Set)
+void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     RenderBackend::DestroyDescriptor(a_Set);
