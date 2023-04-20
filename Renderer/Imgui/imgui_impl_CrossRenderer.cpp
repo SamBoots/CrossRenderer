@@ -126,7 +126,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
         float translate[2];
         translate[0] = -1.0f - a_DrawData.DisplayPos.x * scale[0];
         translate[1] = -1.0f - a_DrawData.DisplayPos.y * scale[1];
-        //Index is 0 I think????
+        //Constant index will always be 0 if we use it. Imgui pipeline will always use it.
         RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), 0, &scale);
         RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), sizeof(translate), &translate);
         //vkCmdPushConstants(command_buffer, bd->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
