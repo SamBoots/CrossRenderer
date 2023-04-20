@@ -12,6 +12,7 @@ static BackendInfo s_BackendInfo;
 
 PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
+	BB_ASSERT(a_InitInfo.renderTargetBlendCount < 8, "More then 8 blending targets! This will not work with directx12.")
 	m_BuilderHandle = s_ApiFunc.pipelineBuilderInit(a_InitInfo);
 }
 

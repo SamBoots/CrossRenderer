@@ -1398,7 +1398,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 			t_Rasterizer->frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		else
 			t_Rasterizer->frontFace = VK_FRONT_FACE_CLOCKWISE;
-		t_Rasterizer->lineWidth = a_InitInfo.rasterizerState.lineWidth;
+		t_Rasterizer->lineWidth = 1.0f;
 		t_Rasterizer->depthBiasConstantFactor = 0.0f; // Optional
 		t_Rasterizer->depthBiasClamp = 0.0f; // Optional
 		t_Rasterizer->depthBiasSlopeFactor = 0.0f; // Optional

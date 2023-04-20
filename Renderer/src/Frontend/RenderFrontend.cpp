@@ -312,11 +312,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
 	t_PipeInitInfo.renderTargetBlendCount = 1;
 	t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::COPY;
-	t_PipeInitInfo.blendLogicOpEnable = true;
+	t_PipeInitInfo.blendLogicOpEnable = false;
 	t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::BACK;
 	t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
-	t_PipeInitInfo.rasterizerState.lineWidth = 1.0f;
-
 
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 	

@@ -62,6 +62,47 @@ const D3D12_COMMAND_LIST_TYPE BB::DXConv::CommandListType(const RENDER_QUEUE_TYP
 	}
 }
 
+
+const D3D12_BLEND BB::DXConv::Blend(const RENDER_BLEND_FACTOR a_BlendFactor)
+{
+	switch (a_BlendFactor)
+	{
+	case RENDER_BLEND_FACTOR::ZERO:					return D3D12_BLEND_ZERO;
+	case RENDER_BLEND_FACTOR::ONE:					return D3D12_BLEND_ONE;
+	case RENDER_BLEND_FACTOR::SRC_ALPHA:			return D3D12_BLEND_SRC_ALPHA;
+	case RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA:	return D3D12_BLEND_INV_SRC_ALPHA;
+	default:
+		BB_ASSERT(false, "DX12: RENDER_BLEND_FACTOR failed to convert to a D3D12_BLEND.");
+		return D3D12_BLEND_ZERO;
+		break;
+	}
+}
+const D3D12_BLEND_OP BB::DXConv::BlendOp(const RENDER_BLEND_OP a_BlendOp)
+{
+	switch (a_BlendOp)
+	{
+	case RENDER_BLEND_OP::ADD:						return D3D12_BLEND_OP_ADD;
+	case RENDER_BLEND_OP::SUBTRACT:					return D3D12_BLEND_OP_SUBTRACT;
+	default:
+		BB_ASSERT(false, "DX12: RENDER_BLEND_OP failed to convert to a D3D12_BLEND_OP.");
+		return D3D12_BLEND_OP_ADD;
+		break;
+	}
+}
+
+const D3D12_LOGIC_OP BB::DXConv::LogicOp(const RENDER_LOGIC_OP a_LogicOp)
+{
+	switch (a_LogicOp)
+	{
+	case BB::RENDER_LOGIC_OP::CLEAR:				return D3D12_LOGIC_OP_CLEAR;
+	case BB::RENDER_LOGIC_OP::COPY:					return D3D12_LOGIC_OP_COPY;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_LOGIC_OP failed to convert to a D3D12_LOGIC_OP.");
+		return D3D12_LOGIC_OP_CLEAR;
+		break;
+	}
+}
+
 //Safely releases a type by setting it back to null
 void BB::DXRelease(IUnknown* a_Obj)
 {

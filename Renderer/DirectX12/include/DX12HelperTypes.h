@@ -30,6 +30,9 @@ namespace BB
 		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
 		const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties);
 		const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType);
+		const D3D12_BLEND Blend(const RENDER_BLEND_FACTOR a_BlendFactor);
+		const D3D12_BLEND_OP BlendOp(const RENDER_BLEND_OP a_BlendOp);
+		const D3D12_LOGIC_OP LogicOp(const RENDER_LOGIC_OP a_LogicOp);
 	}
 
 	//Safely releases a DX type

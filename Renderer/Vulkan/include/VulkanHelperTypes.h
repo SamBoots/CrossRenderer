@@ -99,7 +99,7 @@ namespace BB
 			case BB::RENDER_LOGIC_OP::CLEAR:					return VK_LOGIC_OP_CLEAR;
 			case BB::RENDER_LOGIC_OP::COPY:						return VK_LOGIC_OP_COPY;
 			default:
-				BB_ASSERT(false, "Vulkan: RENDER_STORE_OP failed to convert to a VkAttachmentStoreOp.");
+				BB_ASSERT(false, "Vulkan: RENDER_LOGIC_OP failed to convert to a VkLogicOp.");
 				return VK_LOGIC_OP_CLEAR;
 				break;
 			}
@@ -163,7 +163,7 @@ namespace BB
 			{
 			case RENDER_BLEND_FACTOR::ZERO:						return VK_BLEND_FACTOR_ZERO;
 			case RENDER_BLEND_FACTOR::ONE:						return VK_BLEND_FACTOR_ONE;
-			case RENDER_BLEND_FACTOR::SRC_ALPHA:					return VK_BLEND_FACTOR_SRC_ALPHA;
+			case RENDER_BLEND_FACTOR::SRC_ALPHA:				return VK_BLEND_FACTOR_SRC_ALPHA;
 			case RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA:		return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_BLEND_FACTOR failed to convert to a VkBlendFactor.");
@@ -192,7 +192,6 @@ namespace BB
 			case RENDER_CULL_MODE::NONE:					return VK_CULL_MODE_NONE;
 			case RENDER_CULL_MODE::FRONT:					return VK_CULL_MODE_FRONT_BIT;
 			case RENDER_CULL_MODE::BACK:					return VK_CULL_MODE_BACK_BIT;
-			case RENDER_CULL_MODE::FRONT_AND_BACK:			return VK_CULL_MODE_FRONT_AND_BACK;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_CULL_MODE failed to convert to a VkCullModeFlags.");
 				return VK_CULL_MODE_NONE;

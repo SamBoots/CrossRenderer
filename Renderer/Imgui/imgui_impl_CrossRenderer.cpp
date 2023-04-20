@@ -356,7 +356,6 @@ static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline)
     t_PipeInitInfo.blendLogicOpEnable = false;
     t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
     t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
-    t_PipeInitInfo.rasterizerState.lineWidth = 1.0f;
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };
     Shader::ShaderCodeHandle t_ShaderHandles[2];

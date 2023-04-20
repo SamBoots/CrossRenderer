@@ -211,8 +211,7 @@ namespace BB
 	{
 		NONE,
 		FRONT,
-		BACK,
-		FRONT_AND_BACK
+		BACK
 	};
 
 	struct UpdateDescriptorImageInfo
@@ -444,7 +443,6 @@ namespace BB
 	{
 		bool frontCounterClockwise = false;
 		RENDER_CULL_MODE cullMode;
-		float lineWidth = 0;
 	};
 
 	struct PipelineInitInfo

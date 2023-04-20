@@ -571,7 +571,7 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 }
 
 //PipelineBuilder
-PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo)
+PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
 	constexpr size_t MAXIMUM_ROOT_PARAMETERS = 64;
 	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo);
@@ -588,6 +588,57 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& t_Init
 	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	{
+		D3D12_RASTERIZER_DESC t_RasterDesc{};
+		t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+		switch (a_InitInfo.rasterizerState.cullMode)
+		{
+		case RENDER_CULL_MODE::NONE: t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+			break;
+		case RENDER_CULL_MODE::BACK: t_RasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+			break;
+		case RENDER_CULL_MODE::FRONT: t_RasterDesc.CullMode = D3D12_CULL_MODE_FRONT;
+			break;
+		default:
+			BB_ASSERT(false, "DX12, cull mode not supported for the rasterizer state!");
+			break;
+		}
+		t_RasterDesc.FrontCounterClockwise = a_InitInfo.rasterizerState.frontCounterClockwise;
+		t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+		t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+		t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+		t_RasterDesc.DepthClipEnable = TRUE;
+		t_RasterDesc.MultisampleEnable = FALSE;
+		t_RasterDesc.AntialiasedLineEnable = FALSE;
+		t_RasterDesc.ForcedSampleCount = 0;
+		t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+		t_BuildInfo->PSOdesc.RasterizerState = t_RasterDesc;
+	}
+
+	{
+		D3D12_BLEND_DESC t_BlendDesc{};
+
+		t_BlendDesc.AlphaToCoverageEnable = FALSE;
+		t_BlendDesc.IndependentBlendEnable = FALSE;
+		for (size_t i = 0; i < a_InitInfo.renderTargetBlendCount; i++)
+		{
+			t_BlendDesc.RenderTarget[i].LogicOp = DXConv::LogicOp(a_InitInfo.blendLogicOp);
+			t_BlendDesc.RenderTarget[i].LogicOpEnable = a_InitInfo.blendLogicOpEnable;
+
+			const PipelineRenderTargetBlend& t_Bi = a_InitInfo.renderTargetBlends[i];
+			t_BlendDesc.RenderTarget[i].BlendEnable = t_Bi.blendEnable;
+			t_BlendDesc.RenderTarget[i].BlendOp = DXConv::BlendOp(t_Bi.blendOp);
+			t_BlendDesc.RenderTarget[i].SrcBlend = DXConv::Blend(t_Bi.srcBlend);
+			t_BlendDesc.RenderTarget[i].DestBlend = DXConv::Blend(t_Bi.dstBlend);
+			t_BlendDesc.RenderTarget[i].BlendOpAlpha = DXConv::BlendOp(t_Bi.blendOpAlpha);
+			t_BlendDesc.RenderTarget[i].SrcBlendAlpha = DXConv::Blend(t_Bi.srcBlendAlpha);
+			t_BlendDesc.RenderTarget[i].DestBlendAlpha = DXConv::Blend(t_Bi.dstBlendAlpha);
+		}
+
+		t_BuildInfo->PSOdesc.BlendState = t_BlendDesc;
+	}
 	
 
 	t_BuildInfo->rootParams = BBnewArr(
@@ -817,38 +868,6 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	}
 
 	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
-	D3D12_BLEND_DESC t_BlendDesc{};
-	t_BlendDesc.AlphaToCoverageEnable = FALSE;
-	t_BlendDesc.IndependentBlendEnable = FALSE;
-	const D3D12_RENDER_TARGET_BLEND_DESC defaultRenderTargetBlendDesc = {
-		FALSE,
-		FALSE,
-		D3D12_BLEND_ONE,
-		D3D12_BLEND_ZERO,
-		D3D12_BLEND_OP_ADD,
-		D3D12_BLEND_ONE,
-		D3D12_BLEND_ZERO,
-		D3D12_BLEND_OP_ADD,
-		D3D12_LOGIC_OP_NOOP,
-		D3D12_COLOR_WRITE_ENABLE_ALL,
-	};
-	for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-		t_BlendDesc.RenderTarget[i] = defaultRenderTargetBlendDesc;
-	t_BuildInfo->PSOdesc.BlendState = t_BlendDesc;
-
-
-	D3D12_RASTERIZER_DESC t_RasterDesc{};
-	t_RasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-	t_RasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-	t_RasterDesc.FrontCounterClockwise = FALSE;
-	t_RasterDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-	t_RasterDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-	t_RasterDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-	t_RasterDesc.DepthClipEnable = TRUE;
-	t_RasterDesc.MultisampleEnable = FALSE;
-	t_RasterDesc.AntialiasedLineEnable = FALSE;
-	t_RasterDesc.ForcedSampleCount = 0;
-	t_RasterDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
 	constexpr D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
 	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
@@ -862,7 +881,6 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	t_DepthStencil.FrontFace = defaultStencilOp;
 	t_DepthStencil.BackFace = defaultStencilOp;
 
-	t_BuildInfo->PSOdesc.RasterizerState = t_RasterDesc;
 	t_BuildInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	t_BuildInfo->PSOdesc.DepthStencilState = t_DepthStencil;
 	t_BuildInfo->PSOdesc.DSVFormat = DEPTH_FORMAT;
