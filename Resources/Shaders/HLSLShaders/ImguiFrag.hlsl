@@ -10,7 +10,7 @@ struct VSoutput
 {
     //not sure if needed, check directx12 later.
     float4 pos : SV_POSITION;
-    _BBEXT(0)  float3 color : COLOR0;
+    _BBEXT(0)  float4 color : COLOR0;
     _BBEXT(1)  float2 uv : UV0;
 };
 

@@ -7,8 +7,6 @@ namespace BB
 {
 	namespace Shader
 	{
-		using ShaderCodeHandle = FrameworkHandle<struct ShaderCodeHandleTag>;
-
 		void InitShaderCompiler();
 
 		const ShaderCodeHandle CompileShader(const wchar_t* a_FullPath, const wchar_t* a_Entry, const RENDER_SHADER_STAGE a_ShaderType, const RENDER_API a_RenderAPI);

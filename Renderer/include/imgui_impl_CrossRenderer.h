@@ -7,6 +7,8 @@ struct ImGui_ImplCross_InitInfo
 {
 	uint32_t imageCount = 0;
 	uint32_t minImageCount = 0;
+	BB::ShaderCodeHandle vertexShader{};
+	BB::ShaderCodeHandle fragmentShader{};
 };
 
 // Called by user code

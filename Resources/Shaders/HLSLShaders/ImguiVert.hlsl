@@ -29,14 +29,14 @@ struct VSOutput
 {
     //not sure if needed, check directx12 later.
     float4 pos : SV_POSITION;
-    _BBEXT(0)   float3 color : COLOR0;
+    _BBEXT(0)   float4 color : COLOR0;
     _BBEXT(1)   float2 uv : UV0;
 };
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {
     VSOutput output = (VSOutput) 0;
-    output.pos = float4(mul(input.inPosition * GuiInfo.uScale) + GuiInfo.uTranslate, 0, 1);
+    output.pos = float4((input.inPosition * GuiInfo.uScale) + GuiInfo.uTranslate, 0, 1);
     output.color = input.inColor;
     output.uv = input.inUV;
     return output;

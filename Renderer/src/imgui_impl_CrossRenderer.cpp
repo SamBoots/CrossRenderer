@@ -51,10 +51,16 @@ struct ImGui_ImplCrossRenderer_Data
 // Forward Declarations
 bool ImGui_ImplCross_CreateDeviceObjects();
 void ImGui_ImplCross_DestroyDeviceObjects();
+RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image);
 
 //-----------------------------------------------------------------------------
 // FUNCTIONS
 //-----------------------------------------------------------------------------
+
+static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
+{
+    return ImGui::GetCurrentContext() ? (ImGui_ImplCrossRenderer_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+}
 
 //Will likely just create and after that check for resizes.
 static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
@@ -72,11 +78,6 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
     a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
     //Do some alignment here.
     a_BufferSize = a_NewSize;
-}
-
-static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
-{
-    return ImGui::GetCurrentContext() ? (ImGui_ImplCrossRenderer_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
 }
 
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
@@ -351,113 +352,10 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
     return true;
 }
 
-static void ImGui_ImplCross_CreatePipeline(PipelineHandle& a_Pipeline)
-{
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    PipelineRenderTargetBlend t_BlendInfo;
-    t_BlendInfo.blendEnable = true;
-    t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
-    t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
-    t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
-    t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
-    t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
-    t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
-
-    PipelineInitInfo t_PipeInitInfo{};
-    t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
-    t_PipeInitInfo.renderTargetBlendCount = 1;
-    t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
-    t_PipeInitInfo.blendLogicOpEnable = false;
-    t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
-    t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
-
-    // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
-    t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::VERTEX;
-    //2 vec2's so 4 dwords.
-    t_PipeInitInfo.constantData.dwordSize = 4;
-
-    PipelineBuilder t_Builder{ t_PipeInitInfo };
-    Shader::ShaderCodeHandle t_ShaderHandles[2];
-
-    {
-        const wchar_t* t_ShaderPath[2]{};
-        t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/ImguiVert.hlsl";
-        t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/ImguiFrag.hlsl";
-
-        Shader::ShaderCodeHandle t_ShaderHandles[2];
-        t_ShaderHandles[0] = Shader::CompileShader(
-            t_ShaderPath[0],
-            L"main",
-            RENDER_SHADER_STAGE::VERTEX,
-            RENDER_API::VULKAN);
-        t_ShaderHandles[1] = Shader::CompileShader(
-            t_ShaderPath[1],
-            L"main",
-            RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
-            RENDER_API::VULKAN);
-
-        ShaderCreateInfo t_ShaderInfos[2];
-        t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-        Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderInfos[0].buffer);
-
-        t_ShaderInfos[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderInfos[1].buffer);
-
-        t_Builder.BindShaders(BB::Slice(t_ShaderInfos, _countof(t_ShaderInfos)));
-    }
-
-    {
-        VertexAttributeDesc t_VertexAttributes[3]{};
-        t_VertexAttributes[0].semanticName = "POSITION";
-        t_VertexAttributes[0].location = 0;
-        t_VertexAttributes[0].format = RENDER_INPUT_FORMAT::RG32;
-        t_VertexAttributes[0].offset = IM_OFFSETOF(ImDrawVert, pos);
-
-        t_VertexAttributes[2].semanticName = "UV";
-        t_VertexAttributes[1].location = 1;
-        t_VertexAttributes[1].format = RENDER_INPUT_FORMAT::RG32;
-        t_VertexAttributes[1].offset = IM_OFFSETOF(ImDrawVert, uv);
-
-        t_VertexAttributes[2].semanticName = "COLOR";
-        t_VertexAttributes[2].location = 2;
-        t_VertexAttributes[2].format = RENDER_INPUT_FORMAT::RGBA8;
-        t_VertexAttributes[2].offset = IM_OFFSETOF(ImDrawVert, col);
-
-        PipelineAttributes t_Attribs{};
-        t_Attribs.stride = sizeof(ImDrawVert);
-        t_Attribs.attributes = Slice(t_VertexAttributes, 3);
-
-        t_Builder.BindAttributes(t_Attribs);
-    }
-
-    t_Builder.BindDescriptor(bd->fontDescriptor);
-    a_Pipeline = t_Builder.BuildPipeline();
-
-    for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
-    {
-        Shader::ReleaseShaderCode(t_ShaderHandles[i]);
-    }
-}
-
 //rendering format is BB extension for dynamic_rendering
 bool ImGui_ImplCross_CreateDeviceObjects()
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    {
-        DescriptorBinding t_Bindings[1]{};
-        //image binding for font.
-        t_Bindings[0].binding = 0; 
-        t_Bindings[0].descriptorCount = 1;
-        t_Bindings[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_Bindings[0].type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
-
-        RenderDescriptorCreateInfo t_Info{};
-        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
-        t_Info.bindings = BB::Slice(t_Bindings, _countof(t_Bindings));
-        bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
-    }
 
     ////lets experiment with the default sampler state.
     //{
@@ -491,12 +389,10 @@ bool ImGui_ImplCross_CreateDeviceObjects()
     //    check_vk_result(err);
     //}
 
-    ImGui_ImplCross_CreatePipeline(bd->Pipeline);
-
     return true;
 }
 
-bool ImGui_ImplCross_Init(ImGui_ImplCross_InitInfo* info)
+bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
@@ -507,10 +403,86 @@ bool ImGui_ImplCross_Init(ImGui_ImplCross_InitInfo* info)
     io.BackendRendererName = "imgui_impl_crossrenderer";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
-    IM_ASSERT(info->minImageCount >= 2);
-    IM_ASSERT(info->imageCount >= info->minImageCount);
+    IM_ASSERT(a_Info.minImageCount >= 2);
+    IM_ASSERT(a_Info.imageCount >= a_Info.minImageCount);
 
-    ImGui_ImplCross_CreateDeviceObjects();
+    {
+        DescriptorBinding t_Bindings[1]{};
+        //image binding for font.
+        t_Bindings[0].binding = 0;
+        t_Bindings[0].descriptorCount = 1;
+        t_Bindings[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        t_Bindings[0].type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+
+        RenderDescriptorCreateInfo t_Info{};
+        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+        t_Info.bindings = BB::Slice(t_Bindings, _countof(t_Bindings));
+        bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
+    }
+
+    PipelineRenderTargetBlend t_BlendInfo;
+    t_BlendInfo.blendEnable = true;
+    t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
+    t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+    t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
+    t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
+    t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+    t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
+
+    PipelineInitInfo t_PipeInitInfo{};
+    t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
+    t_PipeInitInfo.renderTargetBlendCount = 1;
+    t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
+    t_PipeInitInfo.blendLogicOpEnable = false;
+    t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
+    t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
+
+    // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
+    t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::VERTEX;
+    //2 vec2's so 4 dwords.
+    t_PipeInitInfo.constantData.dwordSize = 4;
+
+    PipelineBuilder t_Builder{ t_PipeInitInfo };
+    {
+        ShaderCreateInfo t_ShaderInfos[2]{};
+        t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+        Shader::GetShaderCodeBuffer(a_Info.vertexShader, t_ShaderInfos[0].buffer);
+
+        t_ShaderInfos[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        Shader::GetShaderCodeBuffer(a_Info.fragmentShader, t_ShaderInfos[1].buffer);
+
+        t_Builder.BindShaders(BB::Slice(t_ShaderInfos, _countof(t_ShaderInfos)));
+    }
+
+    {
+        VertexAttributeDesc t_VertexAttributes[3]{};
+        t_VertexAttributes[0].semanticName = "POSITION";
+        t_VertexAttributes[0].location = 0;
+        t_VertexAttributes[0].format = RENDER_INPUT_FORMAT::RG32;
+        t_VertexAttributes[0].offset = IM_OFFSETOF(ImDrawVert, pos);
+
+        t_VertexAttributes[2].semanticName = "UV";
+        t_VertexAttributes[1].location = 1;
+        t_VertexAttributes[1].format = RENDER_INPUT_FORMAT::RG32;
+        t_VertexAttributes[1].offset = IM_OFFSETOF(ImDrawVert, uv);
+
+        t_VertexAttributes[2].semanticName = "COLOR";
+        t_VertexAttributes[2].location = 2;
+        t_VertexAttributes[2].format = RENDER_INPUT_FORMAT::RGBA8;
+        t_VertexAttributes[2].offset = IM_OFFSETOF(ImDrawVert, col);
+
+        PipelineAttributes t_Attribs{};
+        t_Attribs.stride = sizeof(ImDrawVert);
+        t_Attribs.attributes = Slice(t_VertexAttributes, 3);
+
+        t_Builder.BindAttributes(t_Attribs);
+    }
+
+    t_Builder.BindDescriptor(bd->fontDescriptor);
+    bd->Pipeline = t_Builder.BuildPipeline();
+
+    //not used here, but used as reference in case anything breaks.
+    //ImGui_ImplCross_CreateDeviceObjects();
 
     return true;
 }

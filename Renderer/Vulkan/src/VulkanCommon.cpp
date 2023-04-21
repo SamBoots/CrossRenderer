@@ -1407,18 +1407,24 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 
 		t_BuildInfo->pipeInfo.pRasterizationState = t_Rasterizer;
 	}
-
-	{ //If we have constant data we will add a push constant. We will create one that will manage all the push ranges.
+	//If we have constant data we will add a push constant. We will create one that will manage all the push ranges.
+	if (a_InitInfo.constantData.dwordSize > 0)
+	{
 		VkPushConstantRange* t_ConstantRanges = BBnew(
 			t_BuildInfo->buildAllocator,
 			VkPushConstantRange);
 		t_ConstantRanges->offset = 0;
 		t_ConstantRanges->size = a_InitInfo.constantData.dwordSize * sizeof(unsigned int);
 		t_ConstantRanges->stageFlags = VKConv::ShaderVisibility(a_InitInfo.constantData.shaderStage);
-
 		t_BuildInfo->pipeLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		t_BuildInfo->pipeLayoutInfo.pushConstantRangeCount = 1;
 		t_BuildInfo->pipeLayoutInfo.pPushConstantRanges = t_ConstantRanges;
+	}
+	else
+	{
+		t_BuildInfo->pipeLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		t_BuildInfo->pipeLayoutInfo.pushConstantRangeCount = 0;
+		t_BuildInfo->pipeLayoutInfo.pPushConstantRanges = nullptr;
 	}
 
 	return PipelineBuilderHandle(t_BuildInfo);

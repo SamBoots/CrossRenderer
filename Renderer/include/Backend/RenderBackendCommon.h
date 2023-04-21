@@ -32,6 +32,8 @@ namespace BB
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
 
+	using ShaderCodeHandle = FrameworkHandle<struct ShaderCodeHandleTag>;
+
 	enum class RENDER_API
 	{
 		NONE, //None means that the renderer is destroyed or not initialized.

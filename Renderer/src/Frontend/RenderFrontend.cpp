@@ -9,6 +9,7 @@
 #include "LightSystem.h"
 #include "imgui/imgui.h"
 #include "imgui/backends/imgui_impl_win32.h"
+#include "imgui_impl_CrossRenderer.h"
 
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
@@ -217,13 +218,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BackendCreateInfo.engineName = "TestEngine";
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
-
-
-	//implement imgui here.
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
-	ImGui_ImplWin32_Init(a_InitInfo.windowHandle.ptrHandle);
 
 	RenderBackend::InitBackend(t_BackendCreateInfo);
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
@@ -434,7 +428,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 
-	Shader::ShaderCodeHandle t_ShaderHandles[2];
+	ShaderCodeHandle t_ShaderHandles[2];
 	t_ShaderHandles[0] = Shader::CompileShader(
 		t_ShaderPath[0],
 		L"main",
@@ -538,6 +532,48 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	//Create upload buffer.
 	constexpr const uint64_t UPLOAD_BUFFER_SIZE = static_cast<uint64_t>(mbSize * 32);
 	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
+
+	{//implement imgui here.
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGui::StyleColorsDark();
+		ImGui_ImplWin32_Init(a_InitInfo.windowHandle.ptrHandle);
+
+		const wchar_t* t_ShaderPath[2]{};
+		t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/ImguiVert.hlsl";
+		t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/ImguiFrag.hlsl";
+
+		ShaderCodeHandle t_ImguiShaders[2];
+		t_ImguiShaders[0] = Shader::CompileShader(
+			t_ShaderPath[0],
+			L"main",
+			RENDER_SHADER_STAGE::VERTEX,
+			s_RendererInst.renderAPI);
+		t_ImguiShaders[1] = Shader::CompileShader(
+			t_ShaderPath[1],
+			L"main",
+			RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
+			s_RendererInst.renderAPI);
+
+		ShaderCreateInfo t_ShaderInfos[2];
+		t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+		Shader::GetShaderCodeBuffer(t_ImguiShaders[0], t_ShaderInfos[0].buffer);
+
+		t_ShaderInfos[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+		Shader::GetShaderCodeBuffer(t_ImguiShaders[1], t_ShaderInfos[1].buffer);
+
+		ImGui_ImplCross_InitInfo t_ImguiInfo{};
+		t_ImguiInfo.imageCount = s_RendererInst.frameBufferAmount;
+		t_ImguiInfo.minImageCount = s_RendererInst.frameBufferAmount;
+		t_ImguiInfo.vertexShader = t_ImguiShaders[0];
+		t_ImguiInfo.fragmentShader = t_ImguiShaders[1];
+		ImGui_ImplCross_Init(t_ImguiInfo);
+
+		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
+		{
+			Shader::ReleaseShaderCode(t_ImguiShaders[i]);
+		}
+	}
 
 	for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
 	{
