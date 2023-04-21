@@ -13,6 +13,8 @@ struct ImGui_ImplCross_FrameRenderBuffers
     uint64_t indexSize;
     RBufferHandle vertexBuffer;
     RBufferHandle indexBuffer;
+    void* vertMem;
+    void* indexMem;
 };
 
 // Each viewport will hold 1 ImGui_ImplCross_FrameRenderBuffers
@@ -33,7 +35,6 @@ struct ImGui_ImplCrossRenderer_Data
     // Font data
     RImageHandle                fontImage;
     RDescriptorHandle           fontDescriptor;
-    UploadBuffer*               uploadBuffer;
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
@@ -63,12 +64,16 @@ static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
 }
 
 //Will likely just create and after that check for resizes.
-static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
+static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, void*& a_MemPos, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     if (a_Buffer.handle != 0)
+    {
+        RenderBackend::UnmapMemory(a_Buffer);
         RenderBackend::DestroyBuffer(a_Buffer);
+    }
+
 
     RenderBufferCreateInfo t_CreateInfo{};
     t_CreateInfo.usage = a_Usage;
@@ -78,14 +83,13 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
     a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
     //Do some alignment here.
     a_BufferSize = a_NewSize;
+    a_MemPos = RenderBackend::MapMemory(a_Buffer);
 }
 
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
     const PipelineHandle a_Pipeline, 
     const RecordingCommandListHandle a_CmdList, 
     const ImGui_ImplCross_FrameRenderBuffers& a_RenderBuffers, 
-    const RENDER_IMAGE_LAYOUT a_InitialLayout,
-    const RENDER_IMAGE_LAYOUT a_FinalLayout,
     const int a_FbWidth, 
     const int a_FbHeight)
 {
@@ -106,18 +110,6 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
         RenderBackend::BindIndexBuffer(a_CmdList, a_RenderBuffers.indexBuffer, 0);
     }
 
-    // Setup viewport:
-    {
-        StartRenderingInfo t_Info{};
-        t_Info.viewportWidth = static_cast<uint32_t>(a_FbWidth);
-        t_Info.viewportHeight = static_cast<uint32_t>(a_FbHeight);
-        t_Info.colorInitialLayout = a_InitialLayout;
-        t_Info.colorFinalLayout = a_FinalLayout;
-        t_Info.colorLoadOp = RENDER_LOAD_OP::LOAD;
-        t_Info.colorStoreOp = RENDER_STORE_OP::STORE;
-        RenderBackend::StartRendering(a_CmdList, t_Info);
-    }
-
     // Setup scale and translation:
     // Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
     {
@@ -136,7 +128,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
 }
 
 // Render function
-void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const RENDER_IMAGE_LAYOUT a_OldLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout, const BB::PipelineHandle a_Pipeline = nullptr)
+void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const BB::PipelineHandle a_Pipeline)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
@@ -169,13 +161,13 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         const size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
         const size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
         if (rb.vertexBuffer.ptrHandle == nullptr || rb.vertexSize < vertex_size)
-            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
+            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, rb.vertMem, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
-            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
+            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, rb.indexMem, index_size, RENDER_BUFFER_USAGE::INDEX);
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(RenderBackend::MapMemory(rb.vertexBuffer));
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(RenderBackend::MapMemory(rb.indexBuffer));
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertMem);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.indexMem);
        
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -188,7 +180,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     }
 
     // Setup desired CrossRenderer state
-    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, a_OldLayout, a_FinalLayout, fb_width, fb_height);
+    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
@@ -209,7 +201,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, a_OldLayout, a_FinalLayout, fb_width, fb_height);
+                    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -266,7 +258,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 }
 
-bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdList)
+bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdList, UploadBuffer& a_UploadBuffer)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
@@ -274,13 +266,13 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
     unsigned char* pixels;
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    size_t upload_size = static_cast<size_t>(width * height) * 4 * sizeof(char);
+    size_t upload_size = static_cast<size_t>(width * height) * 4;
 
     // Create the Image:
     {
         RenderImageCreateInfo t_Info = {};
         t_Info.type = RENDER_IMAGE_TYPE::TYPE_2D;
-        t_Info.format = RENDER_IMAGE_FORMAT::SRGB;
+        t_Info.format = RENDER_IMAGE_FORMAT::RGBA8_UNORM;
         t_Info.tiling = RENDER_IMAGE_TILING::OPTIMAL;
         t_Info.width = width;
         t_Info.height = height;
@@ -295,7 +287,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
 
     // Upload to buffer then copy to Image:
     {
-        UploadBufferChunk t_Chunk = bd->uploadBuffer->Alloc(upload_size);
+        UploadBufferChunk t_Chunk = a_UploadBuffer.Alloc(upload_size);
         memcpy(t_Chunk.memory, pixels, upload_size);
 
         RenderTransitionImageInfo t_TransitionInfo{};
@@ -314,7 +306,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
         RenderBackend::TransitionImage(a_CmdList, t_TransitionInfo);
 
         RenderCopyBufferImageInfo t_CopyImage{};
-        t_CopyImage.srcBuffer = bd->uploadBuffer->Buffer();
+        t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
         t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.offset);
         t_CopyImage.dstImage = bd->fontImage;
         t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(width);
@@ -406,6 +398,9 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     IM_ASSERT(a_Info.minImageCount >= 2);
     IM_ASSERT(a_Info.imageCount >= a_Info.minImageCount);
 
+    bd->minImageCount = a_Info.minImageCount;
+    bd->imageCount = a_Info.imageCount;
+
     {
         DescriptorBinding t_Bindings[1]{};
         //image binding for font.
@@ -438,7 +433,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
 
     // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
-    t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::VERTEX;
+    t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
     //2 vec2's so 4 dwords.
     t_PipeInitInfo.constantData.dwordSize = 4;
 

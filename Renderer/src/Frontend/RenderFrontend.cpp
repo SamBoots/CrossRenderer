@@ -93,6 +93,9 @@ static void Draw3DFrame()
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
 	s_GlobalInfo.perFrameInfo->staticLightCount = s_GlobalInfo.staticLights->GetLightCount();
 
+	bool show_demo_window = true;
+	ImGui::ShowDemoWindow(&show_demo_window);
+	ImGui::Render();
 
 	//Copy the perframe buffer over.
 	RenderCopyBufferInfo t_CopyInfo;
@@ -181,6 +184,9 @@ static void Draw3DFrame()
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+
+	ImDrawData* t_DrawData = ImGui::GetDrawData();
+	ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics);
 
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	RenderBackend::EndCommandList(t_RecordingGraphics);
@@ -274,7 +280,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImageInfo.mipLevels = 1;
 		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_ImageInfo.format = RENDER_IMAGE_FORMAT::SRGB;
+		t_ImageInfo.format = RENDER_IMAGE_FORMAT::RGBA8_SRGB;
 
 		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
 	}
@@ -536,7 +542,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{//implement imgui here.
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGui::StyleColorsDark();
+		ImGui::StyleColorsClassic();
 		ImGui_ImplWin32_Init(a_InitInfo.windowHandle.ptrHandle);
 
 		const wchar_t* t_ShaderPath[2]{};
@@ -568,6 +574,24 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImguiInfo.vertexShader = t_ImguiShaders[0];
 		t_ImguiInfo.fragmentShader = t_ImguiShaders[1];
 		ImGui_ImplCross_Init(t_ImguiInfo);
+
+		t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
+		ImGui_ImplCross_CreateFontsTexture(t_RecordingGraphics, *t_UploadBuffer);
+		ExecuteCommandsInfo* t_ExecuteInfo = BBnew(
+			m_TempAllocator,
+			ExecuteCommandsInfo);
+		RenderBackend::EndCommandList(t_RecordingGraphics);
+
+		t_ExecuteInfo[0] = {};
+		t_ExecuteInfo[0].commands = &t_GraphicCommands[s_CurrentFrame];
+		t_ExecuteInfo[0].commandCount = 1;
+		t_ExecuteInfo[0].signalQueues = &t_GraphicsQueue;
+		t_ExecuteInfo[0].signalQueueCount = 1;
+
+		RenderBackend::ExecuteCommands(t_GraphicsQueue, t_ExecuteInfo, 1);
+
+		uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_GraphicsQueue) - 1;
+		RenderBackend::WaitGPUReady();
 
 		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
 		{
@@ -822,11 +846,15 @@ void BB::Render::StartFrame()
 	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
 
+	ImGui_ImplWin32_NewFrame();
+	ImGui_ImplCross_NewFrame();
+	ImGui::NewFrame();
 }
 
 void BB::Render::EndFrame()
 {
 	RenderBackend::EndCommandList(t_RecordingTransfer);
+	ImGui::EndFrame();
 	
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,

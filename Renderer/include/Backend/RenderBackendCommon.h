@@ -89,7 +89,8 @@ namespace BB
 	enum class RENDER_IMAGE_FORMAT : uint32_t
 	{
 		DEPTH_STENCIL,
-		SRGB
+		RGBA8_SRGB,
+		RGBA8_UNORM
 	};
 
 	enum class RENDER_IMAGE_TILING : uint32_t

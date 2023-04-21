@@ -9,8 +9,16 @@
 struct VSInput
 {
     _BBEXT(0)  float2 inPosition : POSITION0;
-    _BBEXT(1)  float2 inUV : UV0;
-    _BBEXT(2)  float4 inColor : COLOR0;
+    _BBEXT(1)  float4 inColor : COLOR0;
+    _BBEXT(2)  float2 inUV : UV0;
+};
+
+struct VSOutput
+{
+    //not sure if needed, check directx12 later.
+    float4 pos : SV_POSITION;
+    _BBEXT(0)    float4 color : COLOR0;
+    _BBEXT(1)    float2 uv : UV0;
 };
 
 struct guiinfo
@@ -25,15 +33,7 @@ struct guiinfo
     ConstantBuffer<guiinfo> GuiInfo : register(b0, space0);
 #endif
 
-struct VSOutput
-{
-    //not sure if needed, check directx12 later.
-    float4 pos : SV_POSITION;
-    _BBEXT(0)   float4 color : COLOR0;
-    _BBEXT(1)   float2 uv : UV0;
-};
-
-VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
+VSOutput main(VSInput input)
 {
     VSOutput output = (VSOutput) 0;
     output.pos = float4((input.inPosition * GuiInfo.uScale) + GuiInfo.uTranslate, 0, 1);

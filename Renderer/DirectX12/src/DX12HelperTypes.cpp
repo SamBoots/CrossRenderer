@@ -249,7 +249,12 @@ DXImage::DXImage(const RenderImageCreateInfo& a_Info)
 	D3D12_RESOURCE_STATES t_StartState{};
 	switch (a_Info.format)
 	{
-	case RENDER_IMAGE_FORMAT::SRGB:
+	case RENDER_IMAGE_FORMAT::RGBA8_SRGB:
+		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		t_StartState = D3D12_RESOURCE_STATE_COMMON;
+		break;
+	case RENDER_IMAGE_FORMAT::RGBA8_UNORM:
 		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		t_StartState = D3D12_RESOURCE_STATE_COMMON;

@@ -1122,10 +1122,16 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	t_ImageCreateInfo.extent.depth = a_CreateInfo.depth;
 	switch (a_CreateInfo.format)
 	{
-	case RENDER_IMAGE_FORMAT::SRGB:
+	case RENDER_IMAGE_FORMAT::RGBA8_SRGB:
 		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
 		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		break;
+	case RENDER_IMAGE_FORMAT::RGBA8_UNORM:
+		t_ImageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+		t_ImageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		t_ViewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
 		t_ViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
@@ -1263,18 +1269,17 @@ void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 		t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-		t_SamplerInfo.anisotropyEnable = VK_TRUE;
-		t_SamplerInfo.maxAnisotropy = s_VKB.deviceInfo.maxAnisotropy;
-		t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
+		//t_SamplerInfo.anisotropyEnable = VK_TRUE;
+		t_SamplerInfo.maxAnisotropy = 1.0f;
+		//t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		//t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
 
-		t_SamplerInfo.compareEnable = VK_FALSE;
-		t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		//t_SamplerInfo.compareEnable = VK_FALSE;
+		//t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 		//Mipmap info can be in the VulkanImage struct.
-		t_SamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		t_SamplerInfo.mipLodBias = 0.0f;
-		t_SamplerInfo.minLod = 0.0f;
-		t_SamplerInfo.maxLod = 0.0f;
+		//t_SamplerInfo.mipLodBias = 0.0f;
+		t_SamplerInfo.minLod = -1000.0f;
+		t_SamplerInfo.maxLod = 1000.0f;
 
 		VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfo.sampler),
 			"Vulkan: Failed to create image sampler!");
