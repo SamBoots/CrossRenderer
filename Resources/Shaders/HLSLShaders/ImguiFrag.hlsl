@@ -15,7 +15,7 @@ struct VSoutput
 };
 
 Texture2D text : register(t0, space0);
-SamplerState samplerColor : register(s0, space1);
+SamplerState samplerColor : register(s0, space0);
 
 float4 main(VSoutput input) : SV_Target
 {

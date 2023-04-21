@@ -460,6 +460,7 @@ namespace BB
 		PipelineConstantData constantData{};
 
 		bool blendLogicOpEnable = false;
+		bool enableDepthTest = false;
 		RENDER_LOGIC_OP blendLogicOp;
 		uint32_t renderTargetBlendCount = 0;
 		PipelineRenderTargetBlend* renderTargetBlends = nullptr;

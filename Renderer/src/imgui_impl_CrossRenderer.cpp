@@ -420,7 +420,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }
 
-    PipelineRenderTargetBlend t_BlendInfo;
+    PipelineRenderTargetBlend t_BlendInfo{};
     t_BlendInfo.blendEnable = true;
     t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
     t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
@@ -443,8 +443,8 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.constantData.dwordSize = 4;
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };
+    ShaderCreateInfo t_ShaderInfos[2]{};
     {
-        ShaderCreateInfo t_ShaderInfos[2]{};
         t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
         Shader::GetShaderCodeBuffer(a_Info.vertexShader, t_ShaderInfos[0].buffer);
 

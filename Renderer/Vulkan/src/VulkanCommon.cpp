@@ -1323,7 +1323,7 @@ ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
 
 PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
-	VKPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, VKPipelineBuildInfo);
+	VKPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, VKPipelineBuildInfo)();
 
 	//We do dynamic rendering to avoid having to handle renderpasses and such.
 	t_BuildInfo->dynamicRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -1341,15 +1341,16 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 			t_BuildInfo->buildAllocator,
 			VkPipelineDepthStencilStateCreateInfo);
 		t_DepthCreateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		t_DepthCreateInfo->depthTestEnable = VK_TRUE;
-		t_DepthCreateInfo->depthWriteEnable = VK_TRUE;
-		t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS;
-		t_DepthCreateInfo->depthBoundsTestEnable = VK_FALSE;
-		t_DepthCreateInfo->minDepthBounds = 0.0f;
-		t_DepthCreateInfo->maxDepthBounds = 1.0f;
-		t_DepthCreateInfo->stencilTestEnable = VK_FALSE;
-		t_DepthCreateInfo->front = {};
-		t_DepthCreateInfo->back = {};
+		if (a_InitInfo.enableDepthTest)
+		{
+			t_DepthCreateInfo->depthTestEnable = VK_TRUE;
+			t_DepthCreateInfo->depthWriteEnable = VK_TRUE;
+			t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS;
+			t_DepthCreateInfo->depthBoundsTestEnable = VK_FALSE;
+			t_DepthCreateInfo->minDepthBounds = 0.0f;
+			t_DepthCreateInfo->maxDepthBounds = 1.0f;
+			t_DepthCreateInfo->stencilTestEnable = VK_FALSE;
+		}
 
 		t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
 		t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
@@ -1523,7 +1524,7 @@ void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handl
 	}
 
 	VkVertexInputBindingDescription t_BindingDesc{};
-	VkVertexInputAttributeDescription t_AttribDescription;
+	VkVertexInputAttributeDescription t_AttribDescription{};
 
 	VkPipelineVertexInputStateCreateInfo* t_VertexInputInfo = BBnew(
 		t_BuildInfo->buildAllocator,
@@ -1605,19 +1606,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_BuildInfo->pipeInfo.pDynamicState = &t_DynamicPipeCreateInfo;
 		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
 		t_BuildInfo->pipeInfo.pMultisampleState = &t_Multisampling;
-
-		//THIS IS TEMP! We want to build these ourselves with the builder.
-		VkPipelineDepthStencilStateCreateInfo t_DepthStencil{};
-		t_DepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		t_DepthStencil.depthTestEnable = VK_TRUE;
-		t_DepthStencil.depthWriteEnable = VK_TRUE;
-		t_DepthStencil.stencilTestEnable = VK_FALSE;
-		t_DepthStencil.depthBoundsTestEnable = VK_FALSE;
-		t_DepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-		t_DepthStencil.minDepthBounds = 0.0; // Optional
-		t_DepthStencil.maxDepthBounds = 1.0f; // Optional
-
-		t_BuildInfo->pipeInfo.pDepthStencilState = &t_DepthStencil;
 
 		//Optimalization for later.
 		t_BuildInfo->pipeInfo.basePipelineHandle = VK_NULL_HANDLE;
