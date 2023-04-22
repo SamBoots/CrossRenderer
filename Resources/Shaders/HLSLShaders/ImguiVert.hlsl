@@ -9,16 +9,16 @@
 struct VSInput
 {
     _BBEXT(0)  float2 inPosition : POSITION0;
-    _BBEXT(1)  float4 inColor : COLOR0;
-    _BBEXT(2)  float2 inUV : UV0;
+    _BBEXT(1)  float2 inUV : TEXCOORD0;
+    _BBEXT(2)  float4 inColor : COLOR0;
 };
 
 struct VSOutput
 {
     //not sure if needed, check directx12 later.
     float4 pos : SV_POSITION;
-    _BBEXT(0)    float4 color : COLOR0;
-    _BBEXT(1)    float2 uv : UV0;
+    _BBEXT(0)  float2 uv : TEXCOORD0;
+    _BBEXT(1)  float4 color : COLOR0;
 };
 
 struct guiinfo

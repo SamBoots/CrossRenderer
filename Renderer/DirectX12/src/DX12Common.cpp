@@ -574,7 +574,7 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
 	constexpr size_t MAXIMUM_ROOT_PARAMETERS = 64;
-	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo);
+	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo)();
 
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE t_FeatureData = {};
 	t_FeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
@@ -789,6 +789,7 @@ void BB::DX12PipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle,
 
 	for (size_t i = 0; i < a_AttributeInfo.attributes.size(); i++)
 	{
+		t_InputDesc[i] = {};
 		t_InputDesc[i].SemanticName = a_AttributeInfo.attributes[i].semanticName;
 		t_InputDesc[i].InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
 		t_InputDesc[i].AlignedByteOffset = a_AttributeInfo.attributes[i].offset;
