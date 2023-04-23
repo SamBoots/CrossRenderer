@@ -13,6 +13,8 @@
 #include <WinUser.h>
 #include <hidusage.h>
 
+#include <mutex>
+
 using namespace BB;
 
 void DefaultClose(WindowHandle a_WindowHandle) {}
@@ -29,14 +31,6 @@ struct InputBuffer
 	uint16_t used = 0;
 };
 
-struct InputInfo
-{
-	struct mouse
-	{
-		float2 oldPos;
-	} mouse;
-};
-
 struct GlobalProgramInfo
 {
 	bool trackingMouse = true;
@@ -44,13 +38,14 @@ struct GlobalProgramInfo
 
 static GlobalProgramInfo s_ProgramInfo{};
 static InputBuffer s_InputBuffer{};
-static InputInfo s_InputInfo{};
-static MouseInfo s_MouseInfo{};
+static std::mutex s_InputMutex{};
+
 static size_t s_OSRingAllocatorSize = 0; //This will be changed to the OS granulary minimum..
 static LocalRingAllocator s_OSRingAllocator{ s_OSRingAllocatorSize };
 
 void PushInput(const InputEvent& a_Input)
 {
+	s_InputMutex.lock();
 	if (s_InputBuffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
 		s_InputBuffer.pos = 0;
 
@@ -61,12 +56,13 @@ void PushInput(const InputEvent& a_Input)
 	{
 		++s_InputBuffer.used;
 	}
-
+	s_InputMutex.unlock();
 }
 
 //Returns false if no input is left.
 void GetAllInput(InputEvent* a_InputBuffer)
 {
+	s_InputMutex.lock();
 	int t_FirstIndex = s_InputBuffer.start;
 	for (size_t i = 0; i < s_InputBuffer.used; i++)
 	{
@@ -78,6 +74,7 @@ void GetAllInput(InputEvent* a_InputBuffer)
 
 	s_InputBuffer.start = s_InputBuffer.pos;
 	s_InputBuffer.used = 0;
+	s_InputMutex.unlock();
 }
 
 void BB::InitProgram()
@@ -90,62 +87,56 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 {
 	HRAWINPUT t_HRawInput = reinterpret_cast<HRAWINPUT>(a_LParam);
 
-	////IMPORTANT! 
-	//This is true when we use WM_KEYDOWN and WM_KEYUP but the keyboard and mouse clicks seem far more responsive now. So we keep it like this.
-	//So if for some reason input is weird. START HERE!
-
-	//if (GET_RAWINPUT_CODE_WPARAM(a_WParam))
-		//return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
-
-
 	//Allocate an input event.
 	InputEvent t_Event{};
 
 	UINT t_Size = sizeof(RAWINPUT);
-	RAWINPUT* t_Input = reinterpret_cast<RAWINPUT*>(BBalloc(s_OSRingAllocator, t_Size));
-	GetRawInputData(t_HRawInput, RID_INPUT, t_Input, &t_Size, sizeof(RAWINPUTHEADER));
+	RAWINPUT t_Input{};
+	GetRawInputData(t_HRawInput, RID_INPUT, &t_Input, &t_Size, sizeof(RAWINPUTHEADER));
 
-	if (t_Input->header.dwType == RIM_TYPEKEYBOARD)
+	if (t_Input.header.dwType == RIM_TYPEKEYBOARD)
 	{
 		t_Event.inputType = INPUT_TYPE::KEYBOARD;
-		uint16_t scanCode = t_Input->data.keyboard.MakeCode;
+		uint16_t scanCode = t_Input.data.keyboard.MakeCode;
 
 		// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
 		//scanCode |= (t_Input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
 		//scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
 
 		t_Event.keyInfo.scancode = s_translate_key[scanCode];
-		t_Event.keyInfo.keyPressed = !(t_Input->data.keyboard.Flags & RI_KEY_BREAK);
+		t_Event.keyInfo.keyPressed = !(t_Input.data.keyboard.Flags & RI_KEY_BREAK);
 		PushInput(t_Event);
 	}
-	else if (t_Input->header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
+	else if (t_Input.header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
 	{
 		t_Event.inputType = INPUT_TYPE::MOUSE;
 		const float2 t_MoveInput{ 
-			static_cast<float>(t_Input->data.mouse.lLastX), 
-			static_cast<float>(t_Input->data.mouse.lLastY) };
-		if (t_Input->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
+			static_cast<float>(t_Input.data.mouse.lLastX), 
+			static_cast<float>(t_Input.data.mouse.lLastY) };
+		if (t_Input.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
-			t_Event.mouseInfo.moveOffset = t_MoveInput - s_InputInfo.mouse.oldPos;
-			s_InputInfo.mouse.oldPos = t_MoveInput;
+			BB_ASSERT(false, "Windows Input, not using MOUSE_MOVE_ABSOLUTE currently.");
+			//t_Event.mouseInfo.moveOffset = t_MoveInput - s_InputInfo.mouse.oldPos;
+			//s_InputInfo.mouse.oldPos = t_MoveInput;
 		}
 		else
 		{
 			t_Event.mouseInfo.moveOffset = t_MoveInput;
 			POINT t_Point;
 			GetCursorPos(&t_Point);
+			ScreenToClient(a_Hwnd, &t_Point);
 			t_Event.mouseInfo.mousePos = { (float)t_Point.x, (float)t_Point.y };
 		}
 
-		t_Event.mouseInfo.left_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
-		t_Event.mouseInfo.left_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
-		t_Event.mouseInfo.right_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
-		t_Event.mouseInfo.right_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
-		t_Event.mouseInfo.middle_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
-		t_Event.mouseInfo.middle_released = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
-		if (t_Input->data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
+		t_Event.mouseInfo.left_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+		t_Event.mouseInfo.left_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
+		t_Event.mouseInfo.right_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
+		t_Event.mouseInfo.right_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
+		t_Event.mouseInfo.middle_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
+		t_Event.mouseInfo.middle_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
+		if (t_Input.data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
 		{
-			const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Input->data.mouse.usButtonData);
+			const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Input.data.mouse.usButtonData);
 			t_Event.mouseInfo.wheelMove = t_MouseMove / WHEEL_DELTA;
 		}
 		PushInput(t_Event);
@@ -180,13 +171,6 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		s_ProgramInfo.trackingMouse = true;
 		break;
 	case WM_INPUT:
-		return wm_input(a_Hwnd, a_WParam, a_LParam);
-		break;
-		//WM_KEYDOWN and WM_KEYUP are often not used with RAWINPUT, but here it seems to increase reponsiveness of the keyboard.
-	case WM_KEYDOWN:
-		return wm_input(a_Hwnd, a_WParam, a_LParam);
-		break;
-	case WM_KEYUP:
 		return wm_input(a_Hwnd, a_WParam, a_LParam);
 		break;
 	}
