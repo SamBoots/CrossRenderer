@@ -569,5 +569,23 @@ void ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
         {
             io.AddMouseWheelEvent(0.0f, (float)a_InputEvent.mouseInfo.wheelMove);
         }
+
+        constexpr int leftButton = 0;
+        constexpr int rightButton = 1;
+        constexpr int middleButton = 2;
+
+        if (t_Mi.left_pressed)
+            io.AddMouseButtonEvent(leftButton, true);
+        if (t_Mi.right_pressed)
+            io.AddMouseButtonEvent(rightButton, true);
+        if (t_Mi.middle_pressed)
+            io.AddMouseButtonEvent(middleButton, true);
+
+        if (t_Mi.left_released)
+            io.AddMouseButtonEvent(leftButton, false);
+        if (t_Mi.right_released)
+            io.AddMouseButtonEvent(rightButton, false);
+        if (t_Mi.middle_released)
+            io.AddMouseButtonEvent(middleButton, false);
     }
 }
