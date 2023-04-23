@@ -132,6 +132,9 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 		else
 		{
 			t_Event.mouseInfo.moveOffset = t_MoveInput;
+			POINT t_Point;
+			GetCursorPos(&t_Point);
+			t_Event.mouseInfo.mousePos = { (float)t_Point.x, (float)t_Point.y };
 		}
 
 		t_Event.mouseInfo.left_pressed = t_Input->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
@@ -155,6 +158,7 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 //Custom callback for the Windows proc.
 LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
 {
+
 	switch (a_Msg)
 	{
 	case WM_QUIT:

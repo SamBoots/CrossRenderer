@@ -8,7 +8,6 @@
 #include "ModelLoader.h"
 #include "LightSystem.h"
 #include "imgui/imgui.h"
-#include "imgui/backends/imgui_impl_win32.h"
 #include "imgui_impl_CrossRenderer.h"
 
 #pragma warning(push, 0)
@@ -543,7 +542,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
-		ImGui_ImplWin32_Init(a_InitInfo.windowHandle.ptrHandle);
 
 		const wchar_t* t_ShaderPath[2]{};
 		t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/ImguiVert.hlsl";
@@ -573,6 +571,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImguiInfo.minImageCount = s_RendererInst.frameBufferAmount;
 		t_ImguiInfo.vertexShader = t_ImguiShaders[0];
 		t_ImguiInfo.fragmentShader = t_ImguiShaders[1];
+
+		t_ImguiInfo.window = a_InitInfo.windowHandle;
 		ImGui_ImplCross_Init(t_ImguiInfo);
 
 		t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
@@ -845,8 +845,6 @@ void BB::Render::StartFrame()
 
 	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
-
-	ImGui_ImplWin32_NewFrame();
 	ImGui_ImplCross_NewFrame();
 	ImGui::NewFrame();
 }

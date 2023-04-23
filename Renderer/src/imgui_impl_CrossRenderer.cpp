@@ -1,9 +1,11 @@
-// dear imgui: Renderer Backend for CrossRenderer
+// dear imgui: Renderer Backend for CrossRenderer, referenced of the imgui backend base for Vulkan.
 
 
 #include "imgui_impl_CrossRenderer.h"
 #include "Backend/ShaderCompiler.h"
 #include "Backend/RenderBackend.h"
+
+#include "Program.h"
 using namespace BB;
 
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
@@ -49,6 +51,19 @@ struct ImGui_ImplCrossRenderer_Data
     }
 };
 
+struct ImGui_ImplBB_Data
+{
+    HWND                        hWnd;
+    HWND                        MouseHwnd;
+    int                         MouseTrackedArea;   // 0: not tracked, 1: client are, 2: non-client area
+    int                         MouseButtonsDown;
+    INT64                       Time;
+    INT64                       TicksPerSecond;
+    ImGuiMouseCursor            LastMouseCursor;
+
+    ImGui_ImplBB_Data() { memset((void*)this, 0, sizeof(*this)); }
+};
+
 // Forward Declarations
 bool ImGui_ImplCross_CreateDeviceObjects();
 void ImGui_ImplCross_DestroyDeviceObjects();
@@ -61,6 +76,11 @@ RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image);
 static ImGui_ImplCrossRenderer_Data* ImGui_ImplCross_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplCrossRenderer_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+}
+
+static ImGui_ImplBB_Data* ImGui_ImplBB_GetPlatformData()
+{
+    return ImGui::GetCurrentContext() ? (ImGui_ImplBB_Data*)ImGui::GetIO().BackendPlatformUserData : nullptr;
 }
 
 //Will likely just create and after that check for resizes.
@@ -227,7 +247,6 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 t_SciInfo.extent.y = (uint32_t)(clip_max.y - clip_min.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 
-                // Bind DescriptorSet with font or user texture
                 RDescriptorHandle t_Set[1] = {(RDescriptorHandle)pcmd->TextureId};
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
@@ -245,13 +264,8 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         global_vtx_offset += cmd_list->VtxBuffer.Size;
     }
 
-    // Note: at this point both vkCmdSetViewport() and vkCmdSetScissor() have been called.
-    // Our last values will leak into user/application rendering IF:
-    // - Your app uses a pipeline with VK_DYNAMIC_STATE_VIEWPORT or VK_DYNAMIC_STATE_SCISSOR dynamic state
-    // - And you forgot to call vkCmdSetViewport() and vkCmdSetScissor() yourself to explicitly set that state.
-    // If you use VK_DYNAMIC_STATE_VIEWPORT or VK_DYNAMIC_STATE_SCISSOR you are responsible for setting the values before rendering.
-    // In theory we should aim to backup/restore those values but I am not sure this is possible.
-    // We perform a call to vkCmdSetScissor() to set back a full viewport which is likely to fix things for 99% users but technically this is not perfect. (See github #4644)
+    // Since we dynamically set our scissor lets set it back to the full viewport. 
+    // This might be bad to do since this can leak into different system's code. 
     ScissorInfo t_SciInfo{};
     t_SciInfo.offset = { 0, 0 };
     t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
@@ -344,51 +358,28 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
     return true;
 }
 
-//rendering format is BB extension for dynamic_rendering
-bool ImGui_ImplCross_CreateDeviceObjects()
-{
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    ////lets experiment with the default sampler state.
-    //{
-    //    // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
-    //    VkSamplerCreateInfo info = {};
-    //    info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    //    info.magFilter = VK_FILTER_LINEAR;
-    //    info.minFilter = VK_FILTER_LINEAR;
-    //    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    //    info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    //    info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    //    info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    //    info.minLod = -1000;
-    //    info.maxLod = 1000;
-    //    info.maxAnisotropy = 1.0f;
-    //    err = vkCreateSampler(v->Device, &info, v->Allocator, &bd->FontSampler);
-    //    check_vk_result(err);
-    //}
-
-    //if (!bd->DescriptorSetLayout)
-    //{
-    //    VkDescriptorSetLayoutBinding binding[1] = {};
-    //    binding[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //    binding[0].descriptorCount = 1;
-    //    binding[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    //    VkDescriptorSetLayoutCreateInfo info = {};
-    //    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    //    info.bindingCount = 1;
-    //    info.pBindings = binding;
-    //    err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->DescriptorSetLayout);
-    //    check_vk_result(err);
-    //}
-
-    return true;
-}
-
 bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
+    { // WIN implementation
+        // Setup backend capabilities flags
+        ImGui_ImplBB_Data* bdWin = IM_NEW(ImGui_ImplBB_Data)();
+        io.BackendPlatformUserData = (void*)bdWin;
+        io.BackendPlatformName = "imgui_impl_BB";
+        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
+        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
+
+        bdWin->hWnd = (HWND)a_Info.window.handle;
+        //bd->TicksPerSecond = perf_frequency;
+        //bd->Time = perf_counter;
+        bdWin->LastMouseCursor = ImGuiMouseCursor_COUNT;
+
+        // Set platform dependent data in viewport
+        ImGui::GetMainViewport()->PlatformHandleRaw = a_Info.window.ptrHandle;
+
+    }
     // Setup backend capabilities flags
     ImGui_ImplCrossRenderer_Data* bd = IM_NEW(ImGui_ImplCrossRenderer_Data)();
     io.BackendRendererUserData = (void*)bd;
@@ -476,9 +467,6 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_Builder.BindDescriptor(bd->fontDescriptor);
     bd->Pipeline = t_Builder.BuildPipeline();
 
-    //not used here, but used as reference in case anything breaks.
-    //ImGui_ImplCross_CreateDeviceObjects();
-
     return true;
 }
 
@@ -490,15 +478,25 @@ void ImGui_ImplCross_Shutdown()
 
     //delete my things here.
 
-    io.BackendRendererName = nullptr;
-    io.BackendRendererUserData = nullptr;
+    ImGui_ImplBB_Data* pd = ImGui_ImplBB_GetPlatformData();
+    IM_ASSERT(pd != nullptr && "No platform backend to shutdown, or already shutdown?");
+
+    io.BackendPlatformName = nullptr;
+    io.BackendPlatformUserData = nullptr;
     IM_DELETE(bd);
+    IM_DELETE(pd);
 }
 
 void ImGui_ImplCross_NewFrame()
 {
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+    ImGui_ImplBB_Data* bd = ImGui_ImplBB_GetPlatformData();
     IM_ASSERT(bd != nullptr && "Did you call ImGui_ImplCross_Init()?");
+    ImGuiIO& io = ImGui::GetIO();
+
+    int x, y;
+    GetWindowSize(bd->hWnd, x, y);
+    io.DisplaySize = ImVec2((float)(x), (float)(y));
+
     IM_UNUSED(bd);
 }
 
@@ -555,4 +553,21 @@ void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     RenderBackend::DestroyDescriptor(a_Set);
+}
+
+
+//BB FRAMEWORK TEMPLATE, MAY CHANGE THIS.
+
+void ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if (a_InputEvent.inputType == INPUT_TYPE::MOUSE)
+    {
+        const BB::MouseInfo& t_Mi = a_InputEvent.mouseInfo;
+        io.AddMousePosEvent(t_Mi.mousePos.x, t_Mi.mousePos.y);
+        if (a_InputEvent.mouseInfo.wheelMove != 0)
+        {
+            io.AddMouseWheelEvent(0.0f, (float)a_InputEvent.mouseInfo.wheelMove);
+        }
+    }
 }

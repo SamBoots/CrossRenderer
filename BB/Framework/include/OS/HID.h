@@ -72,6 +72,7 @@ namespace BB
 	struct MouseInfo
 	{
 		float2 moveOffset;
+		float2 mousePos;
 		//Might add more here.
 		int16_t wheelMove;
 		bool left_pressed;

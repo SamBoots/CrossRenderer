@@ -3,6 +3,7 @@
 #include "OS/HID.h"
 #include "Frontend/LightSystem.h"
 #include "Frontend/Camera.h"
+#include "imgui_impl_CrossRenderer.h"
 
 #include <chrono>
 
@@ -134,7 +135,8 @@ int main(int argc, char** argv)
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
-			InputEvent& t_Event = t_InputEvents[i];
+			const InputEvent& t_Event = t_InputEvents[i];
+			ImGui_ImplCross_ProcessInput(t_Event);
 			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
 				glm::vec3 t_CamMove{};
@@ -170,7 +172,7 @@ int main(int argc, char** argv)
 			}
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
-				MouseInfo& t_Mouse = t_Event.mouseInfo;
+				const MouseInfo& t_Mouse = t_Event.mouseInfo;
 				t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
 
 				if (t_Mouse.right_released)
