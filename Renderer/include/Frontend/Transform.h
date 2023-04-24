@@ -37,7 +37,7 @@ namespace BB
 
 		const TRANSFORM_STATE GetState() const { return m_State; };
 		glm::mat4 CreateModelMatrix();
-	private:
+
 		//44 bytes class
 		glm::vec3 m_Pos; //12
 		glm::quat m_Rot; //28

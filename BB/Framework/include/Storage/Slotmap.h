@@ -76,6 +76,7 @@ namespace BB
 
 		uint32_t size() const { return m_Size; }
 		uint32_t capacity() const { return m_Capacity; }
+		T* data() const { return m_ObjArr; }
 
 	private:
 		void CheckGen(const SlotmapHandle a_Handle) const;

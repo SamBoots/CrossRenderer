@@ -7,7 +7,6 @@
 #include "OS/Program.h"
 #include "ModelLoader.h"
 #include "LightSystem.h"
-#include "imgui/imgui.h"
 #include "imgui_impl_CrossRenderer.h"
 
 #pragma warning(push, 0)
@@ -92,8 +91,6 @@ static void Draw3DFrame()
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
 	s_GlobalInfo.perFrameInfo->staticLightCount = s_GlobalInfo.staticLights->GetLightCount();
 
-	bool show_demo_window = true;
-	ImGui::ShowDemoWindow(&show_demo_window);
 	ImGui::Render();
 
 	//Copy the perframe buffer over.
@@ -825,6 +822,11 @@ DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, const 
 {
 	DrawObject t_DrawObject{ a_Model, a_TransformHandle };
 	return DrawObjectHandle(s_RendererInst.drawObjects.emplace(t_DrawObject).handle);
+}
+
+BB::Slice<DrawObject> BB::Render::GetDrawObjects()
+{
+	return BB::Slice(s_RendererInst.drawObjects.data(), s_RendererInst.drawObjects.size());
 }
 
 void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)

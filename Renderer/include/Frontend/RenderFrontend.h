@@ -5,6 +5,7 @@
 namespace BB
 {
 	struct Light;
+	struct DrawObject;
 
 	namespace Render
 	{
@@ -19,7 +20,9 @@ namespace BB
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 		RModelHandle LoadModel(const LoadModelInfo& a_LoadInfo);
 		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
+		BB::Slice<DrawObject> GetDrawObjects();
 		void DestroyDrawObject(const DrawObjectHandle a_Handle);
+		
 
 		void StartFrame();
 		void EndFrame();

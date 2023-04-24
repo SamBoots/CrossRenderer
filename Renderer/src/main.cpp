@@ -4,6 +4,7 @@
 #include "Frontend/LightSystem.h"
 #include "Frontend/Camera.h"
 #include "imgui_impl_CrossRenderer.h"
+#include "Editor.h"
 
 #include <chrono>
 
@@ -69,10 +70,10 @@ int main(int argc, char** argv)
 	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
 	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
 
-	TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f);
+	const TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f);
 	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
 
-	TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
+	const TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
 
 	glm::mat4 t_Proj = glm::perspective(glm::radians(60.0f),
@@ -89,8 +90,7 @@ int main(int argc, char** argv)
 	t_Vertex[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
 
 	const uint32_t t_Indices[] = {
-	0, 1, 2, 2, 3, 0
-	};
+	0, 1, 2, 2, 3, 0};
 
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
@@ -133,6 +133,8 @@ int main(int argc, char** argv)
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
+		Editor::DisplayDrawObjects(Render::GetDrawObjects(), t_TransformPool);
+
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
 			const InputEvent& t_Event = t_InputEvents[i];
@@ -140,35 +142,36 @@ int main(int argc, char** argv)
 			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
 				glm::vec3 t_CamMove{};
-				switch (t_Event.keyInfo.scancode)
-				{
-				case KEYBOARD_KEY::_W:
-					t_CamMove.y = 1;
-					t_Cam.Move(t_CamMove);
-					break;
-				case KEYBOARD_KEY::_S:
-					t_CamMove.y = -1;
-					t_Cam.Move(t_CamMove);
-					break;
-				case KEYBOARD_KEY::_A:
-					t_CamMove.x = 1;
-					t_Cam.Move(t_CamMove);
-					break;
-				case KEYBOARD_KEY::_D:
-					t_CamMove.x = -1;
-					t_Cam.Move(t_CamMove);
-					break;
-				case KEYBOARD_KEY::_X:
-					t_CamMove.z = 1;
-					t_Cam.Move(t_CamMove);
-					break;
-				case KEYBOARD_KEY::_Z:
-					t_CamMove.z = -1;
-					t_Cam.Move(t_CamMove);
-					break;
-				default:
-					break;
-				}
+				if (t_Event.keyInfo.keyPressed)
+					switch (t_Event.keyInfo.scancode)
+					{
+					case KEYBOARD_KEY::_W:
+						t_CamMove.y = 1;
+						t_Cam.Move(t_CamMove);
+						break;
+					case KEYBOARD_KEY::_S:
+						t_CamMove.y = -1;
+						t_Cam.Move(t_CamMove);
+						break;
+					case KEYBOARD_KEY::_A:
+						t_CamMove.x = 1;
+						t_Cam.Move(t_CamMove);
+						break;
+					case KEYBOARD_KEY::_D:
+						t_CamMove.x = -1;
+						t_Cam.Move(t_CamMove);
+						break;
+					case KEYBOARD_KEY::_X:
+						t_CamMove.z = 1;
+						t_Cam.Move(t_CamMove);
+						break;
+					case KEYBOARD_KEY::_Z:
+						t_CamMove.z = -1;
+						t_Cam.Move(t_CamMove);
+						break;
+					default:
+						break;
+					}
 			}
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{

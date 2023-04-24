@@ -101,7 +101,7 @@ void TransformPool::UpdateTransforms()
 {
 	for (size_t i = 0; i < m_Pool.size(); i++)
 	{
-		if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
+		//if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			ModelBufferInfo t_Pack{};
 			t_Pack.model = m_Pool[i].CreateModelMatrix();
