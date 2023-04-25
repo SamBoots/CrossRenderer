@@ -4,6 +4,8 @@
 
 namespace BB
 {
+	using LightHandle = FrameworkHandle<struct OSFileHandleTag>;
+
 	struct Light
 	{
 		float3 pos;
@@ -14,10 +16,13 @@ namespace BB
 	class LightPool
 	{
 	public:
-		LightPool(LinearRenderBuffer& a_GPUBuffer, const uint32_t a_LightCount);
+		LightPool(Allocator a_SystemAllocator, LinearRenderBuffer& a_GPUBuffer, const uint32_t a_LightCount);
 		~LightPool();
 
-		void SubmitLights(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<Light> a_Lights);
+		const LightHandle AddLight(Light& a_Light);
+		const LightHandle AddLights(const BB::Slice<Light> a_Lights);
+		//If the slice is null then it uploads the entire CPU buffer to the GPU.
+		void SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<LightHandle> a_LightHandles = BB::Slice<LightHandle>()) const;
 		void ResetLights();
 
 		const uint32_t GetLightCount() const { return m_LightCount; }
@@ -25,6 +30,7 @@ namespace BB
 		const RenderBufferPart GetBufferAllocInfo() const { return m_BufferPart; }
 
 	private:
+		Light* m_LightsCPU;
 		RenderBufferPart m_BufferPart;
 		uint32_t m_LightCount;
 		const uint32_t m_LightMax;
