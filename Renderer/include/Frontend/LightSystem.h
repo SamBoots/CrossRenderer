@@ -4,8 +4,6 @@
 
 namespace BB
 {
-	using LightHandle = FrameworkHandle<struct OSFileHandleTag>;
-
 	struct Light
 	{
 		float3 pos;

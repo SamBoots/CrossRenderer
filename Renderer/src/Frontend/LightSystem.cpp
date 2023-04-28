@@ -49,9 +49,14 @@ const LightHandle BB::LightPool::AddLights(const BB::Slice<Light> a_Lights)
 void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<LightHandle> a_LightHandles) const
 {
 	BB_ASSERT(m_LightCount > 0, "Light pool is empty!");
-	uint32_t t_FirstIndex = a_LightHandles[0].index;
+	uint32_t t_FirstIndex = 0;
 	uint32_t t_LastIndex = 0;
 
+	//If we supply no light handles we just upload it all.
+	if (a_LightHandles.size() == 0)
+		t_LastIndex = m_LightCount;
+	else
+		t_FirstIndex = a_LightHandles[0].index;
 
 	for (size_t i = 0; i < a_LightHandles.size(); i++)
 	{
@@ -65,9 +70,7 @@ void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_Recordi
 			t_FirstIndex = a_LightHandles[i].extraIndex;
 	}
 
-	//If we supply no light handles we just upload it all.
-	if (a_LightHandles.size() == 0)
-		t_LastIndex = m_LightCount;
+
 
 	const uint32_t t_LightAmount = t_LastIndex - t_FirstIndex;
 

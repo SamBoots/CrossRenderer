@@ -126,7 +126,7 @@ int main(int argc, char** argv)
 	t_StandardLight.pos = { 0.f, 0.f, 0.f };
 	t_StandardLight.radius = 10.f;
 
-	Render::SubmitLight({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
+	Render::AddLights({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
 
 	while (!t_Quit)
 	{
@@ -138,7 +138,9 @@ int main(int argc, char** argv)
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
 			const InputEvent& t_Event = t_InputEvents[i];
-			ImGui_ImplCross_ProcessInput(t_Event);
+			//if imgui wants to take the input then do not send it to the engine.
+			if (ImGui_ImplCross_ProcessInput(t_Event))
+				continue;
 			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
 				glm::vec3 t_CamMove{};

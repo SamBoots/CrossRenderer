@@ -22,4 +22,4 @@ IMGUI_IMPL_API bool ImGui_ImplCross_CreateFontsTexture(const BB::RecordingComman
 IMGUI_IMPL_API void ImGui_ImplCross_DestroyFontUploadObjects();
 IMGUI_IMPL_API void ImGui_ImplCross_SetMinImageCount(const uint32_t min_image_count); // To override MinImageCount after initialization (e.g. if swap chain is recreated)
 
-IMGUI_IMPL_API void ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent);
+IMGUI_IMPL_API bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent);

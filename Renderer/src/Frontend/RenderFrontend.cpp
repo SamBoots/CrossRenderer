@@ -235,7 +235,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BufferCreateInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
 	s_GlobalInfo.lightBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_BufferCreateInfo);
 
-	s_GlobalInfo.staticLights = BBnew(m_SystemAllocator, LightPool)(*s_GlobalInfo.lightBuffer, LIGHT_COUNT_MAX);
+	s_GlobalInfo.staticLights = BBnew(m_SystemAllocator, LightPool)(m_SystemAllocator, *s_GlobalInfo.lightBuffer, LIGHT_COUNT_MAX);
 #pragma endregion //LightSystem
 
 #pragma region PipelineCreation
@@ -886,16 +886,18 @@ void BB::Render::EndFrame()
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 }
 
-void BB::Render::SubmitLight(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
+LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
 {
+	LightHandle t_Handle{};
 	switch (a_LightType)
 	{
 	case LIGHT_TYPE::POINT:
-		s_GlobalInfo.staticLights->SubmitLights(t_RecordingTransfer,
-			*t_UploadBuffer,
-			a_Lights);
+		t_Handle = s_GlobalInfo.staticLights->AddLights(a_Lights);
+		s_GlobalInfo.staticLights->SubmitLightsToGPU(t_RecordingTransfer, *t_UploadBuffer, BB::Slice(&t_Handle, 1));
 		break;
 	}
+
+	return t_Handle;
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)

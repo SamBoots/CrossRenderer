@@ -558,7 +558,8 @@ void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
 
 //BB FRAMEWORK TEMPLATE, MAY CHANGE THIS.
 
-void ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
+//On true means that imgui takes the input and doesn't give it to the engine.
+bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
 {
     ImGuiIO& io = ImGui::GetIO();
     if (a_InputEvent.inputType == INPUT_TYPE::MOUSE)
@@ -587,5 +588,9 @@ void ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
             io.AddMouseButtonEvent(rightButton, false);
         if (t_Mi.middle_released)
             io.AddMouseButtonEvent(middleButton, false);
+
+        return io.WantCaptureMouse;
     }
+
+    return false;
 }
