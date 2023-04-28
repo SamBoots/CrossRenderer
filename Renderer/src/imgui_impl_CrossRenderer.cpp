@@ -67,7 +67,7 @@ struct ImGui_ImplBB_Data
 // Forward Declarations
 bool ImGui_ImplCross_CreateDeviceObjects();
 void ImGui_ImplCross_DestroyDeviceObjects();
-RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image);
+void ImGui_ImplCross_AddTexture(const RImageHandle a_Image);
 
 //-----------------------------------------------------------------------------
 // FUNCTIONS
@@ -296,8 +296,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
         bd->fontImage = RenderBackend::CreateImage(t_Info);
     }
 
-    // Create the Descriptor Set:
-    bd->fontDescriptor = (RDescriptorHandle)ImGui_ImplCross_AddTexture(bd->fontImage);
+    ImGui_ImplCross_AddTexture(bd->fontImage);
 
     // Upload to buffer then copy to Image:
     {
@@ -514,31 +513,16 @@ void ImGui_ImplCross_SetMinImageCount(uint32_t min_image_count)
 
 // Register a texture
 // TODO: Make this a bindless descriptor and handle the free slots with a freelist.
-RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
+void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    // Create Descriptor Set: //MOVED TO CREATE OBJECTS!
-    RDescriptorHandle t_Set;
-    {
-        DescriptorBinding t_Binding{};
-        t_Binding.binding = 0;
-        t_Binding.descriptorCount = 1;
-        t_Binding.stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_Binding.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
-
-        RenderDescriptorCreateInfo t_Info{};
-        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
-        t_Info.bindings = BB::Slice(&t_Binding, 1);
-        t_Set = RenderBackend::CreateDescriptor(t_Info);
-    }
 
     // Update the Descriptor Set:
     {
         UpdateDescriptorImageInfo t_ImageUpdate{};
         t_ImageUpdate.binding = 0;
         t_ImageUpdate.descriptorIndex = 0;
-        t_ImageUpdate.set = t_Set;
+        t_ImageUpdate.set = bd->fontDescriptor;
         t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
 
         t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
@@ -546,7 +530,6 @@ RDescriptorHandle ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 
         RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
     }
-    return t_Set;
 }
 
 void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)

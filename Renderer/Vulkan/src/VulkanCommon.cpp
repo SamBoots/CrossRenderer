@@ -877,8 +877,6 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 		for (size_t i = 0; i < a_Info.bindings.size(); i++)
 		{
-			t_DescriptorCount += a_Info.bindings[i].descriptorCount;
-
 			t_LayoutBinds[i].binding = a_Info.bindings[i].binding;
 			t_LayoutBinds[i].descriptorCount = a_Info.bindings[i].descriptorCount;
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bindings[i].type);
@@ -891,6 +889,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 				t_BindlessFlags[i] = 0;
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
+				t_DescriptorCount += a_Info.bindings[i].descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
