@@ -7,8 +7,9 @@ namespace BB
 
 	//These will be translated, the are already close to their real counterpart.
 	//Translation table: https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/translate.pdf
-	enum class KEYBOARD_KEY : uint16_t
+	enum class KEYBOARD_KEY : uint32_t
 	{
+		NO_KEY = 0x00,
 		_ESCAPE = 0x01,
 		_1 = 0x02,
 		_2 = 0x03,
@@ -83,10 +84,11 @@ namespace BB
 		bool middle_released;
 	};
 
+	//7 byte struct (assuming bool is 1 byte.)
 	struct KeyInfo
 	{
 		KEYBOARD_KEY scancode;
-
+		wchar utf16; //NOT IN USE;
 		bool keyPressed;
 	};
 

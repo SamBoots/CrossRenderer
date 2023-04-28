@@ -10,8 +10,12 @@ using namespace BB;
 void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool)
 {
 	ImGui::Begin("Draw Objects");
+
+	static char txtBuff[64];
+	ImGui::InputText("Test text", txtBuff, _countof(txtBuff));
 	for (size_t i = 0; i < a_DrawObjects.size(); i++)
 	{
+
 		Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
 		
 		ImGui::PushID(i);

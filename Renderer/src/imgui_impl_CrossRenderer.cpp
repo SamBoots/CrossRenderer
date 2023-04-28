@@ -557,6 +557,71 @@ void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
 
 
 //BB FRAMEWORK TEMPLATE, MAY CHANGE THIS.
+static ImGuiKey ImGui_ImplBB_KEYBOARD_KEYToImGuiKey(const KEYBOARD_KEY a_Key)
+{
+    switch (a_Key)
+    {
+    case KEYBOARD_KEY::_TAB: return ImGuiKey_Tab;
+    case KEYBOARD_KEY::_BACKSPACE: return ImGuiKey_Backspace;
+    case KEYBOARD_KEY::_SPACEBAR: return ImGuiKey_Space;
+    case KEYBOARD_KEY::_RETURN: return ImGuiKey_Enter;
+    case KEYBOARD_KEY::_ESCAPE: return ImGuiKey_Escape;
+    case KEYBOARD_KEY::_APOSTROPHE: return ImGuiKey_Apostrophe;
+    case KEYBOARD_KEY::_COMMA: return ImGuiKey_Comma;
+    case KEYBOARD_KEY::_MINUS: return ImGuiKey_Minus;
+    case KEYBOARD_KEY::_PERIOD: return ImGuiKey_Period;
+    case KEYBOARD_KEY::_SLASH: return ImGuiKey_Slash;
+    case KEYBOARD_KEY::_SEMICOLON: return ImGuiKey_Semicolon;
+    case KEYBOARD_KEY::_EQUALS: return ImGuiKey_Equal;
+    case KEYBOARD_KEY::_BRACKETLEFT: return ImGuiKey_LeftBracket;
+    case KEYBOARD_KEY::_BACKSLASH: return ImGuiKey_Backslash;
+    case KEYBOARD_KEY::_BRACKETRIGHT: return ImGuiKey_RightBracket;
+    case KEYBOARD_KEY::_GRAVE: return ImGuiKey_GraveAccent;
+    case KEYBOARD_KEY::_CAPSLOCK: return ImGuiKey_CapsLock;
+    case KEYBOARD_KEY::_NUMPAD_MULTIPLY: return ImGuiKey_KeypadMultiply;
+    case KEYBOARD_KEY::_SHIFTLEFT: return ImGuiKey_LeftShift;
+    case KEYBOARD_KEY::_CONTROLLEFT: return ImGuiKey_LeftCtrl;
+    case KEYBOARD_KEY::_ALTLEFT: return ImGuiKey_LeftAlt;
+    case KEYBOARD_KEY::_SHIFTRIGHT: return ImGuiKey_RightShift;
+    case KEYBOARD_KEY::_0: return ImGuiKey_0;
+    case KEYBOARD_KEY::_1: return ImGuiKey_1;
+    case KEYBOARD_KEY::_2: return ImGuiKey_2;
+    case KEYBOARD_KEY::_3: return ImGuiKey_3;
+    case KEYBOARD_KEY::_4: return ImGuiKey_4;
+    case KEYBOARD_KEY::_5: return ImGuiKey_5;
+    case KEYBOARD_KEY::_6: return ImGuiKey_6;
+    case KEYBOARD_KEY::_7: return ImGuiKey_7;
+    case KEYBOARD_KEY::_8: return ImGuiKey_8;
+    case KEYBOARD_KEY::_9: return ImGuiKey_9;
+    case KEYBOARD_KEY::_A: return ImGuiKey_A;
+    case KEYBOARD_KEY::_B: return ImGuiKey_B;
+    case KEYBOARD_KEY::_C: return ImGuiKey_C;
+    case KEYBOARD_KEY::_D: return ImGuiKey_D;
+    case KEYBOARD_KEY::_E: return ImGuiKey_E;
+    case KEYBOARD_KEY::_F: return ImGuiKey_F;
+    case KEYBOARD_KEY::_G: return ImGuiKey_G;
+    case KEYBOARD_KEY::_H: return ImGuiKey_H;
+    case KEYBOARD_KEY::_I: return ImGuiKey_I;
+    case KEYBOARD_KEY::_J: return ImGuiKey_J;
+    case KEYBOARD_KEY::_K: return ImGuiKey_K;
+    case KEYBOARD_KEY::_L: return ImGuiKey_L;
+    case KEYBOARD_KEY::_M: return ImGuiKey_M;
+    case KEYBOARD_KEY::_N: return ImGuiKey_N;
+    case KEYBOARD_KEY::_O: return ImGuiKey_O;
+    case KEYBOARD_KEY::_P: return ImGuiKey_P;
+    case KEYBOARD_KEY::_Q: return ImGuiKey_Q;
+    case KEYBOARD_KEY::_R: return ImGuiKey_R;
+    case KEYBOARD_KEY::_S: return ImGuiKey_S;
+    case KEYBOARD_KEY::_T: return ImGuiKey_T;
+    case KEYBOARD_KEY::_U: return ImGuiKey_U;
+    case KEYBOARD_KEY::_V: return ImGuiKey_V;
+    case KEYBOARD_KEY::_W: return ImGuiKey_W;
+    case KEYBOARD_KEY::_X: return ImGuiKey_X;
+    case KEYBOARD_KEY::_Y: return ImGuiKey_Y;
+    case KEYBOARD_KEY::_Z: return ImGuiKey_Z;
+    default: return ImGuiKey_None;
+    }
+}
 
 //On true means that imgui takes the input and doesn't give it to the engine.
 bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
@@ -590,6 +655,20 @@ bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_InputEvent)
             io.AddMouseButtonEvent(middleButton, false);
 
         return io.WantCaptureMouse;
+    }
+    else if (a_InputEvent.inputType == INPUT_TYPE::KEYBOARD)
+    {
+        const BB::KeyInfo& t_Ki = a_InputEvent.keyInfo;
+        const ImGuiKey t_ImguiKey = ImGui_ImplBB_KEYBOARD_KEYToImGuiKey(t_Ki.scancode);
+
+        io.AddKeyEvent(t_ImguiKey, t_Ki.keyPressed);
+        //THIS IS WRONG! It gives no UTF16 character.
+        //But i'll keep it in here to test if imgui input actually works.
+        io.AddInputCharacterUTF16((ImWchar16)t_Ki.scancode);
+        //We want unused warnings.
+        //IM_UNUSED(t_ImguiKey);
+
+        return io.WantCaptureKeyboard;
     }
 
     return false;
