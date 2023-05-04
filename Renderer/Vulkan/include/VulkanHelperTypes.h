@@ -18,7 +18,7 @@ namespace BB
 
 	namespace VKConv
 	{
-		inline VkShaderStageFlags ShaderVisibility(const RENDER_SHADER_STAGE a_Stage)
+		static inline VkShaderStageFlags ShaderVisibility(const RENDER_SHADER_STAGE a_Stage)
 		{
 			switch (a_Stage)
 			{
@@ -32,7 +32,7 @@ namespace BB
 			}
 		}
 
-		inline VkBufferUsageFlags RenderBufferUsage(const RENDER_BUFFER_USAGE a_Usage)
+		static inline VkBufferUsageFlags RenderBufferUsage(const RENDER_BUFFER_USAGE a_Usage)
 		{
 			switch (a_Usage)
 			{
@@ -48,7 +48,7 @@ namespace BB
 			}
 		}
 
-		inline VkDescriptorType DescriptorBufferType(const RENDER_DESCRIPTOR_TYPE a_Type)
+		static inline VkDescriptorType DescriptorBufferType(const RENDER_DESCRIPTOR_TYPE a_Type)
 		{
 			switch (a_Type)
 			{
@@ -57,7 +57,8 @@ namespace BB
 			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-			case BB::RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:	return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:						return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			case BB::RENDER_DESCRIPTOR_TYPE::SAMPLER:					return VK_DESCRIPTOR_TYPE_SAMPLER;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -65,7 +66,7 @@ namespace BB
 			}
 		}
 
-		inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
+		static inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
 		{
 			switch (a_Stage)
 			{
@@ -79,7 +80,7 @@ namespace BB
 			}
 		}
 
-		inline VkAttachmentLoadOp LoadOP(const RENDER_LOAD_OP a_LoadOp)
+		static inline VkAttachmentLoadOp LoadOP(const RENDER_LOAD_OP a_LoadOp)
 		{
 			switch (a_LoadOp)
 			{
@@ -93,7 +94,7 @@ namespace BB
 			}
 		}
 
-		inline VkAttachmentStoreOp StoreOp(const RENDER_STORE_OP a_StoreOp)
+		static inline VkAttachmentStoreOp StoreOp(const RENDER_STORE_OP a_StoreOp)
 		{
 			switch (a_StoreOp)
 			{
@@ -106,7 +107,7 @@ namespace BB
 			}
 		}
 
-		inline VkLogicOp LogicOp(const RENDER_LOGIC_OP a_LogicOp)
+		static  VkLogicOp LogicOp(const RENDER_LOGIC_OP a_LogicOp)
 		{
 			switch (a_LogicOp)
 			{
@@ -119,7 +120,7 @@ namespace BB
 			}
 		}
 
-		inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+		static inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 		{
 			switch (a_ImageLayout)
 			{
@@ -138,7 +139,7 @@ namespace BB
 			}
 		}
 
-		inline VkPipelineStageFlags PipelineStage(const RENDER_PIPELINE_STAGE a_Stage)
+		static inline VkPipelineStageFlags PipelineStage(const RENDER_PIPELINE_STAGE a_Stage)
 		{
 			switch (a_Stage)
 			{
@@ -156,7 +157,7 @@ namespace BB
 			}
 		}
 
-		inline VkAccessFlags AccessMask(const RENDER_ACCESS_MASK a_Type)
+		static inline VkAccessFlags AccessMask(const RENDER_ACCESS_MASK a_Type)
 		{
 			switch (a_Type)
 			{
@@ -171,7 +172,7 @@ namespace BB
 			}
 		}
 
-		inline VkBlendFactor BlendFactors(const RENDER_BLEND_FACTOR a_Factor)
+		static inline VkBlendFactor BlendFactors(const RENDER_BLEND_FACTOR a_Factor)
 		{
 			switch (a_Factor)
 			{
@@ -186,7 +187,7 @@ namespace BB
 			}
 		}
 
-		inline VkBlendOp BlendOp(const RENDER_BLEND_OP a_BlendOp)
+		static inline VkBlendOp BlendOp(const RENDER_BLEND_OP a_BlendOp)
 		{
 			switch (a_BlendOp)
 			{
@@ -199,7 +200,7 @@ namespace BB
 			}
 		}
 
-		inline VkCullModeFlags CullMode(const RENDER_CULL_MODE a_BlendOp)
+		static inline VkCullModeFlags CullMode(const RENDER_CULL_MODE a_BlendOp)
 		{
 			switch (a_BlendOp)
 			{
@@ -210,6 +211,18 @@ namespace BB
 				BB_ASSERT(false, "Vulkan: RENDER_CULL_MODE failed to convert to a VkCullModeFlags.");
 				return VK_CULL_MODE_NONE;
 				break;
+			}
+		}
+
+		static inline VkSamplerAddressMode AddressMode(const SAMPLER_ADDRESS_MODE a_Mode)
+		{
+			switch (a_Mode)
+			{
+			case SAMPLER_ADDRESS_MODE::REPEAT:		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+			case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+			case SAMPLER_ADDRESS_MODE::BORDER:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+			case SAMPLER_ADDRESS_MODE::CLAMP:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+			default: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 			}
 		}
 

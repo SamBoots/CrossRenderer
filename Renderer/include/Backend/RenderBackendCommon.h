@@ -30,6 +30,7 @@ namespace BB
 	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
 	using RImageHandle = FrameworkHandle<struct RImageHandleTag>;
+	using RSamplerHandle = FrameworkHandle<struct RSamplerHandleTag>;
 	using RShaderHandle = FrameworkHandle<struct RShaderHandleTag>;
 
 	using ShaderCodeHandle = FrameworkHandle<struct ShaderCodeHandleTag>;
@@ -58,7 +59,8 @@ namespace BB
 		READONLY_CONSTANT_DYNAMIC, //Root CBV or dynamic constant buffer
 		READONLY_BUFFER_DYNAMIC, //Root SRV or dynamic storage buffer
 		READWRITE_DYNAMIC, //Root UAV or readwrite dynamic storage buffer(?)
-		COMBINED_IMAGE_SAMPLER
+		IMAGE,
+		SAMPLER
 	};
 
 	enum class RENDER_DESCRIPTOR_SET : uint32_t
@@ -217,6 +219,20 @@ namespace BB
 		BACK
 	};
 
+	enum class SAMPLER_ADDRESS_MODE
+	{
+		REPEAT,
+		MIRROR,
+		BORDER,
+		CLAMP
+	};
+
+	enum class SAMPLER_FILTER
+	{
+		NEAREST,
+		LINEAR
+	};
+
 	struct UpdateDescriptorImageInfo
 	{
 		RDescriptorHandle set;
@@ -315,6 +331,19 @@ namespace BB
 		RENDER_IMAGE_TYPE type;
 		RENDER_IMAGE_FORMAT format;
 		RENDER_IMAGE_TILING tiling;
+	};
+
+	struct SamplerCreateInfo
+	{
+		SAMPLER_ADDRESS_MODE addressModeU{};
+		SAMPLER_ADDRESS_MODE addressModeV{};
+		SAMPLER_ADDRESS_MODE addressModeW{};
+
+		SAMPLER_FILTER filter{};
+		float maxAnistoropy = 0;
+
+		float minLod = 0;
+		float maxLod = 0;
 	};
 
 	struct RenderTransitionImageInfo

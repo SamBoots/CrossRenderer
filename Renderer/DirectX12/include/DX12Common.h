@@ -16,6 +16,7 @@ namespace BB
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RImageHandle DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo);
+	RSamplerHandle DX12CreateSampler(const SamplerCreateInfo& a_Info);
 	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_Info);
 
 	void DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);

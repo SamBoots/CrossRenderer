@@ -10,6 +10,7 @@ namespace BB
 	CommandListHandle VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
 	RImageHandle VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo);
+	RSamplerHandle VulkanCreateSampler(const SamplerCreateInfo& a_Info);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
 	void VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
@@ -61,6 +62,7 @@ namespace BB
 	void VulkanWaitDeviceReady();
 
 	void VulkanDestroyFence(const RFenceHandle a_Handle);
+	void VulkanDestroySampler(const RSamplerHandle a_Handle);
 	void VulkanDestroyImage(const RImageHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
 	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);

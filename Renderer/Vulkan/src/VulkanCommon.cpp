@@ -863,7 +863,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 	*t_BindingSet = {}; //set to 0
 
 	uint32_t t_DescriptorCount = 0;
-
+	
 	{
 		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
 			s_VulkanTempAllocator,
@@ -1203,6 +1203,43 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	t_Image->mips = a_CreateInfo.mipLevels;
 
 	return RImageHandle(t_Image);
+}
+
+RSamplerHandle BB::VulkanCreateSampler(const SamplerCreateInfo& a_Info)
+{
+	VkSampler t_Sampler{};
+	VkSamplerCreateInfo t_SamplerInfo{};
+	t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	t_SamplerInfo.addressModeU = VKConv::AddressMode(a_Info.addressModeU);
+	t_SamplerInfo.addressModeV = VKConv::AddressMode(a_Info.addressModeV);
+	t_SamplerInfo.addressModeW = VKConv::AddressMode(a_Info.addressModeW);
+	switch (a_Info.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		t_SamplerInfo.magFilter = VK_FILTER_NEAREST;
+		t_SamplerInfo.minFilter = VK_FILTER_NEAREST;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
+		break;
+	}
+	t_SamplerInfo.minLod = a_Info.minLod;
+	t_SamplerInfo.maxLod = a_Info.maxLod;
+	t_SamplerInfo.mipLodBias = 0;
+	if (a_Info.maxAnistoropy > 0)
+	{
+		t_SamplerInfo.anisotropyEnable = VK_TRUE;
+		t_SamplerInfo.maxAnisotropy = a_Info.maxAnistoropy;
+	}
+
+	VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_Sampler),
+		"Vulkan: Failed to create image sampler!");
+
+	return RSamplerHandle(t_Sampler);
 }
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
@@ -2262,6 +2299,13 @@ void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 {
 	vkDestroyFence(s_VKB.device,
 		reinterpret_cast<VkFence>(a_Handle.ptrHandle),
+		nullptr);
+}
+
+void BB::VulkanDestroySampler(const RSamplerHandle a_Handle)
+{
+	vkDestroySampler(s_VKB.device,
+		reinterpret_cast<VkSampler>(a_Handle.ptrHandle),
 		nullptr);
 }
 

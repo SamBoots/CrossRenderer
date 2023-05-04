@@ -34,6 +34,17 @@ namespace BB
 		const D3D12_BLEND Blend(const RENDER_BLEND_FACTOR a_BlendFactor);
 		const D3D12_BLEND_OP BlendOp(const RENDER_BLEND_OP a_BlendOp);
 		const D3D12_LOGIC_OP LogicOp(const RENDER_LOGIC_OP a_LogicOp);
+		static inline D3D12_TEXTURE_ADDRESS_MODE AddressMode(const SAMPLER_ADDRESS_MODE a_Mode)
+		{
+			switch (a_Mode)
+			{
+			case SAMPLER_ADDRESS_MODE::REPEAT:		return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			case SAMPLER_ADDRESS_MODE::MIRROR:		return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+			case SAMPLER_ADDRESS_MODE::BORDER:		return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+			case SAMPLER_ADDRESS_MODE::CLAMP:		return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+			default: return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			}
+		}
 	}
 
 	//Safely releases a DX type

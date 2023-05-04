@@ -429,6 +429,44 @@ RImageHandle BB::DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 	return RImageHandle(t_Image);
 }
 
+RSamplerHandle BB::DX12CreateSampler(const SamplerCreateInfo& a_Info)
+{
+	D3D12_SAMPLER_DESC t_SamplerInfo{};
+	t_SamplerInfo.AddressU = DXConv::AddressMode(a_Info.addressModeU);
+	t_SamplerInfo.AddressV = DXConv::AddressMode(a_Info.addressModeV);
+	t_SamplerInfo.AddressW = DXConv::AddressMode(a_Info.addressModeW);
+	switch (a_Info.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		t_SamplerInfo.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		t_SamplerInfo.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, does not support this type of sampler filter!");
+		break;
+	}
+	t_SamplerInfo.MinLOD = a_Info.minLod;
+	t_SamplerInfo.MaxLOD = a_Info.maxLod;
+	t_SamplerInfo.MipLODBias = 0;
+	t_SamplerInfo.MaxAnisotropy = a_Info.maxAnistoropy;
+
+
+	t_SamplerInfo.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	t_SamplerInfo.BorderColor[0] = 0.0f;
+	t_SamplerInfo.BorderColor[1] = 0.0f;
+	t_SamplerInfo.BorderColor[2] = 0.0f;
+	t_SamplerInfo.BorderColor[3] = 0.0f;
+	t_SamplerInfo.MinLOD = 0.0f;
+	t_SamplerInfo.MaxLOD = 0.0f;
+
+	DescriptorHeapHandle t_Handle = s_DX12B.samplerHeap->Allocate(1);
+	s_DX12B.device->CreateSampler(&t_SamplerInfo, t_Handle.cpuHandle);
+
+	return RSamplerHandle(t_Handle.cpuHandle.ptr);
+}
+
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
 	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence());
@@ -516,7 +554,7 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 
 	switch (a_Info.type)
 	{
-	case RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER:
+	case RENDER_DESCRIPTOR_TYPE::IMAGE:
 	{
 		D3D12_SHADER_RESOURCE_VIEW_DESC t_View = {};
 		t_View.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
