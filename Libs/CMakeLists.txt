@@ -18,6 +18,12 @@ add_library(DXCompiler INTERFACE
 "DXC/inc/d3d12shader.h")
 target_include_directories(DXCompiler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_library(spirv_reflect INTERFACE
+"spirv-reflect/spirv_reflect.h"
+"spirv-reflect/spirv_reflect.cpp"
+)
+target_include_directories(spirv_reflect INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_library(stb_image INTERFACE
 "stb/stb_image.h"
 )

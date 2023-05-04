@@ -37,6 +37,7 @@ ${Vulkan_INCLUDE_DIRS}
 target_link_libraries(BB_VulkanDLL 
     BBFramework 
     Vulkan::Vulkan
+    spirv_reflect
     VMA)
 
 #compile Definitions.
