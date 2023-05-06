@@ -36,6 +36,7 @@ struct ImGui_ImplCrossRenderer_Data
 
     // Font data
     RImageHandle                fontImage;
+    RSamplerHandle              fontSampler;
     RDescriptorHandle           fontDescriptor;
 
     uint32_t                    imageCount;
@@ -392,16 +393,21 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     bd->imageCount = a_Info.imageCount;
 
     {
-        DescriptorBinding t_Bindings[1]{};
+        FixedArray<DescriptorBinding, 2> t_DescBinds;
         //image binding for font.
-        t_Bindings[0].binding = 0;
-        t_Bindings[0].descriptorCount = 1;
-        t_Bindings[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_Bindings[0].type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+        t_DescBinds[0].binding = 0;
+        t_DescBinds[0].descriptorCount = 1;
+        t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+
+        t_DescBinds[1].binding = 1;
+        t_DescBinds[1].descriptorCount = 1;
+        t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+        t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
 
         RenderDescriptorCreateInfo t_Info{};
         t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
-        t_Info.bindings = BB::Slice(t_Bindings, _countof(t_Bindings));
+        t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }
 
@@ -523,12 +529,36 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
         t_ImageUpdate.binding = 0;
         t_ImageUpdate.descriptorIndex = 0;
         t_ImageUpdate.set = bd->fontDescriptor;
-        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
         t_ImageUpdate.image = a_Image;
 
         RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+    }
+
+    {
+        SamplerCreateInfo t_SamplerInfo{};
+        t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+        t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+        t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+        t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
+        t_SamplerInfo.maxAnistoropy = 1.0f;
+        t_SamplerInfo.maxLod = 100.f;
+        t_SamplerInfo.minLod = -100.f;
+
+        //create the basic sampler.
+        bd->fontSampler = RenderBackend::CreateSampler(t_SamplerInfo);
+
+        UpdateDescriptorImageInfo t_SamplerUpdate{};
+        t_SamplerUpdate.binding = 1;
+        t_SamplerUpdate.descriptorIndex = 0;
+        t_SamplerUpdate.set = bd->fontDescriptor;
+        t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+
+        t_SamplerUpdate.sampler = bd->fontSampler;
+
+        RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
     }
 }
 

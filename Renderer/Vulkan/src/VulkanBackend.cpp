@@ -12,6 +12,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createCommandList = VulkanCreateCommandList;
 	a_FuncCreateInfo.createBuffer = VulkanCreateBuffer;
 	a_FuncCreateInfo.createImage = VulkanCreateImage;
+	a_FuncCreateInfo.createSampler = VulkanCreateSampler;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
 	a_FuncCreateInfo.updateDescriptorBuffer = VulkanUpdateDescriptorBuffer;
@@ -69,5 +70,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyCommandList = VulkanDestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = VulkanDestroyBuffer;
 	a_FuncCreateInfo.destroyImage = VulkanDestroyImage;
+	a_FuncCreateInfo.destroySampler = VulkanDestroySampler;
 	a_FuncCreateInfo.destroyFence = VulkanDestroyFence;
 }

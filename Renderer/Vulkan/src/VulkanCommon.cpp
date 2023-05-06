@@ -402,7 +402,7 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 		SwapchainSupportDetails t_SwapChainDetails = QuerySwapChainSupport(a_Surface, t_PhysicalDevices[i]);
 
 		if (t_DeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-			t_SyncFeatures.timelineSemaphore == VK_TRUE,
+			t_SyncFeatures.timelineSemaphore == VK_TRUE &&
 			t_DeviceFeatures.features.geometryShader &&
 			t_DeviceFeatures.features.samplerAnisotropy &&
 			QueueFindGraphicsBit(t_PhysicalDevices[i]) &&
@@ -862,6 +862,8 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
 	*t_BindingSet = {}; //set to 0
 
+	t_BindingSet->bindingSet = a_Info.bindingSet;
+
 	uint32_t t_DescriptorCount = 0;
 	
 	{
@@ -877,19 +879,33 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 		for (size_t i = 0; i < a_Info.bindings.size(); i++)
 		{
-			t_LayoutBinds[i].binding = a_Info.bindings[i].binding;
-			t_LayoutBinds[i].descriptorCount = a_Info.bindings[i].descriptorCount;
-			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(a_Info.bindings[i].type);
-			t_LayoutBinds[i].pImmutableSamplers = nullptr;
-			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(a_Info.bindings[i].stage);
+			const DescriptorBinding& t_Binding = a_Info.bindings[i];
+			VkSampler* t_Samplers = nullptr;
+			if (t_Binding.staticSamplers.size())
+			{
+				t_Samplers = reinterpret_cast<VkSampler*>(alloca(sizeof(VkSampler) * t_Binding.staticSamplers.size()));
+				for (size_t i = 0; i < t_Binding.staticSamplers.size(); i++)
+				{
+					//Hacky for now... we just create the sampler like this. (WE WILL DO THIS LATER LMAO)
+					//t_Samplers[i] = *reinterpret_cast<VkSampler*>(VulkanCreateSampler(t_Binding.staticSamplers[i]).ptrHandle);
+					BB_ASSERT(false, "Vulkan: static samplers not yet implemented!");
+				}
+				t_LayoutBinds[i].pImmutableSamplers = t_Samplers;
+			}
 
-			switch (a_Info.bindings[i].flags)
+			t_LayoutBinds[i].binding = t_Binding.binding;
+			t_LayoutBinds[i].descriptorCount = t_Binding.descriptorCount;
+			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(t_Binding.type);
+			t_LayoutBinds[i].pImmutableSamplers = t_Samplers; //Is null or we provide these elements.
+			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
+
+			switch (t_Binding.flags)
 			{
 			case BB::RENDER_DESCRIPTOR_FLAG::NONE:
 				t_BindlessFlags[i] = 0;
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
-				t_DescriptorCount += a_Info.bindings[i].descriptorCount;
+				t_DescriptorCount += t_Binding.descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
@@ -1278,8 +1294,6 @@ void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
 	t_Write.pBufferInfo = &t_BufferInfo;
 
-	//maybe make this a scheduler
-
 	vkUpdateDescriptorSets(s_VKB.device,
 		1,
 		&t_Write,
@@ -1290,36 +1304,6 @@ void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 {
 	VkDescriptorImageInfo t_ImageInfo{};
-	t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
-	t_ImageInfo.imageView = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle)->view;
-
-	//Create sampler here?
-	{
-		//We could check if we can find a different way of doing this, but for now creating them here is good.
-		//Maybe placing all samplers in a hashmap and checking if they are the same?
-		VkSamplerCreateInfo t_SamplerInfo{};
-		t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		t_SamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		t_SamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-		//t_SamplerInfo.anisotropyEnable = VK_TRUE;
-		t_SamplerInfo.maxAnisotropy = 1.0f;
-		//t_SamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		//t_SamplerInfo.unnormalizedCoordinates = VK_FALSE;
-
-		//t_SamplerInfo.compareEnable = VK_FALSE;
-		//t_SamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		//Mipmap info can be in the VulkanImage struct.
-		//t_SamplerInfo.mipLodBias = 0.0f;
-		t_SamplerInfo.minLod = -1000.0f;
-		t_SamplerInfo.maxLod = 1000.0f;
-
-		VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_ImageInfo.sampler),
-			"Vulkan: Failed to create image sampler!");
-	}
 
 	VkWriteDescriptorSet t_Write{};
 	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1327,13 +1311,105 @@ void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	t_Write.dstArrayElement = a_Info.descriptorIndex;
 	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
 	t_Write.descriptorCount = 1;
-	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
+	switch (a_Info.type)
+	{
+	case RENDER_DESCRIPTOR_TYPE::IMAGE:
+		t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
+		t_ImageInfo.imageView = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle)->view;
+		t_ImageInfo.sampler = VK_NULL_HANDLE;
+		t_Write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		break;
+	case RENDER_DESCRIPTOR_TYPE::SAMPLER:
+		t_ImageInfo.imageView = VK_NULL_HANDLE;
+		t_ImageInfo.sampler = reinterpret_cast<VkSampler>(a_Info.sampler.ptrHandle);
+		t_Write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Trying to update an invalid descriptor type for update image!");
+		break;
+	}
 	t_Write.pImageInfo = &t_ImageInfo;
 
 	//maybe make this a scheduler
 	vkUpdateDescriptorSets(s_VKB.device,
 		1,
 		&t_Write,
+		0,
+		nullptr);
+}
+
+void BB::VulkanUpdateDescriptorBuffers(const Slice<UpdateDescriptorBufferInfo> a_Info)
+{
+	VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
+		s_VulkanTempAllocator,
+		a_Info.size(),
+		VkDescriptorBufferInfo);
+	VkWriteDescriptorSet* t_Writes = BBnewArr(s_VulkanTempAllocator,
+		a_Info.size(),
+		VkWriteDescriptorSet);
+
+	for (size_t i = 0; i < a_Info.size(); i++)
+	{
+		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info[i].buffer.ptrHandle)->buffer;
+		t_BufferInfos[i].offset = a_Info[i].bufferOffset;
+		t_BufferInfos[i].range = a_Info[i].bufferSize;
+
+		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[i].dstBinding = a_Info[i].binding;
+		t_Writes[i].dstArrayElement = a_Info[i].descriptorIndex;
+		t_Writes[i].dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info[i].set.ptrHandle)->set;
+		t_Writes[i].descriptorCount = 1;
+		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_Info[i].type);
+		t_Writes[i].pBufferInfo = &t_BufferInfos[i];
+	}
+
+	vkUpdateDescriptorSets(s_VKB.device,
+		static_cast<uint32_t>(a_Info.size()),
+		t_Writes,
+		0,
+		nullptr);
+}
+
+void BB::VulkanUpdateDescriptorImages(const Slice <UpdateDescriptorImageInfo> a_Info)
+{
+	VkDescriptorImageInfo* t_ImageInfos = BBnewArr(
+		s_VulkanTempAllocator,
+		a_Info.size(),
+		VkDescriptorImageInfo);
+	VkWriteDescriptorSet* t_Writes = BBnewArr(s_VulkanTempAllocator,
+		a_Info.size(),
+		VkWriteDescriptorSet);
+
+	for (size_t i = 0; i < a_Info.size(); i++)
+	{
+		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		t_Writes[i].dstBinding = a_Info[i].binding;
+		t_Writes[i].dstArrayElement = a_Info[i].descriptorIndex;
+		t_Writes[i].dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info[i].set.ptrHandle)->set;
+		t_Writes[i].descriptorCount = 1;
+		switch (a_Info[i].type)
+		{
+		case RENDER_DESCRIPTOR_TYPE::IMAGE:
+			t_ImageInfos[i].imageLayout = VKConv::ImageLayout(a_Info[i].imageLayout);
+			t_ImageInfos[i].imageView = reinterpret_cast<VulkanImage*>(a_Info[i].image.ptrHandle)->view;
+			t_ImageInfos[i].sampler = VK_NULL_HANDLE;
+			t_Writes[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			break;
+		case RENDER_DESCRIPTOR_TYPE::SAMPLER:
+			t_ImageInfos[i].imageView = VK_NULL_HANDLE;
+			t_ImageInfos[i].sampler = reinterpret_cast<VkSampler>(a_Info[i].sampler.ptrHandle);
+			t_Writes[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			break;
+		default:
+			BB_ASSERT(false, "Vulkan: Trying to update an invalid descriptor type for update image!");
+			break;
+		}
+		t_Writes[i].pImageInfo = &t_ImageInfos[i];
+	}
+
+	vkUpdateDescriptorSets(s_VKB.device,
+		static_cast<uint32_t>(a_Info.size()),
+		t_Writes,
 		0,
 		nullptr);
 }
@@ -1478,7 +1554,10 @@ void BB::VulkanPipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handl
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Descriptor.ptrHandle);
 
-	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = t_Set->setLayout;
+	const uint32_t t_BindingSet = static_cast<uint32_t>(t_Set->bindingSet);
+
+	t_BuildInfo->layout[t_BindingSet] = t_Set->setLayout;
+	++t_BuildInfo->layoutCount;
 }
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)

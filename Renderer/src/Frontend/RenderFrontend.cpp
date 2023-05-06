@@ -74,6 +74,7 @@ UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
 RImageHandle t_DepthImage;
+RSamplerHandle t_StandardSampler;
 
 static FrameIndex s_CurrentFrame;
 
@@ -357,17 +358,25 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		DescriptorBinding t_DescBind{};
 		RenderDescriptorCreateInfo t_CreateInfo{};
+		FixedArray<DescriptorBinding, 2> t_DescBinds;
 		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_PASS;
-		t_CreateInfo.bindings = BB::Slice(&t_DescBind, 1);
-		{//Image Binds
-			t_DescBind.binding = 0;
-			t_DescBind.descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBind.stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBind.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
-			t_DescBind.flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
+		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
+		{//Sampler Binds
+			t_DescBinds[0].binding = 0;
+			t_DescBinds[0].descriptorCount = 1;
+			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
+		{//Image Binds
+			t_DescBinds[1].binding = 1;
+			t_DescBinds[1].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
+		}
+
 
 		t_Descriptor2 = RenderBackend::CreateDescriptor(t_CreateInfo);
 	}
@@ -411,17 +420,44 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		UpdateDescriptorImageInfo t_ImageUpdate{};
-		t_ImageUpdate.binding = 0;
-		t_ImageUpdate.descriptorIndex = 0;
-		t_ImageUpdate.set = t_Descriptor2;
-		t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::COMBINED_IMAGE_SAMPLER;
+		{
+			SamplerCreateInfo t_SamplerInfo{};
+			t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+			t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+			t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+			t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
+			t_SamplerInfo.maxAnistoropy = 1.0f;
+			t_SamplerInfo.maxLod = 100.f;
+			t_SamplerInfo.minLod = -100.f;
 
-		t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_ImageUpdate.image = t_ExampleImage;
+			//create the basic sampler.
+			t_StandardSampler = RenderBackend::CreateSampler(t_SamplerInfo);
 
-		RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+			UpdateDescriptorImageInfo t_SamplerUpdate{};
+			t_SamplerUpdate.binding = 0;
+			t_SamplerUpdate.descriptorIndex = 0;
+			t_SamplerUpdate.set = t_Descriptor2;
+			t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+
+			t_SamplerUpdate.sampler = t_StandardSampler;
+
+			RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
+		}
+		{
+			UpdateDescriptorImageInfo t_ImageUpdate{};
+			t_ImageUpdate.binding = 1;
+			t_ImageUpdate.descriptorIndex = 0;
+			t_ImageUpdate.set = t_Descriptor2;
+			t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+
+			t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+			t_ImageUpdate.image = t_ExampleImage;
+
+			RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+		}
 	}
+
+
 
 	t_BasicPipe.BindDescriptor(t_Descriptor1);
 	t_BasicPipe.BindDescriptor(t_Descriptor2);
@@ -615,6 +651,7 @@ void BB::Render::DestroyRenderer()
 
 	RenderBackend::DestroyDescriptor(t_Descriptor1);
 	RenderBackend::DestroyDescriptor(t_Descriptor2);
+	RenderBackend::DestroySampler(t_StandardSampler);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_GlobalInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameTransferBuffer);
