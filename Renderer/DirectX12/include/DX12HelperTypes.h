@@ -163,15 +163,14 @@ namespace BB
 	class DXSampler
 	{
 	public:
-		DXSampler(const SamplerCreateInfo& a_Info, DescriptorHeap& a_Heap);
+		DXSampler(const SamplerCreateInfo& a_Info);
 		~DXSampler();
 
 		void UpdateSamplerInfo(const SamplerCreateInfo& a_Info);
-		const DescriptorHeapHandle GetHeapHandle() const { return m_HeapHandle; };
+		const D3D12_SAMPLER_DESC* GetDesc() const { return &m_Desc; };
 
 	private:
 		D3D12_SAMPLER_DESC m_Desc{};
-		DescriptorHeapHandle m_HeapHandle{};
 	};
 
 	class DXCommandQueue
@@ -392,7 +391,7 @@ namespace BB
 			bindingSetPool.CreatePool(s_DX12Allocator, 16);
 			cmdQueues.CreatePool(s_DX12Allocator, 4);
 			cmdAllocators.CreatePool(s_DX12Allocator, 16);
-			renderResources.CreatePool(s_DX12Allocator, 8);
+			renderResources.CreatePool(s_DX12Allocator, 16);
 			renderImages.CreatePool(s_DX12Allocator, 8);
 			fencePool.CreatePool(s_DX12Allocator, 16);
 			samplerPool.CreatePool(s_DX12Allocator, 16);

@@ -320,7 +320,7 @@ DXImage::~DXImage()
 	m_Allocation->Release();
 }
 
-DXSampler::DXSampler(const SamplerCreateInfo& a_Info, DescriptorHeap& a_Heap)
+DXSampler::DXSampler(const SamplerCreateInfo& a_Info)
 {
 	//Some standard stuff that will change later.
 	m_Desc.MipLODBias = 0;
@@ -331,9 +331,6 @@ DXSampler::DXSampler(const SamplerCreateInfo& a_Info, DescriptorHeap& a_Heap)
 	m_Desc.BorderColor[3] = 0.0f;
 	m_Desc.MinLOD = 0.0f;
 	m_Desc.MaxLOD = 0.0f;
-
-	m_HeapHandle = s_DX12B.samplerHeap->Allocate(1);
-
 	UpdateSamplerInfo(a_Info);
 }
 DXSampler::~DXSampler()
@@ -361,8 +358,6 @@ void DXSampler::UpdateSamplerInfo(const SamplerCreateInfo& a_Info)
 	m_Desc.MinLOD = a_Info.minLod;
 	m_Desc.MaxLOD = a_Info.maxLod;
 	m_Desc.MaxAnisotropy = static_cast<UINT>(a_Info.maxAnistoropy);
-
-	s_DX12B.device->CreateSampler(&m_Desc, m_HeapHandle.cpuHandle);
 }
 
 DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType)

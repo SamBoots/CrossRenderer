@@ -2083,14 +2083,14 @@ void BB::VulkanBindDescriptors(const RecordingCommandListHandle a_RecordingCmdHa
 		a_DynamicOffsets);
 }
 
-void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	
 	vkCmdPushConstants(t_Cmdlist->Buffer(),
 		t_Cmdlist->currentPipelineLayout,
 		VK_SHADER_STAGE_ALL,
-		a_Offset,
+		a_DwordOffset * sizeof(uint32_t),
 		a_DwordCount * sizeof(uint32_t), //we do Dword count to help dx12 more.
 		a_Data);
 }

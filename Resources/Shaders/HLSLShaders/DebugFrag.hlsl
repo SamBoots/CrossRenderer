@@ -28,7 +28,7 @@ StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
 StructuredBuffer<Light> lights : register(t3, space0);
 
 SamplerState samplerColor : register(s0, space1);
-Texture2D text : register(t1, space1);
+Texture2D text : register(t0, space1);
 
 struct VSoutput
 {

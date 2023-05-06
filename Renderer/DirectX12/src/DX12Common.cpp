@@ -450,7 +450,7 @@ RImageHandle BB::DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 RSamplerHandle BB::DX12CreateSampler(const SamplerCreateInfo& a_Info)
 {
-	return RSamplerHandle(new (s_DX12B.samplerPool.Get()) DXSampler(a_Info, *s_DX12B.samplerHeap));
+	return RSamplerHandle(new (s_DX12B.samplerPool.Get()) DXSampler(a_Info));
 }
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
@@ -490,7 +490,7 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 		D3D12_SHADER_RESOURCE_VIEW_DESC t_View{};
 		t_View.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		t_View.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		t_View.Buffer.NumElements = a_Info.bufferSize;
+		t_View.Buffer.NumElements = a_Info.bufferSize / 4;
 		t_View.Buffer.FirstElement = 0;
 		t_View.Buffer.StructureByteStride = 0;
 		t_View.Format = DXGI_FORMAT_R32_TYPELESS;
@@ -508,7 +508,7 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 			"DX12, Trying to update a table UAV but the descriptor given is not a table UAV");
 		D3D12_UNORDERED_ACCESS_VIEW_DESC t_View{};
 		t_View.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-		t_View.Buffer.NumElements = a_Info.bufferSize;
+		t_View.Buffer.NumElements = a_Info.bufferSize / 4;
 		t_View.Buffer.FirstElement = 0;
 		t_View.Buffer.StructureByteStride = 0;
 		t_View.Buffer.CounterOffsetInBytes = 0;
@@ -543,16 +543,17 @@ void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
 
 void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 {
-	DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
-
 	DXDescriptor* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_Info.set.ptrHandle);
-	D3D12_CPU_DESCRIPTOR_HANDLE t_DescHandle = t_Descriptor->tables.table.cpuHandle;
-	t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->tables.table.incrementSize * a_Info.descriptorIndex);
 
 	switch (a_Info.type)
 	{
 	case RENDER_DESCRIPTOR_TYPE::IMAGE:
 	{
+		DXImage* t_Image = reinterpret_cast<DXImage*>(a_Info.image.ptrHandle);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE t_DescHandle = t_Descriptor->tables.table.cpuHandle;
+		t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->tables.table.incrementSize * a_Info.descriptorIndex);
+
 		D3D12_SHADER_RESOURCE_VIEW_DESC t_View = {};
 		t_View.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		t_View.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -563,7 +564,15 @@ void BB::DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
 	}
 		break;
 	case RENDER_DESCRIPTOR_TYPE::SAMPLER:
-		//we do nothing here, but we also do not want to assert.
+	{
+		DXSampler* t_Sampler = reinterpret_cast<DXSampler*>(a_Info.sampler.ptrHandle);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE t_DescHandle = t_Descriptor->samplerTable.table.cpuHandle;
+		t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->samplerTable.table.incrementSize * 0);
+		//t_DescHandle.ptr += static_cast<uint64_t>(t_Descriptor->tables.table.incrementSize * a_Info.descriptorIndex);
+
+		s_DX12B.device->CreateSampler(t_Sampler->GetDesc(), t_DescHandle);
+	}
 			break;
 	default:
 		BB_ASSERT(false, "DX12, Trying to update a image descriptor with an invalid type.");
@@ -1288,14 +1297,14 @@ void BB::DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHand
 	}
 }
 
-void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_Offset, const void* a_Data)
+void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	t_CommandList->List()->SetGraphicsRoot32BitConstants(0,
 		a_DwordCount,
 		a_Data,
-		a_Offset);
+		a_DwordOffset);
 }
 
 void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)

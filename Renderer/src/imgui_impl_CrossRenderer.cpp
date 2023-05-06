@@ -142,9 +142,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
         translate[1] = -1.0f - a_DrawData.DisplayPos.y * scale[1];
         //Constant index will always be 0 if we use it. Imgui pipeline will always use it.
         RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), 0, &scale);
-        RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), sizeof(translate), &translate);
-        //vkCmdPushConstants(command_buffer, bd->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 0, sizeof(float) * 2, scale);
-        //vkCmdPushConstants(command_buffer, bd->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(float) * 2, sizeof(float) * 2, translate);
+        RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), sizeof(translate) / 4, &translate);
     }
 }
 
@@ -435,6 +433,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };
     ShaderCreateInfo t_ShaderInfos[2]{};
+    VertexAttributeDesc t_VertexAttributes[3]{};
     {
         t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
         Shader::GetShaderCodeBuffer(a_Info.vertexShader, t_ShaderInfos[0].buffer);
@@ -446,13 +445,12 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     }
 
     {
-        VertexAttributeDesc t_VertexAttributes[3]{};
         t_VertexAttributes[0].semanticName = "POSITION";
         t_VertexAttributes[0].location = 0;
         t_VertexAttributes[0].format = RENDER_INPUT_FORMAT::RG32;
         t_VertexAttributes[0].offset = IM_OFFSETOF(ImDrawVert, pos);
 
-        t_VertexAttributes[2].semanticName = "UV";
+        t_VertexAttributes[1].semanticName = "TEXCOORD";
         t_VertexAttributes[1].location = 1;
         t_VertexAttributes[1].format = RENDER_INPUT_FORMAT::RG32;
         t_VertexAttributes[1].offset = IM_OFFSETOF(ImDrawVert, uv);
