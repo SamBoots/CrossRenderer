@@ -320,6 +320,51 @@ DXImage::~DXImage()
 	m_Allocation->Release();
 }
 
+DXSampler::DXSampler(const SamplerCreateInfo& a_Info, DescriptorHeap& a_Heap)
+{
+	//Some standard stuff that will change later.
+	m_Desc.MipLODBias = 0;
+	m_Desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	m_Desc.BorderColor[0] = 0.0f;
+	m_Desc.BorderColor[1] = 0.0f;
+	m_Desc.BorderColor[2] = 0.0f;
+	m_Desc.BorderColor[3] = 0.0f;
+	m_Desc.MinLOD = 0.0f;
+	m_Desc.MaxLOD = 0.0f;
+
+	m_HeapHandle = s_DX12B.samplerHeap->Allocate(1);
+
+	UpdateSamplerInfo(a_Info);
+}
+DXSampler::~DXSampler()
+{
+
+}
+
+void DXSampler::UpdateSamplerInfo(const SamplerCreateInfo& a_Info)
+{
+	m_Desc.AddressU = DXConv::AddressMode(a_Info.addressModeU);
+	m_Desc.AddressV = DXConv::AddressMode(a_Info.addressModeV);
+	m_Desc.AddressW = DXConv::AddressMode(a_Info.addressModeW);
+	switch (a_Info.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		m_Desc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		m_Desc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "DX12, does not support this type of sampler filter!");
+		break;
+	}
+	m_Desc.MinLOD = a_Info.minLod;
+	m_Desc.MaxLOD = a_Info.maxLod;
+	m_Desc.MaxAnisotropy = static_cast<UINT>(a_Info.maxAnistoropy);
+
+	s_DX12B.device->CreateSampler(&m_Desc, m_HeapHandle.cpuHandle);
+}
+
 DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType)
 	: m_Fence()
 {
@@ -452,7 +497,7 @@ DescriptorHeap::DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
 	m_HeapType = a_HeapType;
 	m_MaxDescriptors = a_DescriptorCount;
 	m_HeapGPUStart = {};
-	D3D12_DESCRIPTOR_HEAP_DESC t_HeapInfo;
+	D3D12_DESCRIPTOR_HEAP_DESC t_HeapInfo{};
 	t_HeapInfo.Type = a_HeapType;
 	t_HeapInfo.NumDescriptors = a_DescriptorCount;
 	t_HeapInfo.Flags = a_ShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;

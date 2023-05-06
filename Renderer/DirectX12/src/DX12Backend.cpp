@@ -20,6 +20,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createCommandList = DX12CreateCommandList;
 	a_FuncCreateInfo.createBuffer = DX12CreateBuffer;
 	a_FuncCreateInfo.createImage = DX12CreateImage;
+	a_FuncCreateInfo.createSampler = DX12CreateSampler;
 	a_FuncCreateInfo.createFence = DX12CreateFence;
 
 	a_FuncCreateInfo.updateDescriptorBuffer = DX12UpdateDescriptorBuffer;
@@ -76,5 +77,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.destroyCommandList = DX12DestroyCommandList;
 	a_FuncCreateInfo.destroyBuffer = DX12DestroyBuffer;
 	a_FuncCreateInfo.destroyImage = DX12DestroyImage;
+	a_FuncCreateInfo.destroySampler = DX12DestroySampler;
 	a_FuncCreateInfo.destroyFence = DX12DestroyFence;
 }

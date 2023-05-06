@@ -160,6 +160,20 @@ namespace BB
 		
 	};
 
+	class DXSampler
+	{
+	public:
+		DXSampler(const SamplerCreateInfo& a_Info, DescriptorHeap& a_Heap);
+		~DXSampler();
+
+		void UpdateSamplerInfo(const SamplerCreateInfo& a_Info);
+		const DescriptorHeapHandle GetHeapHandle() const { return m_HeapHandle; };
+
+	private:
+		D3D12_SAMPLER_DESC m_Desc{};
+		DescriptorHeapHandle m_HeapHandle{};
+	};
+
 	class DXCommandQueue
 	{
 	public:
@@ -279,7 +293,8 @@ namespace BB
 		ROOT_CBV,
 		ROOT_SRV,
 		ROOT_UAV,
-		TABLE
+		TABLE,
+		TABLE_SAMPLER
 	};
 
 	struct TableContent //8 bytes
@@ -313,6 +328,9 @@ namespace BB
 
 		uint32_t tableParamCount = 0;
 		DescTable tables;
+
+		uint32_t samplerCount = 0;
+		DescTable samplerTable;
 
 		uint32_t descriptorAttachmentCount = 0;
 		DescriptorAttachment* descriptorAttachments{};
@@ -366,6 +384,7 @@ namespace BB
 		Pool<DXResource> renderResources;
 		Pool<DXImage> renderImages;
 		Pool<DXFence> fencePool;
+		Pool<DXSampler> samplerPool;
 
 		void CreatePools()
 		{
@@ -376,6 +395,7 @@ namespace BB
 			renderResources.CreatePool(s_DX12Allocator, 8);
 			renderImages.CreatePool(s_DX12Allocator, 8);
 			fencePool.CreatePool(s_DX12Allocator, 16);
+			samplerPool.CreatePool(s_DX12Allocator, 16);
 		}
 
 		void DestroyPools()
@@ -387,6 +407,7 @@ namespace BB
 			renderResources.DestroyPool(s_DX12Allocator);
 			renderImages.DestroyPool(s_DX12Allocator);
 			fencePool.DestroyPool(s_DX12Allocator);
+			samplerPool.DestroyPool(s_DX12Allocator);
 		}
 	};
 

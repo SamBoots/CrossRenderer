@@ -14,6 +14,8 @@ namespace BB
 	//Hardware minimally supports 4 binding sets on Vulkan. So we make the hard limit for VK and DX12.
 	constexpr uint32_t BINDING_MAX = 4;
 	constexpr uint32_t DESCRIPTOR_IMAGE_MAX = 1024;
+	//arbritrary for now, but handy for array creation.
+	constexpr size_t STATIC_SAMPLER_MAX = 8;
 
 	using FrameIndex = uint32_t;
 	
@@ -242,6 +244,7 @@ namespace BB
 
 		RImageHandle image;
 		RENDER_IMAGE_LAYOUT imageLayout;
+		RSamplerHandle sampler;
 	};
 
 	struct UpdateDescriptorBufferInfo
@@ -280,6 +283,20 @@ namespace BB
 		bool validationLayers{};
 	};
 
+	struct StaticSamplerCreateInfo
+	{
+		RENDER_BINDING_SET bindingSet;
+		SAMPLER_ADDRESS_MODE addressModeU{};
+		SAMPLER_ADDRESS_MODE addressModeV{};
+		SAMPLER_ADDRESS_MODE addressModeW{};
+
+		SAMPLER_FILTER filter{};
+		float maxAnistoropy = 0;
+
+		float minLod = 0;
+		float maxLod = 0;
+	};
+
 	struct DescriptorBinding
 	{
 		uint32_t binding;
@@ -287,6 +304,8 @@ namespace BB
 		RENDER_DESCRIPTOR_TYPE type;
 		RENDER_SHADER_STAGE stage;
 		RENDER_DESCRIPTOR_FLAG flags;
+
+		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
 	};
 
 	struct RenderDescriptorCreateInfo
@@ -557,6 +576,7 @@ namespace BB
 	typedef CommandListHandle		(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
 	typedef RBufferHandle			(*PFN_RenderAPICreateBuffer)(const RenderBufferCreateInfo& a_Info);
 	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);
+	typedef RSamplerHandle			(*PFN_RenderAPICreateSampler)(const SamplerCreateInfo& a_Info);
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 
 	typedef void (*PFN_RenderAPIUpdateDescriptorBuffer)(const UpdateDescriptorBufferInfo& a_Info);
@@ -617,6 +637,7 @@ namespace BB
 	typedef void (*PFN_RenderAPIDestroyCommandList)(const CommandListHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyBuffer)(const RBufferHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyImage)(const RImageHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroySampler)(const RSamplerHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyFence)(const RFenceHandle a_Handle);
 
 	struct RenderAPIFunctions
@@ -628,6 +649,7 @@ namespace BB
 		PFN_RenderAPICreateCommandList createCommandList;
 		PFN_RenderAPICreateBuffer createBuffer;
 		PFN_RenderAPICreateImage createImage;
+		PFN_RenderAPICreateSampler createSampler;
 		PFN_RenderAPICreateFence createFence;
 
 		PFN_RenderAPIUpdateDescriptorBuffer updateDescriptorBuffer;
@@ -684,6 +706,7 @@ namespace BB
 		PFN_RenderAPIDestroyCommandList destroyCommandList;
 		PFN_RenderAPIDestroyBuffer destroyBuffer;
 		PFN_RenderAPIDestroyImage destroyImage;
+		PFN_RenderAPIDestroySampler destroySampler;
 		PFN_RenderAPIDestroyFence destroyFence;
 	};
 }

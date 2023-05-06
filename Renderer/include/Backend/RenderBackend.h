@@ -56,6 +56,7 @@ namespace BB
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
+		RSamplerHandle CreateSampler(const SamplerCreateInfo& a_Info);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
 
 		void UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
@@ -108,6 +109,7 @@ namespace BB
 		void DestroyCommandList(const CommandListHandle a_Handle);
 		void DestroyBuffer(const RBufferHandle a_Handle);
 		void DestroyImage(const RImageHandle a_Handle);
+		void DestroySampler(const RSamplerHandle a_Handle);
 		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }

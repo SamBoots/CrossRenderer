@@ -133,6 +133,11 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 	return s_ApiFunc.createImage(a_CreateInfo);
 }
 
+RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_Info)
+{
+	return s_ApiFunc.createSampler(a_Info);
+}
+
 RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
 {
 	return s_ApiFunc.createFence(a_Info);
@@ -328,6 +333,11 @@ void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
 {
 	s_ApiFunc.destroyImage(a_Handle);
+}
+
+void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
+{
+	s_ApiFunc.destroySampler(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
