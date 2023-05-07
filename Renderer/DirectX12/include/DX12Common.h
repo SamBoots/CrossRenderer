@@ -64,7 +64,7 @@ namespace BB
 	uint64_t DX12NextQueueFenceValue(const CommandQueueHandle a_Handle);
 	uint64_t DX12NextFenceValue(const RFenceHandle a_Handle);
 
-	void DX12WaitDeviceReady();
+	void DX12WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);
 
 	void DX12DestroyFence(const RFenceHandle a_Handle);
 	void DX12DestroySampler(const RSamplerHandle a_Handle);

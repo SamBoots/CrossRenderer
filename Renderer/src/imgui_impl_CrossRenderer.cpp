@@ -183,11 +183,12 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
             CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
 
-        UploadBufferChunk t_UploadChunk = rb.uploadBuffer->Alloc(vertex_size + index_size);
+        UploadBufferChunk t_UpVert = rb.uploadBuffer->Alloc(vertex_size);
+        UploadBufferChunk t_UpIndex = rb.uploadBuffer->Alloc(index_size);
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UploadChunk.memory);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(Pointer::Add(t_UploadChunk.memory, vertex_size));
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UpVert.memory);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(t_UpIndex.memory);
        
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -201,14 +202,14 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         //copy vertex
         RenderCopyBufferInfo t_CopyInfo{};
         t_CopyInfo.src = rb.uploadBuffer->Buffer();
-        t_CopyInfo.dstOffset = t_UploadChunk.offset;
+        t_CopyInfo.srcOffset = t_UpVert.offset;
         t_CopyInfo.dst = rb.vertexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = vertex_size;
         RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
 
         //copy index
-        t_CopyInfo.dstOffset = t_UploadChunk.offset + vertex_size;
+        t_CopyInfo.srcOffset = t_UpIndex.offset;
         t_CopyInfo.dst = rb.indexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = index_size;
@@ -542,7 +543,9 @@ void ImGui_ImplCross_SetMinImageCount(uint32_t min_image_count)
     if (bd->minImageCount == min_image_count)
         return;
 
-    RenderBackend::WaitGPUReady();
+
+
+    //RenderBackend::WaitCommands();
     //ImGui_ImplCross_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
     bd->minImageCount = min_image_count;
 }

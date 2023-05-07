@@ -67,7 +67,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.nextQueueFenceValue = DX12NextQueueFenceValue;
 	a_FuncCreateInfo.nextFenceValue = DX12NextFenceValue;
 
-	a_FuncCreateInfo.waitDevice = DX12WaitDeviceReady;
+	a_FuncCreateInfo.waitCommands = DX12WaitCommands;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;
 	a_FuncCreateInfo.destroyDescriptor = DX12DestroyDescriptor;

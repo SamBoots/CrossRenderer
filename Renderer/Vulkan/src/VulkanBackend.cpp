@@ -60,7 +60,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.nextQueueFenceValue = VulkanNextQueueFenceValue;
 	a_FuncCreateInfo.nextFenceValue = VulkanNextFenceValue;
 
-	a_FuncCreateInfo.waitDevice = VulkanWaitDeviceReady;
+	a_FuncCreateInfo.waitCommands = VulkanWaitCommands;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
 	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptor;

@@ -331,6 +331,12 @@ namespace BB
 		CommandAllocatorHandle commandAllocator;
 	};
 
+	struct RenderWaitCommandsInfo
+	{
+		BB::Slice<CommandQueueHandle> queues; 
+		BB::Slice<RFenceHandle> fences;
+	};
+
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
@@ -626,7 +632,7 @@ namespace BB
 	typedef uint64_t (*PFN_RenderAPINextQueueFenceValue)(const CommandQueueHandle a_Handle);
 	typedef uint64_t (*PFN_RenderAPINextFenceValue)(const RFenceHandle a_Handle);
 
-	typedef void (*PFN_RenderAPIWaitDeviceReady)();
+	typedef void (*PFN_RenderAPIWaitCommands)(const RenderWaitCommandsInfo& a_WaitInfo);
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
@@ -696,7 +702,7 @@ namespace BB
 		PFN_RenderAPINextQueueFenceValue nextQueueFenceValue;
 		PFN_RenderAPINextFenceValue nextFenceValue;
 
-		PFN_RenderAPIWaitDeviceReady waitDevice;
+		PFN_RenderAPIWaitCommands waitCommands;
 
 		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyDescriptor destroyDescriptor;

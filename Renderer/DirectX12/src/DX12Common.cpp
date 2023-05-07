@@ -1441,16 +1441,17 @@ uint64_t BB::DX12NextFenceValue(const RFenceHandle a_Handle)
 	return reinterpret_cast<DXFence*>(a_Handle.ptrHandle)->GetNextFenceValue();
 }
 
-void BB::DX12WaitDeviceReady()
+void BB::DX12WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	//const UINT64 fenceV = s_DX12BackendInst.fenceValue;
-	BB_WARNING(false, "DX12: DX12WaitDeviceReady function is unfinished, using it is dangerous.", WarningType::MEDIUM);
-	//if (s_DX12BackendInst.fence->GetCompletedValue() < fenceV)
-	//{
-	//	DXASSERT(s_DX12BackendInst.fence->SetEventOnCompletion(fenceV, s_DX12BackendInst.fenceEvent),
-	//		"DX12: Failed to wait for event complection on fence.");
-	//	WaitForSingleObject(s_DX12BackendInst.fenceEvent, INFINITE);
-	//}
+	for (size_t i = 0; i < a_WaitInfo.fences.size(); i++)
+	{
+		reinterpret_cast<DXFence*>(a_WaitInfo.fences[i].ptrHandle)->WaitIdle();
+	}
+
+	for (size_t i = 0; i < a_WaitInfo.queues.size(); i++)
+	{
+		reinterpret_cast<DXCommandQueue*>(a_WaitInfo.queues[i].ptrHandle)->WaitIdle();
+	}
 }
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)

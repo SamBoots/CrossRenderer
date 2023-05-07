@@ -623,9 +623,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		RenderBackend::ExecuteCommands(t_GraphicsQueue, t_ExecuteInfo, 1);
 
-		uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_GraphicsQueue) - 1;
-		RenderBackend::WaitGPUReady();
-
 		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
 		{
 			Shader::ReleaseShaderCode(t_ImguiShaders[i]);
@@ -636,11 +633,21 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{
 		Shader::ReleaseShaderCode(t_ShaderHandles[i]);
 	}
+
+	CommandQueueHandle t_Queues[1]{ t_GraphicsQueue };
+	RenderWaitCommandsInfo t_WaitInfo{};
+	t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
+	RenderBackend::WaitCommands(t_WaitInfo);
 }
 
 void BB::Render::DestroyRenderer()
 {
-	RenderBackend::WaitGPUReady();
+	{
+		CommandQueueHandle t_Queues[2]{ t_GraphicsQueue, t_TransferQueue };
+		RenderWaitCommandsInfo t_WaitInfo{};
+		t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
+		RenderBackend::WaitCommands(t_WaitInfo);
+	}
 
 	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
 	{
@@ -874,8 +881,9 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 void BB::Render::StartFrame()
 {
 	StartFrameInfo t_StartInfo{};
-	t_StartInfo.fences = &t_SwapchainFence[s_CurrentFrame];
-	t_StartInfo.fenceCount = 1;
+	//We do not use these currently.
+	//t_StartInfo.fences = &t_SwapchainFence[s_CurrentFrame];
+	//t_StartInfo.fenceCount = 1;
 	RenderBackend::StartFrame(t_StartInfo);
 	//Prepare the commandallocator for a new frame
 	//TODO, send a fence that waits until the image was presented.

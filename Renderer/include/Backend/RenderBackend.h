@@ -99,7 +99,7 @@ namespace BB
 
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
-		void WaitGPUReady();
+		void WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);
 
 		void DestroyBackend();
 		void DestroyDescriptor(const RDescriptorHandle a_Handle);

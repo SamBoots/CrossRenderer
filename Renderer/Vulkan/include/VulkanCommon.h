@@ -62,7 +62,7 @@ namespace BB
 
 	void VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
-	void VulkanWaitDeviceReady();
+	void VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);
 
 	void VulkanDestroyFence(const RFenceHandle a_Handle);
 	void VulkanDestroySampler(const RSamplerHandle a_Handle);

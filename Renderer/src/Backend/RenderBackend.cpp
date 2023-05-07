@@ -275,9 +275,9 @@ FrameIndex BB::RenderBackend::PresentFrame(const PresentFrameInfo& a_PresentInfo
 	return s_BackendInfo.currentFrame = s_ApiFunc.presentFrame(a_PresentInfo);
 }
 
-void BB::RenderBackend::WaitGPUReady()
+void BB::RenderBackend::WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	s_ApiFunc.waitDevice();
+	s_ApiFunc.waitCommands(a_WaitInfo);
 }
 
 void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)

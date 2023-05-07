@@ -349,6 +349,13 @@ namespace BB
 		uint64_t lastCompleteValue;
 	};
 
+	struct VulkanFence
+	{
+		VkSemaphore timelineSem;
+		uint64_t nextFenceValue;
+		uint64_t lastCompleteValue;
+	};
+
 	struct VulkanConstant
 	{
 		VkShaderStageFlags shaderStage;

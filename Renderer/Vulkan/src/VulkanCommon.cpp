@@ -159,6 +159,7 @@ struct VulkanBackend_inst
 	Pool<VulkanBuffer> bufferPool;
 	Pool<VulkanImage> imagePool;
 	Pool<VulkanBindingSet> bindingSetPool;
+	Pool<VulkanFence> vulkanFencePool;
 
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
@@ -173,6 +174,7 @@ struct VulkanBackend_inst
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
 		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
+		vulkanFencePool.CreatePool(s_VulkanAllocator, 16);
 	}
 
 	void DestroyPools()
@@ -183,6 +185,7 @@ struct VulkanBackend_inst
 		bufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
 		bindingSetPool.DestroyPool(s_VulkanAllocator);
+		vulkanFencePool.DestroyPool(s_VulkanAllocator);
 	}
 };
 static VulkanBackend_inst s_VKB;
@@ -1022,15 +1025,8 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 		&t_Queue->timelineSemaphore);
 
 
-	t_Queue->lastCompleteValue = 1;
-	t_Queue->nextSemValue = 2;
-
-	VkSemaphoreSignalInfo t_SigInfo{};
-	t_SigInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
-	t_SigInfo.semaphore = t_Queue->timelineSemaphore;
-	t_SigInfo.value = t_Queue->lastCompleteValue;
-	vkSignalSemaphore(s_VKB.device,
-		&t_SigInfo);
+	t_Queue->lastCompleteValue = 0;
+	t_Queue->nextSemValue = 1;
 
 	return CommandQueueHandle(t_Queue);
 }
@@ -1260,6 +1256,10 @@ RSamplerHandle BB::VulkanCreateSampler(const SamplerCreateInfo& a_Info)
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 {
+	VulkanFence* t_Fence = s_VKB.vulkanFencePool.Get();
+	t_Fence->lastCompleteValue = 0;
+	t_Fence->nextFenceValue = 1;
+
 	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
 	t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
 	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
@@ -1269,13 +1269,12 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_Info)
 	t_SemCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
-	VkSemaphore t_TimelineSem;
 	vkCreateSemaphore(s_VKB.device,
 		&t_SemCreateInfo,
 		nullptr,
-		&t_TimelineSem);
+		&t_Fence->timelineSem);
 
-	return RFenceHandle(t_TimelineSem);
+	return RFenceHandle(t_Fence);
 }
 
 void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
@@ -2139,8 +2138,6 @@ void BB::VulkanUnMemory(const RBufferHandle a_Handle)
 
 void BB::VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 {
-	VulkanWaitDeviceReady();
-
 	//Creates the swapchain with the image views.
 	CreateSwapchain(s_VKB.surface,
 		s_VKB.physicalDevice,
@@ -2210,7 +2207,7 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		{
 			t_Semaphores[j] = reinterpret_cast<VulkanCommandQueue*>(
 				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->timelineSemaphore;
-			t_SemValues[j] = a_ExecuteInfos[i].waitValues[j];;
+			t_SemValues[j] = a_ExecuteInfos[i].waitValues[j];
 
 			t_WaitStagesMask[j] = VKConv::PipelineStage(a_ExecuteInfos[i].waitStages[j]);
 		}
@@ -2369,16 +2366,48 @@ uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
 	return 0; //return reinterpret_cast<VkSemaphore*>(a_Handle.ptrHandle)->nextSemValue;
 }
 
-void BB::VulkanWaitDeviceReady()
+void BB::VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	vkDeviceWaitIdle(s_VKB.device);
+	size_t t_SemaCount = a_WaitInfo.fences.size() + a_WaitInfo.queues.size();
+	VkSemaphore* t_Semas = reinterpret_cast<VkSemaphore*>(_malloca(sizeof(VkSemaphore) * t_SemaCount));
+	uint64_t* t_SemValues = reinterpret_cast<uint64_t*>(_malloca(sizeof(uint64_t) * t_SemaCount));
+
+	for (size_t i = 0; i < a_WaitInfo.fences.size(); i++)
+	{
+		BB_ASSERT(false, "Vulkan: Fences are not correctly implemented yet!");
+	}
+
+	size_t t_Offset = a_WaitInfo.fences.size();
+
+	for (size_t i = 0; i < a_WaitInfo.queues.size(); i++)
+	{
+		VulkanCommandQueue* t_CmdQueue = reinterpret_cast<VulkanCommandQueue*>(a_WaitInfo.queues[i].ptrHandle);
+		//For now not wait for semaphores, may be required later.
+		
+		t_Semas[i + t_Offset] = t_CmdQueue->timelineSemaphore;
+		t_SemValues[i + t_Offset] = t_CmdQueue->nextSemValue - 1;
+	}
+
+	VkSemaphoreWaitInfo t_WaitInfo{};
+	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	t_WaitInfo.semaphoreCount = t_SemaCount;
+	t_WaitInfo.pSemaphores = t_Semas;
+	t_WaitInfo.pValues = t_SemValues;
+
+	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);
+
+	_freea(t_Semas);
+	_freea(t_SemValues);
 }
 
 void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 {
-	vkDestroyFence(s_VKB.device,
-		reinterpret_cast<VkFence>(a_Handle.ptrHandle),
+	VulkanFence* t_Fence = reinterpret_cast<VulkanFence*>(a_Handle.ptrHandle);
+	vkDestroySemaphore(s_VKB.device,
+		t_Fence->timelineSem,
 		nullptr);
+	memset(t_Fence, 0, sizeof(VulkanFence));
+	s_VKB.vulkanFencePool.Free(t_Fence);
 }
 
 void BB::VulkanDestroySampler(const RSamplerHandle a_Handle)
@@ -2393,6 +2422,7 @@ void BB::VulkanDestroyImage(const RImageHandle a_Handle)
 	VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Handle.ptrHandle);
 	vkDestroyImageView(s_VKB.device, t_Image->view, nullptr);
 	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
+	memset(t_Image, 0, sizeof(VulkanImage));
 	s_VKB.imagePool.Free(t_Image);
 }
 
@@ -2400,6 +2430,7 @@ void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 {
 	VulkanBuffer* t_Buffer = reinterpret_cast<VulkanBuffer*>(a_Handle.ptrHandle);
 	vmaDestroyBuffer(s_VKB.vma, t_Buffer->buffer, t_Buffer->allocation);
+	memset(t_Buffer, 0, sizeof(VulkanBuffer));
 	s_VKB.bufferPool.Free(t_Buffer);
 }
 
@@ -2410,10 +2441,8 @@ void BB::VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle)
 		t_CmdQueue->timelineSemaphore,
 		nullptr);
 
-	t_CmdQueue->queue = nullptr;
-	t_CmdQueue->timelineSemaphore = nullptr;
-	t_CmdQueue->nextSemValue = 0;
-	t_CmdQueue->lastCompleteValue = 0;
+	memset(t_CmdQueue, 0, sizeof(VulkanCommandQueue));
+	s_VKB.cmdQueues.Free(t_CmdQueue);
 }
 
 void BB::VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
@@ -2421,13 +2450,15 @@ void BB::VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 	VkCommandAllocator* t_CmdAllocator = reinterpret_cast<VkCommandAllocator*>(a_Handle.ptrHandle);
 	t_CmdAllocator->buffers.DestroyPool(s_VulkanAllocator);
 	vkDestroyCommandPool(s_VKB.device, t_CmdAllocator->pool, nullptr);
+	memset(t_CmdAllocator, 0, sizeof(VkCommandAllocator));
 	s_VKB.cmdAllocators.Free(t_CmdAllocator);
 }
 
 void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 {
-	VulkanCommandList& a_List = s_VKB.commandLists[a_Handle.handle];
-	a_List.cmdAllocator->FreeCommandList(a_List); //Place back in the freelist.
+	VulkanCommandList& t_List = s_VKB.commandLists[a_Handle.handle];
+	t_List.cmdAllocator->FreeCommandList(t_List); //Place back in the freelist.
+	memset(&t_List, 0, sizeof(VulkanCommandList));
 	s_VKB.commandLists.erase(a_Handle.handle);
 }
 
