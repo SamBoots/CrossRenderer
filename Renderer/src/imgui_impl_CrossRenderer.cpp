@@ -8,6 +8,9 @@
 #include "Program.h"
 using namespace BB;
 
+constexpr size_t IMGUI_ALLOCATOR_SIZE = 1028;
+constexpr size_t IMGUI_FRAME_UPLOAD_BUFFER = mbSize * 4;
+
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
 struct ImGui_ImplCross_FrameRenderBuffers
 {
@@ -15,8 +18,8 @@ struct ImGui_ImplCross_FrameRenderBuffers
     uint64_t indexSize;
     RBufferHandle vertexBuffer;
     RBufferHandle indexBuffer;
-    void* vertMem;
-    void* indexMem;
+
+    UploadBuffer* uploadBuffer;
 };
 
 // Each viewport will hold 1 ImGui_ImplCross_FrameRenderBuffers
@@ -41,6 +44,8 @@ struct ImGui_ImplCrossRenderer_Data
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
+
+    FreelistAllocator_t         allocator{ IMGUI_ALLOCATOR_SIZE };
 
     // Render buffers for main window
     ImGui_ImplCross_WindowRenderBuffers MainWindowRenderBuffers;
@@ -85,26 +90,24 @@ static ImGui_ImplBB_Data* ImGui_ImplBB_GetPlatformData()
 }
 
 //Will likely just create and after that check for resizes.
-static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, void*& a_MemPos, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
+static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize, const uint64_t a_NewSize, const RENDER_BUFFER_USAGE a_Usage)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     if (a_Buffer.handle != 0)
     {
-        RenderBackend::UnmapMemory(a_Buffer);
         RenderBackend::DestroyBuffer(a_Buffer);
     }
 
 
     RenderBufferCreateInfo t_CreateInfo{};
     t_CreateInfo.usage = a_Usage;
-    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
     t_CreateInfo.size = a_NewSize;
 
     a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
     //Do some alignment here.
     a_BufferSize = a_NewSize;
-    a_MemPos = RenderBackend::MapMemory(a_Buffer);
 }
 
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
@@ -147,7 +150,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
 }
 
 // Render function
-void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const BB::PipelineHandle a_Pipeline)
+void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const RecordingCommandListHandle a_Transfer, const BB::PipelineHandle a_Pipeline)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
@@ -163,16 +166,12 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
 
     // Allocate array to store enough vertex/index buffers
     ImGui_ImplCross_WindowRenderBuffers& wrb = bd->MainWindowRenderBuffers;
-    if (wrb.FrameRenderBuffers == nullptr)
-    {
-        wrb.Index = 0;
-        wrb.Count = bd->imageCount;
-        wrb.FrameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * wrb.Count);
-        memset(wrb.FrameRenderBuffers, 0, sizeof(ImGui_ImplCross_FrameRenderBuffers) * wrb.Count);
-    }
+
     IM_ASSERT(wrb.Count == bd->imageCount);
     wrb.Index = (wrb.Index + 1) % wrb.Count;
     ImGui_ImplCross_FrameRenderBuffers& rb = wrb.FrameRenderBuffers[wrb.Index];
+
+    rb.uploadBuffer->Clear();
 
     if (a_DrawData.TotalVtxCount > 0)
     {
@@ -180,13 +179,15 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         const size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
         const size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
         if (rb.vertexBuffer.ptrHandle == nullptr || rb.vertexSize < vertex_size)
-            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, rb.vertMem, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
+            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
-            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, rb.indexMem, index_size, RENDER_BUFFER_USAGE::INDEX);
+            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
+
+        UploadBufferChunk t_UploadChunk = rb.uploadBuffer->Alloc(vertex_size + index_size);
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertMem);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.indexMem);
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UploadChunk.memory);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(Pointer::Add(t_UploadChunk.memory, vertex_size));
        
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -196,6 +197,22 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
             vtx_dst += cmd_list->VtxBuffer.Size;
             idx_dst += cmd_list->IdxBuffer.Size;
         }
+
+        //copy vertex
+        RenderCopyBufferInfo t_CopyInfo{};
+        t_CopyInfo.src = rb.uploadBuffer->Buffer();
+        t_CopyInfo.dstOffset = t_UploadChunk.offset;
+        t_CopyInfo.dst = rb.vertexBuffer;
+        t_CopyInfo.dstOffset = 0;
+        t_CopyInfo.size = vertex_size;
+        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
+
+        //copy index
+        t_CopyInfo.dstOffset = t_UploadChunk.offset + vertex_size;
+        t_CopyInfo.dst = rb.indexBuffer;
+        t_CopyInfo.dstOffset = 0;
+        t_CopyInfo.size = index_size;
+        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
     }
 
     // Setup desired CrossRenderer state
@@ -392,16 +409,17 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 
     {
         FixedArray<DescriptorBinding, 2> t_DescBinds;
-        //image binding for font.
+        //font sampler.
         t_DescBinds[0].binding = 0;
         t_DescBinds[0].descriptorCount = 1;
         t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
 
+        //image binding for font.
         t_DescBinds[1].binding = 1;
         t_DescBinds[1].descriptorCount = 1;
         t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+        t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         RenderDescriptorCreateInfo t_Info{};
         t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
@@ -470,6 +488,20 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_Builder.BindDescriptor(bd->fontDescriptor);
     bd->Pipeline = t_Builder.BuildPipeline();
 
+    //create framebuffers.
+    {
+        ImGui_ImplCross_WindowRenderBuffers& t_FrameBuffers = bd->MainWindowRenderBuffers;
+        t_FrameBuffers.Index = 0;
+        t_FrameBuffers.Count = bd->imageCount;
+        t_FrameBuffers.FrameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_FrameBuffers.Count);
+        memset(t_FrameBuffers.FrameRenderBuffers, 0, sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_FrameBuffers.Count);
+
+        for (size_t i = 0; i < t_FrameBuffers.Count; i++)
+        {
+            t_FrameBuffers.FrameRenderBuffers[i].uploadBuffer = BBnew(bd->allocator, UploadBuffer)(IMGUI_FRAME_UPLOAD_BUFFER);
+        }
+    }
+
     return true;
 }
 
@@ -521,20 +553,6 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
-    // Update the Descriptor Set:
-    {
-        UpdateDescriptorImageInfo t_ImageUpdate{};
-        t_ImageUpdate.binding = 0;
-        t_ImageUpdate.descriptorIndex = 0;
-        t_ImageUpdate.set = bd->fontDescriptor;
-        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-        t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-        t_ImageUpdate.image = a_Image;
-
-        RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
-    }
-
     {
         SamplerCreateInfo t_SamplerInfo{};
         t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
@@ -549,7 +567,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
         bd->fontSampler = RenderBackend::CreateSampler(t_SamplerInfo);
 
         UpdateDescriptorImageInfo t_SamplerUpdate{};
-        t_SamplerUpdate.binding = 1;
+        t_SamplerUpdate.binding = 0;
         t_SamplerUpdate.descriptorIndex = 0;
         t_SamplerUpdate.set = bd->fontDescriptor;
         t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
@@ -557,6 +575,19 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
         t_SamplerUpdate.sampler = bd->fontSampler;
 
         RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
+    }
+
+    {
+        UpdateDescriptorImageInfo t_ImageUpdate{};
+        t_ImageUpdate.binding = 1;
+        t_ImageUpdate.descriptorIndex = 0;
+        t_ImageUpdate.set = bd->fontDescriptor;
+        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+
+        t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+        t_ImageUpdate.image = a_Image;
+
+        RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
     }
 }
 

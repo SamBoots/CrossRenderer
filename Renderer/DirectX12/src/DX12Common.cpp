@@ -1456,30 +1456,30 @@ void BB::DX12WaitDeviceReady()
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 {
 	DXFence* t_Fence = reinterpret_cast<DXFence*>(a_Handle.ptrHandle);
-	s_DX12B.fencePool.Free(t_Fence);
 	t_Fence->~DXFence();
+	s_DX12B.fencePool.Free(t_Fence);
 }
 
 void BB::DX12DestroySampler(const RSamplerHandle a_Handle)
 {
 	DXSampler* t_Sampler = reinterpret_cast<DXSampler*>(a_Handle.ptrHandle);
-	s_DX12B.samplerPool.Free(t_Sampler);
 	t_Sampler->~DXSampler();
+	s_DX12B.samplerPool.Free(t_Sampler);
 	BB_WARNING(false, "DX12 Sampler deletion not yet implemented.", WarningType::OPTIMALIZATION);
 }
 
 void BB::DX12DestroyImage(const RImageHandle a_Handle)
 {
 	DXImage* t_Resource = reinterpret_cast<DXImage*>(a_Handle.ptrHandle);
-	s_DX12B.renderImages.Free(t_Resource);
 	t_Resource->~DXImage();
+	s_DX12B.renderImages.Free(t_Resource);
 }
 
 void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 {
 	DXResource* t_Resource = reinterpret_cast<DXResource*>(a_Handle.ptrHandle);
-	s_DX12B.renderResources.Free(t_Resource);
 	t_Resource->~DXResource();
+	s_DX12B.renderResources.Free(t_Resource);
 }
 
 void BB::DX12DestroyCommandQueue(const CommandQueueHandle a_Handle)

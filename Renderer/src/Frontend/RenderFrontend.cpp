@@ -183,7 +183,7 @@ static void Draw3DFrame()
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
 
 	ImDrawData* t_DrawData = ImGui::GetDrawData();
-	ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics);
+	ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
 
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	RenderBackend::EndCommandList(t_RecordingGraphics);

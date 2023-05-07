@@ -187,8 +187,8 @@ DXResource::DXResource(const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEM
 	t_ResourceDesc.SampleDesc.Quality = 0;
 	t_ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	t_ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
 
+	D3D12MA::ALLOCATION_DESC t_AllocationDesc = {};
 	switch (a_MemProperties)
 	{
 	case RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL:
@@ -198,7 +198,7 @@ DXResource::DXResource(const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEM
 		t_AllocationDesc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
 		break;
 	}
-	
+
 	D3D12_RESOURCE_STATES t_State{};
 	switch (a_BufferUsage)
 	{

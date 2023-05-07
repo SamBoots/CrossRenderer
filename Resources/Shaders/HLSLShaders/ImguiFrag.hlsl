@@ -13,8 +13,13 @@ struct VSoutput
     _BBEXT(1)  float4 color : COLOR0;
 };
 
+SamplerState samplerColor : register(s0, space0);
+
+#ifdef _VULKAN
+Texture2D text : register(t1, space0);
+#elif _DIRECTX12
 Texture2D text : register(t0, space0);
-SamplerState samplerColor : register(s1, space0);
+#endif
 
 float4 main(VSoutput input) : SV_Target
 {

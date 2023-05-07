@@ -170,7 +170,7 @@ struct VulkanBackend_inst
 		cmdQueues.CreatePool(s_VulkanAllocator, 8);
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
-		bufferPool.CreatePool(s_VulkanAllocator, 16);
+		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
 		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
 	}

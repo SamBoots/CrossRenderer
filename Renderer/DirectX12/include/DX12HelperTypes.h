@@ -391,7 +391,7 @@ namespace BB
 			bindingSetPool.CreatePool(s_DX12Allocator, 16);
 			cmdQueues.CreatePool(s_DX12Allocator, 4);
 			cmdAllocators.CreatePool(s_DX12Allocator, 16);
-			renderResources.CreatePool(s_DX12Allocator, 16);
+			renderResources.CreatePool(s_DX12Allocator, 32);
 			renderImages.CreatePool(s_DX12Allocator, 8);
 			fencePool.CreatePool(s_DX12Allocator, 16);
 			samplerPool.CreatePool(s_DX12Allocator, 16);
