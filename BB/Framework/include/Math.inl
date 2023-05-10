@@ -53,14 +53,63 @@ namespace BB
 		return a_Value;
 	}
 
-	//Will just add more on a *need* basis.
+	static inline float2 operator+(const float2 a_Lhs, const float2 a_Rhs)
+	{
+		return float2{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y };
+	}
+
 	static inline float2 operator-(const float2 a_Lhs, const float2 a_Rhs)
 	{
 		return float2{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y };
 	}
 
-	static inline float2 operator+(float2 a_Lhs, const float2 a_Rhs)
+	static inline float2 operator*(const float2 a_Lhs, const float2 a_Rhs)
 	{
-		return float2{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y };
+		return float2{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y };
+	}
+
+	static inline float2 operator/(const float2 a_Lhs, const float2 a_Rhs)
+	{
+		return float2{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y };
+	}
+
+	static inline float3 operator+(const float3 a_Lhs, const float3 a_Rhs)
+	{
+		return float3{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y, a_Lhs.z + a_Rhs.z };
+	}
+
+	static inline float3 operator-(const float3 a_Lhs, const float3 a_Rhs)
+	{
+		return float3{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y, a_Lhs.z - a_Rhs.z };
+	}
+
+	static inline float3 operator*(const float3 a_Lhs, const float3 a_Rhs)
+	{
+		return float3{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y, a_Lhs.z * a_Rhs.z };
+	}
+
+	static inline float3 operator/(const float3 a_Lhs, const float3 a_Rhs)
+	{
+		return float3{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y, a_Lhs.z / a_Rhs.z };
+	}
+
+	static inline float4 operator+(const float4 a_Lhs, const float4 a_Rhs)
+	{
+		return float4{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y, a_Lhs.z + a_Rhs.z, a_Lhs.w + a_Rhs.w };
+	}
+
+	static inline float4 operator-(const float4 a_Lhs, const float4 a_Rhs)
+	{
+		return float4{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y, a_Lhs.z - a_Rhs.z, a_Lhs.w - a_Rhs.w };
+	}
+
+	static inline float4 operator*(const float4 a_Lhs, const float4 a_Rhs)
+	{
+		return float4{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y, a_Lhs.z * a_Rhs.z, a_Lhs.w * a_Rhs.w };
+	}
+
+	static inline float4 operator/(const float4 a_Lhs, const float4 a_Rhs)
+	{
+		return float4{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y, a_Lhs.z / a_Rhs.z, a_Lhs.w / a_Rhs.w };
 	}
 }
