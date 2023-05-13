@@ -3,10 +3,13 @@
 
 using namespace BB;
 
-BB::LightPool::LightPool(Allocator a_SystemAllocator, LinearRenderBuffer& a_GPUBuffer, const uint32_t a_LightCount)
-	: m_LightMax(a_LightCount)
+BB::LightPool::LightPool(UploadBuffer& a_UploadBuffer, LinearRenderBuffer& a_GPUBuffer, const uint32_t a_LightCount)
+	:	m_LightMax(a_LightCount), m_UploadBuffer(a_UploadBuffer.Buffer())
 {
-	m_LightsCPU = BBnewArr(a_SystemAllocator, a_LightCount, Light);
+	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(sizeof(Light) * a_LightCount);
+	m_UploadBufferOffset = t_UploadChunk.bufferOffset;
+
+	m_LightsCPU = reinterpret_cast<Light*>(t_UploadChunk.memory);
 	m_BufferPart = a_GPUBuffer.SubAllocateFromBuffer(static_cast<uint64_t>(a_LightCount * sizeof(Light)), 1);
 	m_LightCount = 0;
 }
@@ -16,7 +19,7 @@ BB::LightPool::~LightPool()
 
 }
 
-const LightHandle BB::LightPool::AddLight(Light& a_Light)
+const LightHandle BB::LightPool::AddLight(const Light& a_Light)
 {
 	BB_ASSERT(m_LightMax > m_LightCount + 1, "Light pool gone over the amount of lights!");
 
@@ -24,10 +27,8 @@ const LightHandle BB::LightPool::AddLight(Light& a_Light)
 	t_Handle.index = m_LightCount;
 	t_Handle.extraIndex = 1;
 
-	Light& t_CopyAddress = m_LightsCPU[m_LightCount];
-	t_CopyAddress = a_Light;
+	m_LightsCPU[m_LightCount++] = a_Light;
 
-	++m_LightCount;
 	return t_Handle;
 }
 
@@ -46,7 +47,7 @@ const LightHandle BB::LightPool::AddLights(const BB::Slice<Light> a_Lights)
 	return t_Handle;
 }
 
-void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, UploadBuffer& a_UploadBuffer, const BB::Slice<LightHandle> a_LightHandles) const
+void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, const BB::Slice<LightHandle> a_LightHandles) const
 {
 	BB_ASSERT(m_LightCount > 0, "Light pool is empty!");
 	uint32_t t_FirstIndex = 0;
@@ -70,27 +71,17 @@ void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_Recordi
 			t_FirstIndex = a_LightHandles[i].extraIndex;
 	}
 
-
-
 	const uint32_t t_LightAmount = t_LastIndex - t_FirstIndex;
 
 	const uint64_t t_AllocSize = static_cast<uint64_t>(t_LightAmount * sizeof(Light));
 	const uint64_t t_DstBufferOffset = static_cast<uint64_t>(t_FirstIndex * sizeof(Light));
 
-	//Add the lights here.
-	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(t_AllocSize);
-
-	Memory::Copy(
-		reinterpret_cast<Light*>(t_UploadChunk.memory), 
-		&m_LightsCPU[t_FirstIndex], 
-		t_LightAmount);
-
 	RenderCopyBufferInfo t_CopyInfo{};
+	t_CopyInfo.size = t_AllocSize;
+	t_CopyInfo.src = m_UploadBuffer;
+	t_CopyInfo.srcOffset = m_UploadBufferOffset;
 	t_CopyInfo.dst = m_BufferPart.bufferHandle;
 	t_CopyInfo.dstOffset = static_cast<uint64_t>(m_BufferPart.offset + t_DstBufferOffset);
-	t_CopyInfo.src = a_UploadBuffer.Buffer();
-	t_CopyInfo.srcOffset = t_UploadChunk.offset;
-	t_CopyInfo.size = t_AllocSize;
 
 	RenderBackend::CopyBuffer(t_RecordingCmdList, t_CopyInfo);
 }
@@ -98,4 +89,46 @@ void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_Recordi
 void BB::LightPool::ResetLights()
 {
 	m_LightCount = 0;
+}
+
+LightSystem::LightSystem(const size_t a_LightAmount)
+	:	m_UploadBuffer(sizeof(Light) * a_LightAmount),
+		m_LightGPUBuffer(RenderBufferCreateInfo{ BB::mbSize * 2, RENDER_BUFFER_USAGE::STORAGE, RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL }),
+		m_Lights(m_UploadBuffer, m_LightGPUBuffer, a_LightAmount)
+{
+	
+}
+
+LightSystem::~LightSystem()
+{}
+
+LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList)
+{
+	LightHandle t_Handle{};
+	switch (a_LightType)
+	{
+	case LIGHT_TYPE::POINT:
+		t_Handle = m_Lights.AddLights(a_Lights);
+		m_Lights.SubmitLightsToGPU(a_CmdList, BB::Slice(&t_Handle, 1));
+		break;
+	}
+
+	return t_Handle;
+}
+
+void LightSystem::UpdateDescriptor(const RDescriptorHandle a_Descriptor)
+{
+	UpdateDescriptorBufferInfo t_BufferUpdate{};
+	t_BufferUpdate.set = a_Descriptor;
+
+	RenderBufferPart t_LightBufferPart = m_Lights.GetBufferAllocInfo();
+
+	t_BufferUpdate.binding = 3;
+	t_BufferUpdate.descriptorIndex = 0;
+	t_BufferUpdate.bufferOffset = t_LightBufferPart.offset;
+	t_BufferUpdate.bufferSize = t_LightBufferPart.size;
+	t_BufferUpdate.buffer = t_LightBufferPart.bufferHandle;
+	t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+	RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
 }

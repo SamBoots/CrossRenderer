@@ -134,6 +134,7 @@ int main(int argc, char** argv)
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
 		Editor::DisplayDrawObjects(Render::GetDrawObjects(), t_TransformPool);
+		//Editor::DisplayLightPool()
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{

@@ -340,9 +340,9 @@ namespace BB
 	struct RenderBufferCreateInfo
 	{
 		uint64_t size = 0;
-		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
+		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 	};
 
 	struct RenderImageCreateInfo
@@ -417,12 +417,11 @@ namespace BB
 
 	struct RenderCopyBufferInfo
 	{
-		RBufferHandle src;
-		RBufferHandle dst;
-
-		uint64_t srcOffset;
-		uint64_t dstOffset;
 		uint64_t size;
+		RBufferHandle src;
+		uint64_t srcOffset;
+		RBufferHandle dst;
+		uint64_t dstOffset;
 	};
 
 	struct ImageCopyInfo

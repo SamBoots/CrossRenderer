@@ -8,7 +8,7 @@
 
 struct BaseFrameInfo
 {
-    uint staticLightCount;
+    uint lightCount;
     uint3 pad;
     
     float3 ambientLight;
@@ -51,7 +51,7 @@ float4 main(VSoutput input) : SV_Target
     
     float4 t_Diffuse;
     //Apply lights
-    for (int i = 0; i < baseFrameInfo[0].staticLightCount; i++)
+    for (int i = 0; i < baseFrameInfo[0].lightCount; i++)
     {
         float3 t_Normal = normalize(input.normal);
         float3 t_Dir = normalize(lights[i].pos - input.fragPos);

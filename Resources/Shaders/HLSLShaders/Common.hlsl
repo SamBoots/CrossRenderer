@@ -11,7 +11,7 @@
 
 struct BaseFrameInfo
 {
-    uint staticLightCount;
+    uint lightCount;
     uint3 pad;
     
     float3 ambientLight;

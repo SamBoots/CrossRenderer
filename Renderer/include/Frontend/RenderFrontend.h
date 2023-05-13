@@ -27,7 +27,7 @@ namespace BB
 		void StartFrame();
 		void EndFrame();
 
-		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType);
+		const LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType);
 
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 	};

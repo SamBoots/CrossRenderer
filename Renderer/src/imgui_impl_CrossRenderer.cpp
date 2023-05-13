@@ -202,14 +202,14 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         //copy vertex
         RenderCopyBufferInfo t_CopyInfo{};
         t_CopyInfo.src = rb.uploadBuffer->Buffer();
-        t_CopyInfo.srcOffset = t_UpVert.offset;
+        t_CopyInfo.srcOffset = t_UpVert.bufferOffset;
         t_CopyInfo.dst = rb.vertexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = vertex_size;
         RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
 
         //copy index
-        t_CopyInfo.srcOffset = t_UpIndex.offset;
+        t_CopyInfo.srcOffset = t_UpIndex.bufferOffset;
         t_CopyInfo.dst = rb.indexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = index_size;
@@ -337,7 +337,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
 
         RenderCopyBufferImageInfo t_CopyImage{};
         t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
-        t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.offset);
+        t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.bufferOffset);
         t_CopyImage.dstImage = bd->fontImage;
         t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(width);
         t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(height);

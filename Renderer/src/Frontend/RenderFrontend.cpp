@@ -36,8 +36,7 @@ struct RendererInst
 
 struct GlobalInfo
 {
-	LinearRenderBuffer* lightBuffer;
-	LightPool* staticLights;
+	LightSystem* lightSystem;
 
 	CameraRenderData* cameraData = nullptr;
 	BaseFrameInfo* perFrameInfo = nullptr;
@@ -90,7 +89,8 @@ static void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
-	s_GlobalInfo.perFrameInfo->staticLightCount = s_GlobalInfo.staticLights->GetLightCount();
+	s_GlobalInfo.perFrameInfo->lightCount = 
+		s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
 
 	ImGui::Render();
 
@@ -230,13 +230,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	constexpr size_t LIGHT_COUNT_MAX = 1024;
 	constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
 
-	RenderBufferCreateInfo t_BufferCreateInfo{};
-	t_BufferCreateInfo.size = LIGHT_ALLOC_SIZE;
-	t_BufferCreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-	t_BufferCreateInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
-	s_GlobalInfo.lightBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_BufferCreateInfo);
-
-	s_GlobalInfo.staticLights = BBnew(m_SystemAllocator, LightPool)(m_SystemAllocator, *s_GlobalInfo.lightBuffer, LIGHT_COUNT_MAX);
+	s_GlobalInfo.lightSystem = BBnew(m_SystemAllocator, LightSystem)(LIGHT_COUNT_MAX);
 #pragma endregion //LightSystem
 
 #pragma region PipelineCreation
@@ -408,15 +402,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
 
-		RenderBufferPart t_LightBufferPart = s_GlobalInfo.staticLights->GetBufferAllocInfo();
-		t_BufferUpdate.binding = 3;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = t_LightBufferPart.offset;
-		t_BufferUpdate.bufferSize = t_LightBufferPart.size;
-		t_BufferUpdate.buffer = t_LightBufferPart.bufferHandle;
-		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1);
 	}
 
 	{
@@ -792,7 +778,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.vertexBuffer;
-		t_CopyInfo.srcOffset = t_StageBuffer.offset;
+		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
 		t_CopyInfo.dstOffset = 0;
 		t_CopyInfo.size = a_CreateInfo.vertices.sizeInBytes();
 
@@ -814,7 +800,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
 		t_CopyInfo.dst = t_Model.indexBuffer;
-		t_CopyInfo.srcOffset = t_StageBuffer.offset;
+		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
 		t_CopyInfo.dstOffset = 0;
 		t_CopyInfo.size = a_CreateInfo.indices.sizeInBytes();
 
@@ -931,18 +917,10 @@ void BB::Render::EndFrame()
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 }
 
-LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
+const LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
 {
-	LightHandle t_Handle{};
-	switch (a_LightType)
-	{
-	case LIGHT_TYPE::POINT:
-		t_Handle = s_GlobalInfo.staticLights->AddLights(a_Lights);
-		s_GlobalInfo.staticLights->SubmitLightsToGPU(t_RecordingTransfer, *t_UploadBuffer, BB::Slice(&t_Handle, 1));
-		break;
-	}
-
-	return t_Handle;
+	const LightHandle t_Lights = s_GlobalInfo.lightSystem->AddLights(a_Lights, a_LightType, t_RecordingTransfer);
+	return t_Lights;
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)

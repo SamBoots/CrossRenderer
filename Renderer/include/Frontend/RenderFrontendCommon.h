@@ -82,7 +82,7 @@ namespace BB
 
 	struct BaseFrameInfo
 	{
-		uint32_t staticLightCount = 0;
+		uint32_t lightCount = 0;
 		uint3 padding;
 
 		float3 ambientLight;

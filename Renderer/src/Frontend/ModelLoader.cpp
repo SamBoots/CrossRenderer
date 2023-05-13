@@ -231,7 +231,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.vertexBuffer;
-		t_CopyInfo.srcOffset = t_VertChunk.offset;
+		t_CopyInfo.srcOffset = t_VertChunk.bufferOffset;
 		t_CopyInfo.dstOffset = 0;
 		t_CopyInfo.size = t_VertexBufferSize;
 
@@ -253,7 +253,7 @@ void BB::LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, M
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
 		t_CopyInfo.dst = a_Model.indexBuffer;
-		t_CopyInfo.srcOffset = t_IndexChunk.offset;
+		t_CopyInfo.srcOffset = t_IndexChunk.bufferOffset;
 		t_CopyInfo.dstOffset = 0;
 		t_CopyInfo.size = t_IndexBufferSize;
 

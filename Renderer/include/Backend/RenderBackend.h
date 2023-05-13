@@ -22,7 +22,7 @@ namespace BB
 	struct UploadBufferChunk
 	{
 		void* memory;
-		uint64_t offset;
+		uint64_t bufferOffset;
 	};
 
 	class UploadBuffer
@@ -31,7 +31,7 @@ namespace BB
 		UploadBuffer(const uint64_t a_Size);
 		~UploadBuffer();
 
-		UploadBufferChunk  Alloc(const uint64_t a_Size);
+		const UploadBufferChunk Alloc(const uint64_t a_Size);
 		const uint64_t GetCurrentOffset() const { return m_Offset; }
 		void Clear();
 
