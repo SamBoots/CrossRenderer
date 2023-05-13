@@ -46,18 +46,20 @@ namespace BB
 
 	namespace RenderBackend
 	{
+		void DisplayDebugInfo();
+
 		const uint32_t GetFrameBufferAmount();
 		const FrameIndex GetCurrentFrameBufferIndex();
 
 		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		RDescriptorHandle CreateDescriptor(const RenderDescriptorCreateInfo& a_Info);
+		RDescriptorHandle CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 		RBufferHandle CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 		RImageHandle CreateImage(const RenderImageCreateInfo& a_CreateInfo);
-		RSamplerHandle CreateSampler(const SamplerCreateInfo& a_Info);
-		RFenceHandle CreateFence(const FenceCreateInfo& a_Info);
+		RSamplerHandle CreateSampler(const SamplerCreateInfo& a_CreateInfo);
+		RFenceHandle CreateFence(const FenceCreateInfo& a_CreateInfo);
 
 		void UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
 		void UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);

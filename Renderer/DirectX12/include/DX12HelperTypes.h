@@ -114,7 +114,8 @@ namespace BB
 		uint64_t m_LastCompleteValue;
 		HANDLE m_FenceEvent;
 
-		friend class DXCommandQueue; //Commandqueue handles the Fence in a special way.
+		//Commandqueue handles the Fence in a special way.
+		friend class DXCommandQueue; 
 	};
 
 	class DXResource

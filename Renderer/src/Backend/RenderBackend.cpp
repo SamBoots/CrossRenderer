@@ -1,5 +1,5 @@
 #include "RenderBackend.h"
-#include "VulkanBackend.h"
+#include "RenderResourceTracker.h"
 
 #include "Utils/Slice.h"
 #include "BBString.h"
@@ -9,6 +9,11 @@ using namespace BB;
 static RenderAPIFunctions s_ApiFunc;
 
 static BackendInfo s_BackendInfo;
+
+static RenderResourceTracker s_ResourceTracker;
+
+
+
 
 PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
@@ -80,6 +85,11 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
+void BB::RenderBackend::DisplayDebugInfo()
+{
+	s_ResourceTracker.Editor();
+}
+
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
 {
 	return s_BackendInfo.framebufferCount;
@@ -98,28 +108,59 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_BackendInfo = s_ApiFunc.createBackend(a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
+RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	return s_ApiFunc.createDescriptor(a_Info);
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::DESCRIPTOR;
+	t_Res.descriptor = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
+
+	return s_ApiFunc.createDescriptor(a_CreateInfo);
 }
 
 CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
 {
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::COMMAND_QUEUE;
+	t_Res.queue = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
 	return s_ApiFunc.createCommandQueue(a_CreateInfo);
 }
 
 CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::COMMAND_ALLOCATOR;
+	t_Res.commandAllocator = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
 	return s_ApiFunc.createCommandAllocator(a_CreateInfo);
 }
 
 CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::COMMAND_LIST;
+	t_Res.commandList = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
 	return s_ApiFunc.createCommandList(a_CreateInfo);
 }
 
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::BUFFER;
+	t_Res.buffer = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
@@ -130,17 +171,37 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 	BB_ASSERT(a_CreateInfo.depth != 0, "Image depth is 0! Standard 2d texture should have a depth of 1.");
 	BB_ASSERT(a_CreateInfo.arrayLayers != 0, "Image arrayLayers is 0! Standard should be 1 if you do not do anything special for a 2d image.");
 	BB_ASSERT(a_CreateInfo.mipLevels != 0, "Image mipLevels is 0! Standard should be 1 if you do not do mips for an image.");
+	
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::IMAGE;
+	t_Res.image = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
+	
 	return s_ApiFunc.createImage(a_CreateInfo);
 }
 
-RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_Info)
+RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
-	return s_ApiFunc.createSampler(a_Info);
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::SAMPLER;
+	t_Res.sampler = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
+	return s_ApiFunc.createSampler(a_CreateInfo);
 }
 
-RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_Info)
+RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 {
-	return s_ApiFunc.createFence(a_Info);
+#ifdef _DEBUG
+	RenderResource t_Res{};
+	t_Res.type = RESOURCE_TYPE::FENCE;
+	t_Res.fence = a_CreateInfo;
+	s_ResourceTracker.AddResource(t_Res);
+#endif
+	return s_ApiFunc.createFence(a_CreateInfo);
 }
 
 void BB::RenderBackend::UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)

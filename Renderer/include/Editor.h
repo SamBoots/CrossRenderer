@@ -5,11 +5,14 @@ namespace BB
 {
 	struct DrawObject;
 	struct LightSystem;
+	struct RenderResourceTracker;
 	class TransformPool;
 
-	namespace Editor
+	class Editor
 	{
-		void DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool);
-		void DisplayLightSystem(const BB::LightSystem& a_System);
-	}
+	public:
+		static void DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool);
+		static void DisplayLightSystem(const BB::LightSystem& a_System);
+		static void DisplayRenderResources(const BB::RenderResourceTracker& a_ResTracker);
+	};
 }

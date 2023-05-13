@@ -675,6 +675,7 @@ void BB::Render::DestroyRenderer()
 void BB::Render::Update(const float a_DeltaTime)
 {
 	s_GlobalInfo.lightSystem->Editor();
+	RenderBackend::DisplayDebugInfo();
 	Draw3DFrame();
 }
 
