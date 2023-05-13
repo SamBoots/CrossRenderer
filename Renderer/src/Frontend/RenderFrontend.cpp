@@ -307,6 +307,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PipeInitInfo.blendLogicOpEnable = false;
 	t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::BACK;
 	t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
+	t_PipeInitInfo.enableDepthTest = true;
 
 	//We only have 1 index so far.
 	t_PipeInitInfo.constantData.dwordSize = 1;

@@ -1455,22 +1455,23 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 	{ //Depth stencil create;
 		VkPipelineDepthStencilStateCreateInfo* t_DepthCreateInfo = BBnew(
 			t_BuildInfo->buildAllocator,
-			VkPipelineDepthStencilStateCreateInfo);
+			VkPipelineDepthStencilStateCreateInfo) {};
 		t_DepthCreateInfo->sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		if (a_InitInfo.enableDepthTest)
 		{
 			t_DepthCreateInfo->depthTestEnable = VK_TRUE;
 			t_DepthCreateInfo->depthWriteEnable = VK_TRUE;
-			t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS;
+			t_DepthCreateInfo->depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+			t_DepthCreateInfo->back.compareMask = VK_COMPARE_OP_ALWAYS;
 			t_DepthCreateInfo->depthBoundsTestEnable = VK_FALSE;
 			t_DepthCreateInfo->minDepthBounds = 0.0f;
-			t_DepthCreateInfo->maxDepthBounds = 1.0f;
+			t_DepthCreateInfo->maxDepthBounds = 0.0f;
 			t_DepthCreateInfo->stencilTestEnable = VK_FALSE;
+			t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
+			t_BuildInfo->dynamicRenderingInfo.stencilAttachmentFormat = DEPTH_FORMAT;
 		}
 
 		t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
-		t_BuildInfo->dynamicRenderingInfo.depthAttachmentFormat = DEPTH_FORMAT;
-		t_BuildInfo->dynamicRenderingInfo.stencilAttachmentFormat = DEPTH_FORMAT;
 	}
 
 
@@ -1847,7 +1848,7 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 			1,
 			&t_DepthBarrier);
 
-		t_Cmdlist->depthImage = t_DepthBarrier.image;
+		t_Cmdlist->depthImage = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
 		
 		t_RenderDepthAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		t_RenderDepthAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;

@@ -13,7 +13,6 @@ namespace BB
 	RSamplerHandle VulkanCreateSampler(const SamplerCreateInfo& a_Info);
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_Info);
 
-
 	void VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
 	void VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
 	void VulkanUpdateDescriptorBuffers(const Slice<UpdateDescriptorBufferInfo> a_Info);

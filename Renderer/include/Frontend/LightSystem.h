@@ -48,7 +48,6 @@ namespace BB
 
 		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList);
 		void UploadLights();
-		void Update(const RecordingCommandListHandle a_CmdList);
 
 		void UpdateDescriptor(const RDescriptorHandle a_Descriptor);
 
@@ -57,7 +56,6 @@ namespace BB
 		const LightPool& GetLightPool() const { return m_Lights; }
 
 	private:
-		bool m_ChangeMarked = false;
 		UploadBuffer m_UploadBuffer;
 		LinearRenderBuffer m_LightGPUBuffer;
 		LightPool m_Lights;
