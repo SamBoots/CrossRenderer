@@ -28,27 +28,3 @@ void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, c
 	}
 	ImGui::End();
 }
-
-void BB::Editor::DisplayLightSystem(const BB::LightSystem& a_System)
-{
-	//ImGui::Begin("Light Pool");
-
-	//if (ImGui::CollapsingHeader(a_PoolName))
-	//{
-	//	ImGui::Text("Light amount: %u/%u", a_Pool.GetLightCount(), a_Pool.GetLightMax());
-
-	//	const Slice<Light> t_Lights = a_Pool.GetLights();
-
-	//	for (size_t i = 0; i < t_Lights.size(); i++)
-	//	{
-	//		if (ImGui::TreeNode((void*)(intptr_t)i, "Light %d", i))
-	//		{
-	//			ImGui::SliderFloat3("Position", &t_Lights[i].pos.x, -100, 100);
-	//			ImGui::SliderFloat("Radius", &t_Lights[i].radius, 0, 10);
-	//			ImGui::SliderFloat4("Color", &t_Lights[i].color.x, 0, 255);
-	//		}
-	//	}
-	//}
-
-	//ImGui::End();
-}

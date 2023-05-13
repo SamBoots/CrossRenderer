@@ -1,5 +1,6 @@
 #include "LightSystem.h"
 #include "RenderBackend.h"
+#include "Editor.h"
 
 using namespace BB;
 
@@ -112,7 +113,6 @@ LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_
 		m_Lights.SubmitLightsToGPU(a_CmdList, BB::Slice(&t_Handle, 1));
 		break;
 	}
-
 	return t_Handle;
 }
 
@@ -131,4 +131,9 @@ void LightSystem::UpdateDescriptor(const RDescriptorHandle a_Descriptor)
 	t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 
 	RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+}
+
+void LightSystem::Editor()
+{
+	Editor::DisplayLightSystem(*this);
 }

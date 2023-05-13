@@ -8,6 +8,7 @@
 #include "ModelLoader.h"
 #include "LightSystem.h"
 #include "imgui_impl_CrossRenderer.h"
+#include "Editor.h"
 
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
@@ -672,6 +673,7 @@ void BB::Render::DestroyRenderer()
 
 void BB::Render::Update(const float a_DeltaTime)
 {
+	s_GlobalInfo.lightSystem->Editor();
 	Draw3DFrame();
 }
 
@@ -944,4 +946,36 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 
 		t_DepthImage = RenderBackend::CreateImage(t_DepthInfo);
 	}
+}
+
+
+//We handle the light system externally since we might want to access the system differently later.
+void BB::Editor::DisplayLightSystem(const BB::LightSystem& a_System)
+{
+	ImGui::Begin("Light Pool");
+
+	if (ImGui::CollapsingHeader("lights"))
+	{
+		const LightPool& t_Pl = a_System.GetLightPool();
+		ImGui::Text("Light amount: %u/%u", t_Pl.GetLightCount(), t_Pl.GetLightMax());
+		const Slice<Light> t_Lights = t_Pl.GetLights();
+
+		if (ImGui::Button("Rebuild lights"))
+		{
+			t_Pl.SubmitLightsToGPU(t_RecordingTransfer);
+		}
+
+		for (size_t i = 0; i < t_Lights.size(); i++)
+		{
+			if (ImGui::TreeNode((void*)(intptr_t)i, "Light %d", i))
+			{
+				ImGui::SliderFloat3("Position", &t_Lights[i].pos.x, -100, 100);
+				ImGui::SliderFloat("Radius", &t_Lights[i].radius, 0, 10);
+				ImGui::SliderFloat4("Color", &t_Lights[i].color.x, 0, 255);
+				ImGui::TreePop();
+			}
+		}
+	}
+
+	ImGui::End();
 }
