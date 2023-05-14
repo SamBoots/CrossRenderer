@@ -76,12 +76,13 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 {
 	ImGui::Begin("Render resources");
 
-	for (size_t i = 0; i < a_ResTracker.m_RenderResource.size(); i++)
+	if (ImGui::CollapsingHeader("Resources"))
 	{
-		ImGui::PushID(i);
-		const RenderResource& t_Res = a_ResTracker.m_RenderResource[i];
-		if (ImGui::CollapsingHeader("Resources"))
+		for (size_t i = 0; i < a_ResTracker.m_RenderResource.size(); i++)
 		{
+			ImGui::PushID(i);
+			const RenderResource& t_Res = a_ResTracker.m_RenderResource[i];
+
 			if (ImGui::TreeNode("PLACE_HOLDER_NAME"))
 			{
 				switch (t_Res.type)
@@ -123,7 +124,7 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 						}
 					}
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::COMMAND_QUEUE:
 				{
 					const RenderCommandQueueCreateInfo& t_Queue = t_Res.queue;
@@ -164,12 +165,12 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 						break;
 					}
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::COMMAND_LIST:
 				{
 					const RenderCommandListCreateInfo& t_List = t_Res.commandList;
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::BUFFER:
 				{
 					const RenderBufferCreateInfo& t_Buffer = t_Res.buffer;
@@ -208,30 +209,31 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 						break;
 					}
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::IMAGE:
 				{
 
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::SAMPLER:
 				{
 
 				}
-					break;
+				break;
 				case RESOURCE_TYPE::FENCE:
 				{
 
 				}
-					break;
+				break;
 				default:
 					BB_ASSERT(false, "Unknown RESOURCE_TYPE for resource trackering editor");
 					break;
 				}
 				ImGui::TreePop();
 			}
+			ImGui::PopID();
 		}
-		ImGui::PopID();
 	}
+
 	ImGui::End();
 }
