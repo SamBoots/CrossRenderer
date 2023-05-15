@@ -427,19 +427,6 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
 	DXResource* t_Resource = new (s_DX12B.renderResources.Get())
 		DXResource(a_Info.usage, a_Info.memProperties, a_Info.size);
 
-	if (a_Info.data != nullptr)
-	{
-		void* t_MappedPtr;
-		D3D12_RANGE t_ReadRange{};
-		t_ReadRange.Begin = 0;
-		t_ReadRange.End = 0;
-
-		DXASSERT(t_Resource->GetResource()->Map(0, nullptr, &t_MappedPtr),
-			"DX12: failed to map memory to resource.");
-		memcpy(t_MappedPtr, a_Info.data, a_Info.size);
-		t_Resource->GetResource()->Unmap(0, nullptr);
-	}
-
 	return RBufferHandle(t_Resource);
 }
 

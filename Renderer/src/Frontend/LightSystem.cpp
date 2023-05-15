@@ -93,8 +93,8 @@ void BB::LightPool::ResetLights()
 }
 
 LightSystem::LightSystem(const size_t a_LightAmount)
-	:	m_UploadBuffer(sizeof(Light) * a_LightAmount),
-		m_LightGPUBuffer(RenderBufferCreateInfo{ BB::mbSize * 2, RENDER_BUFFER_USAGE::STORAGE, RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL }),
+	:	m_UploadBuffer(sizeof(Light) * a_LightAmount, "light system transfer buffer"),
+		m_LightGPUBuffer(RenderBufferCreateInfo{ "light system buffer", BB::mbSize * 2, RENDER_BUFFER_USAGE::STORAGE, RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL}),
 		m_Lights(m_UploadBuffer, m_LightGPUBuffer, a_LightAmount)
 {
 	

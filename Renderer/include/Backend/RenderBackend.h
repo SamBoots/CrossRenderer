@@ -28,7 +28,7 @@ namespace BB
 	class UploadBuffer
 	{
 	public:
-		UploadBuffer(const uint64_t a_Size);
+		UploadBuffer(const uint64_t a_Size, const char* a_Name = nullptr);
 		~UploadBuffer();
 
 		const UploadBufferChunk Alloc(const uint64_t a_Size);

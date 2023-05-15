@@ -21,6 +21,7 @@ namespace BB
 	struct RenderResource
 	{
 		RESOURCE_TYPE type;
+		const char* name;
 		union
 		{
 			RenderDescriptorCreateInfo descriptor;

@@ -310,24 +310,28 @@ namespace BB
 
 	struct RenderDescriptorCreateInfo
 	{
+		const char* name;
 		RENDER_BINDING_SET bindingSet;
 		BB::Slice<DescriptorBinding> bindings;
 	};
 
 	struct RenderCommandQueueCreateInfo
 	{
+		const char* name;
 		RENDER_QUEUE_TYPE queue;
 		RENDER_FENCE_FLAGS flags;
 	};
 
 	struct RenderCommandAllocatorCreateInfo
 	{
+		const char* name;
 		RENDER_QUEUE_TYPE queueType;
 		uint32_t commandListCount;
 	};
 
 	struct RenderCommandListCreateInfo
 	{
+		const char* name;
 		CommandAllocatorHandle commandAllocator;
 	};
 
@@ -339,14 +343,15 @@ namespace BB
 
 	struct RenderBufferCreateInfo
 	{
+		const char* name;
 		uint64_t size = 0;
 		RENDER_BUFFER_USAGE usage;
 		RENDER_MEMORY_PROPERTIES memProperties;
-		const void* data = nullptr; //Optional, if provided it will also upload the data to the buffer if it can.
 	};
 
 	struct RenderImageCreateInfo
 	{
+		const char* name;
 		uint32_t width = 0;
 		uint32_t height = 0;
 		uint32_t depth = 0;
@@ -360,6 +365,7 @@ namespace BB
 
 	struct SamplerCreateInfo
 	{
+		const char* name;
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
@@ -369,6 +375,12 @@ namespace BB
 
 		float minLod = 0;
 		float maxLod = 0;
+	};
+
+	struct FenceCreateInfo
+	{
+		const char* name;
+		RENDER_FENCE_FLAGS flags;
 	};
 
 	struct RenderTransitionImageInfo
@@ -385,11 +397,6 @@ namespace BB
 		uint32_t levelCount;
 		uint32_t baseArrayLayer;
 		uint32_t layerCount;
-	};
-
-	struct FenceCreateInfo
-	{
-		RENDER_FENCE_FLAGS flags;
 	};
 
 	struct StartFrameInfo
@@ -510,6 +517,7 @@ namespace BB
 
 	struct PipelineInitInfo
 	{
+		const char* name;
 		PipelineRasterState rasterizerState{};
 		PipelineConstantData constantData{};
 

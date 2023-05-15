@@ -12,9 +12,6 @@ static BackendInfo s_BackendInfo;
 
 static RenderResourceTracker s_ResourceTracker;
 
-
-
-
 PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
 	BB_ASSERT(a_InitInfo.renderTargetBlendCount < 8, "More then 8 blending targets! This will not work with directx12.")
@@ -49,14 +46,14 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 	return t_ReturnHandle;
 }
 
-UploadBuffer::UploadBuffer(const uint64_t a_Size)
+UploadBuffer::UploadBuffer(const uint64_t a_Size, const char* a_Name)
 	: m_Size(a_Size)
 {
-	RenderBufferCreateInfo t_UploadBufferInfo;
+	RenderBufferCreateInfo t_UploadBufferInfo{};
+	t_UploadBufferInfo.name = a_Name;
 	t_UploadBufferInfo.size = m_Size;
 	t_UploadBufferInfo.usage = RENDER_BUFFER_USAGE::STAGING;
 	t_UploadBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_UploadBufferInfo.data = nullptr;
 	m_Buffer = RenderBackend::CreateBuffer(t_UploadBufferInfo);
 
 	m_Offset = 0;
@@ -113,6 +110,7 @@ RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCrea
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::DESCRIPTOR;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.descriptor = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -125,6 +123,7 @@ CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueu
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::COMMAND_QUEUE;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.queue = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -136,6 +135,7 @@ CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCom
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::COMMAND_ALLOCATOR;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.commandAllocator = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -147,6 +147,7 @@ CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCr
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::COMMAND_LIST;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.commandList = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -158,6 +159,7 @@ RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_Cr
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::BUFFER;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.buffer = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -175,6 +177,7 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::IMAGE;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.image = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -187,6 +190,7 @@ RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_Creat
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::SAMPLER;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.sampler = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif
@@ -198,6 +202,7 @@ RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 #ifdef _DEBUG
 	RenderResource t_Res{};
 	t_Res.type = RESOURCE_TYPE::FENCE;
+	t_Res.name = a_CreateInfo.name;
 	t_Res.fence = a_CreateInfo;
 	s_ResourceTracker.AddResource(t_Res);
 #endif

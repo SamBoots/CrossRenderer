@@ -83,7 +83,11 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 			ImGui::PushID(i);
 			const RenderResource& t_Res = a_ResTracker.m_RenderResource[i];
 
-			if (ImGui::TreeNode("PLACE_HOLDER_NAME"))
+			const char* t_ResName = "UNNAMED";
+			if (t_Res.name != nullptr)
+				t_ResName = t_Res.name;
+
+			if (ImGui::TreeNode(t_ResName))
 			{
 				switch (t_Res.type)
 				{

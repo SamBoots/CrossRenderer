@@ -1102,18 +1102,6 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info)
 		&t_Buffer->buffer, &t_Buffer->allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
-	if (a_Info.data != nullptr &&
-		a_Info.memProperties != RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL)
-	{
-		void* t_MapData;
-		VKASSERT(vmaMapMemory(s_VKB.vma,
-			t_Buffer->allocation,
-			&t_MapData),
-			"Vulkan: Failed to map memory");
-		memcpy(Pointer::Add(t_MapData, 0), a_Info.data, a_Info.size);
-		vmaUnmapMemory(s_VKB.vma, t_Buffer->allocation);
-	}
-
 	return RBufferHandle(t_Buffer);
 }
 

@@ -360,7 +360,7 @@ void DXSampler::UpdateSamplerInfo(const SamplerCreateInfo& a_Info)
 	m_Desc.MaxAnisotropy = static_cast<UINT>(a_Info.maxAnistoropy);
 }
 
-DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType)
+DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, const char* a_Name)
 	: m_Fence()
 {
 	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
@@ -370,9 +370,14 @@ DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType)
 	DXASSERT(s_DX12B.device->CreateCommandQueue(&t_QueueDesc,
 		IID_PPV_ARGS(&m_Queue)),
 		"DX12: Failed to create queue.");
+
+#ifdef _DEBUG
+	if (a_Name)
+		m_Queue->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Name));
+#endif
 }
 
-DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
+DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue, const char* a_Name)
 	: m_Fence()
 {
 	m_Queue = a_CommandQueue;
