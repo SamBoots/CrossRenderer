@@ -205,6 +205,8 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		IID_PPV_ARGS(&s_DX12B.directpresentqueue)),
 		"DX12: Failed to create direct command queue");
 
+	s_DX12B.directpresentqueue->SetName(L"Graphics&Present Queue");
+
 	SetupBackendSwapChain(a_CreateInfo.windowWidth, 
 		a_CreateInfo.windowHeight, 
 		reinterpret_cast<HWND>(a_CreateInfo.windowHandle.ptrHandle));
@@ -232,7 +234,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
 	{
-		new (&s_DX12B.frameFences[i]) DXFence();
+		new (&s_DX12B.frameFences[i]) DXFence("DLL INTERNAL BACKBUFFER FENCES");
 	}
 
 	//Returns some info to the global backend that is important.
@@ -383,49 +385,37 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
-	switch (a_Info.queue)
-	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:
+	if (a_Info.queue == RENDER_QUEUE_TYPE::GRAPHICS)
 		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
 			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
-		break;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
-		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_COPY));
-		break;
-	case RENDER_QUEUE_TYPE::COMPUTE:
-		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
-		break;
-	default:
-		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
-		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
-		break;
-	}
+	else
+		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())DXCommandQueue(a_Info));
 }
 
 CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
 	//Create the command allocator and it's command lists.
 	DXCommandAllocator* t_CmdAllocator = new (s_DX12B.cmdAllocators.Get())
-		DXCommandAllocator(DXConv::CommandListType(a_CreateInfo.queueType),
-			a_CreateInfo.commandListCount);
+		DXCommandAllocator(a_CreateInfo);
 
 	return CommandAllocatorHandle(t_CmdAllocator);
 }
 
 CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
-	return CommandListHandle(reinterpret_cast<DXCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList());
+	DXCommandList* t_Cmdlist = reinterpret_cast<DXCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList();
+#ifdef _DEBUG
+	t_Cmdlist->List()->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
+#endif //_DEBUG
+	return CommandListHandle(t_Cmdlist);
 }
 
 
 
-RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_Info)
+RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
 	DXResource* t_Resource = new (s_DX12B.renderResources.Get())
-		DXResource(a_Info.usage, a_Info.memProperties, a_Info.size);
+		DXResource(a_CreateInfo);
 
 	return RBufferHandle(t_Resource);
 }
@@ -442,7 +432,7 @@ RSamplerHandle BB::DX12CreateSampler(const SamplerCreateInfo& a_Info)
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence());
+	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(a_Info.name));
 }
 
 void BB::DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
