@@ -91,29 +91,6 @@ struct VkCommandAllocator
 	}
 };
 
-static VkDescriptorPoolSize s_DescriptorPoolSizes[]
-{
-	{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
-	{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 },
-	{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2 },
-	{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 },
-	{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 2 }
-};
-
-struct DescriptorAllocator
-{
-	const VkDescriptorPool GetPool() const
-	{
-		return descriptorPool;
-	}
-
-	void CreateDescriptorPool();
-	void Destroy();
-
-private:
-	VkDescriptorPool descriptorPool;
-};
-
 struct VKPipelineBuildInfo
 {
 	//temporary allocator, this gets removed when we are finished building.
@@ -137,7 +114,6 @@ struct VulkanBackend_inst
 
 	VkInstance instance{};
 	VkSurfaceKHR surface{};
-	DescriptorAllocator descriptorAllocator;
 
 	VkDevice device;
 	VkPhysicalDevice physicalDevice;
@@ -154,7 +130,7 @@ struct VulkanBackend_inst
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
 	Pool<VulkanImage> imagePool;
-	Pool<VulkanBindingSet> bindingSetPool;
+	Pool<DescriptorBufferHandle> descriptorHandlePool;
 	Pool<VulkanFence> vulkanFencePool;
 
 	VkPhysicalDeviceDescriptorBufferPropertiesEXT descBufferProperties;
@@ -171,7 +147,7 @@ struct VulkanBackend_inst
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
-		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
+		descriptorHandlePool.CreatePool(s_VulkanAllocator, 16);
 		vulkanFencePool.CreatePool(s_VulkanAllocator, 16);
 	}
 
@@ -182,7 +158,7 @@ struct VulkanBackend_inst
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
-		bindingSetPool.DestroyPool(s_VulkanAllocator);
+		descriptorHandlePool.DestroyPool(s_VulkanAllocator);
 		vulkanFencePool.DestroyPool(s_VulkanAllocator);
 	}
 };
@@ -202,7 +178,7 @@ static inline VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
 }
 
-DescriptorHeap::DescriptorHeap(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize)
+DescriptorBuffer::DescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize)
 	: m_BufferSize(a_BufferSize)
 {
 	VkBufferCreateInfo t_BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -223,79 +199,30 @@ DescriptorHeap::DescriptorHeap(const VkBufferUsageFlags a_HeapType, const uint32
 	VKASSERT(vmaMapMemory(s_VKB.vma,m_Allocation, &m_Start), "Vulkan: Failed to map in descriptor heap memory");
 }
 
-DescriptorHeap::~DescriptorHeap()
+DescriptorBuffer::~DescriptorBuffer()
 {
 	vmaUnmapMemory(s_VKB.vma, m_Allocation);
 	vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
 }
 
-const DescriptorHeapHandle DescriptorHeap::Allocate(const RENDER_DESCRIPTOR_TYPE a_Type, const uint32_t a_Count)
+const DescriptorBufferHandle DescriptorBuffer::Allocate(const uint32_t a_Size)
 {
-	VkDeviceSize t_DescSize = 0;
-	switch (a_Type)
-	{
-	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:	
-		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
-		break;
-	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:	
-		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
-		break;
-	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:	
-		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
-		break;
-	case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					
-		t_DescSize = s_VKB.descBufferProperties.storageBufferDescriptorSize;
-		break;
-	case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:					
-		t_DescSize = s_VKB.descBufferProperties.sampledImageDescriptorSize;
-		break;
-	case BB::RENDER_DESCRIPTOR_TYPE::SAMPLER:					
-		t_DescSize = s_VKB.descBufferProperties.samplerDescriptorSize;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-		t_DescSize = 0;
-		break;
-	}
-
-	DescriptorHeapHandle t_DescHandle{};
+	DescriptorBufferHandle t_DescHandle{};
 	t_DescHandle.address = GetBufferDeviceAddress(m_Buffer);
 	t_DescHandle.pDescriptor = Pointer::Add(m_Start, m_BufferPos);
 	t_DescHandle.offset = m_BufferPos;
-	t_DescHandle.sizeInBytes = t_DescSize;
+	t_DescHandle.sizeInBytes = a_Size;
 
-	m_BufferPos += t_DescSize;
+	m_BufferPos += a_Size;
 	BB_ASSERT(m_BufferSize > m_BufferPos, "Vulkan: Not enough room in the descriptor buffer!");
 	return t_DescHandle;
 }
 
-void DescriptorHeap::Reset()
+void DescriptorBuffer::Reset()
 {
 	//memset everything to 0 for safety.
 	memset(m_Start, 0, m_BufferPos);
 	m_BufferPos = 0;
-}
-
-void DescriptorAllocator::CreateDescriptorPool()
-{
-	VkDescriptorPoolCreateInfo t_CreateInfo{};
-	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	t_CreateInfo.pPoolSizes = s_DescriptorPoolSizes;
-	t_CreateInfo.poolSizeCount = _countof(s_DescriptorPoolSizes);
-	t_CreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-	
-	t_CreateInfo.maxSets = 1024;
-
-	VKASSERT(vkCreateDescriptorPool(s_VKB.device,
-		&t_CreateInfo, nullptr, &descriptorPool),
-		"Vulkan: Failed to create descriptorPool.");
-}
-
-void DescriptorAllocator::Destroy()
-{
-	vkDestroyDescriptorPool(s_VKB.device,
-		descriptorPool,
-		nullptr);
 }
 
 PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
@@ -928,7 +855,7 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VKB.vma);
 
 	//Create descriptor allocator.
-	s_VKB.descriptorAllocator.CreateDescriptorPool();
+	static uint32_t DESCRIPTOR_BUFFER = mbSize * 4;
 
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
@@ -941,10 +868,9 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 {
 	bool bindlessSet = false;
-	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
-	*t_BindingSet = {}; //set to 0
-
-	t_BindingSet->bindingSet = a_Info.bindingSet;
+	VkDescriptorSetLayout t_SetLayout{};
+	DescriptorBufferHandle* t_BufferHandle = s_VKB.descriptorHandlePool.Get();
+	*t_BufferHandle = {}; //set to 0
 
 	uint32_t t_DescriptorCount = 0;
 	
@@ -1004,7 +930,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_Info.bindings.size());
-		
+
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
 			t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
@@ -1018,14 +944,14 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				&t_LayoutInfo, nullptr, &t_SetLayout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 		else
 		{
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				&t_LayoutInfo, nullptr, &t_SetLayout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 	}
@@ -1108,6 +1034,15 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 	t_Queue->nextSemValue = 1;
 
 	return CommandQueueHandle(t_Queue);
+}
+
+DescriptorBufferHandle BB::VulkanCreateDescriptorBuffer(const RenderDescriptorBufferCreateInfo& a_CreateInfo)
+{
+	//We assume that a descriptor is 64 bytes. Likely not, ah well.
+	//also need to handle sampler
+	return BBnew(s_VulkanAllocator, DescriptorBuffer)
+		(VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+			a_CreateInfo.descriptorCount * 64);
 }
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)

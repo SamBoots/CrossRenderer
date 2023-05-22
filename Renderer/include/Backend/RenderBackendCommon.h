@@ -25,6 +25,7 @@ namespace BB
 	
 	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
+	using DescriptorBufferHandle = FrameworkHandle<struct DescriptorBufferHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
@@ -318,6 +319,11 @@ namespace BB
 	{
 		RENDER_QUEUE_TYPE queue;
 		RENDER_FENCE_FLAGS flags;
+	};
+
+	struct RenderDescriptorBufferCreateInfo
+	{
+		uint32_t descriptorCount;
 	};
 
 	struct RenderCommandAllocatorCreateInfo

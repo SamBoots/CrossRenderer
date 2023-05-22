@@ -368,19 +368,8 @@ namespace BB
 		uint32_t offset;
 	};
 
-	struct VulkanBindingSet
-	{
-		//Maximum of 4 bindings.
-		RENDER_BINDING_SET bindingSet = {};
-		VkDescriptorSet set;
-		VkDescriptorSetLayout setLayout;
-
-		uint32_t pushConstantCount = 0;
-		VulkanConstant pushConstants[4];
-	};
-
 	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
-	struct DescriptorHeapHandle
+	struct DescriptorBufferHandle
 	{
 		VkDeviceAddress address = 0;
 		void* pDescriptor = nullptr;
@@ -388,13 +377,13 @@ namespace BB
 		uint32_t offset = 0;
 	};
 
-	class DescriptorHeap
+	class DescriptorBuffer
 	{
 	public:
-		DescriptorHeap(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
-		~DescriptorHeap();
+		DescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
+		~DescriptorBuffer();
 
-		const DescriptorHeapHandle Allocate(const RENDER_DESCRIPTOR_TYPE a_Type, const uint32_t a_Count);
+		const DescriptorBufferHandle Allocate(const uint32_t a_Size);
 
 		void Reset();
 
@@ -408,5 +397,11 @@ namespace BB
 		const uint32_t m_BufferSize = 0;
 		uint32_t m_BufferPos = 0;
 		void* m_Start = nullptr;
+	};
+
+	struct VulkanFrame
+	{
+		DescriptorBuffer* buffer;
+
 	};
 }

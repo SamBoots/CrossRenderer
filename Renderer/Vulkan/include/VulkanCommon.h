@@ -6,6 +6,7 @@ namespace BB
 	BackendInfo VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
 	RDescriptorHandle VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Info);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
+	DescriptorBufferHandle VulkanCreateDescriptorBuffer(const RenderDescriptorBufferCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
 	RBufferHandle VulkanCreateBuffer(const RenderBufferCreateInfo& a_Info);
