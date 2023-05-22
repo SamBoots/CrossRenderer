@@ -382,9 +382,10 @@ namespace BB
 	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
 	struct DescriptorHeapHandle
 	{
-		VkDeviceAddress address;
-		uint32_t sizeInBytes;
-		uint32_t offset;
+		VkDeviceAddress address = 0;
+		void* pDescriptor = nullptr;
+		uint32_t sizeInBytes = 0;
+		uint32_t offset = 0;
 	};
 
 	class DescriptorHeap
@@ -401,11 +402,11 @@ namespace BB
 		const VkDeviceAddress GetAddressBuffer() const { return m_DeviceAddress; }
 		
 	private:
-		VkBuffer m_Buffer;
-		VmaAllocation m_Allocation;
-		VkDeviceAddress m_DeviceAddress;
-		const uint32_t m_BufferSize;
-		void* m_Start;
-		void* m_Position;
+		VkBuffer m_Buffer{};
+		VmaAllocation m_Allocation{};
+		VkDeviceAddress m_DeviceAddress = 0;
+		const uint32_t m_BufferSize = 0;
+		uint32_t m_BufferPos = 0;
+		void* m_Start = nullptr;
 	};
 }

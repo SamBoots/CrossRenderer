@@ -157,6 +157,8 @@ struct VulkanBackend_inst
 	Pool<VulkanBindingSet> bindingSetPool;
 	Pool<VulkanFence> vulkanFencePool;
 
+	VkPhysicalDeviceDescriptorBufferPropertiesEXT descBufferProperties;
+
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
 	VulkanDebug vulkanDebug;
@@ -186,11 +188,92 @@ struct VulkanBackend_inst
 };
 static VulkanBackend_inst s_VKB;
 
-static VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
+static inline uint64_t GetBufferDeviceAddress(const VkBuffer a_Buffer)
+{
+	VkBufferDeviceAddressInfo t_BufferAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr};
+	t_BufferAddressInfo.buffer = a_Buffer;
+	return vkGetBufferDeviceAddress(s_VKB.device, &t_BufferAddressInfo);
+}
+
+static inline VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 {
 	VkPhysicalDeviceProperties t_Properties;
 	vkGetPhysicalDeviceProperties(s_VKB.physicalDevice, &t_Properties);
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
+}
+
+DescriptorHeap::DescriptorHeap(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize)
+	: m_BufferSize(a_BufferSize)
+{
+	VkBufferCreateInfo t_BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	t_BufferInfo.usage = a_HeapType | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	t_BufferInfo.size = a_BufferSize;
+	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo t_VmaAlloc{};
+	t_VmaAlloc.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	VKASSERT(vmaCreateBuffer(s_VKB.vma,
+		&t_BufferInfo, &t_VmaAlloc,
+		&m_Buffer, &m_Allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory");
+
+	m_DeviceAddress = GetBufferDeviceAddress(m_Buffer);
+
+	VKASSERT(vmaMapMemory(s_VKB.vma,m_Allocation, &m_Start), "Vulkan: Failed to map in descriptor heap memory");
+}
+
+DescriptorHeap::~DescriptorHeap()
+{
+	vmaUnmapMemory(s_VKB.vma, m_Allocation);
+	vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
+}
+
+const DescriptorHeapHandle DescriptorHeap::Allocate(const RENDER_DESCRIPTOR_TYPE a_Type, const uint32_t a_Count)
+{
+	VkDeviceSize t_DescSize = 0;
+	switch (a_Type)
+	{
+	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:	
+		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
+		break;
+	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:	
+		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
+		break;
+	case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:	
+		t_DescSize = s_VKB.descBufferProperties.uniformBufferDescriptorSize;
+		break;
+	case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					
+		t_DescSize = s_VKB.descBufferProperties.storageBufferDescriptorSize;
+		break;
+	case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:					
+		t_DescSize = s_VKB.descBufferProperties.sampledImageDescriptorSize;
+		break;
+	case BB::RENDER_DESCRIPTOR_TYPE::SAMPLER:					
+		t_DescSize = s_VKB.descBufferProperties.samplerDescriptorSize;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+		t_DescSize = 0;
+		break;
+	}
+
+	DescriptorHeapHandle t_DescHandle{};
+	t_DescHandle.address = GetBufferDeviceAddress(m_Buffer);
+	t_DescHandle.pDescriptor = Pointer::Add(m_Start, m_BufferPos);
+	t_DescHandle.offset = m_BufferPos;
+	t_DescHandle.sizeInBytes = t_DescSize;
+
+	m_BufferPos += t_DescSize;
+	BB_ASSERT(m_BufferSize > m_BufferPos, "Vulkan: Not enough room in the descriptor buffer!");
+	return t_DescHandle;
+}
+
+void DescriptorHeap::Reset()
+{
+	//memset everything to 0 for safety.
+	memset(m_Start, 0, m_BufferPos);
+	m_BufferPos = 0;
 }
 
 void DescriptorAllocator::CreateDescriptorPool()
@@ -382,12 +465,11 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 
 	for (uint32_t i = 0; i < t_DeviceCount; i++)
 	{
-
-		VkPhysicalDeviceProperties2 t_DeviceProperties{};
-		t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-		t_DeviceProperties.pNext = nullptr;
+		VkPhysicalDeviceDescriptorBufferPropertiesEXT t_DescBufferProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT };
+		VkPhysicalDeviceProperties2 t_DeviceProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+		t_DeviceProperties.pNext = &t_DescBufferProperties;
 		vkGetPhysicalDeviceProperties2(t_PhysicalDevices[i], &t_DeviceProperties);
-		
+
 		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
 		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
 		VkPhysicalDeviceTimelineSemaphoreFeatures t_SyncFeatures{};
@@ -412,6 +494,7 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 			t_IndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
 			t_IndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE)
 		{
+			s_VKB.descBufferProperties = t_DescBufferProperties;
 			return t_PhysicalDevices[i];
 		}
 	}
