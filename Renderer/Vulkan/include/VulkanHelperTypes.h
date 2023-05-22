@@ -270,6 +270,23 @@ namespace BB
 		}
 	}
 
+	static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHandle, const VkObjectType a_ObjType)
+	{
+		VkDebugUtilsObjectNameInfoEXT t_DebugName{};
+		t_DebugName.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+		t_DebugName.pNext = nullptr;
+		t_DebugName.objectType = VK_OBJECT_TYPE_BUFFER;
+		t_DebugName.objectHandle = a_ObjType;
+		t_DebugName.pObjectName = a_Name;
+		;			vkSetDebugUtilsObjectNameEXT(s_VKB.device, &t_DebugName);
+	}
+
+#ifdef _DEBUG
+#define SetDebugName(a_Name, a_ObjectHandle, a_ObjType) BB::SetDebugName_f(a_Name, (uint64_t)a_ObjectHandle, a_ObjType)
+#else
+#define SetDebugName()
+#endif _DEBUG
+
 	struct SwapchainSupportDetails
 	{
 		VkSurfaceCapabilitiesKHR capabilities;
