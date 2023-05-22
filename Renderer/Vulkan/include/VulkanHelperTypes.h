@@ -5,6 +5,12 @@
 #include "RenderBackendCommon.h"
 #include <vulkan/vulkan.h>
 
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 namespace BB
 {
 #ifdef _DEBUG
@@ -371,5 +377,35 @@ namespace BB
 
 		uint32_t pushConstantCount = 0;
 		VulkanConstant pushConstants[4];
+	};
+
+	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
+	struct DescriptorHeapHandle
+	{
+		VkDeviceAddress address;
+		uint32_t sizeInBytes;
+		uint32_t offset;
+	};
+
+	class DescriptorHeap
+	{
+	public:
+		DescriptorHeap(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
+		~DescriptorHeap();
+
+		const DescriptorHeapHandle Allocate(const RENDER_DESCRIPTOR_TYPE a_Type, const uint32_t a_Count);
+
+		void Reset();
+
+		const VkBuffer GetBuffer() const { return m_Buffer; }
+		const VkDeviceAddress GetAddressBuffer() const { return m_DeviceAddress; }
+		
+	private:
+		VkBuffer m_Buffer;
+		VmaAllocation m_Allocation;
+		VkDeviceAddress m_DeviceAddress;
+		const uint32_t m_BufferSize;
+		void* m_Start;
+		void* m_Position;
 	};
 }
