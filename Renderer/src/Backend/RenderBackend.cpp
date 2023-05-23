@@ -80,6 +80,28 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
+DescriptorHeap::DescriptorHeap(const uint32_t a_DescriptorCount)
+	:	m_DescriptorMax(a_DescriptorCount)
+{
+
+}
+
+DescriptorHeap::~DescriptorHeap()
+{
+	m_CurrentDescriptors = 0;
+}
+
+RDescriptorHandle DescriptorHeap::Allocate(const RenderDescriptorCreateInfo& a_Info)
+{
+
+}
+
+void DescriptorHeap::Reset()
+{
+	//do restart thing.
+	m_CurrentDescriptors = 0;
+}
+
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
 {
 	return s_BackendInfo.framebufferCount;

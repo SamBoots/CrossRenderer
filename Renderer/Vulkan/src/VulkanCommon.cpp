@@ -1038,11 +1038,11 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 
 DescriptorBufferHandle BB::VulkanCreateDescriptorBuffer(const RenderDescriptorBufferCreateInfo& a_CreateInfo)
 {
-	//We assume that a descriptor is 64 bytes. Likely not, ah well.
+	//We assume that a descriptor is 8 bytes. Likely not, ah well. 
 	//also need to handle sampler
 	return BBnew(s_VulkanAllocator, DescriptorBuffer)
 		(VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-			a_CreateInfo.descriptorCount * 64);
+			a_CreateInfo.descriptorCount * 8);
 }
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)

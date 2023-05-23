@@ -44,6 +44,21 @@ namespace BB
 		void* m_Start;
 	};
 
+	class DescriptorHeap
+	{
+	public:
+		DescriptorHeap(const uint32_t a_DescriptorCount);
+		~DescriptorHeap();
+
+		RDescriptorHandle Allocate(const RenderDescriptorCreateInfo& a_Info);
+
+		void Reset();
+
+	private:
+		const uint32_t m_DescriptorMax;
+		uint32_t m_CurrentDescriptors;
+	};
+
 	namespace RenderBackend
 	{
 		const uint32_t GetFrameBufferAmount();
