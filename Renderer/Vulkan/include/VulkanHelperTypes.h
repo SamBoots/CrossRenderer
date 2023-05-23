@@ -377,11 +377,11 @@ namespace BB
 		uint32_t offset = 0;
 	};
 
-	class DescriptorBuffer
+	class VulkanDescriptorBuffer
 	{
 	public:
-		DescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
-		~DescriptorBuffer();
+		VulkanDescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
+		~VulkanDescriptorBuffer();
 
 		const DescriptorBufferHandle Allocate(const uint32_t a_Size);
 

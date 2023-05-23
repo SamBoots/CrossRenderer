@@ -311,6 +311,7 @@ namespace BB
 
 	struct RenderDescriptorCreateInfo
 	{
+		DescriptorBufferHandle descriptorBuffer;
 		RENDER_BINDING_SET bindingSet;
 		BB::Slice<DescriptorBinding> bindings;
 	};

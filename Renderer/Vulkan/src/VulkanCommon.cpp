@@ -178,7 +178,7 @@ static inline VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
 }
 
-DescriptorBuffer::DescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize)
+VulkanDescriptorBuffer::VulkanDescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize)
 	: m_BufferSize(a_BufferSize)
 {
 	VkBufferCreateInfo t_BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -199,13 +199,13 @@ DescriptorBuffer::DescriptorBuffer(const VkBufferUsageFlags a_HeapType, const ui
 	VKASSERT(vmaMapMemory(s_VKB.vma,m_Allocation, &m_Start), "Vulkan: Failed to map in descriptor heap memory");
 }
 
-DescriptorBuffer::~DescriptorBuffer()
+VulkanDescriptorBuffer::~VulkanDescriptorBuffer()
 {
 	vmaUnmapMemory(s_VKB.vma, m_Allocation);
 	vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
 }
 
-const DescriptorBufferHandle DescriptorBuffer::Allocate(const uint32_t a_Size)
+const DescriptorBufferHandle VulkanDescriptorBuffer::Allocate(const uint32_t a_Size)
 {
 	DescriptorBufferHandle t_DescHandle{};
 	t_DescHandle.address = GetBufferDeviceAddress(m_Buffer);
@@ -218,7 +218,7 @@ const DescriptorBufferHandle DescriptorBuffer::Allocate(const uint32_t a_Size)
 	return t_DescHandle;
 }
 
-void DescriptorBuffer::Reset()
+void VulkanDescriptorBuffer::Reset()
 {
 	//memset everything to 0 for safety.
 	memset(m_Start, 0, m_BufferPos);
@@ -956,6 +956,24 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 		}
 	}
 
+	{ //allocate from descriptor buffer
+		VkDeviceSize t_AllocSize = 0;
+		vkGetDescriptorSetLayoutSizeEXT(s_VKB.device, t_SetLayout, &t_AllocSize);
+
+		VulkanDescriptorBuffer* t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_Info.descriptorBuffer.ptrHandle);
+		DescriptorBufferHandle t_AllocHandle = t_DescBuffer->Allocate(t_AllocSize);
+
+		for (size_t i = 0; i < a_Info.bindings.size(); i++)
+		{
+			const DescriptorBinding& t_Binding = a_Info.bindings[i];
+			VkDeviceSize t_Offset = 0;
+			vkGetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device, t_SetLayout, a_Info.bindings[i].binding, &t_Offset);
+			vkgetdescriptorsize
+			vkGetDescriptorEXT(s_VKB.device, nullptr, );
+		}
+
+	}
+
 	{
 		//Now we create the descriptor set.
 		VkDescriptorSetAllocateInfo t_AllocInfo = {};
@@ -1040,7 +1058,7 @@ DescriptorBufferHandle BB::VulkanCreateDescriptorBuffer(const RenderDescriptorBu
 {
 	//We assume that a descriptor is 8 bytes. Likely not, ah well. 
 	//also need to handle sampler
-	return BBnew(s_VulkanAllocator, DescriptorBuffer)
+	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)
 		(VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			a_CreateInfo.descriptorCount * 8);
 }
