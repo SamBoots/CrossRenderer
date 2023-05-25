@@ -20,6 +20,12 @@ constexpr int VULKAN_VERSION = 3;
 
 using namespace BB;
 
+static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
+
+static inline void VulkanLoadFunctions(VkInstance a_Instance)
+{
+	SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(a_Instance, "vkSetDebugUtilsObjectNameEXT");
+}
 
 inline VmaMemoryUsage MemoryPropertyFlags(const RENDER_MEMORY_PROPERTIES a_Properties)
 {
@@ -190,7 +196,24 @@ struct VulkanBackend_inst
 };
 static VulkanBackend_inst s_VKB;
 
-static VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
+static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHandle, const VkObjectType a_ObjType)
+{
+	VkDebugUtilsObjectNameInfoEXT t_DebugName{};
+	t_DebugName.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	t_DebugName.pNext = nullptr;
+	t_DebugName.objectType = a_ObjType;
+	t_DebugName.objectHandle = a_ObjectHandle;
+	t_DebugName.pObjectName = a_Name;
+	SetDebugUtilsObjectNameEXT(s_VKB.device, &t_DebugName);
+}
+
+#ifdef _DEBUG
+#define SetDebugName(a_Name, a_ObjectHandle, a_ObjType) SetDebugName_f(a_Name, (uint64_t)a_ObjectHandle, a_ObjType)
+#else
+#define SetDebugName()
+#endif _DEBUG
+
+static inline VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 {
 	VkPhysicalDeviceProperties t_Properties;
 	vkGetPhysicalDeviceProperties(s_VKB.physicalDevice, &t_Properties);
@@ -802,6 +825,8 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		{
 			s_VKB.vulkanDebug.debugMessenger = 0;
 		}
+
+		VulkanLoadFunctions(s_VKB.instance);
 	}
 
 	{
@@ -1076,8 +1101,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 		t_CmdAllocator->buffers.data()),
 		"Vulkan: Failed to allocate command buffers!");
 
-	SetDebugName(a_CreateInfo.name, t_CmdAllocator->pool, VK_OBJECT_TYPE_DESCRIPTOR_POOL);
-
+	SetDebugName(a_CreateInfo.name, t_CmdAllocator->pool, VK_OBJECT_TYPE_COMMAND_POOL);
 	return t_CmdAllocator; //Creates a handle from this.
 }
 
@@ -1087,7 +1111,7 @@ CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo&
 	VulkanCommandList t_List = reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList();
 
 	SetDebugName(a_CreateInfo.name, t_List.Buffer(), VK_OBJECT_TYPE_COMMAND_BUFFER);
-	return CommandListHandle(s_VKB.commandLists.insert(reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList()).handle);
+	return CommandListHandle(s_VKB.commandLists.insert(t_List).ptrHandle);
 }
 
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
@@ -1779,8 +1803,7 @@ RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_
 	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_CmdHandle.handle];
 
 	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
-	VkCommandBufferBeginInfo t_CmdBeginInfo{};
-	t_CmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	VkCommandBufferBeginInfo t_CmdBeginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 	VKASSERT(vkBeginCommandBuffer(t_Cmdlist.Buffer(),
 		&t_CmdBeginInfo),
 		"Vulkan: Failed to begin commandbuffer");
