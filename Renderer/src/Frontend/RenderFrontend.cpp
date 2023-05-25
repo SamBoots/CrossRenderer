@@ -179,14 +179,35 @@ static void Draw3DFrame()
 		}
 	}
 
+	
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-
-	ImDrawData* t_DrawData = ImGui::GetDrawData();
-	ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
-
+	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
+	
+
+	{
+		StartRenderingInfo t_ImguiStart;
+		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
+		t_ImguiStart.viewportHeight = s_RendererInst.swapchainHeight;
+		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
+		t_ImguiStart.colorInitialLayout = t_EndRenderingInfo.colorFinalLayout;
+		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		t_ImguiStart.clearColor[0] = 1.0f;
+		t_ImguiStart.clearColor[1] = 0.0f;
+		t_ImguiStart.clearColor[2] = 0.0f;
+		t_ImguiStart.clearColor[3] = 1.0f;
+		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+
+		ImDrawData* t_DrawData = ImGui::GetDrawData();
+		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
+
+		EndRenderingInfo t_ImguiEnd{};
+		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
+		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
+	}
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 }
 
