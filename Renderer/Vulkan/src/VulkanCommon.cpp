@@ -126,6 +126,7 @@ private:
 
 struct VKPipelineBuildInfo
 {
+	const char* name;
 	//temporary allocator, this gets removed when we are finished building.
 	TemporaryAllocator buildAllocator{ s_VulkanAllocator };
 
@@ -1472,6 +1473,8 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 {
 	VKPipelineBuildInfo* t_BuildInfo = BBnew(s_VulkanAllocator, VKPipelineBuildInfo)();
 
+	t_BuildInfo->name = a_InitInfo.name;
+
 	//We do dynamic rendering to avoid having to handle renderpasses and such.
 	t_BuildInfo->dynamicRenderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	t_BuildInfo->dynamicRenderingInfo.colorAttachmentCount = 1;
@@ -1638,7 +1641,7 @@ void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handl
 	t_BindingDescription->binding = 0;
 	t_BindingDescription->stride = a_AttributeInfo.stride;
 	t_BindingDescription->inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
+	
 	VkVertexInputAttributeDescription* t_AttributeDescriptions = BBnewArr(
 		t_BuildInfo->buildAllocator,
 		a_AttributeInfo.attributes.size(),
@@ -1781,6 +1784,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 	VulkanPipeline* t_ReturnPipeline = s_VKB.pipelinePool.Get();
 	*t_ReturnPipeline = t_Pipeline;
 
+	SetDebugName(t_BuildInfo->name, t_Pipeline.pipeline, VK_OBJECT_TYPE_PIPELINE);
 	BBfree(s_VulkanAllocator, t_BuildInfo);
 
 	return PipelineHandle(t_ReturnPipeline);

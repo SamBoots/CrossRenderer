@@ -185,7 +185,6 @@ static void Draw3DFrame()
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	
-
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
@@ -495,11 +494,13 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	Buffer t_ShaderBuffer;
 	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
-	ShaderCreateInfo t_ShaderBuffers[2];
+	ShaderCreateInfo t_ShaderBuffers[2]{};
+	t_ShaderBuffers[0].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
 
 	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
+	t_ShaderBuffers[1].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 

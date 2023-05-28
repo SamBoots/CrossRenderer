@@ -539,12 +539,33 @@ namespace BB
 	struct PipelineAttributes
 	{
 		uint32_t stride = 0;
-		//Maybe add input rate.
 		BB::Slice<VertexAttributeDesc> attributes;
 	};
 
+#ifdef _DEBUG
+	struct PipelineDebugInfo
+	{
+		struct ShaderInfo
+		{
+			const char* optionalShaderpath = nullptr;
+			RENDER_SHADER_STAGE shaderStage{};
+		};
+		bool enableDepthTest = false;
+		PipelineConstantData constantData{};
+		PipelineRasterState rasterState{};
+		uint32_t renderTargetBlendCount = 0;
+		PipelineRenderTargetBlend renderTargetBlends[8]{};
+		uint32_t shaderCount = 0;
+		ShaderInfo* shaderInfo = nullptr;
+		uint32_t attributeCount = 0;
+		VertexAttributeDesc* attributes = nullptr;
+	};
+#endif _DEBUG
+
 	struct ShaderCreateInfo
 	{
+		//Optional for debug purposes.
+		const char* optionalShaderpath;
 		Buffer buffer{};
 		RENDER_SHADER_STAGE shaderStage{};
 	};

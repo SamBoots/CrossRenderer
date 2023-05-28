@@ -3,6 +3,7 @@
 
 #include "Utils/Slice.h"
 #include "BBString.h"
+#include <malloc.h>
 
 using namespace BB;
 
@@ -14,13 +15,39 @@ static RenderResourceTracker s_ResourceTracker;
 
 PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 {
+	BB_ASSERT(a_InitInfo.renderTargetBlendCount > 0, "No blending targets given!")
 	BB_ASSERT(a_InitInfo.renderTargetBlendCount < 8, "More then 8 blending targets! This will not work with directx12.")
 	m_BuilderHandle = s_ApiFunc.pipelineBuilderInit(a_InitInfo);
+#ifdef _DEBUG
+	//set some debug info.
+	m_Name = a_InitInfo.name;
+	m_DebugInfo.enableDepthTest = a_InitInfo.enableDepthTest;
+	m_DebugInfo.constantData = a_InitInfo.constantData;
+	m_DebugInfo.rasterState = a_InitInfo.rasterizerState;
+	m_DebugInfo.renderTargetBlendCount = a_InitInfo.renderTargetBlendCount;
+	for (size_t i = 0; i < m_DebugInfo.renderTargetBlendCount; i++)
+	{
+		m_DebugInfo.renderTargetBlends[i] = a_InitInfo.renderTargetBlends[i];
+	}
+#endif //_DEBUG
 }
 
 PipelineBuilder::~PipelineBuilder()
 {
 	BB_ASSERT(m_BuilderHandle.handle == 0, "Unfinished pipeline destructed! Big memory leak and improper graphics API usage.");
+
+#ifdef _DEBUG
+	if (m_DebugInfo.shaderInfo)
+	{
+		_freea(m_DebugInfo.shaderInfo);
+		m_DebugInfo.shaderInfo = nullptr;
+	}
+	if (m_DebugInfo.shaderInfo)
+	{
+		_freea(m_DebugInfo.attributes);
+		m_DebugInfo.attributes = nullptr;
+	}
+#endif //_DEBUG
 }
 
 void PipelineBuilder::BindDescriptor(const RDescriptorHandle a_Handle)
@@ -31,11 +58,28 @@ void PipelineBuilder::BindDescriptor(const RDescriptorHandle a_Handle)
 void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
 {
 	s_ApiFunc.pipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
+#ifdef _DEBUG
+	m_DebugInfo.shaderCount = a_ShaderInfo.size();
+	m_DebugInfo.shaderInfo = (PipelineDebugInfo::ShaderInfo*)(_malloca(sizeof(PipelineDebugInfo::ShaderInfo) * a_ShaderInfo.size()));
+	for (size_t i = 0; i < m_DebugInfo.shaderCount; i++)
+	{
+		m_DebugInfo.shaderInfo[i].optionalShaderpath = a_ShaderInfo[i].optionalShaderpath;
+		m_DebugInfo.shaderInfo[i].shaderStage = a_ShaderInfo[i].shaderStage;
+	}
+#endif //_DEBUG
 }
 
 void PipelineBuilder::BindAttributes(const PipelineAttributes& a_AttributeInfo)
 {
 	s_ApiFunc.pipelineBuilderBindAttributes(m_BuilderHandle, a_AttributeInfo);
+#ifdef _DEBUG
+	m_DebugInfo.attributeCount = a_AttributeInfo.attributes.size();
+	m_DebugInfo.attributes = (VertexAttributeDesc*)(_malloca(sizeof(VertexAttributeDesc) * a_AttributeInfo.attributes.size()));
+	for (size_t i = 0; i < m_DebugInfo.attributeCount; i++)
+	{
+		m_DebugInfo.attributes[i] = a_AttributeInfo.attributes[i];
+	}
+#endif //_DEBUG
 }
 
 PipelineHandle PipelineBuilder::BuildPipeline()
@@ -43,6 +87,23 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 	//Buildpipeline will also destroy the builder information. 
 	const PipelineHandle t_ReturnHandle = s_ApiFunc.pipelineBuilderBuildPipeline(m_BuilderHandle);
 	m_BuilderHandle.handle = 0; //Set the handle to 0 to indicate we can safely destruct the class.
+
+	//send to the editor.
+#ifdef _DEBUG
+	s_ResourceTracker.AddPipeline(m_DebugInfo, m_Name);
+
+	if (m_DebugInfo.shaderInfo)
+	{
+		_freea(m_DebugInfo.shaderInfo);
+		m_DebugInfo.shaderInfo = nullptr;
+	}
+	if (m_DebugInfo.shaderInfo)
+	{
+		_freea(m_DebugInfo.attributes);
+		m_DebugInfo.attributes = nullptr;
+	}
+#endif //_DEBUG
+
 	return t_ReturnHandle;
 }
 
@@ -108,12 +169,8 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::DESCRIPTOR;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.descriptor = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddDescriptor(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 
 	return s_ApiFunc.createDescriptor(a_CreateInfo);
 }
@@ -121,48 +178,32 @@ RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCrea
 CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::COMMAND_QUEUE;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.queue = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddQueue(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createCommandQueue(a_CreateInfo);
 }
 
 CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::COMMAND_ALLOCATOR;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.commandAllocator = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddCommandAllocator(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createCommandAllocator(a_CreateInfo);
 }
 
 CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::COMMAND_LIST;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.commandList = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddCommandList(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createCommandList(a_CreateInfo);
 }
 
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::BUFFER;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.buffer = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddBuffer(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createBuffer(a_CreateInfo);
 }
 
@@ -175,12 +216,8 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 	BB_ASSERT(a_CreateInfo.mipLevels != 0, "Image mipLevels is 0! Standard should be 1 if you do not do mips for an image.");
 	
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::IMAGE;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.image = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddImage(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	
 	return s_ApiFunc.createImage(a_CreateInfo);
 }
@@ -188,24 +225,16 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::SAMPLER;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.sampler = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddSampler(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createSampler(a_CreateInfo);
 }
 
 RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 {
 #ifdef _DEBUG
-	RenderResource t_Res{};
-	t_Res.type = RESOURCE_TYPE::FENCE;
-	t_Res.name = a_CreateInfo.name;
-	t_Res.fence = a_CreateInfo;
-	s_ResourceTracker.AddResource(t_Res);
-#endif
+	s_ResourceTracker.AddFence(a_CreateInfo, a_CreateInfo.name);
+#endif //_DEBUG
 	return s_ApiFunc.createFence(a_CreateInfo);
 }
 

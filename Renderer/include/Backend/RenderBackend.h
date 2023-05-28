@@ -16,6 +16,10 @@ namespace BB
 		PipelineHandle BuildPipeline();
 
 	private:
+		const char* m_Name = nullptr;
+#ifdef _DEBUG
+		PipelineDebugInfo m_DebugInfo{};
+#endif _DEBUG
 		PipelineBuilderHandle m_BuilderHandle;
 	};
 
