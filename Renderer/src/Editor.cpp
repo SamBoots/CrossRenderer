@@ -99,30 +99,37 @@ static inline const char* BlendOp(const RENDER_BLEND_OP a_BlendOp)
 
 void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool)
 {
-	ImGui::Begin("Draw Objects");
-
-	for (size_t i = 0; i < a_DrawObjects.size(); i++)
+	if (ImGui::Begin("Draw Objects"))
 	{
-		Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
-		
-		ImGui::PushID(i);
-		if (ImGui::CollapsingHeader("DrawObject"))
+		for (size_t i = 0; i < a_DrawObjects.size(); i++)
 		{
-			ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);
-			ImGui::SliderFloat4("Rotation quat", glm::value_ptr(t_Trans.m_Rot), -100, 100);
-			ImGui::SliderFloat3("Scale", glm::value_ptr(t_Trans.m_Scale), -100, 100);
+			Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
+
+			ImGui::PushID(i);
+			if (ImGui::CollapsingHeader("DrawObject"))
+			{
+				ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);
+				ImGui::SliderFloat4("Rotation quat", glm::value_ptr(t_Trans.m_Rot), -100, 100);
+				ImGui::SliderFloat3("Scale", glm::value_ptr(t_Trans.m_Scale), -100, 100);
+			}
+			ImGui::PopID();
 		}
-		ImGui::PopID();
 	}
 	ImGui::End();
 }
 
-void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTracker)
+void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 {
-	ImGui::Begin("Render resources");
-
-	if (ImGui::CollapsingHeader("Resources"))
+	if (ImGui::Begin("Render resources"))
 	{
+		if (ImGui::BeginMenu("Options"))
+		{
+			if (ImGui::Button("Sort by type"))
+			{
+				a_ResTracker.SortByType();
+			}
+			ImGui::EndMenu();
+		}
 		RenderResourceTracker::Entry* t_Entry = a_ResTracker.m_HeadEntry;
 		uint32_t t_EntryCount = 0;
 		while (t_Entry != nullptr)
@@ -133,13 +140,13 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 			if (t_Entry->name != nullptr)
 				t_ResName = t_Entry->name;
 
-			if (ImGui::TreeNode(t_ResName))
+			if (ImGui::CollapsingHeader(t_ResName))
 			{
 				switch (t_Entry->type)
 				{
 				case RESOURCE_TYPE::DESCRIPTOR:
 				{
-					const RenderDescriptorCreateInfo& t_Desc = 
+					const RenderDescriptorCreateInfo& t_Desc =
 						*reinterpret_cast<RenderDescriptorCreateInfo*>(t_Entry->typeInfo);
 					switch (t_Desc.bindingSet)
 					{
@@ -177,7 +184,7 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 				break;
 				case RESOURCE_TYPE::COMMAND_QUEUE:
 				{
-					const RenderCommandQueueCreateInfo& t_Queue = 
+					const RenderCommandQueueCreateInfo& t_Queue =
 						*reinterpret_cast<RenderCommandQueueCreateInfo*>(t_Entry->typeInfo);
 					switch (t_Queue.queue)
 					{
@@ -369,12 +376,10 @@ void BB::Editor::DisplayRenderResources(const BB::RenderResourceTracker& a_ResTr
 					BB_ASSERT(false, "Unknown RESOURCE_TYPE for resource trackering editor");
 					break;
 				}
-				ImGui::TreePop();
 			}
 			ImGui::PopID();
 			t_Entry = t_Entry->next;
 		}
 	}
-
 	ImGui::End();
 }

@@ -73,7 +73,73 @@ void BB::RenderResourceTracker::AddFence(const FenceCreateInfo& a_Fence, const c
 	AddEntry(a_Fence, RESOURCE_TYPE::FENCE, a_Name, a_ID);
 }
 
-void BB::RenderResourceTracker::Editor() const
+void BB::RenderResourceTracker::Editor()
 {
 	Editor::DisplayRenderResources(*this);
+}
+
+static RenderResourceTracker::Entry* GetMiddleList(RenderResourceTracker::Entry* a_Head)
+{
+	//Slow is the middle of the list after the iteration.
+	RenderResourceTracker::Entry* t_Slow = a_Head;
+	RenderResourceTracker::Entry* t_Fast = a_Head->next;
+
+	while (t_Fast != nullptr)
+	{
+		t_Fast = t_Fast->next;
+		if (t_Fast != nullptr)
+		{
+			t_Slow = t_Slow->next;
+			t_Fast = t_Fast->next;
+		}
+	}
+
+	RenderResourceTracker::Entry* t_ReturnValue = t_Slow->next;
+	//Seperate the front away from the middle.
+	t_Slow->next = NULL;
+	return t_ReturnValue;
+}
+
+RenderResourceTracker::Entry* SortedTypeMerge(RenderResourceTracker::Entry* a_First, RenderResourceTracker::Entry* a_Second)
+{
+	RenderResourceTracker::Entry* t_ReturnValue = nullptr;
+
+	if (a_First == nullptr)
+		return a_Second;
+	else if (a_Second == nullptr)
+		return (a_First);
+
+	if (static_cast<uint32_t>(a_First->type) <= static_cast<uint32_t>(a_Second->type))
+	{
+		t_ReturnValue = a_First;
+		t_ReturnValue->next = SortedTypeMerge(a_First->next, a_Second);
+	}
+	else
+	{
+		t_ReturnValue = a_Second;
+		t_ReturnValue->next = SortedTypeMerge(a_First, a_Second->next);
+	}
+	return t_ReturnValue;
+}
+
+static void SortEntriesByType(RenderResourceTracker::Entry** a_Head)
+{
+	RenderResourceTracker::Entry* t_Head = *a_Head;
+
+	if (t_Head == nullptr || t_Head->next == nullptr)
+		return;
+
+	RenderResourceTracker::Entry* t_A = t_Head;
+	RenderResourceTracker::Entry* t_B = GetMiddleList(t_Head);
+
+	SortEntriesByType(&t_A);
+	SortEntriesByType(&t_B);
+
+	*a_Head = SortedTypeMerge(t_A, t_B);
+}
+
+void BB::RenderResourceTracker::SortByType()
+{
+	m_SortType = SORT_TYPE::TYPE;
+	SortEntriesByType(&m_HeadEntry);
 }

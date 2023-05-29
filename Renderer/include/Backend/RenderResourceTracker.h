@@ -37,7 +37,7 @@ namespace BB
 		void AddSampler(const SamplerCreateInfo& a_Sampler, const char* a_Name, const uint64_t a_ID);
 		void AddFence(const FenceCreateInfo& a_Fence, const char* a_Name, const uint64_t a_ID);
 
-		void Editor() const;
+		void Editor();
 
 		inline void RemoveEntry(const uint64_t a_ID)
 		{
@@ -64,11 +64,9 @@ namespace BB
 				t_PreviousEntry = t_Entry;
 				t_Entry = t_Entry->next;
 			}
-
 			--m_Entries;
 		}
 
-	private:
 		struct Entry
 		{
 			RESOURCE_TYPE type{};
@@ -76,6 +74,14 @@ namespace BB
 			const char* name = nullptr;
 			Entry* next = nullptr;
 			void* typeInfo = nullptr;
+		};
+		void SortByType();
+
+	private:
+		enum SORT_TYPE : uint32_t
+		{
+			TIME,
+			TYPE
 		};
 
 		template<typename T>
@@ -86,16 +92,44 @@ namespace BB
 			t_Entry->type = a_Type;
 			t_Entry->id = a_ID;
 			t_Entry->name = a_Name;
-			t_Entry->next = m_HeadEntry;
 			t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
-			T* t_Obj = reinterpret_cast<T*>(t_Entry->typeInfo); 
+			T* t_Obj = reinterpret_cast<T*>(t_Entry->typeInfo);
 			*t_Obj = a_TypeInfo;
 			++m_Entries;
-			m_HeadEntry = t_Entry;
+			switch (m_SortType)
+			{
+			case BB::RenderResourceTracker::TIME:
+				t_Entry->next = m_HeadEntry;
+				m_HeadEntry = t_Entry;
+				break;
+			case BB::RenderResourceTracker::TYPE:
+			{
+				Entry* t_SearchEntry = m_HeadEntry;
+				while (t_SearchEntry != nullptr)
+				{
+					if (static_cast<uint32_t>(t_SearchEntry->next->type) >= static_cast<uint32_t>(t_Entry->type))
+					{
+						t_Entry->next = t_SearchEntry->next;
+						t_SearchEntry->next = t_Entry;
+						return;
+					}
+
+					t_SearchEntry = t_SearchEntry->next;
+				}
+				//None found, maybe first in the entry? Set it to the top
+				t_SearchEntry->next = t_Entry;
+				t_Entry->next = nullptr;
+			}
+				break;
+			default:
+				break;
+			}
+
 		}
 
 		FreelistAllocator_t m_Allocator{ mbSize * 2 };
 
+		SORT_TYPE m_SortType = SORT_TYPE::TIME;
 		uint32_t m_Entries = 0;
 		Entry* m_HeadEntry = nullptr;
 	};
