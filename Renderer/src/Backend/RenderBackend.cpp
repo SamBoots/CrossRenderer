@@ -90,7 +90,7 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 
 	//send to the editor.
 #ifdef _DEBUG
-	s_ResourceTracker.AddPipeline(m_DebugInfo, m_Name);
+	s_ResourceTracker.AddPipeline(m_DebugInfo, m_Name, t_ReturnHandle.handle);
 
 	if (m_DebugInfo.shaderInfo)
 	{
@@ -168,43 +168,48 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
+	RDescriptorHandle t_Desc = s_ApiFunc.createDescriptor(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddDescriptor(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddDescriptor(a_CreateInfo, a_CreateInfo.name, t_Desc.handle);
 #endif //_DEBUG
 
-	return s_ApiFunc.createDescriptor(a_CreateInfo);
+	return t_Desc;
 }
 
 CommandQueueHandle BB::RenderBackend::CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
 {
+	CommandQueueHandle t_Queue = s_ApiFunc.createCommandQueue(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddQueue(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddQueue(a_CreateInfo, a_CreateInfo.name, t_Queue.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createCommandQueue(a_CreateInfo);
+	return t_Queue;
 }
 
 CommandAllocatorHandle BB::RenderBackend::CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
+	CommandAllocatorHandle t_CmdAllocator = s_ApiFunc.createCommandAllocator(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddCommandAllocator(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddCommandAllocator(a_CreateInfo, a_CreateInfo.name, t_CmdAllocator.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createCommandAllocator(a_CreateInfo);
+	return t_CmdAllocator;
 }
 
 CommandListHandle BB::RenderBackend::CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
+	CommandListHandle t_CmdList = s_ApiFunc.createCommandList(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddCommandList(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddCommandList(a_CreateInfo, a_CreateInfo.name, t_CmdList.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createCommandList(a_CreateInfo);
+	return t_CmdList;
 }
 
 RBufferHandle BB::RenderBackend::CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
+	RBufferHandle t_Buffer = s_ApiFunc.createBuffer(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddBuffer(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddBuffer(a_CreateInfo, a_CreateInfo.name, t_Buffer.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createBuffer(a_CreateInfo);
+	return t_Buffer;
 }
 
 RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_CreateInfo)
@@ -215,27 +220,30 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 	BB_ASSERT(a_CreateInfo.arrayLayers != 0, "Image arrayLayers is 0! Standard should be 1 if you do not do anything special for a 2d image.");
 	BB_ASSERT(a_CreateInfo.mipLevels != 0, "Image mipLevels is 0! Standard should be 1 if you do not do mips for an image.");
 	
+	RImageHandle t_Image = s_ApiFunc.createImage(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddImage(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddImage(a_CreateInfo, a_CreateInfo.name, t_Image.handle);
 #endif //_DEBUG
 	
-	return s_ApiFunc.createImage(a_CreateInfo);
+	return t_Image;
 }
 
 RSamplerHandle BB::RenderBackend::CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
+	RSamplerHandle t_Sampler = s_ApiFunc.createSampler(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddSampler(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddSampler(a_CreateInfo, a_CreateInfo.name, t_Sampler.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createSampler(a_CreateInfo);
+	return t_Sampler;
 }
 
 RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 {
+	RFenceHandle t_Fence = s_ApiFunc.createFence(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddFence(a_CreateInfo, a_CreateInfo.name);
+	s_ResourceTracker.AddFence(a_CreateInfo, a_CreateInfo.name, t_Fence.handle);
 #endif //_DEBUG
-	return s_ApiFunc.createFence(a_CreateInfo);
+	return t_Fence;
 }
 
 void BB::RenderBackend::UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
@@ -397,45 +405,72 @@ void BB::RenderBackend::DestroyBackend()
 
 void BB::RenderBackend::DestroyDescriptor(const RDescriptorHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyDescriptor(a_Handle);
 }
 
 void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyPipeline(a_Handle);
 }
 
 void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyCommandQueue(a_Handle);
 }
 
 void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyCommandAllocator(a_Handle);
 }
 
 void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyCommandList(a_Handle);
 }
 
 void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyBuffer(a_Handle);
 }
 
 void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyImage(a_Handle);
 }
 
 void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroySampler(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
 {
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
 	s_ApiFunc.destroyFence(a_Handle);
 }
