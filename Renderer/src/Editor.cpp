@@ -124,6 +124,10 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 	{
 		if (ImGui::BeginMenu("Options"))
 		{
+			if (ImGui::Button("Sort by time"))
+			{
+				a_ResTracker.SortByTime();
+			}
 			if (ImGui::Button("Sort by type"))
 			{
 				a_ResTracker.SortByType();

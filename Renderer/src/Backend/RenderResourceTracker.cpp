@@ -143,3 +143,47 @@ void BB::RenderResourceTracker::SortByType()
 	m_SortType = SORT_TYPE::TYPE;
 	SortEntriesByType(&m_HeadEntry);
 }
+
+RenderResourceTracker::Entry* SortedTimeMerge(RenderResourceTracker::Entry* a_First, RenderResourceTracker::Entry* a_Second)
+{
+	RenderResourceTracker::Entry* t_ReturnValue = nullptr;
+
+	if (a_First == nullptr)
+		return a_Second;
+	else if (a_Second == nullptr)
+		return (a_First);
+
+	if (a_First->timeId > a_Second->timeId)
+	{
+		t_ReturnValue = a_First;
+		t_ReturnValue->next = SortedTimeMerge(a_First->next, a_Second);
+	}
+	else
+	{
+		t_ReturnValue = a_Second;
+		t_ReturnValue->next = SortedTimeMerge(a_First, a_Second->next);
+	}
+	return t_ReturnValue;
+}
+
+static void SortEntriesByTime(RenderResourceTracker::Entry** a_Head)
+{
+	RenderResourceTracker::Entry* t_Head = *a_Head;
+
+	if (t_Head == nullptr || t_Head->next == nullptr)
+		return;
+
+	RenderResourceTracker::Entry* t_A = t_Head;
+	RenderResourceTracker::Entry* t_B = GetMiddleList(t_Head);
+
+	SortEntriesByTime(&t_A);
+	SortEntriesByTime(&t_B);
+
+	*a_Head = SortedTimeMerge(t_A, t_B);
+}
+
+void BB::RenderResourceTracker::SortByTime()
+{
+	m_SortType = SORT_TYPE::TIME;
+	SortEntriesByTime(&m_HeadEntry);
+}

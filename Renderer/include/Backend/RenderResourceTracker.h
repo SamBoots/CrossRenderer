@@ -70,15 +70,17 @@ namespace BB
 		struct Entry
 		{
 			RESOURCE_TYPE type{};
-			uint64_t id;
+			uint64_t timeId = 0;
+			uint64_t id = NULL;
 			const char* name = nullptr;
 			Entry* next = nullptr;
 			void* typeInfo = nullptr;
 		};
 		void SortByType();
+		void SortByTime();
 
 	private:
-		enum SORT_TYPE : uint32_t
+		enum class SORT_TYPE : uint32_t
 		{
 			TIME,
 			TYPE
@@ -90,6 +92,7 @@ namespace BB
 			const size_t t_EntrySize = sizeof(T) + sizeof(Entry);
 			Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_EntrySize));
 			t_Entry->type = a_Type;
+			t_Entry->timeId = m_TimeID++;
 			t_Entry->id = a_ID;
 			t_Entry->name = a_Name;
 			t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
@@ -98,11 +101,11 @@ namespace BB
 			++m_Entries;
 			switch (m_SortType)
 			{
-			case BB::RenderResourceTracker::TIME:
+			case SORT_TYPE::TIME:
 				t_Entry->next = m_HeadEntry;
 				m_HeadEntry = t_Entry;
 				break;
-			case BB::RenderResourceTracker::TYPE:
+			case SORT_TYPE::TYPE:
 			{
 				Entry* t_SearchEntry = m_HeadEntry;
 				while (t_SearchEntry != nullptr)
@@ -130,6 +133,7 @@ namespace BB
 		FreelistAllocator_t m_Allocator{ mbSize * 2 };
 
 		SORT_TYPE m_SortType = SORT_TYPE::TIME;
+		uint64_t m_TimeID = 0;
 		uint32_t m_Entries = 0;
 		Entry* m_HeadEntry = nullptr;
 	};
