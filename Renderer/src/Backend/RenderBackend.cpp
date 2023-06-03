@@ -59,7 +59,7 @@ void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo
 {
 	s_ApiFunc.pipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
 #ifdef _DEBUG
-	m_DebugInfo.shaderCount = a_ShaderInfo.size();
+	m_DebugInfo.shaderCount = static_cast<uint32_t>(a_ShaderInfo.size());
 	m_DebugInfo.shaderInfo = (PipelineDebugInfo::ShaderInfo*)(_malloca(sizeof(PipelineDebugInfo::ShaderInfo) * a_ShaderInfo.size()));
 	for (size_t i = 0; i < m_DebugInfo.shaderCount; i++)
 	{
@@ -73,7 +73,7 @@ void PipelineBuilder::BindAttributes(const PipelineAttributes& a_AttributeInfo)
 {
 	s_ApiFunc.pipelineBuilderBindAttributes(m_BuilderHandle, a_AttributeInfo);
 #ifdef _DEBUG
-	m_DebugInfo.attributeCount = a_AttributeInfo.attributes.size();
+	m_DebugInfo.attributeCount = static_cast<uint32_t>(a_AttributeInfo.attributes.size());
 	m_DebugInfo.attributes = (VertexAttributeDesc*)(_malloca(sizeof(VertexAttributeDesc) * a_AttributeInfo.attributes.size()));
 	for (size_t i = 0; i < m_DebugInfo.attributeCount; i++)
 	{

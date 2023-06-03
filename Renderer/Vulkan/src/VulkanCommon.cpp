@@ -912,7 +912,7 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 			VkSampler* t_Samplers = nullptr;
 			if (t_Binding.staticSamplers.size())
 			{
-				t_Samplers = reinterpret_cast<VkSampler*>(alloca(sizeof(VkSampler) * t_Binding.staticSamplers.size()));
+				t_Samplers = BBnewArr(s_VulkanTempAllocator, t_Binding.staticSamplers.size(), VkSampler);
 				for (size_t i = 0; i < t_Binding.staticSamplers.size(); i++)
 				{
 					//Hacky for now... we just create the sampler like this. (WE WILL DO THIS LATER LMAO)
@@ -1451,12 +1451,12 @@ ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
 
 	ImageReturnInfo t_ReturnInfo{};
 	t_ReturnInfo.allocInfo.imageAllocByteSize = static_cast<uint64_t>(
-		t_Image->width *
+		t_Image->width) *
 		t_Image->height *
 		4 * //4 is the amount of channels it has.
 		t_Image->depth *
 		t_Image->arrays *
-		t_Image->mips);
+		t_Image->mips;
 	t_ReturnInfo.allocInfo.footRowPitch = t_Image->width * sizeof(uint32_t);
 	t_ReturnInfo.allocInfo.footHeight = t_Image->height;
 
@@ -2403,7 +2403,7 @@ uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
 
 void BB::VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	size_t t_SemaCount = a_WaitInfo.fences.size() + a_WaitInfo.queues.size();
+	uint32_t t_SemaCount = static_cast<uint32_t>(a_WaitInfo.fences.size() + a_WaitInfo.queues.size());
 	VkSemaphore* t_Semas = reinterpret_cast<VkSemaphore*>(_malloca(sizeof(VkSemaphore) * t_SemaCount));
 	uint64_t* t_SemValues = reinterpret_cast<uint64_t*>(_malloca(sizeof(uint64_t) * t_SemaCount));
 

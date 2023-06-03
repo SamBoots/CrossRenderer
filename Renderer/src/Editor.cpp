@@ -18,7 +18,7 @@ void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, c
 		{
 			Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
 
-			ImGui::PushID(i);
+			ImGui::PushID(static_cast<int>(i));
 			if (ImGui::CollapsingHeader("DrawObject"))
 			{
 				ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);

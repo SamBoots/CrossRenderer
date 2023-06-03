@@ -14,8 +14,8 @@ constexpr size_t IMGUI_FRAME_UPLOAD_BUFFER = mbSize * 4;
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
 struct ImGui_ImplCross_FrameRenderBuffers
 {
-    uint64_t vertexSize;
-    uint64_t indexSize;
+    uint64_t vertexSize = 0;
+    uint64_t indexSize = 0;
     RBufferHandle vertexBuffer;
     RBufferHandle indexBuffer;
 
@@ -296,7 +296,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
     unsigned char* pixels;
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    size_t upload_size = static_cast<size_t>(width * height) * 4;
+    size_t upload_size = static_cast<size_t>(width) * height * 4;
 
     // Create the Image:
     {

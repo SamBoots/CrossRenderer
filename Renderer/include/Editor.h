@@ -4,7 +4,7 @@
 namespace BB
 {
 	struct DrawObject;
-	struct LightSystem;
+	class LightSystem;
 	class RenderResourceTracker;
 	class TransformPool;
 

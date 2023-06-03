@@ -320,6 +320,8 @@ static inline const char* DescriptorTypeStr(const RENDER_DESCRIPTOR_TYPE a_Type)
 	case RENDER_DESCRIPTOR_TYPE::IMAGE:						return "Descriptor Type: IMAGE";
 	case RENDER_DESCRIPTOR_TYPE::SAMPLER:					return "Descriptor Type: SAMPLER";
 	default:
+		BB_ASSERT(false, "RENDER_DESCRIPTOR_TYPE unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }
@@ -333,6 +335,7 @@ static inline const char* ShaderStageStr(const RENDER_SHADER_STAGE a_Stage)
 	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:	return "Shader Stage: FRAGMENT_PIXEL";
 	default:
 		BB_ASSERT(false, "RENDER_SHADER_STAGE unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }
@@ -345,6 +348,7 @@ static inline const char* DescriptorFlagStr(const RENDER_DESCRIPTOR_FLAG a_Flag)
 	case RENDER_DESCRIPTOR_FLAG::BINDLESS:	return "Flags: BINDLESS";
 	default:
 		BB_ASSERT(false, "RENDER_DESCRIPTOR_FLAG unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }
@@ -362,6 +366,7 @@ static inline const char* InputFormat(const RENDER_INPUT_FORMAT a_Format)
 
 	default:
 		BB_ASSERT(false, "RENDER_INPUT_FORMAT unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }
@@ -377,6 +382,7 @@ static inline const char* BlendFactor(const RENDER_BLEND_FACTOR a_BlendFac)
 
 	default:
 		BB_ASSERT(false, "RENDER_BLEND_FACTOR unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }
@@ -390,6 +396,7 @@ static inline const char* BlendOp(const RENDER_BLEND_OP a_BlendOp)
 
 	default:
 		BB_ASSERT(false, "RENDER_BLEND_OP unknown in resource tracker!");
+		return "error";
 		break;
 	}
 }

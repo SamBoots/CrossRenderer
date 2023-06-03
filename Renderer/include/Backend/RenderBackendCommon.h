@@ -237,10 +237,10 @@ namespace BB
 
 	struct UpdateDescriptorImageInfo
 	{
-		RDescriptorHandle set;
-		uint32_t binding;
-		uint32_t descriptorIndex;
-		RENDER_DESCRIPTOR_TYPE type;
+		RDescriptorHandle set{};
+		uint32_t binding = 0;
+		uint32_t descriptorIndex = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
 
 		RImageHandle image;
 		RENDER_IMAGE_LAYOUT imageLayout;
@@ -249,14 +249,14 @@ namespace BB
 
 	struct UpdateDescriptorBufferInfo
 	{
-		RDescriptorHandle set;
-		uint32_t binding;
-		uint32_t descriptorIndex;
-		RENDER_DESCRIPTOR_TYPE type;
+		RDescriptorHandle set{};
+		uint32_t binding = 0;
+		uint32_t descriptorIndex = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
 
-		RBufferHandle buffer;
-		uint32_t bufferSize;
-		uint32_t bufferOffset;
+		RBufferHandle buffer{};
+		uint32_t bufferSize = 0;
+		uint32_t bufferOffset = 0;
 	};
 
 	struct RenderInitInfo
@@ -272,20 +272,20 @@ namespace BB
 
 	struct RenderBackendCreateInfo
 	{
-		PFN_RenderGetAPIFunctions getApiFuncPtr;
+		PFN_RenderGetAPIFunctions getApiFuncPtr = nullptr;
 		Slice<RENDER_EXTENSIONS> extensions{};
 		Slice<RENDER_EXTENSIONS> deviceExtensions{};
-		WindowHandle windowHandle;
-		const char* appName{};
-		const char* engineName{};
-		uint32_t windowWidth{};
-		uint32_t windowHeight{};
-		bool validationLayers{};
+		WindowHandle windowHandle{};
+		const char* appName = nullptr;
+		const char* engineName = nullptr;
+		uint32_t windowWidth = 0;
+		uint32_t windowHeight = 0;
+		bool validationLayers = false;
 	};
 
 	struct StaticSamplerCreateInfo
 	{
-		RENDER_BINDING_SET bindingSet;
+		RENDER_BINDING_SET bindingSet{};
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
@@ -299,73 +299,73 @@ namespace BB
 
 	struct DescriptorBinding
 	{
-		uint32_t binding;
-		uint32_t descriptorCount;
-		RENDER_DESCRIPTOR_TYPE type;
-		RENDER_SHADER_STAGE stage;
-		RENDER_DESCRIPTOR_FLAG flags;
+		uint32_t binding = 0;
+		uint32_t descriptorCount = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
+		RENDER_SHADER_STAGE stage{};
+		RENDER_DESCRIPTOR_FLAG flags{};
 
 		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
 	};
 
 	struct RenderDescriptorCreateInfo
 	{
-		const char* name;
-		RENDER_BINDING_SET bindingSet;
-		BB::Slice<DescriptorBinding> bindings;
+		const char* name = nullptr;
+		RENDER_BINDING_SET bindingSet{};
+		BB::Slice<DescriptorBinding> bindings{};
 	};
 
 	struct RenderCommandQueueCreateInfo
 	{
-		const char* name;
-		RENDER_QUEUE_TYPE queue;
-		RENDER_FENCE_FLAGS flags;
+		const char* name = nullptr;
+		RENDER_QUEUE_TYPE queue{};
+		RENDER_FENCE_FLAGS flags{};
 	};
 
 	struct RenderCommandAllocatorCreateInfo
 	{
-		const char* name;
-		RENDER_QUEUE_TYPE queueType;
-		uint32_t commandListCount;
+		const char* name = nullptr;
+		RENDER_QUEUE_TYPE queueType{};
+		uint32_t commandListCount = 0;
 	};
 
 	struct RenderCommandListCreateInfo
 	{
-		const char* name;
-		CommandAllocatorHandle commandAllocator;
+		const char* name = nullptr;
+		CommandAllocatorHandle commandAllocator{};
 	};
 
 	struct RenderWaitCommandsInfo
 	{
-		BB::Slice<CommandQueueHandle> queues; 
-		BB::Slice<RFenceHandle> fences;
+		BB::Slice<CommandQueueHandle> queues{};
+		BB::Slice<RFenceHandle> fences{};
 	};
 
 	struct RenderBufferCreateInfo
 	{
-		const char* name;
+		const char* name = nullptr;
 		uint64_t size = 0;
-		RENDER_BUFFER_USAGE usage;
-		RENDER_MEMORY_PROPERTIES memProperties;
+		RENDER_BUFFER_USAGE usage{};
+		RENDER_MEMORY_PROPERTIES memProperties{};
 	};
 
 	struct RenderImageCreateInfo
 	{
-		const char* name;
+		const char* name = nullptr;
 		uint32_t width = 0;
 		uint32_t height = 0;
 		uint32_t depth = 0;
 
 		uint16_t arrayLayers = 0;
 		uint16_t mipLevels = 0;
-		RENDER_IMAGE_TYPE type;
-		RENDER_IMAGE_FORMAT format;
-		RENDER_IMAGE_TILING tiling;
+		RENDER_IMAGE_TYPE type{};
+		RENDER_IMAGE_FORMAT format{};
+		RENDER_IMAGE_TILING tiling{};
 	};
 
 	struct SamplerCreateInfo
 	{
-		const char* name;
+		const char* name = nullptr;
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
@@ -379,82 +379,82 @@ namespace BB
 
 	struct FenceCreateInfo
 	{
-		const char* name;
-		RENDER_FENCE_FLAGS flags;
+		const char* name = nullptr;
+		RENDER_FENCE_FLAGS flags{};
 	};
 
 	struct RenderTransitionImageInfo
 	{
-		RImageHandle image;
-		RENDER_IMAGE_LAYOUT oldLayout;
-		RENDER_IMAGE_LAYOUT newLayout;
-		RENDER_PIPELINE_STAGE srcStage;
-		RENDER_PIPELINE_STAGE dstStage;
-		RENDER_ACCESS_MASK srcMask;
-		RENDER_ACCESS_MASK dstMask;
+		RImageHandle image{};
+		RENDER_IMAGE_LAYOUT oldLayout{};
+		RENDER_IMAGE_LAYOUT newLayout{};
+		RENDER_PIPELINE_STAGE srcStage{};
+		RENDER_PIPELINE_STAGE dstStage{};
+		RENDER_ACCESS_MASK srcMask{};
+		RENDER_ACCESS_MASK dstMask{};
 
-		uint32_t baseMipLevel;
-		uint32_t levelCount;
-		uint32_t baseArrayLayer;
-		uint32_t layerCount;
+		uint32_t baseMipLevel = 0;
+		uint32_t levelCount = 0;
+		uint32_t baseArrayLayer = 0;
+		uint32_t layerCount = 0;
 	};
 
 	struct StartFrameInfo
 	{
-		RFenceHandle imageWait;
-		RFenceHandle* fences;
-		uint32_t fenceCount;
+		RFenceHandle imageWait{};
+		RFenceHandle* fences = nullptr;
+		uint32_t fenceCount = 0;
 	};
 
 	struct ImageReturnInfo
 	{
 		struct AllocInfo
 		{
-			uint64_t imageAllocByteSize;
-			uint32_t footRowPitch;
-			uint32_t footHeight;
-		} allocInfo;
+			uint64_t imageAllocByteSize = 0;
+			uint32_t footRowPitch = 0;
+			uint32_t footHeight = 0;
+		} allocInfo{};
 
-		uint32_t width;
-		uint32_t height;
-		uint32_t depth;
-		uint16_t mips;
-		uint16_t arrayLayers;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t depth = 0;
+		uint16_t mips = 0;
+		uint16_t arrayLayers = 0;
 	};
 
 	struct RenderCopyBufferInfo
 	{
-		uint64_t size;
-		RBufferHandle src;
-		uint64_t srcOffset;
-		RBufferHandle dst;
-		uint64_t dstOffset;
+		uint64_t size = 0;
+		RBufferHandle src{};
+		uint64_t srcOffset = 0;
+		RBufferHandle dst{};
+		uint64_t dstOffset = 0;
 	};
 
 	struct ImageCopyInfo
 	{
-		uint32_t sizeX;
-		uint32_t sizeY;
-		uint32_t sizeZ;
+		uint32_t sizeX = 0;
+		uint32_t sizeY = 0;
+		uint32_t sizeZ = 0;
 
-		int32_t offsetX;
-		int32_t offsetY;
-		int32_t offsetZ;
+		int32_t offsetX = 0;
+		int32_t offsetY = 0;
+		int32_t offsetZ = 0;
 
-		uint16_t mipLevel;
-		uint16_t baseArrayLayer;
-		uint16_t layerCount;
+		uint16_t mipLevel = 0;
+		uint16_t baseArrayLayer = 0;
+		uint16_t layerCount = 0;
 
-		RENDER_IMAGE_LAYOUT layout;
+		RENDER_IMAGE_LAYOUT layout{};
 	};
 
 	struct RenderCopyBufferImageInfo
 	{
-		RBufferHandle srcBuffer;
-		uint32_t srcBufferOffset;
+		RBufferHandle srcBuffer{};
+		uint32_t srcBufferOffset = 0;
 
-		RImageHandle dstImage;
-		ImageCopyInfo dstImageInfo;
+		RImageHandle dstImage{};
+		ImageCopyInfo dstImageInfo{};
 	};
 
 	struct StartRenderingInfo
@@ -467,7 +467,7 @@ namespace BB
 		RENDER_IMAGE_LAYOUT colorInitialLayout{};
 		RENDER_IMAGE_LAYOUT colorFinalLayout{};
 
-		RImageHandle depthStencil;
+		RImageHandle depthStencil{};
 
 		//RGBA
 		float clearColor[4]{};
@@ -475,8 +475,8 @@ namespace BB
 
 	struct ScissorInfo
 	{
-		int2 offset;
-		uint2 extent;
+		int2 offset{};
+		uint2 extent{};
 	};
 
 	struct EndRenderingInfo
@@ -493,31 +493,31 @@ namespace BB
 	struct PipelineRenderTargetBlend
 	{
 		bool blendEnable = false;
-		RENDER_BLEND_FACTOR srcBlend;
-		RENDER_BLEND_FACTOR dstBlend;
-		RENDER_BLEND_OP blendOp;
-		RENDER_BLEND_FACTOR srcBlendAlpha;
-		RENDER_BLEND_FACTOR dstBlendAlpha;
-		RENDER_BLEND_OP blendOpAlpha;
+		RENDER_BLEND_FACTOR srcBlend{};
+		RENDER_BLEND_FACTOR dstBlend{};
+		RENDER_BLEND_OP blendOp{};
+		RENDER_BLEND_FACTOR srcBlendAlpha{};
+		RENDER_BLEND_FACTOR dstBlendAlpha{};
+		RENDER_BLEND_OP blendOpAlpha{};
 		//uint8_t renderTargetWriteMask;
 	};
 
 	struct PipelineRasterState
 	{
 		bool frontCounterClockwise = false;
-		RENDER_CULL_MODE cullMode;
+		RENDER_CULL_MODE cullMode{};
 	};
 
 	struct PipelineConstantData
 	{
 		//0 means this pipeline does not use push constants/root constants.
-		uint32_t dwordSize;
-		RENDER_SHADER_STAGE shaderStage;
+		uint32_t dwordSize = 0;
+		RENDER_SHADER_STAGE shaderStage{};
 	};
 
 	struct PipelineInitInfo
 	{
-		const char* name;
+		const char* name = nullptr;
 		PipelineRasterState rasterizerState{};
 		PipelineConstantData constantData{};
 
@@ -531,7 +531,7 @@ namespace BB
 	struct VertexAttributeDesc
 	{
 		uint32_t location = 0;
-		RENDER_INPUT_FORMAT format;
+		RENDER_INPUT_FORMAT format{};
 		uint32_t offset = 0;
 		char* semanticName = nullptr;
 	};
@@ -539,7 +539,7 @@ namespace BB
 	struct PipelineAttributes
 	{
 		uint32_t stride = 0;
-		BB::Slice<VertexAttributeDesc> attributes;
+		BB::Slice<VertexAttributeDesc> attributes{};
 	};
 
 #ifdef _DEBUG
@@ -565,27 +565,27 @@ namespace BB
 	struct ShaderCreateInfo
 	{
 		//Optional for debug purposes.
-		const char* optionalShaderpath;
+		const char* optionalShaderpath = nullptr;
 		Buffer buffer{};
 		RENDER_SHADER_STAGE shaderStage{};
 	};
 
 	struct ExecuteCommandsInfo
 	{
-		CommandListHandle* commands;
-		uint32_t commandCount;
-		CommandQueueHandle* waitQueues;
-		uint64_t* waitValues;
-		uint32_t waitQueueCount;
-		RENDER_PIPELINE_STAGE* waitStages;
-		CommandQueueHandle* signalQueues;
-		uint32_t signalQueueCount;
+		CommandListHandle* commands = nullptr;
+		uint32_t commandCount = 0;
+		CommandQueueHandle* waitQueues = nullptr;
+		uint64_t* waitValues = 0;
+		uint32_t waitQueueCount = 0;
+		RENDER_PIPELINE_STAGE* waitStages = nullptr;
+		CommandQueueHandle* signalQueues = nullptr;
+		uint32_t signalQueueCount = 0;
 	};
 
 	//This struct gets returned and has the signal values of the send queue's fences.
 	struct ExecuteCommandSignalValues
 	{
-		uint64_t* signalValues;
+		uint64_t* signalValues = nullptr;
 	};
 
 	struct Vertex

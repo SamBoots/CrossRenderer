@@ -38,7 +38,7 @@ namespace BB
 		};
 
 		PipelineHandle pipelineHandle{};
-		RImageHandle image; //This is temp, will be managed by the engine.
+		RImageHandle image{}; //This is temp, will be managed by the engine.
 
 		RBufferHandle vertexBuffer{};
 		RBufferHandle indexBuffer{};
@@ -57,10 +57,10 @@ namespace BB
 
 	struct CreateRawModelInfo
 	{
-		BB::Slice<Vertex> vertices;
-		BB::Slice<const uint32_t> indices;
-		PipelineHandle pipeline;
-		const char* imagePath;
+		BB::Slice<Vertex> vertices{};
+		BB::Slice<const uint32_t> indices{};
+		PipelineHandle pipeline{};
+		const char* imagePath = nullptr;
 	};
 
 	enum class MODEL_TYPE
@@ -70,35 +70,35 @@ namespace BB
 
 	struct LoadModelInfo
 	{
-		const char* path;
-		MODEL_TYPE modelType;
+		const char* path = nullptr;
+		MODEL_TYPE modelType{};
 	};
 
 	struct CameraRenderData
 	{
-		glm::mat4 view;
-		glm::mat4 projection;
+		glm::mat4 view{};
+		glm::mat4 projection{};
 	};
 
 	struct BaseFrameInfo
 	{
 		uint32_t lightCount = 0;
-		uint3 padding;
+		uint3 padding{};
 
-		float3 ambientLight;
-		float ambientStrength;
+		float3 ambientLight{};
+		float ambientStrength = 0.f;
 	};
 
 	struct DrawObject
 	{
-		RModelHandle modelHandle;
-		TransformHandle transformHandle;
+		RModelHandle modelHandle{};
+		TransformHandle transformHandle{};
 	};
 
 	struct RenderBufferPart
 	{
-		RBufferHandle bufferHandle;
-		uint32_t size; //the size of the buffer part.
-		uint32_t offset; //offset starting from the bufferhandle
+		RBufferHandle bufferHandle{};
+		uint32_t size = 0; //the size of the buffer part.
+		uint32_t offset = 0; //offset starting from the bufferhandle
 	};
 }
