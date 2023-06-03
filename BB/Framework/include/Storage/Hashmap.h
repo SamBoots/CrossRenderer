@@ -625,7 +625,7 @@ namespace BB
 		m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
 		m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
 		m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-		std::fill(m_Hashes, m_Hashes + m_Capacity, Hashmap_Specs::OL_EMPTY);
+		Memory::Set(m_Hashes, Hashmap_Specs::OL_EMPTY, m_Capacity);
 	}
 
 	template<typename Key, typename Value>
@@ -643,7 +643,7 @@ namespace BB
 		m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
 		m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
 		m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-		std::fill(m_Hashes, m_Hashes + m_Capacity, Hashmap_Specs::OL_EMPTY);
+		Memory::Set(m_Hashes, Hashmap_Specs::OL_EMPTY, m_Capacity);
 
 		for (size_t i = 0; i < m_Capacity; i++)
 		{
@@ -715,7 +715,7 @@ namespace BB
 		m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
 		m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
 		m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-		std::fill(m_Hashes, m_Hashes + m_Capacity, Hashmap_Specs::OL_EMPTY);
+		Memory::Set(m_Hashes, Hashmap_Specs::OL_EMPTY, m_Capacity);
 
 		for (size_t i = 0; i < m_Capacity; i++)
 		{
@@ -958,8 +958,7 @@ namespace BB
 		Hash* t_NewHashes = reinterpret_cast<Hash*>(t_Buffer);
 		Key* t_NewKeys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * t_NewCapacity));
 		Value* t_NewValues = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * t_NewCapacity));
-		std::fill(t_NewHashes, t_NewHashes + t_NewCapacity, Hashmap_Specs::OL_EMPTY);
-
+		Memory::Set(t_NewHashes, Hashmap_Specs::OL_EMPTY, t_NewCapacity);
 		for (size_t i = 0; i < m_Capacity; i++)
 		{
 			if (m_Hashes[i] == i)
