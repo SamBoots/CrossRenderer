@@ -20,9 +20,8 @@ struct Entry
 	void* typeInfo = nullptr;
 };
 
-class BB::RenderResourceTracker_Inst
+struct BB::RenderResourceTracker_Inst
 {
-public:
 	RenderResourceTracker_Inst(Allocator a_Allocator) : entryMap(a_Allocator, 128) {};
 
 	OL_HashMap<uint64_t, Entry*> entryMap;
@@ -147,7 +146,7 @@ void BB::RenderResourceTracker::AddBuffer(const RenderBufferCreateInfo& a_Buffer
 	m_Instance->AddEntry(m_Allocator, a_Buffer, RESOURCE_TYPE::BUFFER, a_Name, a_ID);
 }
 
-void BB::RenderResourceTracker::AddImage(const RenderImageCreateInfo& a_Image, const char* a_Name, const uint64_t a_ID)
+void BB::RenderResourceTracker::AddImage(const TrackerImageInfo& a_Image, const char* a_Name, const uint64_t a_ID)
 {
 	m_Instance->AddEntry(m_Allocator, a_Image, RESOURCE_TYPE::IMAGE, a_Name, a_ID);
 }
@@ -160,6 +159,13 @@ void BB::RenderResourceTracker::AddSampler(const SamplerCreateInfo& a_Sampler, c
 void BB::RenderResourceTracker::AddFence(const FenceCreateInfo& a_Fence, const char* a_Name, const uint64_t a_ID)
 {
 	m_Instance->AddEntry(m_Allocator, a_Fence, RESOURCE_TYPE::FENCE, a_Name, a_ID);
+}
+
+void* BB::RenderResourceTracker::GetData(const uint64_t a_ID, const RESOURCE_TYPE a_Type)
+{
+	Entry* t_Entry = *m_Instance->entryMap.find(a_ID);
+	BB_ASSERT(t_Entry->type == a_Type, "Trying to get a resource but the ID is not equal to it's type!");
+	return t_Entry->typeInfo;
 }
 
 void BB::RenderResourceTracker::RemoveEntry(const uint64_t a_ID)
@@ -353,7 +359,7 @@ static inline const char* DescriptorFlagStr(const RENDER_DESCRIPTOR_FLAG a_Flag)
 	}
 }
 
-static inline const char* InputFormat(const RENDER_INPUT_FORMAT a_Format)
+static inline const char* InputFormatStr(const RENDER_INPUT_FORMAT a_Format)
 {
 	switch (a_Format)
 	{
@@ -371,7 +377,7 @@ static inline const char* InputFormat(const RENDER_INPUT_FORMAT a_Format)
 	}
 }
 
-static inline const char* BlendFactor(const RENDER_BLEND_FACTOR a_BlendFac)
+static inline const char* BlendFactorStr(const RENDER_BLEND_FACTOR a_BlendFac)
 {
 	switch (a_BlendFac)
 	{
@@ -387,7 +393,7 @@ static inline const char* BlendFactor(const RENDER_BLEND_FACTOR a_BlendFac)
 	}
 }
 
-static inline const char* BlendOp(const RENDER_BLEND_OP a_BlendOp)
+static inline const char* BlendOpStr(const RENDER_BLEND_OP a_BlendOp)
 {
 	switch (a_BlendOp)
 	{
@@ -396,6 +402,65 @@ static inline const char* BlendOp(const RENDER_BLEND_OP a_BlendOp)
 
 	default:
 		BB_ASSERT(false, "RENDER_BLEND_OP unknown in resource tracker!");
+		return "error";
+		break;
+	}
+}
+
+static inline const char* ImageTypeStr(const RENDER_IMAGE_TYPE a_ImageType)
+{
+	switch (a_ImageType)
+	{
+	case RENDER_IMAGE_TYPE::TYPE_2D:		return "TYPE_2D";
+
+	default:
+		BB_ASSERT(false, "RENDER_IMAGE_TYPE unknown in resource tracker!");
+		return "error";
+		break;
+	}
+}
+
+static inline const char* ImageFormatStr(const RENDER_IMAGE_FORMAT a_ImageFormat)
+{
+	switch (a_ImageFormat)
+	{
+	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:		return "DEPTH_STENCIL";
+	case RENDER_IMAGE_FORMAT::RGBA8_SRGB:			return "RGBA8_SRGB";
+	case RENDER_IMAGE_FORMAT::RGBA8_UNORM:			return "RGBA8_UNORM";
+	default:
+		BB_ASSERT(false, "RENDER_IMAGE_FORMAT unknown in resource tracker!");
+		return "error";
+		break;
+	}
+}
+
+static inline const char* ImageTilingStr(const RENDER_IMAGE_TILING a_Tiling)
+{
+	switch (a_Tiling)
+	{
+	case RENDER_IMAGE_TILING::LINEAR:		return "LINEAR";
+	case RENDER_IMAGE_TILING::OPTIMAL:		return "OPTIMAL";
+	default:
+		BB_ASSERT(false, "RENDER_IMAGE_TILING unknown in resource tracker!");
+		return "error";
+		break;
+	}
+}
+
+static inline const char* ImageLayoutStr(const RENDER_IMAGE_LAYOUT a_Layout)
+{
+	switch (a_Layout)
+	{
+	case RENDER_IMAGE_LAYOUT::UNDEFINED:				return "UNDEFINED";
+	case RENDER_IMAGE_LAYOUT::GENERAL:					return "GENERAL";
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return "TRANSFER_SRC";
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return "TRANSFER_DST";
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:	return "COLOR_ATTACHMENT_OPTIMAL";
+	case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:	return "DEPTH_STENCIL_ATTACHMENT";
+	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return "SHADER_READ_ONLY";
+	case RENDER_IMAGE_LAYOUT::PRESENT:					return "PRESENT";
+	default:
+		BB_ASSERT(false, "RENDER_IMAGE_LAYOUT unknown in resource tracker!");
 		return "error";
 		break;
 	}
@@ -562,12 +627,12 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 							if (ImGui::TreeNode((void*)(intptr_t)i, "Blend State %u:", i))
 							{
 								ImGui::Text("Blend Enable: %d", t_BlendInfo.blendEnable);
-								ImGui::Text("Source Blend", BlendFactor(t_BlendInfo.srcBlend));
-								ImGui::Text("Destination Blend", BlendFactor(t_BlendInfo.dstBlend));
-								ImGui::Text("Blend Op", BlendOp(t_BlendInfo.blendOp));
-								ImGui::Text("Source Blend Alpha", BlendFactor(t_BlendInfo.srcBlendAlpha));
-								ImGui::Text("Destination Blend Alpha", BlendFactor(t_BlendInfo.dstBlendAlpha));
-								ImGui::Text("Blend Op Alpha", BlendOp(t_BlendInfo.blendOpAlpha));
+								ImGui::Text("Source Blend", BlendFactorStr(t_BlendInfo.srcBlend));
+								ImGui::Text("Destination Blend", BlendFactorStr(t_BlendInfo.dstBlend));
+								ImGui::Text("Blend Op", BlendOpStr(t_BlendInfo.blendOp));
+								ImGui::Text("Source Blend Alpha", BlendFactorStr(t_BlendInfo.srcBlendAlpha));
+								ImGui::Text("Destination Blend Alpha", BlendFactorStr(t_BlendInfo.dstBlendAlpha));
+								ImGui::Text("Blend Op Alpha", BlendOpStr(t_BlendInfo.blendOpAlpha));
 								ImGui::TreePop();
 							}
 						}
@@ -598,7 +663,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 							if (ImGui::TreeNode((void*)(intptr_t)i, "Vertex Attribute %u:", i))
 							{
 								ImGui::Text("binding: %u", t_Attri.location);
-								ImGui::Text(InputFormat(t_Attri.format));
+								ImGui::Text(InputFormatStr(t_Attri.format));
 								ImGui::Text("offset: %u", t_Attri.offset);
 								ImGui::Text(t_Attri.semanticName);
 								ImGui::TreePop();
@@ -650,6 +715,24 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				break;
 				case RESOURCE_TYPE::IMAGE:
 				{
+					const TrackerImageInfo& t_Image =
+						*reinterpret_cast<TrackerImageInfo*>(t_Entry->typeInfo);
+
+					ImGui::Text(ImageLayoutStr(t_Image.currentLayout));
+
+					if (ImGui::TreeNode((void*)(intptr_t)t_Entry->timeId, "CreateInfo", t_Entry->timeId))
+					{
+						const RenderImageCreateInfo& t_CreateInfo = t_Image.createInfo;
+						ImGui::Text("Width: %u", t_CreateInfo.width);
+						ImGui::Text("Height: %u", t_CreateInfo.height);
+						ImGui::Text("Depth: %u", t_CreateInfo.depth);
+						ImGui::Text("arrayLayers: %u", t_CreateInfo.arrayLayers);
+						ImGui::Text("mipLevels: %u", t_CreateInfo.mipLevels);
+						ImGui::Text(ImageTypeStr(t_CreateInfo.type));
+						ImGui::Text(ImageFormatStr(t_CreateInfo.format));
+						ImGui::Text(ImageTilingStr(t_CreateInfo.tiling));
+						ImGui::TreePop();
+					}
 
 				}
 				break;

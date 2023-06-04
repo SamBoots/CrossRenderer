@@ -222,7 +222,8 @@ RImageHandle BB::RenderBackend::CreateImage(const RenderImageCreateInfo& a_Creat
 	
 	RImageHandle t_Image = s_ApiFunc.createImage(a_CreateInfo);
 #ifdef _DEBUG
-	s_ResourceTracker.AddImage(a_CreateInfo, a_CreateInfo.name, t_Image.handle);
+	TrackerImageInfo t_TrackInfo{ RENDER_IMAGE_LAYOUT::UNDEFINED, a_CreateInfo };
+	s_ResourceTracker.AddImage(t_TrackInfo, a_CreateInfo.name, t_Image.handle);
 #endif //_DEBUG
 	
 	return t_Image;
@@ -304,6 +305,11 @@ void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_Recor
 
 void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo)
 {
+#ifdef _DEBUG
+	TrackerImageInfo* t_EditorData = reinterpret_cast<TrackerImageInfo*>(s_ResourceTracker.GetData(a_TransitionInfo.image.handle, RESOURCE_TYPE::IMAGE));
+	BB_ASSERT(t_EditorData->currentLayout == a_TransitionInfo.oldLayout, "Old image layout not the same in the tracked info!");
+	t_EditorData->currentLayout = a_TransitionInfo.newLayout;
+#endif //_DEBUG
 	s_ApiFunc.transitionImage(a_RecordingCmdHandle, a_TransitionInfo);
 }
 

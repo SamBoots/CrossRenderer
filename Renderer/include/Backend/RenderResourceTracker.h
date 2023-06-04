@@ -18,7 +18,13 @@ namespace BB
 		FENCE
 	};
 	
-	class RenderResourceTracker_Inst;
+	struct RenderResourceTracker_Inst;
+
+	struct TrackerImageInfo
+	{
+		RENDER_IMAGE_LAYOUT currentLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+		RenderImageCreateInfo createInfo{};
+	};
 
 	class RenderResourceTracker
 	{
@@ -34,9 +40,12 @@ namespace BB
 		void AddCommandList(const RenderCommandListCreateInfo& a_CommandList, const char* a_Name, const uint64_t a_ID);
 		void AddPipeline(const PipelineDebugInfo& a_Pipeline, const char* a_Name, const uint64_t a_ID);
 		void AddBuffer(const RenderBufferCreateInfo& a_Buffer, const char* a_Name, const uint64_t a_ID);
-		void AddImage(const RenderImageCreateInfo& a_Image, const char* a_Name, const uint64_t a_ID);
+		void AddImage(const TrackerImageInfo& a_Image, const char* a_Name, const uint64_t a_ID);
 		void AddSampler(const SamplerCreateInfo& a_Sampler, const char* a_Name, const uint64_t a_ID);
 		void AddFence(const FenceCreateInfo& a_Fence, const char* a_Name, const uint64_t a_ID);
+
+		//Get the typedata, 
+		void* GetData(const uint64_t a_ID, const RESOURCE_TYPE a_Type);
 
 		void RemoveEntry(const uint64_t a_ID);
 
