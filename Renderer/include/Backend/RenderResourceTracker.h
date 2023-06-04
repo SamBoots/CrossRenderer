@@ -22,6 +22,7 @@ namespace BB
 
 	struct TrackerImageInfo
 	{
+		RENDER_IMAGE_LAYOUT oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
 		RENDER_IMAGE_LAYOUT currentLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
 		RenderImageCreateInfo createInfo{};
 	};

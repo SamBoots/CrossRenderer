@@ -717,9 +717,8 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				{
 					const TrackerImageInfo& t_Image =
 						*reinterpret_cast<TrackerImageInfo*>(t_Entry->typeInfo);
-
+					ImGui::Text(ImageLayoutStr(t_Image.oldLayout));
 					ImGui::Text(ImageLayoutStr(t_Image.currentLayout));
-
 					if (ImGui::TreeNode((void*)(intptr_t)t_Entry->timeId, "CreateInfo", t_Entry->timeId))
 					{
 						const RenderImageCreateInfo& t_CreateInfo = t_Image.createInfo;
