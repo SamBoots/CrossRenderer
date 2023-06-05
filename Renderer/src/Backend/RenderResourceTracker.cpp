@@ -313,160 +313,10 @@ void BB::RenderResourceTracker::SortByTime()
 }
 
 #pragma region Editor
-static inline const char* DescriptorTypeStr(const RENDER_DESCRIPTOR_TYPE a_Type)
-{
-	switch (a_Type)
-	{
-	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:			return "Descriptor Type: READONLY_CONSTANT";
-	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:			return "Descriptor Type: READONLY_BUFFER";
-	case RENDER_DESCRIPTOR_TYPE::READWRITE:					return "Descriptor Type: READWRITE";
-	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:	return "Descriptor Type: READONLY_CONSTANT_DYNAMIC";
-	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:	return "Descriptor Type: READONLY_BUFFER_DYNAMIC";
-	case RENDER_DESCRIPTOR_TYPE::READWRITE_DYNAMIC:			return "Descriptor Type: READWRITE_DYNAMIC";
-	case RENDER_DESCRIPTOR_TYPE::IMAGE:						return "Descriptor Type: IMAGE";
-	case RENDER_DESCRIPTOR_TYPE::SAMPLER:					return "Descriptor Type: SAMPLER";
-	default:
-		BB_ASSERT(false, "RENDER_DESCRIPTOR_TYPE unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* ShaderStageStr(const RENDER_SHADER_STAGE a_Stage)
-{
-	switch (a_Stage)
-	{
-	case RENDER_SHADER_STAGE::ALL:				return "Shader Stage: ALL";
-	case RENDER_SHADER_STAGE::VERTEX:			return "Shader Stage: VERTEX";
-	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:	return "Shader Stage: FRAGMENT_PIXEL";
-	default:
-		BB_ASSERT(false, "RENDER_SHADER_STAGE unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* DescriptorFlagStr(const RENDER_DESCRIPTOR_FLAG a_Flag)
-{
-	switch (a_Flag)
-	{
-	case RENDER_DESCRIPTOR_FLAG::NONE:		return "Flags: NONE";
-	case RENDER_DESCRIPTOR_FLAG::BINDLESS:	return "Flags: BINDLESS";
-	default:
-		BB_ASSERT(false, "RENDER_DESCRIPTOR_FLAG unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* InputFormatStr(const RENDER_INPUT_FORMAT a_Format)
-{
-	switch (a_Format)
-	{
-	case RENDER_INPUT_FORMAT::RGBA32:	return "INPUT FORMAT: RGBA32";
-	case RENDER_INPUT_FORMAT::RGB32:	return "INPUT FORMAT: RGB32";
-	case RENDER_INPUT_FORMAT::RG32:		return "INPUT FORMAT: RG32";
-	case RENDER_INPUT_FORMAT::R32:		return "INPUT FORMAT: R32";
-	case RENDER_INPUT_FORMAT::RGBA8:	return "INPUT FORMAT: RGBA8";
-	case RENDER_INPUT_FORMAT::RG8:		return "INPUT FORMAT: RG8";
-
-	default:
-		BB_ASSERT(false, "RENDER_INPUT_FORMAT unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* BlendFactorStr(const RENDER_BLEND_FACTOR a_BlendFac)
-{
-	switch (a_BlendFac)
-	{
-	case RENDER_BLEND_FACTOR::ZERO:					return "ZERO";
-	case RENDER_BLEND_FACTOR::ONE:					return "ONE";
-	case RENDER_BLEND_FACTOR::SRC_ALPHA:			return "SRC_ALPHA";
-	case RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA:	return "ONE_MINUS_SRC_ALPHA";
-
-	default:
-		BB_ASSERT(false, "RENDER_BLEND_FACTOR unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* BlendOpStr(const RENDER_BLEND_OP a_BlendOp)
-{
-	switch (a_BlendOp)
-	{
-	case RENDER_BLEND_OP::ADD:		return "Blend Op: ADD";
-	case RENDER_BLEND_OP::SUBTRACT:	return "Blend Op: SUBTRACT";
-
-	default:
-		BB_ASSERT(false, "RENDER_BLEND_OP unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* ImageTypeStr(const RENDER_IMAGE_TYPE a_ImageType)
-{
-	switch (a_ImageType)
-	{
-	case RENDER_IMAGE_TYPE::TYPE_2D:		return "TYPE_2D";
-
-	default:
-		BB_ASSERT(false, "RENDER_IMAGE_TYPE unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* ImageFormatStr(const RENDER_IMAGE_FORMAT a_ImageFormat)
-{
-	switch (a_ImageFormat)
-	{
-	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:		return "DEPTH_STENCIL";
-	case RENDER_IMAGE_FORMAT::RGBA8_SRGB:			return "RGBA8_SRGB";
-	case RENDER_IMAGE_FORMAT::RGBA8_UNORM:			return "RGBA8_UNORM";
-	default:
-		BB_ASSERT(false, "RENDER_IMAGE_FORMAT unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* ImageTilingStr(const RENDER_IMAGE_TILING a_Tiling)
-{
-	switch (a_Tiling)
-	{
-	case RENDER_IMAGE_TILING::LINEAR:		return "LINEAR";
-	case RENDER_IMAGE_TILING::OPTIMAL:		return "OPTIMAL";
-	default:
-		BB_ASSERT(false, "RENDER_IMAGE_TILING unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
-
-static inline const char* ImageLayoutStr(const RENDER_IMAGE_LAYOUT a_Layout)
-{
-	switch (a_Layout)
-	{
-	case RENDER_IMAGE_LAYOUT::UNDEFINED:				return "UNDEFINED";
-	case RENDER_IMAGE_LAYOUT::GENERAL:					return "GENERAL";
-	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return "TRANSFER_SRC";
-	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return "TRANSFER_DST";
-	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:	return "COLOR_ATTACHMENT_OPTIMAL";
-	case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:	return "DEPTH_STENCIL_ATTACHMENT";
-	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return "SHADER_READ_ONLY";
-	case RENDER_IMAGE_LAYOUT::PRESENT:					return "PRESENT";
-	default:
-		BB_ASSERT(false, "RENDER_IMAGE_LAYOUT unknown in resource tracker!");
-		return "error";
-		break;
-	}
-}
 
 #include "imgui.h"
+#include "RenderBackendCommon.inl"
+
 void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 {
 	RenderResourceTracker_Inst* t_Inst = a_ResTracker.m_Instance;
@@ -529,9 +379,9 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 							const DescriptorBinding& t_Bind = t_Desc.bindings[i];
 							ImGui::Text("Binding: %u", t_Bind.binding);
 							ImGui::Text("DescriptorCount: %u", t_Bind.descriptorCount);
-							ImGui::Text(DescriptorTypeStr(t_Bind.type));
-							ImGui::Text(ShaderStageStr(t_Bind.stage));
-							ImGui::Text(DescriptorFlagStr(t_Bind.flags));
+							ImGui::Text("Descriptor Type: %s", DescriptorTypeStr(t_Bind.type));
+							ImGui::Text("Shader Stage: %s", ShaderStageStr(t_Bind.stage));
+							ImGui::Text("Flags: %s", DescriptorFlagStr(t_Bind.flags));
 							ImGui::TreePop();
 						}
 					}
@@ -663,7 +513,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 							if (ImGui::TreeNode((void*)(intptr_t)i, "Vertex Attribute %u:", i))
 							{
 								ImGui::Text("binding: %u", t_Attri.location);
-								ImGui::Text(InputFormatStr(t_Attri.format));
+								ImGui::Text("INPUT FORMAT: %s", InputFormatStr(t_Attri.format));
 								ImGui::Text("offset: %u", t_Attri.offset);
 								ImGui::Text(t_Attri.semanticName);
 								ImGui::TreePop();
@@ -717,8 +567,8 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				{
 					const TrackerImageInfo& t_Image =
 						*reinterpret_cast<TrackerImageInfo*>(t_Entry->typeInfo);
-					ImGui::Text(ImageLayoutStr(t_Image.oldLayout));
-					ImGui::Text(ImageLayoutStr(t_Image.currentLayout));
+					ImGui::Text("Old Layout %s", ImageLayoutStr(t_Image.oldLayout));
+					ImGui::Text("New Layout %s", ImageLayoutStr(t_Image.currentLayout));
 					if (ImGui::TreeNode((void*)(intptr_t)t_Entry->timeId, "CreateInfo", t_Entry->timeId))
 					{
 						const RenderImageCreateInfo& t_CreateInfo = t_Image.createInfo;
