@@ -447,7 +447,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 						if (ImGui::TreeNode("Constant data"))
 						{
 							ImGui::Text("dwordsize: %u", t_Pipeline.constantData.dwordSize);
-							ImGui::Text(ShaderStageStr(t_Pipeline.constantData.shaderStage));
+							ImGui::Text("ShaderStage: %s", ShaderStageStr(t_Pipeline.constantData.shaderStage));
 							ImGui::TreePop();
 						}
 
