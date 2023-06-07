@@ -154,4 +154,32 @@ namespace BB
 			break;
 		}
 	}
+
+	static inline const char* SamplerAddressStr(const SAMPLER_ADDRESS_MODE a_Mode)
+	{
+		switch (a_Mode)
+		{
+		case SAMPLER_ADDRESS_MODE::REPEAT:	return "REPEAT";
+		case SAMPLER_ADDRESS_MODE::MIRROR:	return "MIRROR";
+		case SAMPLER_ADDRESS_MODE::BORDER:	return "BORDER";
+		case SAMPLER_ADDRESS_MODE::CLAMP:	return "CLAMP";
+		default:
+			BB_ASSERT(false, "SAMPLER_ADDRESS_MODE unknown in resource tracker!");
+			return "error";
+			break;
+		}
+	}
+
+	static inline const char* SamplerFilterStr(const SAMPLER_FILTER a_Filter)
+	{
+		switch (a_Filter)
+		{
+		case SAMPLER_FILTER::NEAREST:		return "NEAREST";
+		case SAMPLER_FILTER::LINEAR:		return "LINEAR";
+		default:
+			BB_ASSERT(false, "SAMPLER_FILTER unknown in resource tracker!");
+			return "error";
+			break;
+		}
+	}
 }

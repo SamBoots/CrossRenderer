@@ -587,7 +587,16 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				break;
 				case RESOURCE_TYPE::SAMPLER:
 				{
+					const SamplerCreateInfo& t_Sampler =
+						*reinterpret_cast<SamplerCreateInfo*>(t_Entry->typeInfo);
 
+					ImGui::Text("U Address: %s", SamplerAddressStr(t_Sampler.addressModeU));
+					ImGui::Text("V Address: %s", SamplerAddressStr(t_Sampler.addressModeV));
+					ImGui::Text("W Address: %s", SamplerAddressStr(t_Sampler.addressModeW));
+					ImGui::Text("Filter: %s", SamplerFilterStr(t_Sampler.filter));
+					ImGui::Text("Anistoropy: %.6f", t_Sampler.maxAnistoropy);
+					ImGui::Text("Min LOD: %.6f", t_Sampler.minLod);
+					ImGui::Text("Max LOD: %.6f", t_Sampler.maxLod);
 				}
 				break;
 				case RESOURCE_TYPE::FENCE:
