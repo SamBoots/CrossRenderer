@@ -40,6 +40,12 @@ add_executable (Renderer
 "src/Frontend/Materials.cpp"
 "src/Frontend/Camera.cpp"
 
+#graph
+"include/Graph/FrameGraph.h" 
+"src/Graph/FrameGraph.cpp"
+"include/Graph/SceneGraph.hpp" 
+"src/Graph/SceneGraph.cpp"
+
 #Tooling & misc
 "include/imgui_impl_CrossRenderer.h"
 "include/Editor.h"
@@ -47,7 +53,7 @@ add_executable (Renderer
 "src/Editor.cpp"
 
 #temporary to test
-"src/main.cpp"  "include/FrameGraph.h" "src/FrameGraph.cpp")
+"src/main.cpp")
 
 target_link_libraries(Renderer
     DXCompiler
@@ -62,6 +68,7 @@ target_include_directories(Renderer PUBLIC
 "include"
 "include/Backend"
 "include/Frontend"
+"include/graph"
 
 "Vulkan/include"
 "DirectX12/include"

@@ -11,7 +11,7 @@ struct FrameGraphNode
 
 };
 
-struct BB::FrameGraph_inst
+struct FrameGraph_inst
 {
 	FrameGraph_inst(Allocator a_Allocator) :
 		nodes(a_Allocator, 128), resources(a_Allocator, 256) {};
