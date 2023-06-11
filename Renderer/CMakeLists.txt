@@ -47,7 +47,7 @@ add_executable (Renderer
 "src/Editor.cpp"
 
 #temporary to test
-"src/main.cpp" )
+"src/main.cpp"  "include/FrameGraph.h" "src/FrameGraph.cpp")
 
 target_link_libraries(Renderer
     DXCompiler
