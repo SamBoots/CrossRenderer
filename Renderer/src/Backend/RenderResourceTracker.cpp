@@ -316,13 +316,18 @@ void BB::RenderResourceTracker::SortByTime()
 
 #include "imgui.h"
 #include "RenderBackendCommon.inl"
+#include "Editor.h"
 
 void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 {
+	if (!g_ShowEditor)
+		return;
+
 	RenderResourceTracker_Inst* t_Inst = a_ResTracker.m_Instance;
 
-	if (ImGui::Begin("Render resources"))
+	if (ImGui::CollapsingHeader("Render resources"))
 	{
+		ImGui::Indent();
 		if (ImGui::BeginMenu("Options"))
 		{
 			if (ImGui::Button("Sort by time"))
@@ -612,8 +617,8 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 			ImGui::PopID();
 			t_Entry = t_Entry->next;
 		}
+		ImGui::Unindent();
 	}
-	ImGui::End();
 }
 
 #pragma endregion //Editor

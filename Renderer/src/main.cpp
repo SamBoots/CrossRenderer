@@ -133,6 +133,7 @@ int main(int argc, char** argv)
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
+		Editor::StartEditorFrame();
 		Editor::DisplayDrawObjects(Render::GetDrawObjects(), t_TransformPool);
 		//Editor::DisplayLightPool()
 
@@ -197,7 +198,9 @@ int main(int argc, char** argv)
 		t_TransformPool.UpdateTransforms();
 
 		Render::Update(t_DeltaTime);
+		Editor::EndEditorFrame();
 		Render::EndFrame();
+
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
 		Render::StartFrame();

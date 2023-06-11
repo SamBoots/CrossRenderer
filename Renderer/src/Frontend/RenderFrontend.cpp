@@ -18,7 +18,7 @@
 using namespace BB;
 using namespace BB::Render;
 
-static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
+static FreelistAllocator_t m_SystemAllocator{ mbSize * 4, "Render Frontend freelist allocator"};
 static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
 
 struct RendererInst
@@ -710,7 +710,8 @@ void BB::Render::Update(const float a_DeltaTime)
 {
 	s_GlobalInfo.lightSystem->Editor();
 	RenderBackend::DisplayDebugInfo();
-	Draw3DFrame();
+	Editor::DisplayAllocator(m_SystemAllocator);
+	m_TempAllocator.Clear();
 }
 
 void BB::Render::SetProjection(const glm::mat4& a_Proj)
@@ -922,6 +923,7 @@ void BB::Render::StartFrame()
 
 void BB::Render::EndFrame()
 {
+	Draw3DFrame();
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
 	
@@ -988,30 +990,34 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 //We handle the light system externally since we might want to access the system differently later.
 void BB::Editor::DisplayLightSystem(const BB::LightSystem& a_System)
 {
-	ImGui::Begin("Light Pool");
+	if (!g_ShowEditor)
+		return;
 
-	if (ImGui::CollapsingHeader("lights"))
+	if (ImGui::CollapsingHeader("Light Pool")) //maybe do all lights in the future, only one pool now.
 	{
-		const LightPool& t_Pl = a_System.GetLightPool();
-		ImGui::Text("Light amount: %u/%u", t_Pl.GetLightCount(), t_Pl.GetLightMax());
-		const Slice<Light> t_Lights = t_Pl.GetLights();
-
-		if (ImGui::Button("Rebuild lights"))
+		ImGui::Indent();
+		if (ImGui::CollapsingHeader("lights"))
 		{
-			t_Pl.SubmitLightsToGPU(t_RecordingTransfer);
-		}
+			const LightPool& t_Pl = a_System.GetLightPool();
+			ImGui::Text("Light amount: %u/%u", t_Pl.GetLightCount(), t_Pl.GetLightMax());
+			const Slice<Light> t_Lights = t_Pl.GetLights();
 
-		for (size_t i = 0; i < t_Lights.size(); i++)
-		{
-			if (ImGui::TreeNode((void*)(intptr_t)i, "Light %d", i))
+			if (ImGui::Button("Rebuild lights"))
 			{
-				ImGui::SliderFloat3("Position", &t_Lights[i].pos.x, -100, 100);
-				ImGui::SliderFloat("Radius", &t_Lights[i].radius, 0, 10);
-				ImGui::SliderFloat4("Color", &t_Lights[i].color.x, 0, 255);
-				ImGui::TreePop();
+				t_Pl.SubmitLightsToGPU(t_RecordingTransfer);
+			}
+
+			for (size_t i = 0; i < t_Lights.size(); i++)
+			{
+				if (ImGui::TreeNode((void*)(intptr_t)i, "Light %d", i))
+				{
+					ImGui::SliderFloat3("Position", &t_Lights[i].pos.x, -100, 100);
+					ImGui::SliderFloat("Radius", &t_Lights[i].radius, 0, 10);
+					ImGui::SliderFloat4("Color", &t_Lights[i].color.x, 0, 255);
+					ImGui::TreePop();
+				}
 			}
 		}
+		ImGui::Unindent();
 	}
-
-	ImGui::End();
 }

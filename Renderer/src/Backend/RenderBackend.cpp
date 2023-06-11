@@ -1,6 +1,7 @@
 #include "RenderBackend.h"
 #include "RenderResourceTracker.h"
 
+#include "Editor.h"
 #include "Utils/Slice.h"
 #include "BBString.h"
 #include <malloc.h>
@@ -145,7 +146,7 @@ void UploadBuffer::Clear()
 
 void BB::RenderBackend::DisplayDebugInfo()
 {
-	s_ResourceTracker.Editor();
+	s_ResourceTracker.Editor();	
 }
 
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()
