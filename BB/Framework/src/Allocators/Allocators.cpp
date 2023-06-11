@@ -5,7 +5,158 @@
 #include "BackingAllocator.h"
 #include "OS/Program.h"
 
+using namespace BB;
 using namespace BB::allocators;
+#pragma region DEBUG_LOG
+struct BB::allocators::AllocationLog
+{
+	AllocationLog* prev;
+	void* front;
+	void* back;
+	size_t allocSize;
+	const char* file;
+	size_t line;
+};
+
+constexpr const uintptr_t MEMORY_BOUNDRY_CHECK_VALUE = 0xDEADBEEFDEADBEEF;
+constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
+constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
+enum class BOUNDRY_ERROR
+{
+	NONE,
+	FRONT,
+	BACK
+};
+
+static AllocationLog* DeleteEntry(AllocationLog* a_Front, const AllocationLog* a_DeletedEntry)
+{
+	AllocationLog* t_Entry = a_Front;
+	while (t_Entry->prev != a_DeletedEntry)
+	{
+		t_Entry = t_Entry->prev;
+	}
+	t_Entry->prev = a_DeletedEntry->prev;
+
+	return a_Front;
+}
+
+//Checks Adds memory boundry to an allocation log.
+void* Memory_AddBoundries(void* a_Front, size_t a_AllocSize)
+{
+	//Set the begin bound value
+	*reinterpret_cast<size_t*>(a_Front) = MEMORY_BOUNDRY_CHECK_VALUE;
+
+	//Set the back bytes.
+	void* a_Back = Pointer::Add(a_Front, a_AllocSize - MEMORY_BOUNDRY_BACK);
+	*reinterpret_cast<size_t*>(a_Back) = MEMORY_BOUNDRY_CHECK_VALUE;
+
+	return a_Back;
+}
+//Checks the memory boundries, 
+BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
+{
+	if (*reinterpret_cast<size_t*>(a_Front) != MEMORY_BOUNDRY_CHECK_VALUE)
+		return BOUNDRY_ERROR::FRONT;
+
+	if (*reinterpret_cast<size_t*>(a_Back) != MEMORY_BOUNDRY_CHECK_VALUE)
+		return BOUNDRY_ERROR::BACK;
+
+	return BOUNDRY_ERROR::NONE;
+}
+
+void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_Allocator, const size_t a_Size, void* a_AllocatedPtr)
+{
+	//Get the space for the allocation log, but keep enough space for the boundry check.
+	AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
+		Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT));
+
+	t_AllocLog->prev = a_Allocator->frontLog;
+	t_AllocLog->front = a_AllocatedPtr;
+	t_AllocLog->back = Memory_AddBoundries(a_AllocatedPtr, a_Size);
+	t_AllocLog->allocSize = a_Size;
+	t_AllocLog->file = a_File;
+	t_AllocLog->line = a_Line;
+	//set the new front log.
+	a_Allocator->frontLog = t_AllocLog;
+	return Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
+}
+
+void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
+{
+	AllocationLog* t_AllocLog = reinterpret_cast<AllocationLog*>(
+		Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));
+
+	BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+	switch (t_HasError)
+	{
+	case BOUNDRY_ERROR::FRONT:
+		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
+		Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line),
+			"Memory Boundry overwritten at the front of memory block.");
+		break;
+	case BOUNDRY_ERROR::BACK:
+		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
+		Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line),
+			"Memory Boundry overwritten at the back of memory block.");
+		break;
+	}
+
+	a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(AllocationLog));
+
+	AllocationLog* t_FrontLog = a_Allocator->frontLog;
+
+	if (t_AllocLog != a_Allocator->frontLog)
+		DeleteEntry(t_FrontLog, t_AllocLog);
+	else
+		a_Allocator->frontLog = t_FrontLog->prev;
+
+	return a_Ptr;
+}
+
+#pragma endregion DEBUG
+
+BB::allocators::BaseAllocator::~BaseAllocator()
+{
+#ifdef _DEBUG
+	AllocationLog* t_FrontLog = frontLog;
+	while (t_FrontLog != nullptr)
+	{
+		//reserve 9 extra spaces for the line number and \0.
+		char t_DebugMsg[]{ "Memory leak accured in logged file's line! Leak size: 000000000" };
+		sprintf_s(t_DebugMsg + sizeof(t_DebugMsg) - 9, 8, "%d", static_cast<int>(t_FrontLog->allocSize));
+		t_DebugMsg[sizeof(t_DebugMsg) - 1] = '\0';
+		Logger::Log_Error(t_FrontLog->file,
+			static_cast<int>(t_FrontLog->line), t_DebugMsg);
+
+		t_FrontLog = t_FrontLog->prev;
+	}
+#endif //_DEBUG
+}
+
+void BB::allocators::BaseAllocator::Clear()
+{
+#ifdef _DEBUG
+	while (frontLog != nullptr)
+	{
+		Memory_CheckBoundries(frontLog->front, frontLog->back);
+		frontLog = frontLog->prev;
+	}
+#endif //_DEBUG
+}
+
+void* LinearRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_Ptr)
+{
+	LinearAllocator* t_Linear = reinterpret_cast<LinearAllocator*>(a_Allocator);
+	BB_ASSERT(a_Ptr == nullptr, "Trying to free a pointer on a linear allocator!");
+#ifdef _DEBUG
+	a_Size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(AllocationLog);
+#endif //_DEBUG
+	void* t_AllocatedPtr = t_Linear->Alloc(a_Size, a_Alignment);
+#ifdef _DEBUG
+	t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Linear, a_Size, t_AllocatedPtr);
+#endif //_DEBUG
+	return t_AllocatedPtr;
+};
 
 LinearAllocator::LinearAllocator(const size_t a_Size)
 {
@@ -19,6 +170,14 @@ LinearAllocator::LinearAllocator(const size_t a_Size)
 LinearAllocator::~LinearAllocator()
 {
 	freeVirtual(reinterpret_cast<void*>(m_Start));
+}
+
+LinearAllocator::operator Allocator()
+{
+	Allocator t_AllocatorInterface;
+	t_AllocatorInterface.allocator = this;
+	t_AllocatorInterface.func = LinearRealloc;
+	return t_AllocatorInterface;
 }
 
 void* LinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
@@ -45,6 +204,7 @@ void LinearAllocator::Free(void*)
 
 void LinearAllocator::Clear()
 {
+	BaseAllocator::Clear();
 	m_Buffer = m_Start;
 }
 
@@ -62,6 +222,14 @@ FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size)
 FixedLinearAllocator::~FixedLinearAllocator()
 {
 	freeVirtual(reinterpret_cast<void*>(m_Start));
+}
+
+FixedLinearAllocator::operator Allocator()
+{
+	Allocator t_AllocatorInterface;
+	t_AllocatorInterface.allocator = this;
+	t_AllocatorInterface.func = LinearRealloc;
+	return t_AllocatorInterface;
 }
 
 void* FixedLinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
@@ -87,9 +255,33 @@ void FixedLinearAllocator::Free(void*)
 
 void FixedLinearAllocator::Clear()
 {
+	BaseAllocator::Clear();
 	m_Buffer = m_Start;
 }
 
+void* FreelistRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_Ptr)
+{
+	FreelistAllocator* t_Freelist = reinterpret_cast<FreelistAllocator*>(a_Allocator);
+	if (a_Size > 0)
+	{
+#ifdef _DEBUG
+		a_Size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(AllocationLog);
+#endif //_DEBUG
+		void* t_AllocatedPtr = t_Freelist->Alloc(a_Size, a_Alignment);
+#ifdef _DEBUG
+		t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Freelist, a_Size, t_AllocatedPtr);
+#endif //_DEBUG
+		return t_AllocatedPtr;
+	}
+	else
+	{
+#ifdef _DEBUG
+		a_Ptr = FreeDebug(t_Freelist, a_Ptr);
+#endif //_DEBUG
+		t_Freelist->Free(a_Ptr);
+		return nullptr;
+	}
+};
 
 FreelistAllocator::FreelistAllocator(const size_t a_Size)
 {
@@ -105,6 +297,14 @@ FreelistAllocator::FreelistAllocator(const size_t a_Size)
 FreelistAllocator::~FreelistAllocator()
 {
 	freeVirtual(m_Start);
+}
+
+FreelistAllocator::operator Allocator()
+{
+	Allocator t_AllocatorInterface;
+	t_AllocatorInterface.allocator = this;
+	t_AllocatorInterface.func = FreelistRealloc;
+	return t_AllocatorInterface;
 }
 
 void* FreelistAllocator::Alloc(size_t a_Size, size_t a_Alignment)
@@ -217,6 +417,7 @@ void FreelistAllocator::Free(void* a_Ptr)
 
 void BB::allocators::FreelistAllocator::Clear()
 {
+	BaseAllocator::Clear();
 	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_Start);
 	m_FreeBlocks->size = m_TotalAllocSize;
 	m_FreeBlocks->next = nullptr;
@@ -264,6 +465,14 @@ BB::allocators::POW_FreelistAllocator::~POW_FreelistAllocator()
 
 	//Free the freelist holder.
 	freeVirtual(m_FreeLists);
+}
+
+POW_FreelistAllocator::operator Allocator()
+{
+	Allocator t_AllocatorInterface;
+	t_AllocatorInterface.allocator = this;
+	t_AllocatorInterface.func = FreelistRealloc;
+	return t_AllocatorInterface;
 }
 
 void* BB::allocators::POW_FreelistAllocator::Alloc(size_t a_Size, size_t)
@@ -326,8 +535,9 @@ void BB::allocators::POW_FreelistAllocator::Free(void* a_Ptr)
 	t_FreeList->freeBlock = t_NewFreeBlock;
 }
 
-void BB::allocators::POW_FreelistAllocator::Clear() const
+void BB::allocators::POW_FreelistAllocator::Clear()
 {
+	BaseAllocator::Clear();
 	//Clear all freeblocks again
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
@@ -337,7 +547,6 @@ void BB::allocators::POW_FreelistAllocator::Clear() const
 		m_FreeLists[i].freeBlock->next = nullptr;
 	}
 }
-
 
 //BB::allocators::PoolAllocator::PoolAllocator(const size_t a_ObjectSize, const size_t a_ObjectCount, const size_t a_Alignment)
 //{
