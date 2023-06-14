@@ -28,9 +28,7 @@ namespace BB
 		struct BaseAllocator
 		{
 			BaseAllocator(const char* a_Name = "unnamed") { name = a_Name; };
-			//Check debug on destruction
-			virtual ~BaseAllocator();
-
+			//Destructor should be handled by the child types.
 			virtual operator Allocator() = 0;
 
 			//realloc is the single allocation call that we make.
@@ -52,14 +50,18 @@ namespace BB
 				size_t allocSize;
 				const char* file;
 				size_t line;
-			}* frontLog;
+			}* frontLog = nullptr;
 			const char* name;
+
+		protected:
+			//Validate the allocator by cheaking for leaks and boundry writes.
+			void Validate() const;
 		};
 
 		struct LinearAllocator : public BaseAllocator
 		{
 			LinearAllocator(const size_t a_Size, const char* a_Name = "unnamed");
-			~LinearAllocator() override;
+			~LinearAllocator();
 
 			operator Allocator() override;
 
@@ -82,7 +84,7 @@ namespace BB
 		struct FixedLinearAllocator : public BaseAllocator
 		{
 			FixedLinearAllocator(const size_t a_Size, const char* a_Name = "unnamed");
-			~FixedLinearAllocator() override;
+			~FixedLinearAllocator();
 
 			operator Allocator() override;
 
@@ -107,7 +109,7 @@ namespace BB
 		struct FreelistAllocator : public BaseAllocator
 		{
 			FreelistAllocator(const size_t a_Size, const char* a_Name = "unnamed");
-			~FreelistAllocator() override;
+			~FreelistAllocator();
 
 			operator Allocator() override;
 
@@ -141,7 +143,7 @@ namespace BB
 		struct POW_FreelistAllocator : public BaseAllocator
 		{
 			POW_FreelistAllocator(const size_t, const char* a_Name = "unnamed");
-			~POW_FreelistAllocator() override;
+			~POW_FreelistAllocator();
 
 			operator Allocator() override;
 

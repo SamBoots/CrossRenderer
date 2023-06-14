@@ -106,18 +106,37 @@ void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
 
 #pragma endregion DEBUG
 
-BB::allocators::BaseAllocator::~BaseAllocator()
+void BB::allocators::BaseAllocator::Validate() const
 {
 #ifdef _DEBUG
 	AllocationLog* t_FrontLog = frontLog;
 	while (t_FrontLog != nullptr)
 	{
-		//reserve 9 extra spaces for the line number and \0.
-		char t_DebugMsg[]{ "Memory leak accured in logged file's line! Leak size: 000000000" };
-		sprintf_s(t_DebugMsg + sizeof(t_DebugMsg) - 9, 8, "%d", static_cast<int>(t_FrontLog->allocSize));
-		t_DebugMsg[sizeof(t_DebugMsg) - 1] = '\0';
+		Memory_CheckBoundries(frontLog->front, frontLog->back);
+
+		uint32_t t_Pos = 0;
+		char t_Buffer[256];
+		memset(t_Buffer, 0, sizeof(t_Buffer));
+		{
+			char t_AllocBegin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name:" };
+			memcpy(t_Buffer + t_Pos, t_AllocBegin, sizeof(t_AllocBegin));
+			t_Pos += sizeof(t_AllocBegin) - 1;
+			size_t t_AllocatorName = strnlen(name, 128);
+			memcpy(t_Buffer + t_Pos, name, t_AllocatorName);
+			t_Pos += t_AllocatorName;
+		}
+		{
+			char t_Begin[]{ "\nLeak size:" };
+			memcpy(t_Buffer + t_Pos, t_Begin, sizeof(t_Begin));
+			t_Pos += sizeof(t_Begin) - 1;
+			sprintf_s(t_Buffer + t_Pos, 8, "%d", static_cast<int>(t_FrontLog->allocSize));
+			t_Pos += 8;
+		}
+		
+		BB_ASSERT(t_Pos < sizeof(t_Buffer) - 1, "Buffer overflow when writing allocation leak message!");
+
 		Logger::Log_Error(t_FrontLog->file,
-			static_cast<int>(t_FrontLog->line), t_DebugMsg);
+			static_cast<int>(t_FrontLog->line), t_Buffer);
 
 		t_FrontLog = t_FrontLog->prev;
 	}
@@ -161,6 +180,7 @@ LinearAllocator::LinearAllocator(const size_t a_Size, const char* a_Name)
 
 LinearAllocator::~LinearAllocator()
 {
+	Validate();
 	freeVirtual(reinterpret_cast<void*>(m_Start));
 }
 
@@ -214,6 +234,7 @@ FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size, const char* a_Na
 
 FixedLinearAllocator::~FixedLinearAllocator()
 {
+	Validate();
 	freeVirtual(reinterpret_cast<void*>(m_Start));
 }
 
@@ -290,6 +311,7 @@ FreelistAllocator::FreelistAllocator(const size_t a_Size, const char* a_Name)
 
 FreelistAllocator::~FreelistAllocator()
 {
+	Validate();
 	freeVirtual(m_Start);
 }
 
@@ -452,6 +474,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 
 BB::allocators::POW_FreelistAllocator::~POW_FreelistAllocator()
 {
+	Validate();
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Free all the free lists
