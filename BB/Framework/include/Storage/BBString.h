@@ -438,7 +438,7 @@ namespace BB
 		};
 		void append(const CharT* a_String, size_t a_Size)
 		{
-			BB_ASSERT(m_Size + a_Size < stringSize, "Stack string buffer overflow");
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
 			BB::Memory::Copy(m_String + m_Size, a_String, a_Size);
 			m_Size += a_Size;
 		};
@@ -457,7 +457,7 @@ namespace BB
 		void insert(size_t a_Pos, const CharT* a_String, size_t a_Size)
 		{
 			BB_ASSERT(m_Size >= a_Pos, "Trying to insert a string in a invalid position.");
-			BB_ASSERT(m_Size + a_Size < stringSize, "Stack string buffer overflow");
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
 
 			Memory::sMove(m_String + (a_Pos + a_Size), m_String + a_Pos, m_Size - a_Pos);
 
