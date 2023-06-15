@@ -378,18 +378,18 @@ namespace BB
 		Stack_String(const CharT* a_String) : Stack_String(a_String, Memory::StrLength(a_String)) {};
 		Stack_String(const CharT* a_String, size_t a_Size)
 		{
-			BB_ASSERT(t_StrSize < stringSize);
-			Memory::Set(m_String, 0, stringSize);
+			BB_ASSERT(t_StrSize < sizeof(m_String));
+			Memory::Set(m_String, 0, sizeof(m_String));
 			Memory::Copy(m_String, a_String, a_Size);
 		};
 		Stack_String(const Stack_String<CharT, stringSize>& a_String)
 		{
-			Memory::Copy(m_String, a_String, stringSize);
+			Memory::Copy(m_String, a_String, sizeof(m_String));
 			m_Size = a_String.size;
 		};
 		Stack_String(Stack_String<CharT, stringSize>&& a_String) noexcept
 		{
-			Memory::Copy(m_String, a_String, stringSize);
+			Memory::Copy(m_String, a_String, sizeof(m_String));
 			m_Size = a_String.size();
 
 			Memory::Set(a_String.m_String, 0, stringSize);
@@ -404,14 +404,14 @@ namespace BB
 		{
 			this->~Stack_String();
 
-			Memory::Copy(m_String, a_String, stringSize);
+			Memory::Copy(m_String, a_String, sizeof(m_String));
 			m_Size = a_String.size();
 		};
 		Stack_String& operator=(Stack_String<CharT, stringSize>&& a_Rhs) noexcept
 		{
 			this->~Stack_String();
 
-			Memory::Copy(m_String, a_String, stringSize);
+			Memory::Copy(m_String, a_String, sizeof(m_String));
 			m_Size = a_String.size();
 
 			Memory::Set(a_Rhs.m_String, 0, stringSize);
@@ -419,7 +419,7 @@ namespace BB
 		};
 		bool operator==(const Stack_String<CharT, stringSize>& a_Rhs) const
 		{
-			if (Memory::Compare(m_String, a_Rhs.data(), m_Size) == 0)
+			if (Memory::Compare(m_String, a_Rhs.data(), sizeof(m_String)) == 0)
 				return true;
 			return false;
 		};
@@ -486,7 +486,7 @@ namespace BB
 		const CharT* c_str() const { return m_String; }
 
 	private:
-		CharT m_String[stringSize];
+		CharT m_String[stringSize + 1];
 		size_t m_Size = 0;
 	};
 
