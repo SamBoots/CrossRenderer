@@ -119,15 +119,15 @@ void BB::allocators::BaseAllocator::Validate() const
 		BB::StackString<256> t_TempString;
 		{
 			char t_AllocBegin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name:" };
-			t_TempString.append(t_AllocBegin, sizeof(t_AllocBegin));
+			t_TempString.append(t_AllocBegin, sizeof(t_AllocBegin) - 1);
 			t_TempString.append(name);
 		}
 		{
 			char t_Begin[]{ "\nLeak size:" };
-			t_TempString.append(t_Begin, sizeof(t_Begin));
+			t_TempString.append(t_Begin, sizeof(t_Begin) - 1);
 			
 			char t_LeakSize[16]{};
-			sprintf_s(t_LeakSize, 15, "%d", static_cast<int>(t_FrontLog->allocSize));
+			sprintf_s(t_LeakSize, 15, "%u", static_cast<uint32_t>(t_FrontLog->allocSize));
 			t_TempString.append(t_LeakSize);
 		}
 	
