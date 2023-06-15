@@ -2,6 +2,8 @@
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
 
+#include "BBString.h"
+
 #include "BackingAllocator.h"
 #include "OS/Program.h"
 
@@ -64,7 +66,7 @@ void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_Allocator, const size_t a_Size
 	t_AllocLog->prev = a_Allocator->frontLog;
 	t_AllocLog->front = a_AllocatedPtr;
 	t_AllocLog->back = Memory_AddBoundries(a_AllocatedPtr, a_Size);
-	t_AllocLog->allocSize = a_Size;
+	t_AllocLog->allocSize = static_cast<uint32_t>(a_Size);
 	t_AllocLog->file = a_File;
 	t_AllocLog->line = a_Line;
 	//set the new front log.
@@ -114,29 +116,23 @@ void BB::allocators::BaseAllocator::Validate() const
 	{
 		Memory_CheckBoundries(frontLog->front, frontLog->back);
 
-		uint32_t t_Pos = 0;
-		char t_Buffer[256];
-		memset(t_Buffer, 0, sizeof(t_Buffer));
+		BB::StackString<256> t_TempString;
 		{
 			char t_AllocBegin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name:" };
-			memcpy(t_Buffer + t_Pos, t_AllocBegin, sizeof(t_AllocBegin));
-			t_Pos += sizeof(t_AllocBegin) - 1;
-			size_t t_AllocatorName = strnlen(name, 128);
-			memcpy(t_Buffer + t_Pos, name, t_AllocatorName);
-			t_Pos += t_AllocatorName;
+			t_TempString.append(t_AllocBegin, sizeof(t_AllocBegin));
+			t_TempString.append(name);
 		}
 		{
 			char t_Begin[]{ "\nLeak size:" };
-			memcpy(t_Buffer + t_Pos, t_Begin, sizeof(t_Begin));
-			t_Pos += sizeof(t_Begin) - 1;
-			sprintf_s(t_Buffer + t_Pos, 8, "%d", static_cast<int>(t_FrontLog->allocSize));
-			t_Pos += 8;
+			t_TempString.append(t_Begin, sizeof(t_Begin));
+			
+			char t_LeakSize[16]{};
+			sprintf_s(t_LeakSize, 15, "%d", static_cast<int>(t_FrontLog->allocSize));
+			t_TempString.append(t_LeakSize);
 		}
-		
-		BB_ASSERT(t_Pos < sizeof(t_Buffer) - 1, "Buffer overflow when writing allocation leak message!");
+	
 
-		Logger::Log_Error(t_FrontLog->file,
-			static_cast<int>(t_FrontLog->line), t_Buffer);
+		Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, t_TempString.c_str());
 
 		t_FrontLog = t_FrontLog->prev;
 	}

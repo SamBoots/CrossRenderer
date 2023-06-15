@@ -5,7 +5,7 @@
 namespace BB
 {	
 #ifdef _DEBUG
-#define BB_MEMORY_DEBUG const char* a_File, size_t a_Line,
+#define BB_MEMORY_DEBUG const char* a_File, int a_Line,
 #define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
 #define BB_MEMORY_DEBUG_SEND a_File, a_Line,
 #define BB_MEMORY_DEBUG_FREE nullptr, 0,
@@ -47,9 +47,10 @@ namespace BB
 				AllocationLog* prev;
 				void* front;
 				void* back;
-				size_t allocSize;
+				//maybe not safe due to possibly allocating more then 4 gb.
+				uint32_t allocSize;
 				const char* file;
-				size_t line;
+				int line;
 			}* frontLog = nullptr;
 			const char* name;
 
