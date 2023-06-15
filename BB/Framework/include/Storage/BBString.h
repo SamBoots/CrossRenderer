@@ -467,6 +467,7 @@ namespace BB
 		void push_back(const CharT a_Char)
 		{
 			m_String[m_Size++] = a_Char;
+			BB_ASSERT(m_Size < sizeof(m_String), "Stack string buffer overflow");
 		};
 
 		void pop_back()
