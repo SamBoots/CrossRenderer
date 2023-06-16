@@ -32,6 +32,7 @@ int main(int argc, char** argv)
 	t_BBInitInfo.programName = L"Crossrenderer";
 	InitBB(t_BBInitInfo);
 	BB_LOG(argv[0]);
+	BB_LOG(L"Lol, lmao wide char printing works said the scorpion.");
 
 	int t_WindowWidth = 1280;
 	int t_WindowHeight = 720;

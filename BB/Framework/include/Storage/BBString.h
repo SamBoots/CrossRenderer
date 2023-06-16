@@ -483,7 +483,7 @@ namespace BB
 
 		size_t size() const { return m_Size; }
 		size_t capacity() const { return stringSize; }
-		CharT* data() const { return m_String; }
+		CharT* data() { return m_String; }
 		const CharT* c_str() const { return m_String; }
 
 	private:
