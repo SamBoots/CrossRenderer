@@ -8,7 +8,7 @@ BB::LightPool::LightPool(UploadBuffer& a_UploadBuffer, LinearRenderBuffer& a_GPU
 	:	m_LightMax(a_LightCount), m_UploadBuffer(a_UploadBuffer.Buffer())
 {
 	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(sizeof(Light) * a_LightCount);
-	m_UploadBufferOffset = t_UploadChunk.bufferOffset;
+	m_UploadBufferOffset = static_cast<uint32_t>(t_UploadChunk.bufferOffset);
 
 	m_LightsCPU = reinterpret_cast<Light*>(t_UploadChunk.memory);
 	m_BufferPart = a_GPUBuffer.SubAllocateFromBuffer(static_cast<uint64_t>(a_LightCount * sizeof(Light)), 1);
@@ -39,11 +39,11 @@ const LightHandle BB::LightPool::AddLights(const BB::Slice<Light> a_Lights)
 
 	LightHandle t_Handle;
 	t_Handle.index = m_LightCount;
-	t_Handle.extraIndex = a_Lights.size();
+	t_Handle.extraIndex = static_cast<uint32_t>(a_Lights.size());
 
 	Memory::Copy(m_LightsCPU + m_LightCount, a_Lights.data(), a_Lights.size());
 
-	m_LightCount += a_Lights.size();
+	m_LightCount += static_cast<uint32_t>(a_Lights.size());
 
 	return t_Handle;
 }
@@ -92,9 +92,9 @@ void BB::LightPool::ResetLights()
 	m_LightCount = 0;
 }
 
-LightSystem::LightSystem(const size_t a_LightAmount)
-	:	m_UploadBuffer(sizeof(Light) * a_LightAmount),
-		m_LightGPUBuffer(RenderBufferCreateInfo{ BB::mbSize * 2, RENDER_BUFFER_USAGE::STORAGE, RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL }),
+LightSystem::LightSystem(const uint32_t a_LightAmount)
+	:	m_UploadBuffer(sizeof(Light) * a_LightAmount, "light system transfer buffer"),
+		m_LightGPUBuffer(RenderBufferCreateInfo{ "light system buffer", BB::mbSize * 2, RENDER_BUFFER_USAGE::STORAGE, RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL}),
 		m_Lights(m_UploadBuffer, m_LightGPUBuffer, a_LightAmount)
 {
 	

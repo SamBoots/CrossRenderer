@@ -179,14 +179,34 @@ static void Draw3DFrame()
 		}
 	}
 
+	
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-
-	ImDrawData* t_DrawData = ImGui::GetDrawData();
-	ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
-
+	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
+	
+	{
+		StartRenderingInfo t_ImguiStart;
+		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
+		t_ImguiStart.viewportHeight = s_RendererInst.swapchainHeight;
+		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
+		t_ImguiStart.colorInitialLayout = t_EndRenderingInfo.colorFinalLayout;
+		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		t_ImguiStart.clearColor[0] = 1.0f;
+		t_ImguiStart.clearColor[1] = 0.0f;
+		t_ImguiStart.clearColor[2] = 0.0f;
+		t_ImguiStart.clearColor[3] = 1.0f;
+		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+
+		ImDrawData* t_DrawData = ImGui::GetDrawData();
+		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
+
+		EndRenderingInfo t_ImguiEnd{};
+		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
+		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
+	}
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 }
 
@@ -237,10 +257,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 #pragma region PipelineCreation
 
 	RenderBufferCreateInfo t_PerFrameTransferBuffer;
+	t_PerFrameTransferBuffer.name = "per-frame transfer data";
 	t_PerFrameTransferBuffer.size = PERFRAME_TRANSFER_BUFFER_SIZE;
 	t_PerFrameTransferBuffer.usage = RENDER_BUFFER_USAGE::STAGING;
 	t_PerFrameTransferBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	t_PerFrameTransferBuffer.data = nullptr;
 	s_GlobalInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
 	s_GlobalInfo.transferBufferStart = RenderBackend::MapMemory(s_GlobalInfo.perFrameTransferBuffer);
 	s_GlobalInfo.transferBufferBaseFrameInfoStart = s_GlobalInfo.transferBufferStart;
@@ -253,10 +273,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	const uint64_t t_perFrameBufferEntireSize = PERFRAME_TRANSFER_BUFFER_SIZE * s_RendererInst.frameBufferAmount;
 
 	RenderBufferCreateInfo t_PerFrameBuffer;
+	t_PerFrameBuffer.name = "per-frame buffer";
 	t_PerFrameBuffer.size = t_perFrameBufferEntireSize;
 	t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
 	t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-	t_PerFrameBuffer.data = nullptr;
 	s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 
 	int x, y, c;
@@ -265,6 +285,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	STBI_FREE(t_Pixels); //HACK, will fix later.
 	{
 		RenderImageCreateInfo t_ImageInfo{};
+		t_ImageInfo.name = "example texture";
 		t_ImageInfo.width = static_cast<uint32_t>(x);
 		t_ImageInfo.height = static_cast<uint32_t>(y);
 		t_ImageInfo.depth = 1;
@@ -279,6 +300,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	{ //depth create info
 		RenderImageCreateInfo t_DepthInfo{};
+		t_DepthInfo.name = "depth image";
 		t_DepthInfo.width = static_cast<uint32_t>(s_RendererInst.swapchainWidth);
 		t_DepthInfo.height = static_cast<uint32_t>(s_RendererInst.swapchainHeight);
 		t_DepthInfo.depth = 1;
@@ -301,6 +323,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
 	
 	PipelineInitInfo t_PipeInitInfo{};
+	t_PipeInitInfo.name = "standard 3d pipeline.";
 	t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
 	t_PipeInitInfo.renderTargetBlendCount = 1;
 	t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::COPY;
@@ -317,6 +340,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.name = "per-frame descriptor";
 		FixedArray<DescriptorBinding, 4> t_DescBinds;
 		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
@@ -355,6 +379,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.name = "Per-pass descriptor";
 		FixedArray<DescriptorBinding, 2> t_DescBinds;
 		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_PASS;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
@@ -410,6 +435,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	{
 		{
 			SamplerCreateInfo t_SamplerInfo{};
+			t_SamplerInfo.name = "standard sampler";
 			t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
 			t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
 			t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
@@ -468,11 +494,13 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	Buffer t_ShaderBuffer;
 	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
-	ShaderCreateInfo t_ShaderBuffers[2];
+	ShaderCreateInfo t_ShaderBuffers[2]{};
+	t_ShaderBuffers[0].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugVert.hlsl";
 	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
 	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
 
 	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
+	t_ShaderBuffers[1].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
 	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
 	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 
@@ -515,25 +543,30 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 
 	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
+	t_QueueCreateInfo.name = "Graphics queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_QueueCreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
 	t_GraphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
+	t_QueueCreateInfo.name = "Transfer queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::TRANSFER_COPY;
 	t_TransferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
 
 	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
+	t_AllocatorCreateInfo.name = "Graphics command allocator";
 	t_AllocatorCreateInfo.commandListCount = 10;
 	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_CommandAllocators[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 
+	t_AllocatorCreateInfo.name = "Transfer command allocator";
 	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
 	t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 
-	RenderCommandListCreateInfo t_CmdCreateInfo;
+	RenderCommandListCreateInfo t_CmdCreateInfo{};
+	t_CmdCreateInfo.name = "Graphic Commandlist";
 	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
 	t_GraphicCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
@@ -542,6 +575,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_GraphicCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 
 	//just reuse the struct above.
+	t_CmdCreateInfo.name = "Transfer Commandlist";
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[0];
 	t_TransferCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
 	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[1];
@@ -557,7 +591,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	//Create upload buffer.
 	constexpr const uint64_t UPLOAD_BUFFER_SIZE = static_cast<uint64_t>(mbSize * 32);
-	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE);
+	t_UploadBuffer = BBnew(m_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE, "upload buffer");
 
 	{//implement imgui here.
 		IMGUI_CHECKVERSION();
@@ -675,6 +709,7 @@ void BB::Render::DestroyRenderer()
 void BB::Render::Update(const float a_DeltaTime)
 {
 	s_GlobalInfo.lightSystem->Editor();
+	RenderBackend::DisplayDebugInfo();
 	Draw3DFrame();
 }
 
@@ -771,10 +806,10 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
 
 		RenderBufferCreateInfo t_VertexInfo;
+		t_VertexInfo.name = "VertexBuffer model";
 		t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
 		t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 		t_VertexInfo.size = a_CreateInfo.vertices.sizeInBytes();
-		t_VertexInfo.data = nullptr;
 
 		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
 
@@ -793,10 +828,10 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		memcpy(t_StageBuffer.memory, a_CreateInfo.indices.data(), a_CreateInfo.indices.sizeInBytes());
 
 		RenderBufferCreateInfo t_IndexInfo;
+		t_IndexInfo.name = "IndexBuffer";
 		t_IndexInfo.usage = RENDER_BUFFER_USAGE::INDEX;
 		t_IndexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 		t_IndexInfo.size = a_CreateInfo.indices.sizeInBytes();
-		t_IndexInfo.data = nullptr;
 
 		t_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexInfo);
 

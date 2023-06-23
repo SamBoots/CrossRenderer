@@ -14,12 +14,12 @@ constexpr size_t IMGUI_FRAME_UPLOAD_BUFFER = mbSize * 4;
 // Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
 struct ImGui_ImplCross_FrameRenderBuffers
 {
-    uint64_t vertexSize;
-    uint64_t indexSize;
+    uint64_t vertexSize = 0;
+    uint64_t indexSize = 0;
     RBufferHandle vertexBuffer;
     RBufferHandle indexBuffer;
 
-    UploadBuffer* uploadBuffer;
+    UploadBuffer uploadBuffer{ IMGUI_FRAME_UPLOAD_BUFFER, "Imgui Upload Buffer"};
 };
 
 // Each viewport will hold 1 ImGui_ImplCross_FrameRenderBuffers
@@ -44,8 +44,6 @@ struct ImGui_ImplCrossRenderer_Data
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
-
-    FreelistAllocator_t         allocator{ IMGUI_ALLOCATOR_SIZE };
 
     // Render buffers for main window
     ImGui_ImplCross_WindowRenderBuffers MainWindowRenderBuffers;
@@ -101,6 +99,7 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
 
 
     RenderBufferCreateInfo t_CreateInfo{};
+    t_CreateInfo.name = "Imgui buffer";
     t_CreateInfo.usage = a_Usage;
     t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
     t_CreateInfo.size = a_NewSize;
@@ -171,7 +170,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     wrb.Index = (wrb.Index + 1) % wrb.Count;
     ImGui_ImplCross_FrameRenderBuffers& rb = wrb.FrameRenderBuffers[wrb.Index];
 
-    rb.uploadBuffer->Clear();
+    rb.uploadBuffer.Clear();
 
     if (a_DrawData.TotalVtxCount > 0)
     {
@@ -183,8 +182,8 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
             CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
 
-        UploadBufferChunk t_UpVert = rb.uploadBuffer->Alloc(vertex_size);
-        UploadBufferChunk t_UpIndex = rb.uploadBuffer->Alloc(index_size);
+        UploadBufferChunk t_UpVert = rb.uploadBuffer.Alloc(vertex_size);
+        UploadBufferChunk t_UpIndex = rb.uploadBuffer.Alloc(index_size);
 
         // Upload vertex/index data into a single contiguous GPU buffer
         ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UpVert.memory);
@@ -201,7 +200,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
 
         //copy vertex
         RenderCopyBufferInfo t_CopyInfo{};
-        t_CopyInfo.src = rb.uploadBuffer->Buffer();
+        t_CopyInfo.src = rb.uploadBuffer.Buffer();
         t_CopyInfo.srcOffset = t_UpVert.bufferOffset;
         t_CopyInfo.dst = rb.vertexBuffer;
         t_CopyInfo.dstOffset = 0;
@@ -297,11 +296,12 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
     unsigned char* pixels;
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    size_t upload_size = static_cast<size_t>(width * height) * 4;
+    size_t upload_size = static_cast<size_t>(width) * height * 4;
 
     // Create the Image:
     {
         RenderImageCreateInfo t_Info = {};
+        t_Info.name = "Imgui font image";
         t_Info.type = RENDER_IMAGE_TYPE::TYPE_2D;
         t_Info.format = RENDER_IMAGE_FORMAT::RGBA8_UNORM;
         t_Info.tiling = RENDER_IMAGE_TILING::OPTIMAL;
@@ -423,6 +423,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         RenderDescriptorCreateInfo t_Info{};
+        t_Info.name = "Imgui per-pass data, wrongly a per-frame descriptor.";
         t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
         t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
@@ -438,6 +439,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
 
     PipelineInitInfo t_PipeInitInfo{};
+    t_PipeInitInfo.name = "Imgui pipeline";
     t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
     t_PipeInitInfo.renderTargetBlendCount = 1;
     t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
@@ -495,11 +497,11 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         t_FrameBuffers.Index = 0;
         t_FrameBuffers.Count = bd->imageCount;
         t_FrameBuffers.FrameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_FrameBuffers.Count);
-        memset(t_FrameBuffers.FrameRenderBuffers, 0, sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_FrameBuffers.Count);
 
         for (size_t i = 0; i < t_FrameBuffers.Count; i++)
         {
-            t_FrameBuffers.FrameRenderBuffers[i].uploadBuffer = BBnew(bd->allocator, UploadBuffer)(IMGUI_FRAME_UPLOAD_BUFFER);
+            //I love C++
+            new (&t_FrameBuffers.FrameRenderBuffers[i])(ImGui_ImplCross_FrameRenderBuffers);
         }
     }
 
@@ -558,6 +560,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 
     {
         SamplerCreateInfo t_SamplerInfo{};
+        t_SamplerInfo.name = "Imgui font sampler";
         t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
         t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
         t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;

@@ -59,11 +59,6 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Mes
 	WriteToConsole(t_String, static_cast<uint32_t>(t_StringSize));
 }
 
-static inline size_t strlen_s_towidechar(const char* a_str, const size_t a_MaxCount)
-{
-	return strnlen_s(a_str, 64);
-}
-
 static void Log_to_Console(const char* a_FileName, int a_Line, const wchar_t* a_Message, const char* a_WarningLevel)
 {
 	constexpr const wchar_t LOG_MESSAGE_FILE_0[]{ L"File: " };
@@ -75,7 +70,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const wchar_t* a_
 	wchar_t t_String[2048]{};
 	size_t t_StringSize = 0;
 	{ 	//Start with the warning level
-		size_t t_WarnMesgSize = strlen_s_towidechar(a_WarningLevel, 64);
+		size_t t_WarnMesgSize = strnlen_s(a_WarningLevel, 64);
 		mbstowcs(t_String, a_WarningLevel, t_WarnMesgSize);
 		t_StringSize += t_WarnMesgSize;
 	}
@@ -84,7 +79,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const wchar_t* a_
 		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_FILE_0, _countof(LOG_MESSAGE_FILE_0));
 		t_StringSize += _countof(LOG_MESSAGE_FILE_0);
 
-		size_t t_FilePathSize = strlen_s_towidechar(a_FileName, 256);
+		size_t t_FilePathSize = strnlen_s(a_FileName, 256);
 		mbstowcs(t_String + t_StringSize, a_FileName, t_FilePathSize);
 		t_StringSize += t_FilePathSize;
 	}

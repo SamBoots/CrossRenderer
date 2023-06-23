@@ -10,14 +10,14 @@
 namespace BB
 {
 	BackendInfo DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	RDescriptorHandle DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info);
-	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info);
+	RDescriptorHandle DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
+	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
-	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_Info);
+	RBufferHandle DX12CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 	RImageHandle DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo);
-	RSamplerHandle DX12CreateSampler(const SamplerCreateInfo& a_Info);
-	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_Info);
+	RSamplerHandle DX12CreateSampler(const SamplerCreateInfo& a_CreateInfo);
+	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_CreateInfo);
 
 	void DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
 	void DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);

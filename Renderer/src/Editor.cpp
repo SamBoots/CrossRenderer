@@ -1,7 +1,9 @@
 #include "Editor.h"
 #include "Frontend/RenderFrontend.h"
+
 #include "Transform.h"
 #include "LightSystem.h"
+#include "RenderResourceTracker.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -10,21 +12,21 @@ using namespace BB;
 
 void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool)
 {
-	ImGui::Begin("Draw Objects");
-
-	for (size_t i = 0; i < a_DrawObjects.size(); i++)
+	if (ImGui::Begin("Draw Objects"))
 	{
-
-		Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
-		
-		ImGui::PushID(i);
-		if (ImGui::CollapsingHeader("DrawObject"))
+		for (size_t i = 0; i < a_DrawObjects.size(); i++)
 		{
-			ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);
-			ImGui::SliderFloat4("Rotation quat", glm::value_ptr(t_Trans.m_Rot), -100, 100);
-			ImGui::SliderFloat3("Scale", glm::value_ptr(t_Trans.m_Scale), -100, 100);
+			Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
+
+			ImGui::PushID(static_cast<int>(i));
+			if (ImGui::CollapsingHeader("DrawObject"))
+			{
+				ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);
+				ImGui::SliderFloat4("Rotation quat", glm::value_ptr(t_Trans.m_Rot), -100, 100);
+				ImGui::SliderFloat3("Scale", glm::value_ptr(t_Trans.m_Scale), -100, 100);
+			}
+			ImGui::PopID();
 		}
-		ImGui::PopID();
 	}
 	ImGui::End();
 }

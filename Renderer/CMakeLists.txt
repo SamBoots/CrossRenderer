@@ -16,6 +16,7 @@ add_executable (Renderer
 "include/Backend/RenderBackend.h"
 "include/Backend/RenderBackendCommon.h"
 "include/Backend/ShaderCompiler.h"
+"include/Backend/RenderResourceTracker.h"
 #Frontend .h
 "include/Frontend/RenderFrontendCommon.h"
 "include/Frontend/RenderFrontend.h"
@@ -29,6 +30,7 @@ add_executable (Renderer
 #Backend .cpp
 "src/Backend/RenderBackend.cpp"
 "src/Backend/ShaderCompiler.cpp"
+"src/Backend/RenderResourceTracker.cpp"
 #Frontend .cpp
 "src/Frontend/RenderFrontend.cpp"
 "src/Frontend/RenderBuffers.cpp"
@@ -45,7 +47,7 @@ add_executable (Renderer
 "src/Editor.cpp"
 
 #temporary to test
-"src/main.cpp")
+"src/main.cpp" )
 
 target_link_libraries(Renderer
     DXCompiler

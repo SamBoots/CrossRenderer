@@ -47,6 +47,16 @@ namespace BB
 		}
 	}
 
+	static inline wchar* UTF8ToUnicodeString(Allocator a_Allocator, const char* a_Char)
+	{
+		//arbitrary limit of 256.
+		const size_t t_CharSize = strnlen_s(a_Char, 256);
+		wchar* t_Wchar = reinterpret_cast<wchar*>(BBalloc(a_Allocator, t_CharSize * 2 + 2)); //add null terminated string.
+		mbstowcs(t_Wchar, a_Char, t_CharSize);
+		t_Wchar[t_CharSize] = NULL;
+		return t_Wchar;
+	}
+
 	//Safely releases a DX type
 	void DXRelease(IUnknown* a_Obj);
 
@@ -96,7 +106,7 @@ namespace BB
 	class DXFence
 	{
 	public:
-		DXFence();
+		DXFence(const char* a_Name);
 		~DXFence();
 
 		uint64_t PollFenceValue();
@@ -114,13 +124,14 @@ namespace BB
 		uint64_t m_LastCompleteValue;
 		HANDLE m_FenceEvent;
 
-		friend class DXCommandQueue; //Commandqueue handles the Fence in a special way.
+		//Commandqueue handles the Fence in a special way.
+		friend class DXCommandQueue; 
 	};
 
 	class DXResource
 	{
 	public:
-		DXResource(const RENDER_BUFFER_USAGE a_BufferUsage, const RENDER_MEMORY_PROPERTIES a_MemProperties, const uint64_t a_Size);
+		DXResource(const RenderBufferCreateInfo& a_CreateInfo);
 		~DXResource();
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
@@ -176,7 +187,7 @@ namespace BB
 	class DXCommandQueue
 	{
 	public:
-		DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType);
+		DXCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
 		~DXCommandQueue();
 
@@ -252,7 +263,7 @@ namespace BB
 	class DXCommandAllocator
 	{
 	public:
-		DXCommandAllocator(const D3D12_COMMAND_LIST_TYPE a_QueueType, const uint32_t a_CommandListCount);
+		DXCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		~DXCommandAllocator();
 
 		DXCommandList* GetCommandList();

@@ -43,7 +43,7 @@ namespace BB
 	class LightSystem
 	{
 	public:
-		LightSystem(const size_t a_LightAmount);
+		LightSystem(const uint32_t a_LightAmount);
 		~LightSystem();
 
 		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList);
