@@ -116,7 +116,7 @@ LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_
 	return t_Handle;
 }
 
-void LightSystem::UpdateDescriptor(const RDescriptorHandle a_Descriptor)
+void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor)
 {
 	UpdateDescriptorBufferInfo t_BufferUpdate{};
 	t_BufferUpdate.set = a_Descriptor;

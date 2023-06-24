@@ -10,7 +10,7 @@
 namespace BB
 {
 	BackendInfo DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	RDescriptorHandle DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
+	RDescriptor DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -45,7 +45,6 @@ namespace BB
 	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
 	void DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	void DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 	void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
 	void DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
@@ -74,6 +73,6 @@ namespace BB
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void DX12DestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
-	void DX12DestroyDescriptor(const RDescriptorHandle a_Handle);
+	void DX12DestroyDescriptor(const RDescriptor a_Handle);
 	void DX12DestroyBackend();
 }

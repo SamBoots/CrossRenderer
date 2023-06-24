@@ -245,7 +245,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	return t_BackendInfo;
 }
 
-RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
+RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 {
 	DescriptorAttachment* t_Attachments = BBnewArr(s_DX12TempAllocator,
 		a_Info.bindings.size(),
@@ -380,7 +380,7 @@ RDescriptorHandle BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_I
 	}
 
 
-	return RDescriptorHandle(t_Descriptor);
+	return RDescriptor(t_Descriptor);
 }
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
@@ -684,7 +684,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_BindingSetHandle)
+void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptor a_BindingSetHandle)
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 	const DXDescriptor* t_Descriptor = reinterpret_cast<DXDescriptor*>(a_BindingSetHandle.ptrHandle);
@@ -1225,7 +1225,7 @@ void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHand
 	t_CommandList->List()->IASetIndexBuffer(&t_View);
 }
 
-void BB::DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptor* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	uint32_t t_DynamicIndexUsed = 0;
@@ -1483,7 +1483,7 @@ void BB::DX12DestroyPipeline(const PipelineHandle a_Handle)
 	DXRelease(t_Pipeline->rootSig);
 }
 
-void BB::DX12DestroyDescriptor(const RDescriptorHandle a_Handle)
+void BB::DX12DestroyDescriptor(const RDescriptor a_Handle)
 {
 	DXDescriptor* t_Set = reinterpret_cast<DXDescriptor*>(a_Handle.ptrHandle);
 	*t_Set = {}; //zero it for safety

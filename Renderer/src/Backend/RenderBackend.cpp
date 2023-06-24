@@ -50,7 +50,7 @@ PipelineBuilder::~PipelineBuilder()
 #endif //_DEBUG
 }
 
-void PipelineBuilder::BindDescriptor(const RDescriptorHandle a_Handle)
+void PipelineBuilder::BindDescriptor(const RDescriptor a_Handle)
 {
 	s_ApiFunc.pipelineBuilderBindDescriptor(m_BuilderHandle, a_Handle);
 }
@@ -143,20 +143,26 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
-DescriptorHeap::DescriptorHeap(const uint32_t a_DescriptorCount)
-	:	m_DescriptorMax(a_DescriptorCount)
+DescriptorHeap::DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo)
+	:	m_DescriptorMax(a_CreateInfo.descriptorCount)
 {
-
+	heap = s_ApiFunc.createDescriptorHeap(a_CreateInfo);
 }
 
 DescriptorHeap::~DescriptorHeap()
 {
-	m_CurrentDescriptors = 0;
+	s_ApiFunc.destroyDescriptorHeap(heap);
+	memset(this, 0, sizeof(DescriptorHeap));
 }
 
-RDescriptorHandle DescriptorHeap::Allocate(const RenderDescriptorCreateInfo& a_Info)
+const DescriptorAllocation DescriptorHeap::Allocate(const RDescriptor a_Descriptor)
 {
-
+	AllocateDescriptorInfo t_Info{};
+	t_Info.heap = heap;
+	t_Info.descriptor = a_Descriptor;
+	DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
+	m_CurrentDescriptors += t_Allocation.descriptorCount;
+	return t_Allocation;
 }
 
 void DescriptorHeap::Reset()
@@ -188,9 +194,9 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_BackendInfo = s_ApiFunc.createBackend(a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptor BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	RDescriptorHandle t_Desc = s_ApiFunc.createDescriptor(a_CreateInfo);
+	RDescriptor t_Desc = s_ApiFunc.createDescriptor(a_CreateInfo);
 #ifdef _DEBUG
 	s_ResourceTracker.AddDescriptor(a_CreateInfo, a_CreateInfo.name, t_Desc.handle);
 #endif //_DEBUG
@@ -310,7 +316,7 @@ void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_Recordin
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
 
-ImageReturnInfo BB::RenderBackend::GetImageInfo(const RImageHandle a_Handle)
+ImageReturnInfo BB::RenderBackend::GetDescriptorImageInfo(const RImageHandle a_Handle)
 {
 	return s_ApiFunc.getImageInfo(a_Handle);
 }
@@ -351,7 +357,7 @@ void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
 }
 
-void BB::RenderBackend::BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
+void BB::RenderBackend::BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptor* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
 {
 	s_ApiFunc.bindDescriptors(a_RecordingCmdHandle, a_Sets, a_SetCount, a_DynamicOffsetCount, a_DynamicOffsets);
 }
@@ -432,7 +438,7 @@ void BB::RenderBackend::DestroyBackend()
 	s_ApiFunc.destroyBackend();
 }
 
-void BB::RenderBackend::DestroyDescriptor(const RDescriptorHandle a_Handle)
+void BB::RenderBackend::DestroyDescriptor(const RDescriptor a_Handle)
 {
 #ifdef _DEBUG
 	s_ResourceTracker.RemoveEntry(a_Handle.handle);

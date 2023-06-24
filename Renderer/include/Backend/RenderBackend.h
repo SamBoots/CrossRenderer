@@ -51,14 +51,15 @@ namespace BB
 	class DescriptorHeap
 	{
 	public:
-		DescriptorHeap(const uint32_t a_DescriptorCount);
+		DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo);
 		~DescriptorHeap();
 
-		RDescriptorHandle Allocate(const RenderDescriptorCreateInfo& a_Info);
+		const DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
 
 		void Reset();
 
 	private:
+		RDescriptorHeap heap;
 		const uint32_t m_DescriptorMax;
 		uint32_t m_CurrentDescriptors;
 	};

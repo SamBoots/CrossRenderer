@@ -60,11 +60,8 @@ namespace BB
 			{
 			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:			return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT_DYNAMIC:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 			case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:						return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			case BB::RENDER_DESCRIPTOR_TYPE::SAMPLER:					return VK_DESCRIPTOR_TYPE_SAMPLER;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -368,36 +365,7 @@ namespace BB
 		uint32_t offset;
 	};
 
-	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
-	struct DescriptorBufferHandle
-	{
-		VkDeviceAddress address = 0;
-		void* pDescriptor = nullptr;
-		uint32_t sizeInBytes = 0;
-		uint32_t offset = 0;
-	};
 
-	class VulkanDescriptorBuffer
-	{
-	public:
-		VulkanDescriptorBuffer(const VkBufferUsageFlags a_HeapType, const uint32_t a_BufferSize);
-		~VulkanDescriptorBuffer();
-
-		const DescriptorBufferHandle Allocate(const uint32_t a_Size);
-
-		void Reset();
-
-		const VkBuffer GetBuffer() const { return m_Buffer; }
-		const VkDeviceAddress GetAddressBuffer() const { return m_DeviceAddress; }
-		
-	private:
-		VkBuffer m_Buffer{};
-		VmaAllocation m_Allocation{};
-		VkDeviceAddress m_DeviceAddress = 0;
-		const uint32_t m_BufferSize = 0;
-		uint32_t m_BufferPos = 0;
-		void* m_Start = nullptr;
-	};
 
 	struct VulkanFrame
 	{

@@ -66,8 +66,8 @@ RecordingCommandListHandle t_RecordingTransfer;
 
 RFenceHandle t_SwapchainFence[3];
 
-RDescriptorHandle t_Descriptor1;
-RDescriptorHandle t_Descriptor2;
+RDescriptor t_Descriptor1;
+RDescriptor t_Descriptor2;
 PipelineHandle t_Pipeline;
 
 UploadBuffer* t_UploadBuffer;
@@ -130,7 +130,7 @@ static void Draw3DFrame()
 	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
 
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
-	RDescriptorHandle t_Descriptors[]{ t_Descriptor1 , t_Descriptor2 };
+	RDescriptor t_Descriptors[]{ t_Descriptor1 , t_Descriptor2 };
 	RenderBackend::BindDescriptors(t_RecordingGraphics, 
 		t_Descriptors, _countof(t_Descriptors), 
 		_countof(t_DynOffSets), t_DynOffSets);

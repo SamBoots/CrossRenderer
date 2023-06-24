@@ -40,7 +40,7 @@ struct ImGui_ImplCrossRenderer_Data
     // Font data
     RImageHandle                fontImage;
     RSamplerHandle              fontSampler;
-    RDescriptorHandle           fontDescriptor;
+    RDescriptor           fontDescriptor;
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
@@ -263,12 +263,12 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 t_SciInfo.extent.y = (uint32_t)(clip_max.y - clip_min.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 
-                RDescriptorHandle t_Set[1] = {(RDescriptorHandle)pcmd->TextureId};
+                RDescriptor t_Set[1] = {(RDescriptor)pcmd->TextureId};
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
                     // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
-                    t_Set[0] = (RDescriptorHandle)bd->fontDescriptor.ptrHandle;
+                    t_Set[0] = (RDescriptor)bd->fontDescriptor.ptrHandle;
                 }
                 RenderBackend::BindDescriptors(a_CmdList, t_Set, 1, 0, nullptr);
 
@@ -597,7 +597,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
     }
 }
 
-void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
+void ImGui_ImplCross_RemoveTexture(const RDescriptor a_Set)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     RenderBackend::DestroyDescriptor(a_Set);
