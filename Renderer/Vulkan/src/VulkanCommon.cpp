@@ -250,7 +250,7 @@ public:
 			&t_AllocSize);
 
 		DescriptorAllocation t_Allocation{};
-		t_Allocation.sizeInBytes = static_cast<uint32_t>(t_AllocSize);
+		t_Allocation.userdata = static_cast<uint32_t>(t_AllocSize);
 		t_Allocation.offset = m_BufferPos;
 		t_Allocation.descriptor = a_Layout;
 		t_Allocation.bufferStart = m_Start;

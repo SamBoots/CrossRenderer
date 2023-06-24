@@ -38,7 +38,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.copyBufferImage = VulkanCopyBufferImage;
 	a_FuncCreateInfo.transitionImage = VulkanTransitionImage;
 
-	a_FuncCreateInfo.setDescriptorHeaps = VulkanBindDescriptorHeaps;
+	a_FuncCreateInfo.bindDescriptorHeaps = VulkanBindDescriptorHeaps;
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
 	a_FuncCreateInfo.setDescriptorHeapOffsets = VulkanSetDescriptorHeapOffsets;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;

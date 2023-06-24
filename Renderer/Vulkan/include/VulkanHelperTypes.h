@@ -364,12 +364,4 @@ namespace BB
 		VkShaderStageFlags shaderStage;
 		uint32_t offset;
 	};
-
-
-
-	struct VulkanFrame
-	{
-		DescriptorBuffer* buffer;
-
-	};
 }

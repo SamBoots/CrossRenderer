@@ -334,10 +334,11 @@ namespace BB
 
 	struct DescriptorAllocation
 	{
-		uint32_t descriptorCount = 0;
 		uint32_t offset = 0;
 		RDescriptor descriptor;
 		void* bufferStart;
+		//can be size in bytes, or the amount of descriptors.
+		uint32_t userdata = 0;
 	};
 
 	struct RenderDescriptorCreateInfo
@@ -751,7 +752,7 @@ namespace BB
 		PFN_RenderAPICopyBufferImage copyBufferImage;
 		PFN_RenderAPITransitionImage transitionImage;
 
-		PFN_RenderAPIBindDescriptorHeaps setDescriptorHeaps;
+		PFN_RenderAPIBindDescriptorHeaps bindDescriptorHeaps;
 		PFN_RenderAPIBindPipeline bindPipeline;
 		PFN_RenderAPISetDescriptorHeapOffsets setDescriptorHeapOffsets;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
