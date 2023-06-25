@@ -15,6 +15,7 @@ constexpr int SAMPLER_DESCRIPTOR_BUFFER_INDEX = 1;
 #include "Allocators/TemporaryAllocator.h"
 #include "BBMemory.h"
 #include "Math.inl"
+#include "Program.h"
 
 #include "VulkanCommon.h"
 
@@ -210,35 +211,54 @@ static inline VkDeviceSize GetBufferDeviceAddress(const VkBuffer a_Buffer)
 class VulkanDescriptorBuffer
 {
 public:
-	VulkanDescriptorBuffer(const uint32_t a_BufferSize, const VkBufferUsageFlags a_Usage, const char* a_Name)
+	VulkanDescriptorBuffer(const uint32_t a_BufferSize, const VkBufferUsageFlags a_Usage, const bool a_GPUHeap, const char* a_Name)
 		: m_BufferSize(a_BufferSize)
 	{
-		VkBufferCreateInfo t_BufferInfo{};
-		t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		t_BufferInfo.size = a_BufferSize;
-		t_BufferInfo.usage = a_Usage;
-		t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		if (a_GPUHeap)
+		{
+			VkBufferCreateInfo t_BufferInfo{};
+			t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			t_BufferInfo.size = a_BufferSize;
+			t_BufferInfo.usage = a_Usage;
+			t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-		VmaAllocationCreateInfo t_VmaAlloc{};
-		t_VmaAlloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-		t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+			VmaAllocationCreateInfo t_VmaAlloc{};
+			t_VmaAlloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+			t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
-		VKASSERT(vmaCreateBuffer(s_VKB.vma,
-			&t_BufferInfo, &t_VmaAlloc,
-			&m_Buffer, &m_Allocation,
-			nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
+			VKASSERT(vmaCreateBuffer(s_VKB.vma,
+				&t_BufferInfo, &t_VmaAlloc,
+				&m_Buffer, &m_Allocation,
+				nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
 
-		VKASSERT(vmaMapMemory(s_VKB.vma, m_Allocation, &m_Start),
-			"Vulkan: Failed to map memory for descriptor buffer");
-		m_StartAddress = GetBufferDeviceAddress(m_Buffer);
+			VKASSERT(vmaMapMemory(s_VKB.vma, m_Allocation, &m_Start),
+				"Vulkan: Failed to map memory for descriptor buffer");
+			m_StartAddress = GetBufferDeviceAddress(m_Buffer);
 
-		SetDebugName(a_Name, m_Buffer, VK_OBJECT_TYPE_BUFFER);
+			SetDebugName(a_Name, m_Buffer, VK_OBJECT_TYPE_BUFFER);
+		}
+		else
+		{
+			//Mark m_Buffer is NULL so that we can be sure that it's a CPU heap.
+			m_Buffer = VK_NULL_HANDLE;
+			m_Start = ReserveVirtualMemory(m_BufferSize);
+			CommitVirtualMemory(m_Start, m_BufferSize);
+		}
 	}
 
 	~VulkanDescriptorBuffer()
 	{
-		vmaUnmapMemory(s_VKB.vma, m_Allocation);
-		vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
+		//If m_Buffer is initialized then it's a GPU heap.
+		if (m_Buffer)
+		{
+			vmaUnmapMemory(s_VKB.vma, m_Allocation);
+			vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
+		}
+		else
+		{
+			ReleaseVirtualMemory(m_Start);
+		}
+		memset(this, 0, sizeof(VulkanDescriptorBuffer));
 	}
 
 	inline DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
@@ -263,7 +283,7 @@ public:
 	}
 
 	const inline VkBuffer GetBuffer() const { return m_Buffer; }
-	const inline void* GetStartOfBuffer() const { return m_Start; }
+	inline void* GetStartOfBuffer() const { return m_Start; }
 	const inline VkDeviceAddress GetBaseAddress() const { return m_StartAddress; }
 
 private:
@@ -950,7 +970,7 @@ RDescriptorHeap BB::VulkanCreateDescriptorHeap(const RenderDescriptorHeapCreateI
 		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorBiggestResourceType;
 	}
 
-	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)(t_BufferSize, t_BufferUsage, a_CreateInfo.name);
+	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)(t_BufferSize, t_BufferUsage, a_CreateInfo.gpuVisible, a_CreateInfo.name);
 }
 
 RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
@@ -1330,6 +1350,22 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 DescriptorAllocation BB::VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
 {
 	return reinterpret_cast<VulkanDescriptorBuffer*>(a_AllocateInfo.heap.handle)->Allocate(a_AllocateInfo.descriptor, a_AllocateInfo.heapOffset);
+}
+
+void BB::VulkanCopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo)
+{
+	VulkanDescriptorBuffer* t_SrcHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.srcHeap.handle);
+	VulkanDescriptorBuffer* t_DstHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.dstHeap.handle);
+	BB_ASSERT(t_SrcHeap->GetBuffer() != VK_NULL_HANDLE, "Trying to copy descriptors but the source is a GPU visible heap!");
+	size_t t_DescriptorSize;
+	if (a_CopyInfo.isSamplerHeap)
+		t_DescriptorSize = s_DescriptorSamplerSize;
+	else
+		t_DescriptorSize = s_DescriptorBiggestResourceType;
+
+	memcpy(Pointer::Add(t_DstHeap->GetStartOfBuffer(), a_CopyInfo.dstOffset * t_DescriptorSize),
+		Pointer::Add(t_SrcHeap->GetStartOfBuffer(), a_CopyInfo.srcOffset * t_DescriptorSize),
+		t_DescriptorSize * a_CopyInfo.descriptorCount);
 }
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const WriteDescriptorBuffer& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)

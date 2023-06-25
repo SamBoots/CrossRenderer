@@ -4,7 +4,7 @@
 namespace BB
 {
 	BackendInfo VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	RDescriptorHeap VulkanCreateDescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo);
+	RDescriptorHeap VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo);
 	RDescriptor VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -15,6 +15,7 @@ namespace BB
 	RFenceHandle VulkanCreateFence(const FenceCreateInfo& a_CreateInfo);
 
 	DescriptorAllocation VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo);
+	void VulkanCopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
 	void VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
 	ImageReturnInfo VulkanGetImageInfo(const RImageHandle a_Handle);
 

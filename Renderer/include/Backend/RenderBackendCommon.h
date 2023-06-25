@@ -22,12 +22,8 @@ namespace BB
 	//Index is the start index, Index 
 	using PipelineBuilderHandle = FrameworkHandle<struct PipelineBuilderHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
-	
-	//index = used by backend
-	//extra index = the amount of descriptors
 	using RDescriptor = FrameworkHandle<struct RDescriptorHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
-	using DescriptorBufferHandle = FrameworkHandle<struct DescriptorBufferHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
@@ -238,11 +234,22 @@ namespace BB
 		LINEAR
 	};
 
-	struct RenderDescriptorHeapCreateInfo
+	struct DescriptorHeapCreateInfo
 	{
 		const char* name;
 		uint32_t descriptorCount;
 		bool isSampler;
+		bool gpuVisible;
+	};
+
+	struct CopyDescriptorsInfo
+	{
+		uint32_t descriptorCount;
+		bool isSamplerHeap;
+		RDescriptorHeap srcHeap;
+		uint32_t srcOffset;
+		RDescriptorHeap dstHeap;
+		uint32_t dstOffset;
 	};
 
 	struct WriteDescriptorBuffer
@@ -347,8 +354,6 @@ namespace BB
 	struct RenderDescriptorCreateInfo
 	{
 		const char* name = nullptr;
-		DescriptorBufferHandle descriptorBuffer;
-		RENDER_SHADER_STAGE stage;
 		BB::Slice<DescriptorBinding> bindings{};
 		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
 	};
@@ -358,11 +363,6 @@ namespace BB
 		const char* name = nullptr;
 		RENDER_QUEUE_TYPE queue{};
 		RENDER_FENCE_FLAGS flags{};
-	};
-
-	struct RenderDescriptorBufferCreateInfo
-	{
-		uint32_t descriptorCount;
 	};
 
 	struct RenderCommandAllocatorCreateInfo
@@ -647,7 +647,7 @@ namespace BB
 
 	//construction
 	typedef BackendInfo				(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RDescriptorHeap			(*PFN_RenderAPICreateDescriptorHeap)(const RenderDescriptorHeapCreateInfo& a_CreateInfo);
+	typedef RDescriptorHeap			(*PFN_RenderAPICreateDescriptorHeap)(const DescriptorHeapCreateInfo& a_CreateInfo);
 	typedef RDescriptor				(*PFN_RenderAPICreateDescriptor)(const RenderDescriptorCreateInfo& a_Info);
 	typedef CommandQueueHandle		(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -658,8 +658,8 @@ namespace BB
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 	
 	typedef DescriptorAllocation	(*PFN_RenderAPIAllocateDescriptor)(const AllocateDescriptorInfo& a_AllocateInfo);
+	typedef void					(*PFN_RenderAPICopyDescriptors)(const CopyDescriptorsInfo& a_CopyInfo);
 	typedef void					(*PFN_RenderAPIWriteDescriptors)(const WriteDescriptorInfos& a_WriteInfo);
-
 	typedef ImageReturnInfo			(*PFN_RenderAPIGetImageInfo)(RImageHandle a_Handle);
 
 	//PipelineBuilder
@@ -735,6 +735,7 @@ namespace BB
 		PFN_RenderAPICreateFence createFence;
 
 		PFN_RenderAPIAllocateDescriptor allocateDescriptor;
+		PFN_RenderAPICopyDescriptors copyDescriptors;
 		PFN_RenderAPIWriteDescriptors writeDescriptors;
 		PFN_RenderAPIGetImageInfo getImageInfo;
 

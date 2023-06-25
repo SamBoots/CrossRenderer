@@ -152,7 +152,9 @@ DescriptorHeap::DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInf
 
 DescriptorHeap::~DescriptorHeap()
 {
-	s_ApiFunc.destroyDescriptorHeap(m_Heap);
+	//only delete the heap if it's from the start offset.
+	if (m_DescriptorStartOffset == 0)
+		s_ApiFunc.destroyDescriptorHeap(m_Heap);
 	memset(this, 0, sizeof(DescriptorHeap));
 }
 

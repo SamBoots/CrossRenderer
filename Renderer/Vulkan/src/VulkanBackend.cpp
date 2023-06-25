@@ -17,6 +17,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
 	a_FuncCreateInfo.allocateDescriptor = VulkanAllocateDescriptor;
+	a_FuncCreateInfo.copyDescriptors = VulkanCopyDescriptors;
 	a_FuncCreateInfo.writeDescriptors = VulkanWriteDescriptors;
 	a_FuncCreateInfo.getImageInfo = VulkanGetImageInfo;
 

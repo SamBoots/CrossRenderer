@@ -70,6 +70,11 @@ RDescriptor t_Descriptor1;
 RDescriptor t_Descriptor2;
 PipelineHandle t_Pipeline;
 
+DescriptorHeap* resourceMainHeap;
+//heaps equal to per frame.
+DescriptorHeap* resourceFrameHeap;
+
+
 UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
@@ -247,11 +252,28 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
 	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
 
-#pragma region LightSystem
-	constexpr size_t LIGHT_COUNT_MAX = 1024;
-	constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
+	{
+		constexpr size_t SUBHEAPSIZE = 1024;
+		RenderDescriptorHeapCreateInfo t_HeapInfo{};
+		t_HeapInfo.name = "Resource Heap";
+		t_HeapInfo.descriptorCount = SUBHEAPSIZE * s_RendererInst.frameBufferAmount;
+		t_HeapInfo.isSampler = false;
+		resourceMainHeap = BBnew(m_SystemAllocator, DescriptorHeap)(t_HeapInfo);
 
-	s_GlobalInfo.lightSystem = BBnew(m_SystemAllocator, LightSystem)(LIGHT_COUNT_MAX);
+		resourceFrameHeap = BBnewArr(m_SystemAllocator, s_RendererInst.frameBufferAmount, DescriptorHeap);
+		for (size_t i = 0; i < s_RendererInst.frameBufferAmount; i++)
+		{
+			new (&resourceFrameHeap[i])DescriptorHeap(resourceFrameHeap->SubAllocate(SUBHEAPSIZE));
+		}
+	}
+
+#pragma region LightSystem
+	{
+		constexpr size_t LIGHT_COUNT_MAX = 1024;
+		constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
+
+		s_GlobalInfo.lightSystem = BBnew(m_SystemAllocator, LightSystem)(LIGHT_COUNT_MAX);
+	}
 #pragma endregion //LightSystem
 
 #pragma region PipelineCreation
@@ -342,28 +364,27 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		RenderDescriptorCreateInfo t_CreateInfo{};
 		t_CreateInfo.name = "per-frame descriptor";
 		FixedArray<DescriptorBinding, 4> t_DescBinds;
-		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 
 		{//Per frame info Bind
 			t_DescBinds[0].binding = 0;
 			t_DescBinds[0].descriptorCount = 1;
 			t_DescBinds[0].stage = RENDER_SHADER_STAGE::ALL;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Cam Bind
 			t_DescBinds[1].binding = 1;
 			t_DescBinds[1].descriptorCount = 1;
 			t_DescBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Model Bind
 			t_DescBinds[2].binding = 2;
 			t_DescBinds[2].descriptorCount = 1;
 			t_DescBinds[2].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[2].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Light Binding
@@ -381,7 +402,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		RenderDescriptorCreateInfo t_CreateInfo{};
 		t_CreateInfo.name = "Per-pass descriptor";
 		FixedArray<DescriptorBinding, 2> t_DescBinds;
-		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_PASS;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 		{//Sampler Binds
 			t_DescBinds[0].binding = 0;
@@ -403,31 +423,29 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		UpdateDescriptorBufferInfo t_BufferUpdate{};
-		t_BufferUpdate.set = t_Descriptor1;
+		FixedArray<WriteDescriptorData, 3> t_WriteDatas;
+		WriteDescriptorInfos t_BufferUpdate{};
+		t_BufferUpdate.descriptorHandle = t_Descriptor1;
+		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
 
-		t_BufferUpdate.binding = 0;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.buffer = s_GlobalInfo.perFrameBuffer;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(BaseFrameInfo);
-		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+		t_WriteDatas[0].binding = 0;
+		t_WriteDatas[0].descriptorIndex = 0;
+		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_WriteDatas[0].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+		t_WriteDatas[0].buffer.offset = 0;
+		t_WriteDatas[0].buffer.range = sizeof(BaseFrameInfo);
 
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+		t_WriteDatas[1].binding = 1;
+		t_WriteDatas[1].descriptorIndex = 0;
+		t_WriteDatas[1].buffer.offset = sizeof(BaseFrameInfo);
+		t_WriteDatas[1].buffer.range = sizeof(CameraRenderData);
 
-		t_BufferUpdate.binding = 1;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(CameraRenderData);
+		t_WriteDatas[2].binding = 2;
+		t_WriteDatas[2].descriptorIndex = 0;
+		t_WriteDatas[2].buffer.offset = sizeof(BaseFrameInfo) + sizeof(CameraRenderData);
+		t_WriteDatas[2].buffer.range = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
-
-		t_BufferUpdate.binding = 2;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
-
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+		RenderBackend::WriteDescriptors(t_BufferUpdate);
 
 		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1);
 	}
