@@ -343,6 +343,12 @@ namespace BB
 
 	VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_QueueProperties, uint32_t a_FamilyPropertyCount, VkQueueFlags a_QueueFlags);
 
+	struct VulkanDescriptor
+	{
+		VkDescriptorSetLayout layout;
+		uint32_t descriptorCount = 0;
+	};
+
 	struct VulkanCommandQueue
 	{
 		VkQueue queue;

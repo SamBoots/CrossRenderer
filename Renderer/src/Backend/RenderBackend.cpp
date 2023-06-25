@@ -144,8 +144,9 @@ void UploadBuffer::Clear()
 }
 
 DescriptorHeap::DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo)
-	:	m_DescriptorMax(a_CreateInfo.descriptorCount)
+	:	m_DescriptorMax(a_CreateInfo.descriptorCount), m_DescriptorStartOffset(0)
 {
+	m_DescriptorHeapPos = 0;
 	m_Heap = s_ApiFunc.createDescriptorHeap(a_CreateInfo);
 }
 
@@ -160,13 +161,32 @@ const DescriptorAllocation DescriptorHeap::Allocate(const RDescriptor a_Descript
 	AllocateDescriptorInfo t_Info{};
 	t_Info.heap = m_Heap;
 	t_Info.descriptor = a_Descriptor;
+	t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
 	DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
+	m_DescriptorHeapPos += t_Allocation.descriptorCount;
+	BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax, 
+		"Descriptor Heap, over allocating descriptor memory!");
 	return t_Allocation;
+}
+
+DescriptorHeap::DescriptorHeap(const RDescriptorHeap& a_Heap,const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset)
+	:	m_Heap(a_Heap), m_DescriptorMax(a_DescriptorCount), m_DescriptorStartOffset(a_HeapOffset)
+{
+	m_DescriptorHeapPos = 0;
+}
+
+DescriptorHeap DescriptorHeap::SubAllocate(const uint32_t a_DescriptorCount)
+{
+	const uint32_t t_NewHeapOffset = m_DescriptorHeapPos;
+	m_DescriptorHeapPos += a_DescriptorCount;
+	BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
+		"Descriptor Heap, over allocating descriptor memory!");
+	return DescriptorHeap(m_Heap, t_NewHeapOffset, a_DescriptorCount);
 }
 
 void DescriptorHeap::Reset()
 {
-	//do restart thing.
+	m_DescriptorHeapPos = 0;
 }
 
 void BB::RenderBackend::DisplayDebugInfo()
@@ -430,65 +450,12 @@ uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
 	return s_ApiFunc.nextFenceValue(a_Handle);
 }
 
-void BB::RenderBackend::DestroyBackend()
-{
-	s_ApiFunc.destroyBackend();
-}
-
-void BB::RenderBackend::DestroyDescriptor(const RDescriptor a_Handle)
+void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
 {
 #ifdef _DEBUG
 	s_ResourceTracker.RemoveEntry(a_Handle.handle);
 #endif //_DEBUG
-	s_ApiFunc.destroyDescriptor(a_Handle);
-}
-
-void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyPipeline(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandQueue(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandAllocator(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandList(a_Handle);
-}
-
-void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyBuffer(a_Handle);
-}
-
-void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyImage(a_Handle);
+	s_ApiFunc.destroyFence(a_Handle);
 }
 
 void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
@@ -499,10 +466,63 @@ void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
 	s_ApiFunc.destroySampler(a_Handle);
 }
 
-void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
+void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
 {
 #ifdef _DEBUG
 	s_ResourceTracker.RemoveEntry(a_Handle.handle);
 #endif //_DEBUG
-	s_ApiFunc.destroyFence(a_Handle);
+	s_ApiFunc.destroyImage(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandList(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandAllocator(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandQueue(a_Handle);
+}
+
+void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyPipeline(a_Handle);
+}
+
+void BB::RenderBackend::DestroyDescriptor(const RDescriptor a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyDescriptor(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBackend()
+{
+	s_ApiFunc.destroyBackend();
 }

@@ -231,7 +231,6 @@ public:
 		VKASSERT(vmaMapMemory(s_VKB.vma, m_Allocation, &m_Start),
 			"Vulkan: Failed to map memory for descriptor buffer");
 		m_StartAddress = GetBufferDeviceAddress(m_Buffer);
-		m_BufferPos = 0;
 
 		SetDebugName(a_Name, m_Buffer, VK_OBJECT_TYPE_BUFFER);
 	}
@@ -242,16 +241,17 @@ public:
 		vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
 	}
 
-	inline DescriptorAllocation Allocate(const RDescriptor a_Layout)
+	inline DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
 	{
-		VkDeviceSize t_AllocSize;
-		vkGetDescriptorSetLayoutSizeEXT(s_VKB.device,
-			reinterpret_cast<VkDescriptorSetLayout>(a_Layout.handle),
-			&t_AllocSize);
+		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
+		VkDeviceSize t_AllocSize = s_DescriptorBiggestResourceType * t_Desc->descriptorCount;
+		//vkGetDescriptorSetLayoutSizeEXT(s_VKB.device,
+		//	t_Desc->layout,
+		//	&t_AllocSize);
 
 		DescriptorAllocation t_Allocation{};
-		t_Allocation.userdata = static_cast<uint32_t>(t_AllocSize);
-		t_Allocation.offset = m_BufferPos;
+		t_Allocation.descriptorCount = t_Desc->descriptorCount;
+		t_Allocation.offset = a_HeapOffset;
 		t_Allocation.descriptor = a_Layout;
 		t_Allocation.bufferStart = m_Start;
 		return t_Allocation;
@@ -259,8 +259,7 @@ public:
 
 	void inline Reset()
 	{
-		memset(m_Start, 0, m_BufferPos);
-		m_BufferPos = 0;
+		memset(m_Start, 0, m_BufferSize);
 	}
 
 	const inline VkBuffer GetBuffer() const { return m_Buffer; }
@@ -273,7 +272,6 @@ private:
 	//using uint32_t since descriptor buffers on some drivers
 	//only spend 32-bits virtual address.
 	uint32_t m_BufferSize;
-	uint32_t m_BufferPos;
 	void* m_Start;
 	VkDeviceAddress m_StartAddress;
 };
@@ -959,9 +957,7 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 {
 	bool bindlessSet = false;
 
-	VkDescriptorSetLayout t_Layout{};
-
-	uint32_t t_DescriptorCount = 0;
+	VulkanDescriptor t_ReturnDesc{};
 	
 	{
 		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
@@ -1002,7 +998,7 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 				t_BindlessFlags[i] = 0;
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
-				t_DescriptorCount += t_Binding.descriptorCount;
+				t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
 
@@ -1029,19 +1025,20 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_Layout),
+				&t_LayoutInfo, nullptr, &t_ReturnDesc.layout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 		else
 		{
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_Layout),
+				&t_LayoutInfo, nullptr, &t_ReturnDesc.layout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 	}
 
-	return RDescriptor(t_Layout);
+	VulkanDescriptor* t_DescLayout = BBnew(s_VulkanAllocator, VulkanDescriptor)(t_ReturnDesc);
+	return RDescriptor(t_DescLayout);
 }
 
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
@@ -1332,7 +1329,7 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 
 DescriptorAllocation BB::VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
 {
-	return reinterpret_cast<VulkanDescriptorBuffer*>(a_AllocateInfo.heap.handle)->Allocate(a_AllocateInfo.descriptor);
+	return reinterpret_cast<VulkanDescriptorBuffer*>(a_AllocateInfo.heap.handle)->Allocate(a_AllocateInfo.descriptor, a_AllocateInfo.heapOffset);
 }
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const WriteDescriptorBuffer& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
@@ -1364,7 +1361,7 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 
 		VkDeviceSize t_Offset;
 		vkGetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device,
-			reinterpret_cast<VkDescriptorSetLayout>(a_WriteInfo.descriptorHandle.handle),
+			reinterpret_cast<VulkanDescriptor*>(a_WriteInfo.descriptorHandle.handle)->layout,
 			t_WriteData.binding,
 			&t_Offset);
 
@@ -1549,7 +1546,7 @@ void BB::VulkanPipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handl
 {
 	constexpr uint32_t MAX_PUSHCONSTANTSIZE = 128;
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
-	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = reinterpret_cast<VkDescriptorSetLayout>(a_Descriptor.handle);
+	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = reinterpret_cast<VulkanDescriptor*>(a_Descriptor.handle)->layout;
 }
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
@@ -2478,6 +2475,7 @@ void BB::VulkanDestroyDescriptorHeap(const RDescriptorHeap a_Handle)
 
 void BB::VulkanDestroyDescriptor(const RDescriptor a_Handle)
 {
+	BBfree(s_VulkanAllocator, a_Handle.ptrHandle);
 	//refcount a descriptor layout then delete it when we do not use it
 }
 

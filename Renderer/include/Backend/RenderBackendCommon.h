@@ -23,6 +23,8 @@ namespace BB
 	using PipelineBuilderHandle = FrameworkHandle<struct PipelineBuilderHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
 	
+	//index = used by backend
+	//extra index = the amount of descriptors
 	using RDescriptor = FrameworkHandle<struct RDescriptorHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using DescriptorBufferHandle = FrameworkHandle<struct DescriptorBufferHandleTag>;
@@ -273,6 +275,7 @@ namespace BB
 	{
 		RDescriptorHeap heap;
 		RDescriptor descriptor;
+		uint32_t heapOffset = 0;
 	};
 
 	struct WriteDescriptorInfos
@@ -335,10 +338,10 @@ namespace BB
 	struct DescriptorAllocation
 	{
 		uint32_t offset = 0;
-		RDescriptor descriptor;
-		void* bufferStart;
+		RDescriptor descriptor{};
+		void* bufferStart = nullptr;
 		//can be size in bytes, or the amount of descriptors.
-		uint32_t userdata = 0;
+		uint32_t descriptorCount = 0;
 	};
 
 	struct RenderDescriptorCreateInfo

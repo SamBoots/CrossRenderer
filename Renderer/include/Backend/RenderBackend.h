@@ -55,14 +55,20 @@ namespace BB
 		~DescriptorHeap();
 
 		const DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
+		DescriptorHeap SubAllocate(const uint32_t a_DescriptorCount);
 
 		void Reset();
 
 		const RDescriptorHeap GetHeap() const { return m_Heap; }
 
 	private:
+		//Special constructor that is a suballocated heap.
+		//DescriptorHeap::SubAllocate uses this.
+		DescriptorHeap(const RDescriptorHeap& a_Heap, const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset);
 		RDescriptorHeap m_Heap;
 		const uint32_t m_DescriptorMax;
+		const uint32_t m_DescriptorStartOffset;
+		uint32_t m_DescriptorHeapPos;
 	};
 
 	namespace RenderBackend

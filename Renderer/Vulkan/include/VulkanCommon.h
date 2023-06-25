@@ -68,9 +68,9 @@ namespace BB
 	void VulkanDestroySampler(const RSamplerHandle a_Handle);
 	void VulkanDestroyImage(const RImageHandle a_Handle);
 	void VulkanDestroyBuffer(const RBufferHandle a_Handle);
-	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);
-	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void VulkanDestroyCommandList(const CommandListHandle a_Handle);
+	void VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
+	void VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void VulkanDestroyDescriptor(const RDescriptor a_Handle);
 	void VulkanDestroyDescriptorHeap(const RDescriptorHeap a_Handle);
 	void VulkanDestroyPipeline(const PipelineHandle a_Handle);
