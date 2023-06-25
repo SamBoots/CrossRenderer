@@ -143,7 +143,7 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
-DescriptorHeap::DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo)
+DescriptorHeap::DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo)
 	:	m_DescriptorMax(a_CreateInfo.descriptorCount), m_DescriptorStartOffset(0)
 {
 	m_DescriptorHeapPos = 0;

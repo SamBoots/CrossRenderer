@@ -207,6 +207,43 @@ static inline VkDeviceSize GetBufferDeviceAddress(const VkBuffer a_Buffer)
 	return vkGetBufferDeviceAddressKHR(s_VKB.device, &t_BuffAddressInfo);
 }
 
+static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
+{
+	VkSampler t_Sampler{};
+	VkSamplerCreateInfo t_SamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+	t_SamplerInfo.addressModeU = VKConv::AddressMode(a_CreateInfo.addressModeU);
+	t_SamplerInfo.addressModeV = VKConv::AddressMode(a_CreateInfo.addressModeV);
+	t_SamplerInfo.addressModeW = VKConv::AddressMode(a_CreateInfo.addressModeW);
+	switch (a_CreateInfo.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		t_SamplerInfo.magFilter = VK_FILTER_NEAREST;
+		t_SamplerInfo.minFilter = VK_FILTER_NEAREST;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
+		break;
+	}
+	t_SamplerInfo.minLod = a_CreateInfo.minLod;
+	t_SamplerInfo.maxLod = a_CreateInfo.maxLod;
+	t_SamplerInfo.mipLodBias = 0;
+	if (a_CreateInfo.maxAnistoropy > 0)
+	{
+		t_SamplerInfo.anisotropyEnable = VK_TRUE;
+		t_SamplerInfo.maxAnisotropy = a_CreateInfo.maxAnistoropy;
+	}
+
+	VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_Sampler),
+		"Vulkan: Failed to create image sampler!");
+	SetDebugName(a_CreateInfo.name, t_Sampler, VK_OBJECT_TYPE_SAMPLER);
+
+	return t_Sampler;
+}
+
 //maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
 class VulkanDescriptorBuffer
 {
@@ -954,7 +991,7 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	return t_BackendInfo;
 }
 
-RDescriptorHeap BB::VulkanCreateDescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo)
+RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo)
 {
 	VkBufferUsageFlags t_BufferUsage;
 	uint32_t t_BufferSize;
@@ -996,14 +1033,13 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 			VkSampler* t_Samplers = nullptr;
 			if (t_Binding.staticSamplers.size())
 			{
+				BB_ASSERT(t_Binding.type == RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER, 
+					"Vulkan, Trying to set immutable samplers but the descriptor type does not support it. It has to be IMMUTABLE_SAMPLER.");
 				t_Samplers = BBnewArr(s_VulkanTempAllocator, t_Binding.staticSamplers.size(), VkSampler);
 				for (size_t i = 0; i < t_Binding.staticSamplers.size(); i++)
 				{
-					//Hacky for now... we just create the sampler like this. (WE WILL DO THIS LATER LMAO)
-					//t_Samplers[i] = *reinterpret_cast<VkSampler*>(VulkanCreateSampler(t_Binding.staticSamplers[i]).ptrHandle);
-					BB_ASSERT(false, "Vulkan: static samplers not yet implemented!");
+					t_Samplers[i] = CreateSampler(t_Binding.staticSamplers[i]);
 				}
-				t_LayoutBinds[i].pImmutableSamplers = t_Samplers;
 			}
 
 			t_LayoutBinds[i].binding = t_Binding.binding;
@@ -1288,40 +1324,7 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 RSamplerHandle BB::VulkanCreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
-	VkSampler t_Sampler{};
-	VkSamplerCreateInfo t_SamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-	t_SamplerInfo.addressModeU = VKConv::AddressMode(a_CreateInfo.addressModeU);
-	t_SamplerInfo.addressModeV = VKConv::AddressMode(a_CreateInfo.addressModeV);
-	t_SamplerInfo.addressModeW = VKConv::AddressMode(a_CreateInfo.addressModeW);
-	switch (a_CreateInfo.filter)
-	{
-	case SAMPLER_FILTER::NEAREST:
-		t_SamplerInfo.magFilter = VK_FILTER_NEAREST;
-		t_SamplerInfo.minFilter = VK_FILTER_NEAREST;
-		break;
-	case SAMPLER_FILTER::LINEAR:
-		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
-		break;
-	}
-	t_SamplerInfo.minLod = a_CreateInfo.minLod;
-	t_SamplerInfo.maxLod = a_CreateInfo.maxLod;
-	t_SamplerInfo.mipLodBias = 0;
-	if (a_CreateInfo.maxAnistoropy > 0)
-	{
-		t_SamplerInfo.anisotropyEnable = VK_TRUE;
-		t_SamplerInfo.maxAnisotropy = a_CreateInfo.maxAnistoropy;
-	}
-
-	VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_Sampler),
-		"Vulkan: Failed to create image sampler!");
-
-	SetDebugName(a_CreateInfo.name, t_Sampler, VK_OBJECT_TYPE_SAMPLER);
-
-	return RSamplerHandle(t_Sampler);
+	return RSamplerHandle(CreateSampler(a_CreateInfo));
 }
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)

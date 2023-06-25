@@ -69,6 +69,7 @@ namespace BB
 		READONLY_BUFFER, //SRV or Storage buffer
 		READWRITE, //UAV or readwrite storage buffer(?)
 		IMAGE,
+		IMMUTABLE_SAMPLER,
 		ENUM_SIZE
 	};
 
@@ -317,9 +318,9 @@ namespace BB
 		bool validationLayers = false;
 	};
 
-	struct StaticSamplerCreateInfo
+	struct SamplerCreateInfo
 	{
-		RENDER_BINDING_SET bindingSet{};
+		const char* name = nullptr;
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
@@ -338,8 +339,7 @@ namespace BB
 		RENDER_DESCRIPTOR_TYPE type{};
 		RENDER_SHADER_STAGE stage{};
 		RENDER_DESCRIPTOR_FLAG flags{};
-
-		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
+		BB::Slice<SamplerCreateInfo> staticSamplers{};
 	};
 
 	struct DescriptorAllocation
@@ -355,7 +355,6 @@ namespace BB
 	{
 		const char* name = nullptr;
 		BB::Slice<DescriptorBinding> bindings{};
-		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
 	};
 
 	struct RenderCommandQueueCreateInfo
@@ -404,20 +403,6 @@ namespace BB
 		RENDER_IMAGE_TYPE type{};
 		RENDER_IMAGE_FORMAT format{};
 		RENDER_IMAGE_TILING tiling{};
-	};
-
-	struct SamplerCreateInfo
-	{
-		const char* name = nullptr;
-		SAMPLER_ADDRESS_MODE addressModeU{};
-		SAMPLER_ADDRESS_MODE addressModeV{};
-		SAMPLER_ADDRESS_MODE addressModeW{};
-
-		SAMPLER_FILTER filter{};
-		float maxAnistoropy = 0;
-
-		float minLod = 0;
-		float maxLod = 0;
 	};
 
 	struct FenceCreateInfo
