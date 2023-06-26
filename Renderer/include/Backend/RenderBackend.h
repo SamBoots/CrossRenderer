@@ -51,7 +51,7 @@ namespace BB
 	class DescriptorHeap
 	{
 	public:
-		DescriptorHeap(const RenderDescriptorHeapCreateInfo& a_CreateInfo);
+		DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo);
 		~DescriptorHeap();
 
 		const DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
@@ -60,6 +60,8 @@ namespace BB
 		void Reset();
 
 		const RDescriptorHeap GetHeap() const { return m_Heap; }
+		const uint32_t GetHeapOffset() const { return m_DescriptorStartOffset; }
+		const uint32_t GetHeapSize() const { return m_DescriptorMax; }
 
 	private:
 		//Special constructor that is a suballocated heap.
@@ -89,6 +91,7 @@ namespace BB
 		RFenceHandle CreateFence(const FenceCreateInfo& a_CreateInfo);
 
 		void WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
+		void CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
 		ImageReturnInfo GetImageInfo(const RImageHandle a_Handle);
 
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);

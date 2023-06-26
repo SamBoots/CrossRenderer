@@ -235,6 +235,64 @@ namespace BB
 		LINEAR
 	};
 
+	struct RenderInitInfo
+	{
+		RENDER_API renderAPI = RENDER_API::NONE;
+		WindowHandle windowHandle = {};
+		LibHandle renderDll = {};
+		bool debug = false;
+	};
+
+	struct RenderAPIFunctions;
+	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
+
+	struct RenderBackendCreateInfo
+	{
+		PFN_RenderGetAPIFunctions getApiFuncPtr = nullptr;
+		Slice<RENDER_EXTENSIONS> extensions{};
+		Slice<RENDER_EXTENSIONS> deviceExtensions{};
+		WindowHandle windowHandle{};
+		const char* appName = nullptr;
+		const char* engineName = nullptr;
+		uint32_t windowWidth = 0;
+		uint32_t windowHeight = 0;
+		bool validationLayers = false;
+	};
+
+	struct SamplerCreateInfo
+	{
+		const char* name = nullptr;
+		SAMPLER_ADDRESS_MODE addressModeU{};
+		SAMPLER_ADDRESS_MODE addressModeV{};
+		SAMPLER_ADDRESS_MODE addressModeW{};
+
+		SAMPLER_FILTER filter{};
+		float maxAnistoropy = 0;
+
+		float minLod = 0;
+		float maxLod = 0;
+	};
+
+	struct DescriptorBinding
+	{
+		uint32_t binding = 0;
+		uint32_t descriptorCount = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
+		RENDER_SHADER_STAGE stage{};
+		RENDER_DESCRIPTOR_FLAG flags{};
+		//Only set this when DESCRIPTOR_TYPE = immutable sampler
+		SamplerCreateInfo* staticSampler = nullptr;
+	};
+
+	struct DescriptorAllocation
+	{
+		uint32_t offset = 0;
+		RDescriptor descriptor{};
+		void* bufferStart = nullptr;
+		//can be size in bytes, or the amount of descriptors.
+		uint32_t descriptorCount = 0;
+	};
+
 	struct DescriptorHeapCreateInfo
 	{
 		const char* name;
@@ -292,63 +350,6 @@ namespace BB
 		DescriptorAllocation allocation;
 
 		BB::Slice<WriteDescriptorData> data;
-	};
-
-	struct RenderInitInfo
-	{
-		RENDER_API renderAPI = RENDER_API::NONE;
-		WindowHandle windowHandle = {};
-		LibHandle renderDll = {};
-		bool debug = false;
-	};
-
-	struct RenderAPIFunctions;
-	typedef void (*PFN_RenderGetAPIFunctions)(RenderAPIFunctions&);
-
-	struct RenderBackendCreateInfo
-	{
-		PFN_RenderGetAPIFunctions getApiFuncPtr = nullptr;
-		Slice<RENDER_EXTENSIONS> extensions{};
-		Slice<RENDER_EXTENSIONS> deviceExtensions{};
-		WindowHandle windowHandle{};
-		const char* appName = nullptr;
-		const char* engineName = nullptr;
-		uint32_t windowWidth = 0;
-		uint32_t windowHeight = 0;
-		bool validationLayers = false;
-	};
-
-	struct SamplerCreateInfo
-	{
-		const char* name = nullptr;
-		SAMPLER_ADDRESS_MODE addressModeU{};
-		SAMPLER_ADDRESS_MODE addressModeV{};
-		SAMPLER_ADDRESS_MODE addressModeW{};
-
-		SAMPLER_FILTER filter{};
-		float maxAnistoropy = 0;
-
-		float minLod = 0;
-		float maxLod = 0;
-	};
-
-	struct DescriptorBinding
-	{
-		uint32_t binding = 0;
-		uint32_t descriptorCount = 0;
-		RENDER_DESCRIPTOR_TYPE type{};
-		RENDER_SHADER_STAGE stage{};
-		RENDER_DESCRIPTOR_FLAG flags{};
-		BB::Slice<SamplerCreateInfo> staticSamplers{};
-	};
-
-	struct DescriptorAllocation
-	{
-		uint32_t offset = 0;
-		RDescriptor descriptor{};
-		void* bufferStart = nullptr;
-		//can be size in bytes, or the amount of descriptors.
-		uint32_t descriptorCount = 0;
 	};
 
 	struct RenderDescriptorCreateInfo

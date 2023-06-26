@@ -300,6 +300,11 @@ void BB::RenderBackend::WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo
 	s_ApiFunc.writeDescriptors(a_WriteInfo);
 }
 
+void BB::RenderBackend::CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo)
+{
+	s_ApiFunc.copyDescriptors(a_CopyInfo);
+}
+
 void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
 	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);

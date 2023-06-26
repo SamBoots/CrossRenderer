@@ -7,7 +7,7 @@ namespace BB
 	union FrameworkHandle
 	{
 		FrameworkHandle() {};
-		FrameworkHandle(const void* a_Handle)
+		FrameworkHandle(void* a_Handle)
 		{
 			ptrHandle = a_Handle;
 		};

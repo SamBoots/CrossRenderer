@@ -27,9 +27,9 @@ struct Light
 StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
 StructuredBuffer<Light> lights : register(t3, space0);
 
-SamplerState samplerColor : register(s0, space1);
+SamplerState samplerColor : register(s3, space0);
 #ifdef _VULKAN
-Texture2D text : register(t1, space1);
+Texture2D text : register(t4, space0);
 #elif _DIRECTX12
 Texture2D text : register(t0, space1);
 #endif

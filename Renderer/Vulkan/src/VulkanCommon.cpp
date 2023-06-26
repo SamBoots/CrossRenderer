@@ -1057,7 +1057,7 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 				t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-
+				
 				bindlessSet = true;
 				break;
 			default:
@@ -1069,7 +1069,7 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_CreateInfo.bindings.size());
-		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT;
 
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
