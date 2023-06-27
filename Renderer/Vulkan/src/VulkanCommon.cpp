@@ -1,6 +1,6 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
@@ -22,11 +22,18 @@ constexpr int SAMPLER_DESCRIPTOR_BUFFER_INDEX = 1;
 #include <iostream>
 
 using namespace BB;
-
+static PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
+static PFN_vkGetDescriptorEXT GetDescriptorEXT;
+static PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
+static PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 
 static inline void VulkanLoadFunctions(VkInstance a_Instance)
 {
+	GetDescriptorSetLayoutBindingOffsetEXT = (PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutBindingOffsetEXT");
+	GetDescriptorEXT = (PFN_vkGetDescriptorEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorEXT");
+	CmdBindDescriptorBuffersEXT = (PFN_vkCmdBindDescriptorBuffersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBuffersEXT");
+	CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdSetDescriptorBufferOffsetsEXT");
 	SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(a_Instance, "vkSetDebugUtilsObjectNameEXT");
 }
 
@@ -204,7 +211,7 @@ static inline VkDeviceSize GetBufferDeviceAddress(const VkBuffer a_Buffer)
 {
 	VkBufferDeviceAddressInfoKHR t_BuffAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
 	t_BuffAddressInfo.buffer = a_Buffer;
-	return vkGetBufferDeviceAddressKHR(s_VKB.device, &t_BuffAddressInfo);
+	return vkGetBufferDeviceAddress(s_VKB.device, &t_BuffAddressInfo);
 }
 
 static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
@@ -638,6 +645,14 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 	t_IndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 	t_IndexingFeatures.pNext = &t_DynamicRendering;
 
+	VkPhysicalDeviceBufferDeviceAddressFeatures t_AddressFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
+	t_AddressFeature.bufferDeviceAddress = VK_TRUE;
+	t_AddressFeature.pNext = &t_IndexingFeatures;
+
+	VkPhysicalDeviceDescriptorBufferFeaturesEXT  t_DescriptorBufferInfo{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT };
+	t_DescriptorBufferInfo.descriptorBuffer = VK_TRUE;
+	t_DescriptorBufferInfo.pNext = &t_AddressFeature;
+
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	t_CreateInfo.pQueueCreateInfos = t_QueueCreateInfos;
@@ -937,10 +952,10 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 	{
 		VkPhysicalDeviceDescriptorBufferPropertiesEXT t_DescBufferInfo{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT, nullptr };
-		VkPhysicalDeviceFeatures2 t_DeviceFeatures{};
-		t_DeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-		t_DeviceFeatures.pNext = &t_DescBufferInfo;
-		vkGetPhysicalDeviceFeatures2(s_VKB.physicalDevice, &t_DeviceFeatures);
+		VkPhysicalDeviceProperties2 t_DeviceProperties{};
+		t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		t_DeviceProperties.pNext = &t_DescBufferInfo;
+		vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
 
 		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT)] = t_DescBufferInfo.uniformBufferDescriptorSize;
 		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER)] = t_DescBufferInfo.storageBufferDescriptorSize;
@@ -980,7 +995,8 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	t_AllocatorCreateInfo.device = s_VKB.device;
 	t_AllocatorCreateInfo.instance = s_VKB.instance;
 	t_AllocatorCreateInfo.pVulkanFunctions = &t_VkFunctions;
-
+	t_AllocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	
 	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VKB.vma);
 
 	//Returns some info to the global backend that is important.
@@ -998,12 +1014,12 @@ RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a
 
 	if (a_CreateInfo.isSampler)
 	{
-		t_BufferUsage = VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+		t_BufferUsage = VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorSamplerSize;
 	}
 	else
 	{
-		t_BufferUsage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+		t_BufferUsage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorBiggestResourceType;
 	}
 
@@ -1397,7 +1413,7 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 		const WriteDescriptorData& t_WriteData = a_WriteInfo.data[i];
 
 		VkDeviceSize t_Offset;
-		vkGetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device,
+		GetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device,
 			reinterpret_cast<VulkanDescriptor*>(a_WriteInfo.descriptorHandle.handle)->layout,
 			t_WriteData.binding,
 			&t_Offset);
@@ -1438,7 +1454,7 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 		}
 
 		const size_t t_DescriptorSize = s_DescriptorTypeSize[static_cast<uint32_t>(t_WriteData.type)];
-		vkGetDescriptorEXT(s_VKB.device, &t_DescInfo, t_DescriptorSize, t_DescriptorLocation);
+		GetDescriptorEXT(s_VKB.device, &t_DescInfo, t_DescriptorSize, t_DescriptorLocation);
 	}
 }
 
@@ -2069,7 +2085,7 @@ void BB::VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingC
 		++t_HeapCount;
 	}
 
-	vkCmdBindDescriptorBuffersEXT(t_Cmdlist->Buffer(), t_HeapCount, t_BindingInfos);
+	CmdBindDescriptorBuffersEXT(t_Cmdlist->Buffer(), t_HeapCount, t_BindingInfos);
 }
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -2088,7 +2104,7 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const bool* a_IsSamplerHeap, const size_t* a_Offsets)
 {
 	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	vkCmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
+	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Cmdlist->currentPipelineLayout,
 		static_cast<const uint32_t>(a_FirstSet),

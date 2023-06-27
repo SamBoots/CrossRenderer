@@ -5,12 +5,6 @@
 #include "RenderBackendCommon.h"
 #include <vulkan/vulkan.h>
 
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
-#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
-
 namespace BB
 {
 #ifdef _DEBUG
@@ -62,6 +56,7 @@ namespace BB
 			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:					return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 			case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:						return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			case BB::RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
 			default:
 				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 				return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -254,6 +249,8 @@ namespace BB
 					t_Result.extensions[t_Result.count++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 					t_Result.extensions[t_Result.count++] = VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME;
 					t_Result.extensions[t_Result.count++] = VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME;
+					t_Result.extensions[t_Result.count++] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
 					
 					break;
 				case BB::RENDER_EXTENSIONS::DEBUG:

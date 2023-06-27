@@ -44,7 +44,6 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.setDescriptorHeapOffsets = VulkanSetDescriptorHeapOffsets;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
-	a_FuncCreateInfo.bindDescriptors = VulkanBindDescriptors;
 	a_FuncCreateInfo.bindConstant = VulkanBindConstant;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
