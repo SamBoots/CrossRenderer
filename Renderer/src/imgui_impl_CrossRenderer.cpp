@@ -40,7 +40,8 @@ struct ImGui_ImplCrossRenderer_Data
     // Font data
     RImageHandle                fontImage;
     RSamplerHandle              fontSampler;
-    RDescriptor           fontDescriptor;
+    RDescriptor                 fontDescriptor;
+    DescriptorAllocation        descAllocation;
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
@@ -270,7 +271,9 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
                     t_Set[0] = (RDescriptor)bd->fontDescriptor.ptrHandle;
                 }
-                RenderBackend::BindDescriptors(a_CmdList, t_Set, 1, 0, nullptr);
+                bool t_Sampler = false;
+                const size_t t_HeapOffset = bd->descAllocation.offset;
+                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_Sampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
@@ -414,7 +417,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         t_DescBinds[0].binding = 0;
         t_DescBinds[0].descriptorCount = 1;
         t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER;
 
         //image binding for font.
         t_DescBinds[1].binding = 1;
@@ -424,7 +427,6 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 
         RenderDescriptorCreateInfo t_Info{};
         t_Info.name = "Imgui per-pass data, wrongly a per-frame descriptor.";
-        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
         t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }
@@ -559,41 +561,22 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     {
-        SamplerCreateInfo t_SamplerInfo{};
-        t_SamplerInfo.name = "Imgui font sampler";
-        t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
-        t_SamplerInfo.maxAnistoropy = 1.0f;
-        t_SamplerInfo.maxLod = 100.f;
-        t_SamplerInfo.minLod = -100.f;
+        bd->descAllocation = g_descriptorManager->Allocate(bd->fontDescriptor);
 
-        //create the basic sampler.
-        bd->fontSampler = RenderBackend::CreateSampler(t_SamplerInfo);
+        WriteDescriptorInfos t_ImguiDescData{};
+        WriteDescriptorData t_WriteData{};
+        t_WriteData.binding = 1;
+        t_WriteData.descriptorIndex = 0;
+        t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
-        UpdateDescriptorImageInfo t_SamplerUpdate{};
-        t_SamplerUpdate.binding = 0;
-        t_SamplerUpdate.descriptorIndex = 0;
-        t_SamplerUpdate.set = bd->fontDescriptor;
-        t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+        t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+        t_WriteData.image.image = a_Image;
+        t_WriteData.image.sampler = nullptr;
 
-        t_SamplerUpdate.sampler = bd->fontSampler;
-
-        RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
-    }
-
-    {
-        UpdateDescriptorImageInfo t_ImageUpdate{};
-        t_ImageUpdate.binding = 1;
-        t_ImageUpdate.descriptorIndex = 0;
-        t_ImageUpdate.set = bd->fontDescriptor;
-        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-        t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-        t_ImageUpdate.image = a_Image;
-
-        RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+        t_ImguiDescData.data = Slice(&t_WriteData, 1);
+        t_ImguiDescData.descriptorHandle = bd->fontDescriptor;
+        t_ImguiDescData.allocation = bd->descAllocation;
+        RenderBackend::WriteDescriptors(t_ImguiDescData);
     }
 }
 

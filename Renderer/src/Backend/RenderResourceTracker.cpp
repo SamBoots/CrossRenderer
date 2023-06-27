@@ -353,24 +353,6 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				{
 					const RenderDescriptorCreateInfo& t_Desc =
 						*reinterpret_cast<RenderDescriptorCreateInfo*>(t_Entry->typeInfo);
-					switch (t_Desc.bindingSet)
-					{
-					case RENDER_BINDING_SET::PER_FRAME:
-						ImGui::Text("Binding set: PER_FRAME");
-						break;
-					case RENDER_BINDING_SET::PER_PASS:
-						ImGui::Text("Binding set: PER_PASS");
-						break;
-					case RENDER_BINDING_SET::PER_MATERIAL:
-						ImGui::Text("Binding set: PER_MATERIAL");
-						break;
-					case RENDER_BINDING_SET::PER_OBJECT:
-						ImGui::Text("Binding set: PER_OBJECT");
-						break;
-					default:
-						BB_ASSERT(false, "Unknown RENDER_BINDING_SET for resource trackering editor");
-						break;
-					}
 
 					for (size_t i = 0; i < t_Desc.bindings.size(); i++)
 					{

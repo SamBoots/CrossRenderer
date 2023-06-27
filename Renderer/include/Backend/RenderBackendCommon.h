@@ -298,7 +298,6 @@ namespace BB
 		const char* name;
 		uint32_t descriptorCount;
 		bool isSampler;
-		bool gpuVisible;
 	};
 
 	struct CopyDescriptorsInfo
@@ -332,7 +331,7 @@ namespace BB
 		RENDER_DESCRIPTOR_TYPE type{};
 		union
 		{
-			WriteDescriptorBuffer buffer;
+			WriteDescriptorBuffer buffer{};
 			WriteDescriptorImage image;
 		};
 	};
@@ -633,7 +632,7 @@ namespace BB
 
 	//construction
 	typedef BackendInfo				(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RDescriptorHeap			(*PFN_RenderAPICreateDescriptorHeap)(const DescriptorHeapCreateInfo& a_CreateInfo);
+	typedef RDescriptorHeap			(*PFN_RenderAPICreateDescriptorHeap)(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible);
 	typedef RDescriptor				(*PFN_RenderAPICreateDescriptor)(const RenderDescriptorCreateInfo& a_Info);
 	typedef CommandQueueHandle		(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);

@@ -48,29 +48,28 @@ namespace BB
 		void* m_Start;
 	};
 
-	class DescriptorHeap
+	//Linear allocator type descriptor manager. Writes to a CPU descriptor heap and can copy to local GPU visible descriptors.
+	class DescriptorManager
 	{
 	public:
-		DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo);
-		~DescriptorHeap();
+		DescriptorManager(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount);
+		~DescriptorManager();
 
 		const DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
-		DescriptorHeap SubAllocate(const uint32_t a_DescriptorCount);
+		void UploadToGPUHeap(const uint32_t a_FrameNum) const;
 
-		void Reset();
+		const uint32_t GetCPUOffsetFlag() const;
+		void SetCPUOffsetFlag(const uint32_t a_Offset);
 
-		const RDescriptorHeap GetHeap() const { return m_Heap; }
-		const uint32_t GetHeapOffset() const { return m_DescriptorStartOffset; }
-		const uint32_t GetHeapSize() const { return m_DescriptorMax; }
+		//prefer to use SetCPUOffsetFlag so that you do not need to keep setting descriptors.
+		void ClearCPUHeap();
+
+		const RDescriptorHeap GetGPUHeap(const uint32_t a_FrameNum) const;
+		const uint32_t GetHeapOffset() const;
+		const uint32_t GetHeapSize() const;
 
 	private:
-		//Special constructor that is a suballocated heap.
-		//DescriptorHeap::SubAllocate uses this.
-		DescriptorHeap(const RDescriptorHeap& a_Heap, const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset);
-		RDescriptorHeap m_Heap;
-		const uint32_t m_DescriptorMax;
-		const uint32_t m_DescriptorStartOffset;
-		uint32_t m_DescriptorHeapPos;
+		struct DescriptorManager_inst* m_Inst;
 	};
 
 	namespace RenderBackend
@@ -144,3 +143,6 @@ namespace BB
 		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }
+
+//I do not like this but whatever, works great for now
+extern BB::DescriptorManager* g_descriptorManager;

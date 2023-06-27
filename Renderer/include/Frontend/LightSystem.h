@@ -59,5 +59,6 @@ namespace BB
 		UploadBuffer m_UploadBuffer;
 		LinearRenderBuffer m_LightGPUBuffer;
 		LightPool m_Lights;
+		DescriptorAllocation m_DescriptorAllocation;
 	};
 }

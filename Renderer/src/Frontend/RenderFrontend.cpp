@@ -69,11 +69,7 @@ RFenceHandle t_SwapchainFence[3];
 RDescriptor t_Descriptor1;
 PipelineHandle t_Pipeline;
 
-DescriptorHeap* resourceUploadHeap;
-DescriptorHeap* resourceMainHeap;
-//heaps equal to per frame.
-DescriptorHeap* resourceFrameHeap;
-DescriptorHeap* currentResourceHeap;
+DescriptorManager* g_descriptorManager;
 DescriptorAllocation sceneDescAllocation;
 
 UploadBuffer* t_UploadBuffer;
@@ -91,7 +87,7 @@ sizeof(BaseFrameInfo) +
 sizeof(CameraRenderData) +
 sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
-static void Draw3DFrame()
+void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
@@ -134,11 +130,11 @@ static void Draw3DFrame()
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
 	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
 
-	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, resourceMainHeap->GetHeap(), nullptr);
+	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, g_descriptorManager->GetGPUHeap(s_CurrentFrame), nullptr);
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 
 	bool t_IsSamplerHeap = false;
-	size_t t_HeapOffset = currentResourceHeap->GetHeapOffset() + sceneDescAllocation.offset;
+	size_t t_HeapOffset = sceneDescAllocation.offset;
 	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
 
 	uint64_t t_BufferOffsets[1]{ 0 };
@@ -256,21 +252,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		constexpr size_t SUBHEAPSIZE = 1024;
 		DescriptorHeapCreateInfo t_HeapInfo{};
 		t_HeapInfo.name = "Resource Heap";
-		t_HeapInfo.descriptorCount = SUBHEAPSIZE * s_RendererInst.frameBufferAmount;
-		t_HeapInfo.isSampler = false;
-		t_HeapInfo.gpuVisible = true;
-		resourceMainHeap = BBnew(m_SystemAllocator, DescriptorHeap)(t_HeapInfo);
-
-		t_HeapInfo.name = "Resource Upload Heap";
 		t_HeapInfo.descriptorCount = SUBHEAPSIZE;
-		t_HeapInfo.gpuVisible = false;
-		resourceUploadHeap = BBnew(m_SystemAllocator, DescriptorHeap)(t_HeapInfo);
-
-		resourceFrameHeap = BBnewArr(m_SystemAllocator, s_RendererInst.frameBufferAmount, DescriptorHeap);
-		for (size_t i = 0; i < s_RendererInst.frameBufferAmount; i++)
-		{
-			new (&resourceFrameHeap[i])DescriptorHeap(resourceFrameHeap->SubAllocate(SUBHEAPSIZE));
-		}
+		t_HeapInfo.isSampler = false;
+		g_descriptorManager = BBnew(m_SystemAllocator, DescriptorManager)(m_SystemAllocator, t_HeapInfo, s_RendererInst.frameBufferAmount);
 	}
 
 #pragma region LightSystem
@@ -427,7 +411,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		}
 
 		t_Descriptor1 = RenderBackend::CreateDescriptor(t_CreateInfo);
-		sceneDescAllocation = resourceUploadHeap->Allocate(t_Descriptor1);
+		sceneDescAllocation = g_descriptorManager->Allocate(t_Descriptor1);
 	}
 
 	{
@@ -671,9 +655,8 @@ void BB::Render::DestroyRenderer()
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
 
-	BBfree(m_SystemAllocator, resourceMainHeap);
-	BBfree(m_SystemAllocator, resourceUploadHeap);
-	BBfree(m_SystemAllocator, resourceFrameHeap);
+	//descriptor manager has a leak but I don't care for now just clear the entire system allocator lmao
+	BBfree(m_SystemAllocator, g_descriptorManager);
 
 	RenderBackend::DestroyDescriptor(t_Descriptor1);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
@@ -913,15 +896,13 @@ void BB::Render::StartFrame()
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
 	ImGui_ImplCross_NewFrame();
 	ImGui::NewFrame();
-
-	currentResourceHeap = &resourceFrameHeap[s_CurrentFrame];
 }
 
 void BB::Render::EndFrame()
 {
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
-	
+	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,
 		2,
@@ -964,15 +945,6 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 	s_RendererInst.swapchainHeight = a_Y;
 	RenderBackend::ResizeWindow(a_X, a_Y);
 
-	CopyDescriptorsInfo t_CopyDescInfo;
-	t_CopyDescInfo.descriptorCount = currentResourceHeap->GetHeapSize();
-	t_CopyDescInfo.dstHeap = currentResourceHeap->GetHeap();
-	t_CopyDescInfo.dstOffset = currentResourceHeap->GetHeapOffset();
-	t_CopyDescInfo.srcHeap = resourceUploadHeap->GetHeap();
-	t_CopyDescInfo.srcOffset = resourceUploadHeap->GetHeapOffset();
-
-	//Copy over all the required descriptors
-	RenderBackend::CopyDescriptors(t_CopyDescInfo);
 	RenderBackend::DestroyImage(t_DepthImage);
 
 	{ //depth create info

@@ -4,7 +4,7 @@
 namespace BB
 {
 	BackendInfo VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	RDescriptorHeap VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo);
+	RDescriptorHeap VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible);
 	RDescriptor VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 	CommandQueueHandle VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);

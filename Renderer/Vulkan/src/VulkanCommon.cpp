@@ -991,7 +991,7 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	return t_BackendInfo;
 }
 
-RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo)
+RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible)
 {
 	VkBufferUsageFlags t_BufferUsage;
 	uint32_t t_BufferSize;
@@ -1007,7 +1007,7 @@ RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a
 		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorBiggestResourceType;
 	}
 
-	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)(t_BufferSize, t_BufferUsage, a_CreateInfo.gpuVisible, a_CreateInfo.name);
+	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)(t_BufferSize, t_BufferUsage, a_GpuVisible, a_CreateInfo.name);
 }
 
 RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
@@ -1030,22 +1030,20 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 		for (size_t i = 0; i < a_CreateInfo.bindings.size(); i++)
 		{
 			const DescriptorBinding& t_Binding = a_CreateInfo.bindings[i];
-			VkSampler* t_Samplers = nullptr;
-			if (t_Binding.staticSamplers.size())
-			{
-				BB_ASSERT(t_Binding.type == RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER, 
-					"Vulkan, Trying to set immutable samplers but the descriptor type does not support it. It has to be IMMUTABLE_SAMPLER.");
-				t_Samplers = BBnewArr(s_VulkanTempAllocator, t_Binding.staticSamplers.size(), VkSampler);
-				for (size_t i = 0; i < t_Binding.staticSamplers.size(); i++)
-				{
-					t_Samplers[i] = CreateSampler(t_Binding.staticSamplers[i]);
-				}
-			}
-
 			t_LayoutBinds[i].binding = t_Binding.binding;
 			t_LayoutBinds[i].descriptorCount = t_Binding.descriptorCount;
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(t_Binding.type);
-			t_LayoutBinds[i].pImmutableSamplers = t_Samplers; //Is null or we provide these elements.
+
+			if (t_Binding.staticSampler)
+			{
+				BB_ASSERT(t_Binding.type == RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER,
+					"Vulkan, Trying to set immutable samplers but the descriptor type does not support it. It has to be IMMUTABLE_SAMPLER.");
+				VkSampler t_Sampler = reinterpret_cast<VkSampler>(alloca(sizeof(VkSampler)));
+				t_LayoutBinds[i].pImmutableSamplers = &t_Sampler;
+			}
+			else
+				t_LayoutBinds[i].pImmutableSamplers = nullptr;
+
 			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
 
 			switch (t_Binding.flags)

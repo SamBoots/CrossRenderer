@@ -143,52 +143,159 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
-DescriptorHeap::DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo)
-	:	m_DescriptorMax(a_CreateInfo.descriptorCount), m_DescriptorStartOffset(0)
+
+class DescriptorHeap
 {
-	m_DescriptorHeapPos = 0;
-	m_Heap = s_ApiFunc.createDescriptorHeap(a_CreateInfo);
+public:
+	DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible)
+		: m_DescriptorMax(a_CreateInfo.descriptorCount), m_DescriptorStartOffset(0), m_GpuVisible(a_GpuVisible)
+	{
+		m_DescriptorHeapPos = 0;
+		m_Heap = s_ApiFunc.createDescriptorHeap(a_CreateInfo, a_GpuVisible);
+	}
+	~DescriptorHeap()
+	{
+		//only delete the heap if it's from the start offset.
+		if (m_DescriptorStartOffset == 0)
+			s_ApiFunc.destroyDescriptorHeap(m_Heap);
+		memset(this, 0, sizeof(DescriptorHeap));
+	}
+
+	const DescriptorAllocation Allocate(const RDescriptor a_Descriptor)
+	{
+		AllocateDescriptorInfo t_Info{};
+		t_Info.heap = m_Heap;
+		t_Info.descriptor = a_Descriptor;
+		t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
+		DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
+		m_DescriptorHeapPos += t_Allocation.descriptorCount;
+		BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
+			"Descriptor Heap, over allocating descriptor memory!");
+		return t_Allocation;
+	}
+	inline DescriptorHeap SubAllocate(const uint32_t a_DescriptorCount)
+	{
+		const uint32_t t_NewHeapOffset = m_DescriptorHeapPos;
+		m_DescriptorHeapPos += a_DescriptorCount;
+		BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
+			"Descriptor Heap, over allocating descriptor memory!");
+		return DescriptorHeap(m_Heap, t_NewHeapOffset, a_DescriptorCount, m_GpuVisible);
+	}
+
+	inline void Reset()
+	{
+		m_DescriptorHeapPos = 0;
+	}
+
+	inline RDescriptorHeap GetHeap() const { return m_Heap; }
+	inline const uint32_t GetHeapOffset() const { return m_DescriptorStartOffset; }
+	inline void SetHeapOffset(const uint32_t a_DescriptorOffset)
+	{ 
+		m_DescriptorHeapPos = a_DescriptorOffset; 
+	}
+	inline const uint32_t GetHeapSize() const { return m_DescriptorMax; }
+
+private:
+	//Special constructor that is a suballocated heap.
+	//DescriptorHeap::SubAllocate uses this.
+	DescriptorHeap(const RDescriptorHeap& a_Heap, const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset, const bool a_GpuVisible)
+		: m_Heap(a_Heap), m_DescriptorMax(a_DescriptorCount), m_DescriptorStartOffset(a_HeapOffset), m_GpuVisible(a_GpuVisible) 
+	{
+		m_DescriptorHeapPos = 0;
+	}
+	RDescriptorHeap m_Heap;
+	const uint32_t m_DescriptorMax;
+	const uint32_t m_DescriptorStartOffset;
+	uint32_t m_DescriptorHeapPos;
+	const bool m_GpuVisible;
+};
+
+struct BB::DescriptorManager_inst
+{
+	DescriptorManager_inst(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount)
+		: backBufferCount(a_BackbufferCount), uploadHeap(a_CreateInfo, true)
+	{
+		//allocate all the GPU visible heaps, we create equal per frame.
+		gpuHeaps = BBnewArr(a_SystemAllocator, backBufferCount, DescriptorHeap);
+		for (size_t i = 0; i < backBufferCount; i++)
+		{
+			new (&gpuHeaps[i])DescriptorHeap(a_CreateInfo, false);
+		}
+	}
+	~DescriptorManager_inst()
+	{
+		for (size_t i = 0; i < backBufferCount; i++)
+		{
+			//leak lmao I'm lazy you shouldn't be destroying this without refreshing the entire render system allocator anyway.
+			gpuHeaps[i].~DescriptorHeap();
+		}
+	}
+	DescriptorHeap uploadHeap;
+	//maximum of 3 frames
+	const uint32_t backBufferCount;
+	DescriptorHeap* gpuHeaps;
+};
+
+//Will leak memory if you destruct it, but you should realistically only make this once.
+DescriptorManager::DescriptorManager(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount)
+{
+	m_Inst = BBnew(a_SystemAllocator, DescriptorManager_inst)(a_SystemAllocator, a_CreateInfo, a_BackbufferCount);
 }
 
-DescriptorHeap::~DescriptorHeap()
+//MEMORY LEAK! m_Inst is leaked.
+DescriptorManager::~DescriptorManager()
 {
-	//only delete the heap if it's from the start offset.
-	if (m_DescriptorStartOffset == 0)
-		s_ApiFunc.destroyDescriptorHeap(m_Heap);
-	memset(this, 0, sizeof(DescriptorHeap));
+	m_Inst->~DescriptorManager_inst();
 }
 
-const DescriptorAllocation DescriptorHeap::Allocate(const RDescriptor a_Descriptor)
+const DescriptorAllocation DescriptorManager::Allocate(const RDescriptor a_Descriptor)
 {
-	AllocateDescriptorInfo t_Info{};
-	t_Info.heap = m_Heap;
-	t_Info.descriptor = a_Descriptor;
-	t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
-	DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
-	m_DescriptorHeapPos += t_Allocation.descriptorCount;
-	BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax, 
-		"Descriptor Heap, over allocating descriptor memory!");
-	return t_Allocation;
+	return m_Inst->uploadHeap.Allocate(a_Descriptor);
 }
 
-DescriptorHeap::DescriptorHeap(const RDescriptorHeap& a_Heap,const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset)
-	:	m_Heap(a_Heap), m_DescriptorMax(a_DescriptorCount), m_DescriptorStartOffset(a_HeapOffset)
+void DescriptorManager::UploadToGPUHeap(const uint32_t a_FrameNum) const
 {
-	m_DescriptorHeapPos = 0;
+	BB_ASSERT(a_FrameNum < m_Inst->backBufferCount,
+		"Trying to get a GPU descriptor heap that goes over the amount of backbuffers the renderer has");
+	CopyDescriptorsInfo t_Info;
+	t_Info.descriptorCount = m_Inst->uploadHeap.GetHeapSize();
+	t_Info.dstHeap = m_Inst->uploadHeap.GetHeap();
+	t_Info.dstOffset = m_Inst->uploadHeap.GetHeapOffset();
+	t_Info.srcHeap = m_Inst->gpuHeaps[a_FrameNum].GetHeap();
+	t_Info.srcOffset = m_Inst->gpuHeaps[a_FrameNum].GetHeapOffset();
+	s_ApiFunc.copyDescriptors(t_Info);
 }
 
-DescriptorHeap DescriptorHeap::SubAllocate(const uint32_t a_DescriptorCount)
+const uint32_t DescriptorManager::GetCPUOffsetFlag() const
 {
-	const uint32_t t_NewHeapOffset = m_DescriptorHeapPos;
-	m_DescriptorHeapPos += a_DescriptorCount;
-	BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
-		"Descriptor Heap, over allocating descriptor memory!");
-	return DescriptorHeap(m_Heap, t_NewHeapOffset, a_DescriptorCount);
+	return m_Inst->uploadHeap.GetHeapOffset();
 }
 
-void DescriptorHeap::Reset()
+void DescriptorManager::SetCPUOffsetFlag(const uint32_t a_Offset)
 {
-	m_DescriptorHeapPos = 0;
+	m_Inst->uploadHeap.SetHeapOffset(a_Offset);
+}
+
+void DescriptorManager::ClearCPUHeap()
+{ 
+	m_Inst->uploadHeap.Reset();
+};
+
+const RDescriptorHeap DescriptorManager::GetGPUHeap(const uint32_t a_FrameNum) const
+{ 
+	BB_ASSERT(a_FrameNum < m_Inst->backBufferCount, 
+		"Trying to get a GPU descriptor heap that goes over the amount of backbuffers the renderer has");
+	return m_Inst->gpuHeaps[a_FrameNum].GetHeap();
+}
+
+const uint32_t DescriptorManager::GetHeapOffset() const
+{ 
+	return m_Inst->uploadHeap.GetHeapOffset();
+}
+
+const uint32_t DescriptorManager::GetHeapSize() const
+{ 
+	return m_Inst->uploadHeap.GetHeapSize(); 
 }
 
 void BB::RenderBackend::DisplayDebugInfo()

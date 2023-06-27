@@ -17,8 +17,6 @@ namespace BB
 		SAMPLER,
 		FENCE
 	};
-	
-	struct RenderResourceTracker_Inst;
 
 	struct TrackerImageInfo
 	{
@@ -56,6 +54,6 @@ namespace BB
 
 	private:
 		FreelistAllocator_t m_Allocator{ mbSize * 2 };
-		RenderResourceTracker_Inst* m_Instance = nullptr;
+		struct RenderResourceTracker_Inst* m_Instance = nullptr;
 	};
 }
