@@ -421,7 +421,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 
         //image binding for font.
         t_DescBinds[1].binding = 1;
-        t_DescBinds[1].descriptorCount = 1;
+        t_DescBinds[1].descriptorCount = 0;
         t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
         t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 

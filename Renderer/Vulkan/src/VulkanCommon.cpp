@@ -661,7 +661,7 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
-	t_CreateInfo.pNext = &t_IndexingFeatures;
+	t_CreateInfo.pNext = &t_DescriptorBufferInfo;
 
 	VKASSERT(vkCreateDevice(s_VKB.physicalDevice, 
 		&t_CreateInfo, 

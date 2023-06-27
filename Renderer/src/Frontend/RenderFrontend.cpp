@@ -396,7 +396,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_ImmutableSampler.minLod = -100.f;
 
 			t_DescBinds[4].binding = 4;
-			t_DescBinds[4].descriptorCount = 1;
+			t_DescBinds[4].descriptorCount = 0;
 			t_DescBinds[4].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
 			t_DescBinds[4].type = RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER;
 			t_DescBinds[4].flags = RENDER_DESCRIPTOR_FLAG::NONE;
