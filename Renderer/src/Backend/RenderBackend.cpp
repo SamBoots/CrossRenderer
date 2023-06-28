@@ -213,13 +213,13 @@ private:
 struct BB::DescriptorManager_inst
 {
 	DescriptorManager_inst(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount)
-		: backBufferCount(a_BackbufferCount), uploadHeap(a_CreateInfo, true)
+		: backBufferCount(a_BackbufferCount), uploadHeap(a_CreateInfo, false)
 	{
 		//allocate all the GPU visible heaps, we create equal per frame.
 		gpuHeaps = BBnewArr(a_SystemAllocator, backBufferCount, DescriptorHeap);
-		for (size_t i = 0; i < backBufferCount; i++)
+		for (size_t i = 0; i < a_BackbufferCount; i++)
 		{
-			new (&gpuHeaps[i])DescriptorHeap(a_CreateInfo, false);
+			new (&gpuHeaps[i])DescriptorHeap(a_CreateInfo, true);
 		}
 	}
 	~DescriptorManager_inst()
@@ -259,10 +259,10 @@ void DescriptorManager::UploadToGPUHeap(const uint32_t a_FrameNum) const
 		"Trying to get a GPU descriptor heap that goes over the amount of backbuffers the renderer has");
 	CopyDescriptorsInfo t_Info;
 	t_Info.descriptorCount = m_Inst->uploadHeap.GetHeapSize();
-	t_Info.dstHeap = m_Inst->uploadHeap.GetHeap();
-	t_Info.dstOffset = m_Inst->uploadHeap.GetHeapOffset();
-	t_Info.srcHeap = m_Inst->gpuHeaps[a_FrameNum].GetHeap();
-	t_Info.srcOffset = m_Inst->gpuHeaps[a_FrameNum].GetHeapOffset();
+	t_Info.dstHeap = m_Inst->gpuHeaps[a_FrameNum].GetHeap();
+	t_Info.dstOffset = m_Inst->gpuHeaps[a_FrameNum].GetHeapOffset();
+	t_Info.srcHeap = m_Inst->uploadHeap.GetHeap();
+	t_Info.srcOffset = m_Inst->uploadHeap.GetHeapOffset();
 	s_ApiFunc.copyDescriptors(t_Info);
 }
 
