@@ -419,7 +419,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         RenderDescriptorCreateInfo t_Info{};
-        t_Info.name = "Imgui per-pass data, wrongly a per-frame descriptor.";
+        t_Info.name = "Imgui descriptor";
         t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }

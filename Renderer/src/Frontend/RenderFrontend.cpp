@@ -185,7 +185,6 @@ void Draw3DFrame()
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
-	
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
@@ -365,7 +364,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "per-frame descriptor";
+		t_CreateInfo.name = "3d scene descriptor";
 		FixedArray<DescriptorBinding, 5> t_DescBinds;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 		{//Per frame info Bind
@@ -513,7 +512,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_Pipeline = t_BasicPipe.BuildPipeline();
 
 #pragma endregion //PipelineCreation
-
 
 	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.name = "Graphics queue";

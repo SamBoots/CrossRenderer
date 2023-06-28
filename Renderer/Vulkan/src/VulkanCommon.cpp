@@ -26,6 +26,7 @@ static PFN_vkGetDescriptorSetLayoutSizeEXT GetDescriptorSetLayoutSizeEXT;
 static PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
 static PFN_vkGetDescriptorEXT GetDescriptorEXT;
 static PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
+static PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT CmdBindDescriptorBufferEmbeddedSamplersEXT;
 static PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 
@@ -35,6 +36,7 @@ static inline void VulkanLoadFunctions(VkInstance a_Instance)
 	GetDescriptorSetLayoutBindingOffsetEXT = (PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutBindingOffsetEXT");
 	GetDescriptorEXT = (PFN_vkGetDescriptorEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorEXT");
 	CmdBindDescriptorBuffersEXT = (PFN_vkCmdBindDescriptorBuffersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBuffersEXT");
+	CmdBindDescriptorBufferEmbeddedSamplersEXT = (PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT");
 	CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdSetDescriptorBufferOffsetsEXT");
 	SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(a_Instance, "vkSetDebugUtilsObjectNameEXT");
 }
@@ -2122,6 +2124,11 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 	vkCmdBindPipeline(t_Cmdlist->Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Pipeline->pipeline);
+
+	CmdBindDescriptorBufferEmbeddedSamplersEXT(t_Cmdlist->Buffer(),
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		t_Pipeline->layout,
+		0);
 
 	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
 }
