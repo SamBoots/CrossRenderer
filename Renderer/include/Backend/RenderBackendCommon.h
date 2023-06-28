@@ -69,7 +69,7 @@ namespace BB
 		READONLY_BUFFER, //SRV or Storage buffer
 		READWRITE, //UAV or readwrite storage buffer(?)
 		IMAGE,
-		IMMUTABLE_SAMPLER,
+		SAMPLER,
 		ENUM_SIZE
 	};
 
@@ -280,8 +280,6 @@ namespace BB
 		RENDER_DESCRIPTOR_TYPE type{};
 		RENDER_SHADER_STAGE stage{};
 		RENDER_DESCRIPTOR_FLAG flags{};
-		//Only set this when DESCRIPTOR_TYPE = immutable sampler
-		SamplerCreateInfo* staticSampler = nullptr;
 	};
 
 	struct DescriptorAllocation
@@ -554,6 +552,8 @@ namespace BB
 		RENDER_LOGIC_OP blendLogicOp;
 		uint32_t renderTargetBlendCount = 0;
 		PipelineRenderTargetBlend* renderTargetBlends = nullptr;
+
+		BB::Slice<SamplerCreateInfo> immutableSamplers{};
 	};
 
 	struct VertexAttributeDesc
@@ -668,7 +668,7 @@ namespace BB
 
 	typedef void (*PFN_RenderAPIBindDescriptorHeaps)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-	typedef void (*PFN_RenderAPISetDescriptorHeapOffsets)(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const bool* a_IsSamplerHeap, const size_t* a_Offsets);
+	typedef void (*PFN_RenderAPISetDescriptorHeapOffsets)(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
 	typedef void (*PFN_REnderAPIBindConstant)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);

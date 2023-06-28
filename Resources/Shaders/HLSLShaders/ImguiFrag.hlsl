@@ -16,9 +16,9 @@ struct VSoutput
 SamplerState samplerColor : register(s0, space0);
 
 #ifdef _VULKAN
-Texture2D text : register(t1, space0);
+Texture2D text : register(t0, space1);
 #elif _DIRECTX12
-Texture2D text : register(t0, space0);
+Texture2D text : register(t0, space1);
 #endif
 
 float4 main(VSoutput input) : SV_Target

@@ -271,9 +271,9 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
                     t_Set[0] = (RDescriptor)bd->fontDescriptor.ptrHandle;
                 }
-                bool t_Sampler = false;
+                const uint32_t t_IsSampler = false;
                 const size_t t_HeapOffset = bd->descAllocation.offset;
-                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_Sampler, &t_HeapOffset);
+                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
@@ -412,18 +412,11 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     bd->imageCount = a_Info.imageCount;
 
     {
-        FixedArray<DescriptorBinding, 2> t_DescBinds;
-        //font sampler.
+        FixedArray<DescriptorBinding, 1> t_DescBinds;
         t_DescBinds[0].binding = 0;
         t_DescBinds[0].descriptorCount = 1;
         t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER;
-
-        //image binding for font.
-        t_DescBinds[1].binding = 1;
-        t_DescBinds[1].descriptorCount = 0;
-        t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         RenderDescriptorCreateInfo t_Info{};
         t_Info.name = "Imgui per-pass data, wrongly a per-frame descriptor.";
@@ -453,6 +446,17 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
     //2 vec2's so 4 dwords.
     t_PipeInitInfo.constantData.dwordSize = 4;
+
+    SamplerCreateInfo t_SamplerInfo{};
+    t_SamplerInfo.name = "Imgui font sampler";
+    t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
+    t_SamplerInfo.maxAnistoropy = 1.0f;
+    t_SamplerInfo.maxLod = 100.f;
+    t_SamplerInfo.minLod = -100.f;
+    t_PipeInitInfo.immutableSamplers = Slice(&t_SamplerInfo, 1);
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };
     ShaderCreateInfo t_ShaderInfos[2]{};
@@ -565,7 +569,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 
         WriteDescriptorInfos t_ImguiDescData{};
         WriteDescriptorData t_WriteData{};
-        t_WriteData.binding = 1;
+        t_WriteData.binding = 0;
         t_WriteData.descriptorIndex = 0;
         t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 

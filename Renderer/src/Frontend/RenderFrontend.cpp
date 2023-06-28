@@ -133,7 +133,7 @@ void Draw3DFrame()
 	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, g_descriptorManager->GetGPUHeap(s_CurrentFrame), nullptr);
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 
-	bool t_IsSamplerHeap = false;
+	uint32_t t_IsSamplerHeap = false;
 	size_t t_HeapOffset = sceneDescAllocation.offset;
 	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
 
@@ -349,12 +349,24 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PipeInitInfo.constantData.dwordSize = 1;
 	t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
 
+	SamplerCreateInfo t_ImmutableSampler{};
+	t_ImmutableSampler.name = "standard sampler";
+	t_ImmutableSampler.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.filter = SAMPLER_FILTER::LINEAR;
+	t_ImmutableSampler.maxAnistoropy = 1.0f;
+	t_ImmutableSampler.maxLod = 100.f;
+	t_ImmutableSampler.minLod = -100.f;
+
+	t_PipeInitInfo.immutableSamplers = BB::Slice(&t_ImmutableSampler, 1);
+
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
 		t_CreateInfo.name = "per-frame descriptor";
-		FixedArray<DescriptorBinding, 6> t_DescBinds;
+		FixedArray<DescriptorBinding, 5> t_DescBinds;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 		{//Per frame info Bind
 			t_DescBinds[0].binding = 0;
@@ -384,30 +396,12 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_DescBinds[3].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[3].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
-		SamplerCreateInfo t_ImmutableSampler{};
-		{//Sampler Binds
-			t_ImmutableSampler.name = "standard sampler";
-			t_ImmutableSampler.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_ImmutableSampler.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_ImmutableSampler.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_ImmutableSampler.filter = SAMPLER_FILTER::LINEAR;
-			t_ImmutableSampler.maxAnistoropy = 1.0f;
-			t_ImmutableSampler.maxLod = 100.f;
-			t_ImmutableSampler.minLod = -100.f;
-
-			t_DescBinds[4].binding = 4;
-			t_DescBinds[4].descriptorCount = 0;
-			t_DescBinds[4].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[4].type = RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER;
-			t_DescBinds[4].flags = RENDER_DESCRIPTOR_FLAG::NONE;
-			t_DescBinds[4].staticSampler = &t_ImmutableSampler;
-		}
 		{//Image Binds
-			t_DescBinds[5].binding = 5;
-			t_DescBinds[5].descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBinds[5].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[5].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-			t_DescBinds[5].flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
+			t_DescBinds[4].binding = 4;
+			t_DescBinds[4].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[4].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[4].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+			t_DescBinds[4].flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
 		}
 
 		t_Descriptor1 = RenderBackend::CreateDescriptor(t_CreateInfo);
@@ -430,16 +424,18 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		t_WriteDatas[1].binding = 1;
 		t_WriteDatas[1].descriptorIndex = 0;
+		t_WriteDatas[1].buffer.buffer = s_GlobalInfo.perFrameBuffer;
 		t_WriteDatas[1].buffer.offset = sizeof(BaseFrameInfo);
 		t_WriteDatas[1].buffer.range = sizeof(CameraRenderData);
 
 		t_WriteDatas[2].binding = 2;
 		t_WriteDatas[2].descriptorIndex = 0;
+		t_WriteDatas[2].buffer.buffer = s_GlobalInfo.perFrameBuffer;
 		t_WriteDatas[2].buffer.offset = sizeof(BaseFrameInfo) + sizeof(CameraRenderData);
 		t_WriteDatas[2].buffer.range = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
 		//example image
-		t_WriteDatas[3].binding = 5;
+		t_WriteDatas[3].binding = 4;
 		t_WriteDatas[3].descriptorIndex = 0;
 		t_WriteDatas[3].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 		t_WriteDatas[3].image.image = t_ExampleImage;
@@ -448,7 +444,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		RenderBackend::WriteDescriptors(t_BufferUpdate);
 
-		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1);
+		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1, sceneDescAllocation);
 	}
 
 	t_BasicPipe.BindDescriptor(t_Descriptor1);

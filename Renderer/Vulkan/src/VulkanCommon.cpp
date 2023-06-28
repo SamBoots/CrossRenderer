@@ -22,6 +22,7 @@ constexpr int SAMPLER_DESCRIPTOR_BUFFER_INDEX = 1;
 #include <iostream>
 
 using namespace BB;
+static PFN_vkGetDescriptorSetLayoutSizeEXT GetDescriptorSetLayoutSizeEXT;
 static PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
 static PFN_vkGetDescriptorEXT GetDescriptorEXT;
 static PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
@@ -30,6 +31,7 @@ static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 
 static inline void VulkanLoadFunctions(VkInstance a_Instance)
 {
+	GetDescriptorSetLayoutSizeEXT = (PFN_vkGetDescriptorSetLayoutSizeEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutSizeEXT");
 	GetDescriptorSetLayoutBindingOffsetEXT = (PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutBindingOffsetEXT");
 	GetDescriptorEXT = (PFN_vkGetDescriptorEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorEXT");
 	CmdBindDescriptorBuffersEXT = (PFN_vkCmdBindDescriptorBuffersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBuffersEXT");
@@ -123,7 +125,8 @@ struct VKPipelineBuildInfo
 	VkPipelineLayoutCreateInfo pipeLayoutInfo{};
 
 	uint32_t layoutCount;
-	VkDescriptorSetLayout layout[BINDING_MAX];
+	//Also accept immutable samplers
+	VkDescriptorSetLayout layout[BINDING_MAX + 1];
 };
 
 using PipelineLayoutHash = uint64_t;
@@ -309,12 +312,16 @@ public:
 	{
 		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
 		VkDeviceSize t_AllocSize = s_DescriptorBiggestResourceType * t_Desc->descriptorCount;
-		//vkGetDescriptorSetLayoutSizeEXT(s_VKB.device,
-		//	t_Desc->layout,
-		//	&t_AllocSize);
+		GetDescriptorSetLayoutSizeEXT(s_VKB.device,
+			t_Desc->layout, &t_AllocSize);
 
+		//Descriptors for resources can be either 4 words or 
+		//Add one more descriptor just to make sure we have enough space. 
+		//This is peak programming
+		const uint32_t t_DescriptorCount = (t_AllocSize / s_DescriptorBiggestResourceType) + 1;
+		
 		DescriptorAllocation t_Allocation{};
-		t_Allocation.descriptorCount = t_Desc->descriptorCount;
+		t_Allocation.descriptorCount = t_DescriptorCount;
 		t_Allocation.offset = a_HeapOffset;
 		t_Allocation.descriptor = a_Layout;
 		t_Allocation.bufferStart = m_Start;
@@ -1049,17 +1056,6 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 			t_LayoutBinds[i].binding = t_Binding.binding;
 			t_LayoutBinds[i].descriptorCount = t_Binding.descriptorCount;
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(t_Binding.type);
-
-			if (t_Binding.staticSampler)
-			{
-				BB_ASSERT(t_Binding.type == RENDER_DESCRIPTOR_TYPE::IMMUTABLE_SAMPLER,
-					"Vulkan, Trying to set immutable samplers but the descriptor type does not support it. It has to be IMMUTABLE_SAMPLER.");
-				VkSampler t_Sampler = reinterpret_cast<VkSampler>(alloca(sizeof(VkSampler)));
-				t_LayoutBinds[i].pImmutableSamplers = &t_Sampler;
-			}
-			else
-				t_LayoutBinds[i].pImmutableSamplers = nullptr;
-
 			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
 
 			switch (t_Binding.flags)
@@ -1083,7 +1079,7 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_CreateInfo.bindings.size());
-		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT;
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
@@ -1373,7 +1369,7 @@ void BB::VulkanCopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo)
 {
 	VulkanDescriptorBuffer* t_SrcHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.srcHeap.handle);
 	VulkanDescriptorBuffer* t_DstHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.dstHeap.handle);
-	BB_ASSERT(t_SrcHeap->GetBuffer() != VK_NULL_HANDLE, "Trying to copy descriptors but the source is a GPU visible heap!");
+	BB_ASSERT(t_SrcHeap->GetBuffer() == VK_NULL_HANDLE, "Trying to copy descriptors but the source is a GPU visible heap!");
 	size_t t_DescriptorSize;
 	if (a_CopyInfo.isSamplerHeap)
 		t_DescriptorSize = s_DescriptorSamplerSize;
@@ -1521,7 +1517,6 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 		t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
 	}
 
-
 	{
 		VkPipelineColorBlendAttachmentState* t_ColorBlendAttachment = BBnewArr(
 			t_BuildInfo->buildAllocator,
@@ -1592,6 +1587,35 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 		t_BuildInfo->pipeLayoutInfo.pPushConstantRanges = nullptr;
 	}
 
+	//if we have static samplers, init a special layout for this. Jank but whatever vulkan lmao
+	if (a_InitInfo.immutableSamplers.size() != 0)
+	{
+		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(t_BuildInfo->buildAllocator, 
+			a_InitInfo.immutableSamplers.size(), VkDescriptorSetLayoutBinding);
+
+		for (size_t i = 0; i < a_InitInfo.immutableSamplers.size(); i++)
+		{
+			VkSampler* t_Sampler = BBnew(t_BuildInfo->buildAllocator, VkSampler);
+			*t_Sampler = CreateSampler(a_InitInfo.immutableSamplers[i]);
+			t_LayoutBinds[i].binding = i;
+			t_LayoutBinds[i].descriptorCount = 1;
+			t_LayoutBinds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			t_LayoutBinds[i].pImmutableSamplers = t_Sampler;
+			t_LayoutBinds[i].stageFlags = VK_SHADER_STAGE_ALL;
+		}
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+		t_LayoutInfo.pBindings = t_LayoutBinds;
+		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_InitInfo.immutableSamplers.size());
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
+			&t_LayoutInfo, nullptr, &t_BuildInfo->layout[t_BuildInfo->layoutCount++]),
+			"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
+	}
+	else
+		BB_ASSERT(false, "No sampler attached to a pipeline! Not supported for now as layout set 0 is sampler set.");
+
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
@@ -1641,7 +1665,6 @@ void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handl
 {
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 	BB_ASSERT(t_BuildInfo->pipeInfo.pVertexInputState == nullptr, "Vulkan: Already bound attributes to this pipeline builder!");
-
 
 	VkVertexInputBindingDescription* t_BindingDescription = BBnew(
 		t_BuildInfo->buildAllocator,
@@ -2101,7 +2124,7 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
 }
 
-void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const bool* a_IsSamplerHeap, const size_t* a_Offsets)
+void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
 	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
@@ -2109,7 +2132,7 @@ void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_Recor
 		t_Cmdlist->currentPipelineLayout,
 		static_cast<const uint32_t>(a_FirstSet),
 		a_SetCount,
-		reinterpret_cast<const uint32_t*>(a_IsSamplerHeap),
+		a_HeapIndex,
 		a_Offsets);
 }
 

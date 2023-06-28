@@ -116,14 +116,14 @@ LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_
 	return t_Handle;
 }
 
-void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor)
+void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation)
 {
 	RenderBufferPart t_LightBufferPart = m_Lights.GetBufferAllocInfo();
 
 	WriteDescriptorInfos t_WriteInfo;
 	WriteDescriptorData t_WriteData{};
 	t_WriteInfo.data = Slice(&t_WriteData, 1);
-	t_WriteInfo.allocation = m_DescriptorAllocation;
+	t_WriteInfo.allocation = a_Allocation;
 	t_WriteInfo.descriptorHandle = a_Descriptor;
 
 	t_WriteData.binding = 3;

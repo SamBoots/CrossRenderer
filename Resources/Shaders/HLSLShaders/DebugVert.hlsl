@@ -60,10 +60,10 @@ struct BaseFrameInfo
     float ambientStrength;
 };
 //Maybe add in common if I find a way to combine them.
-StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
+StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space1);
 
-StructuredBuffer<Camera> cam : register(t1, space0);
-StructuredBuffer<ModelInstance> modelInstances : register(t2, space0);
+StructuredBuffer<Camera> cam : register(t1, space1);
+StructuredBuffer<ModelInstance> modelInstances : register(t2, space1);
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {

@@ -169,7 +169,7 @@ public:
 		t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
 		DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
 		m_DescriptorHeapPos += t_Allocation.descriptorCount;
-		BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
+		BB_ASSERT(m_DescriptorMax > m_DescriptorHeapPos,
 			"Descriptor Heap, over allocating descriptor memory!");
 		return t_Allocation;
 	}
@@ -478,9 +478,9 @@ void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_Recordin
 	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
 }
 
-void BB::RenderBackend::SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const bool* a_IsSamplerHeap, const size_t* a_Offsets)
+void BB::RenderBackend::SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
-	s_ApiFunc.setDescriptorHeapOffsets(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_IsSamplerHeap, a_Offsets);
+	s_ApiFunc.setDescriptorHeapOffsets(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_HeapIndex, a_Offsets);
 }
 
 void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
