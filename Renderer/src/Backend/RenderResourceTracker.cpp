@@ -77,7 +77,6 @@ struct BB::RenderResourceTracker_Inst
 	}
 };
 
-
 BB::RenderResourceTracker::RenderResourceTracker()
 {
 	m_Instance = BBnew(m_Allocator, RenderResourceTracker_Inst)(m_Allocator);

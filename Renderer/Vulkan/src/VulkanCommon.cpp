@@ -185,6 +185,7 @@ static VulkanBackend_inst s_VKB;
 static uint32_t s_DescriptorBiggestResourceType = 0;
 static uint32_t s_DescriptorSamplerSize = 0;
 static uint32_t s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::ENUM_SIZE)];
+static uint32_t s_DescriptorBufferAlignment = 0;
 
 #ifdef _DEBUG
 static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHandle, const VkObjectType a_ObjType)
@@ -312,17 +313,17 @@ public:
 	{
 		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
 		VkDeviceSize t_AllocSize = s_DescriptorBiggestResourceType * t_Desc->descriptorCount;
-		GetDescriptorSetLayoutSizeEXT(s_VKB.device,
-			t_Desc->layout, &t_AllocSize);
+
+		Pointer::AlignPad(t_AllocSize, s_DescriptorBufferAlignment);
 
 		//Descriptors for resources can be either 4 words or 
 		//Add one more descriptor just to make sure we have enough space. 
 		//This is peak programming
-		const uint32_t t_DescriptorCount = (t_AllocSize / s_DescriptorBiggestResourceType) + 1;
+		const uint32_t t_DescriptorCount = t_AllocSize / s_DescriptorBiggestResourceType;
 		
 		DescriptorAllocation t_Allocation{};
 		t_Allocation.descriptorCount = t_DescriptorCount;
-		t_Allocation.offset = a_HeapOffset;
+		t_Allocation.offset = a_HeapOffset * s_DescriptorBufferAlignment;
 		t_Allocation.descriptor = a_Layout;
 		t_Allocation.bufferStart = m_Start;
 		return t_Allocation;
@@ -977,6 +978,7 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		}
 		s_DescriptorBiggestResourceType = t_BiggestDescriptorType;
 		s_DescriptorSamplerSize = t_DescBufferInfo.samplerDescriptorSize;
+		s_DescriptorBufferAlignment = t_DescBufferInfo.descriptorBufferOffsetAlignment;
 	}
 
 	CreateSwapchain(s_VKB.surface,

@@ -143,7 +143,6 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
-
 class DescriptorHeap
 {
 public:
@@ -163,7 +162,7 @@ public:
 
 	const DescriptorAllocation Allocate(const RDescriptor a_Descriptor)
 	{
-		AllocateDescriptorInfo t_Info{};
+		AllocateDescriptorInfo t_Info;
 		t_Info.heap = m_Heap;
 		t_Info.descriptor = a_Descriptor;
 		t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
@@ -173,6 +172,8 @@ public:
 			"Descriptor Heap, over allocating descriptor memory!");
 		return t_Allocation;
 	}
+
+	//do not use this, descriptorheapmanager handles this now with seperate heaps per backbuffer.
 	inline DescriptorHeap SubAllocate(const uint32_t a_DescriptorCount)
 	{
 		const uint32_t t_NewHeapOffset = m_DescriptorHeapPos;

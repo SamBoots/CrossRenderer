@@ -5,7 +5,7 @@ namespace BB
 {
 	class Editor;
 
-	enum class RESOURCE_TYPE
+	enum class RESOURCE_TYPE : uint32_t
 	{
 		DESCRIPTOR,
 		COMMAND_QUEUE,

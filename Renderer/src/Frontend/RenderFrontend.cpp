@@ -249,7 +249,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
 
 	{
-		constexpr size_t SUBHEAPSIZE = 1024;
+		constexpr size_t SUBHEAPSIZE = 64 * 1024;
 		DescriptorHeapCreateInfo t_HeapInfo{};
 		t_HeapInfo.name = "Resource Heap";
 		t_HeapInfo.descriptorCount = SUBHEAPSIZE;
