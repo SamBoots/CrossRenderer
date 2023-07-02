@@ -87,6 +87,40 @@ sizeof(BaseFrameInfo) +
 sizeof(CameraRenderData) +
 sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
+static void UpdateSceneDescriptors()
+{
+	const size_t t_BufferOffset = PERFRAME_TRANSFER_BUFFER_SIZE * s_CurrentFrame;
+
+	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
+	WriteDescriptorInfos t_BufferUpdate{};
+	t_BufferUpdate.allocation = sceneDescAllocation;
+	t_BufferUpdate.descriptorHandle = t_Descriptor1;
+	t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
+
+	t_WriteDatas[0].binding = 0;
+	t_WriteDatas[0].descriptorIndex = 0;
+	t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[0].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[0].buffer.offset = t_BufferOffset;
+	t_WriteDatas[0].buffer.range = sizeof(BaseFrameInfo);
+
+	t_WriteDatas[1].binding = 1;
+	t_WriteDatas[1].descriptorIndex = 0;
+	t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[1].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[1].buffer.offset = sizeof(BaseFrameInfo) + t_BufferOffset;
+	t_WriteDatas[1].buffer.range = sizeof(CameraRenderData);
+
+	t_WriteDatas[2].binding = 2;
+	t_WriteDatas[2].descriptorIndex = 0;
+	t_WriteDatas[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[2].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[2].buffer.offset = sizeof(BaseFrameInfo) + sizeof(CameraRenderData) + t_BufferOffset;
+	t_WriteDatas[2].buffer.range = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+
+	RenderBackend::WriteDescriptors(t_BufferUpdate);
+}
+
 void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
@@ -408,38 +442,19 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		FixedArray<WriteDescriptorData, 4> t_WriteDatas;
+		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
 		WriteDescriptorInfos t_BufferUpdate{};
 		t_BufferUpdate.allocation = sceneDescAllocation;
 		t_BufferUpdate.descriptorHandle = t_Descriptor1;
 		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
 
-		t_WriteDatas[0].binding = 0;
-		t_WriteDatas[0].descriptorIndex = 0;
-		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteDatas[0].buffer.buffer = s_GlobalInfo.perFrameBuffer;
-		t_WriteDatas[0].buffer.offset = 0;
-		t_WriteDatas[0].buffer.range = sizeof(BaseFrameInfo);
-
-		t_WriteDatas[1].binding = 1;
-		t_WriteDatas[1].descriptorIndex = 0;
-		t_WriteDatas[1].buffer.buffer = s_GlobalInfo.perFrameBuffer;
-		t_WriteDatas[1].buffer.offset = sizeof(BaseFrameInfo);
-		t_WriteDatas[1].buffer.range = sizeof(CameraRenderData);
-
-		t_WriteDatas[2].binding = 2;
-		t_WriteDatas[2].descriptorIndex = 0;
-		t_WriteDatas[2].buffer.buffer = s_GlobalInfo.perFrameBuffer;
-		t_WriteDatas[2].buffer.offset = sizeof(BaseFrameInfo) + sizeof(CameraRenderData);
-		t_WriteDatas[2].buffer.range = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
-
 		//example image
-		t_WriteDatas[3].binding = 4;
-		t_WriteDatas[3].descriptorIndex = 0;
-		t_WriteDatas[3].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-		t_WriteDatas[3].image.image = t_ExampleImage;
-		t_WriteDatas[3].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_WriteDatas[3].image.sampler = nullptr;
+		t_WriteDatas[0].binding = 4;
+		t_WriteDatas[0].descriptorIndex = 0;
+		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		t_WriteDatas[0].image.image = t_ExampleImage;
+		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_WriteDatas[0].image.sampler = nullptr;
 
 		RenderBackend::WriteDescriptors(t_BufferUpdate);
 
@@ -896,6 +911,8 @@ void BB::Render::EndFrame()
 {
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
+
+	UpdateSceneDescriptors();
 	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,

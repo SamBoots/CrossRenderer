@@ -628,6 +628,10 @@ namespace BB
 	{
 		uint32_t framebufferCount = 0;
 		FrameIndex currentFrame = 0;
+
+		uint32_t minReadonlyConstantOffset;
+		uint32_t minReadonlyBufferOffset;
+		uint32_t minReadWriteBufferOffset;
 	};
 
 	//construction

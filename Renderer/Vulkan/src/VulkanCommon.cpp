@@ -138,6 +138,10 @@ struct VulkanBackend_inst
 	FrameIndex frameCount = 0;
 	uint32_t imageIndex = 0;
 
+	uint32_t minReadonlyConstantOffset;
+	uint32_t minReadonlyBufferOffset;
+	uint32_t minReadWriteBufferOffset;
+
 	VkInstance instance{};
 	VkSurfaceKHR surface{};
 
@@ -325,7 +329,7 @@ public:
 		
 		DescriptorAllocation t_Allocation{};
 		t_Allocation.descriptorCount = t_DescriptorCount;
-		t_Allocation.offset = a_HeapOffset * s_DescriptorBufferAlignment;
+		t_Allocation.offset = a_HeapOffset * s_DescriptorBiggestResourceType;
 		t_Allocation.descriptor = a_Layout;
 		t_Allocation.bufferStart = m_Start;
 		return t_Allocation;
@@ -874,6 +878,9 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 
 BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
+	//Returns some info to the global backend that is important.
+	BackendInfo t_BackendInfo;
+
 	//Initialize data structure
 	s_VKB.CreatePools();
 
@@ -962,9 +969,9 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 	{
 		VkPhysicalDeviceDescriptorBufferPropertiesEXT t_DescBufferInfo{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT, nullptr };
-		VkPhysicalDeviceProperties2 t_DeviceProperties{};
-		t_DeviceProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+		VkPhysicalDeviceProperties2 t_DeviceProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 		t_DeviceProperties.pNext = &t_DescBufferInfo;
+
 		vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
 
 		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT)] = t_DescBufferInfo.uniformBufferDescriptorSize;
@@ -981,6 +988,10 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		s_DescriptorBiggestResourceType = t_BiggestDescriptorType;
 		s_DescriptorSamplerSize = t_DescBufferInfo.samplerDescriptorSize;
 		s_DescriptorBufferAlignment = t_DescBufferInfo.descriptorBufferOffsetAlignment;
+
+		t_BackendInfo.minReadonlyConstantOffset = t_DeviceProperties.properties.limits.minUniformBufferOffsetAlignment;
+		t_BackendInfo.minReadonlyBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
+		t_BackendInfo.minReadWriteBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
 	}
 
 	CreateSwapchain(s_VKB.surface,
@@ -1011,7 +1022,6 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VKB.vma);
 
 	//Returns some info to the global backend that is important.
-	BackendInfo t_BackendInfo;
 	t_BackendInfo.currentFrame = s_VKB.currentFrame;
 	t_BackendInfo.framebufferCount = s_VKB.frameCount;
 
@@ -1062,13 +1072,13 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(t_Binding.type);
 			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
 
+			t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
 			switch (t_Binding.flags)
 			{
 			case BB::RENDER_DESCRIPTOR_FLAG::NONE:
 				t_BindlessFlags[i] = 0;
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
-				t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
 				
@@ -1417,8 +1427,8 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 			reinterpret_cast<VulkanDescriptor*>(a_WriteInfo.descriptorHandle.handle)->layout,
 			t_WriteData.binding,
 			&t_Offset);
-
-		void* t_DescriptorLocation = Pointer::Add(a_WriteInfo.allocation.bufferStart, a_WriteInfo.allocation.offset);
+		
+		void* t_DescriptorLocation = Pointer::Add(a_WriteInfo.allocation.bufferStart, a_WriteInfo.allocation.offset + t_Offset);
 
 		union VkDescData
 		{
@@ -2139,7 +2149,7 @@ void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_Recor
 	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Cmdlist->currentPipelineLayout,
-		static_cast<const uint32_t>(a_FirstSet),
+		static_cast<const uint32_t>(a_FirstSet) + 1,
 		a_SetCount,
 		a_HeapIndex,
 		a_Offsets);
