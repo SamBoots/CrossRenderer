@@ -20,6 +20,13 @@ struct Entry
 	void* typeInfo = nullptr;
 };
 
+struct DescriptorDebugInfo
+{
+	const char* name = nullptr;
+	uint32_t bindingCount;
+	DescriptorBinding* bindings;
+};
+
 struct BB::RenderResourceTracker_Inst
 {
 	RenderResourceTracker_Inst(Allocator a_Allocator) : entryMap(a_Allocator, 128) {};
@@ -90,7 +97,27 @@ BB::RenderResourceTracker::~RenderResourceTracker()
 
 void BB::RenderResourceTracker::AddDescriptor(const RenderDescriptorCreateInfo& a_Descriptor, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Descriptor, RESOURCE_TYPE::DESCRIPTOR, a_Name, a_ID);
+	constexpr size_t t_EntrySize = sizeof(DescriptorDebugInfo) + sizeof(Entry);
+	const size_t t_BindingAllocSize = a_Descriptor.bindings.sizeInBytes();
+	const size_t t_AllocSize = t_EntrySize + t_BindingAllocSize;
+
+	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_AllocSize));
+	t_Entry->type = RESOURCE_TYPE::DESCRIPTOR;
+	t_Entry->timeId = m_Instance->timeID++;
+	t_Entry->id = a_ID;
+	t_Entry->name = a_Name;
+	t_Entry->next = m_Instance->headEntry;
+	t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
+	DescriptorDebugInfo* t_DescDebug = reinterpret_cast<DescriptorDebugInfo*>(t_Entry->typeInfo);
+	t_DescDebug->name = a_Name;
+	t_DescDebug->bindingCount = a_Descriptor.bindings.size();
+	t_DescDebug->bindings = reinterpret_cast<DescriptorBinding*>(Pointer::Add(t_Entry, t_EntrySize));
+	Memory::Copy(t_DescDebug->bindings, a_Descriptor.bindings.data(), t_DescDebug->bindingCount);
+
+
+	++m_Instance->entries;
+	m_Instance->headEntry = t_Entry;
+	m_Instance->entryMap.insert(t_Entry->id, t_Entry);
 }
 
 void BB::RenderResourceTracker::AddQueue(const RenderCommandQueueCreateInfo& a_Queue, const char* a_Name, const uint64_t a_ID)
@@ -120,6 +147,7 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 
 	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_AllocSize));
 	t_Entry->type = RESOURCE_TYPE::PIPELINE;
+	t_Entry->timeId = m_Instance->timeID++;
 	t_Entry->id = a_ID;
 	t_Entry->name = a_Name;
 	t_Entry->next = m_Instance->headEntry;
@@ -142,9 +170,9 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 		t_PipelineInfo->immutableSamplers = reinterpret_cast<SamplerCreateInfo*>(Pointer::Add(t_Entry, t_EntrySize + t_ShaderInfoSize + t_ImmutableSamplerSize));
 		t_PipelineInfo->immutableSamplers[i] = a_Pipeline.immutableSamplers[i];
 	}
+
 	++m_Instance->entries;
 	m_Instance->headEntry = t_Entry;
-
 	m_Instance->entryMap.insert(t_Entry->id, t_Entry);
 }
 
@@ -370,10 +398,10 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 				{
 				case RESOURCE_TYPE::DESCRIPTOR:
 				{
-					const RenderDescriptorCreateInfo& t_Desc =
-						*reinterpret_cast<RenderDescriptorCreateInfo*>(t_Entry->typeInfo);
+					const DescriptorDebugInfo& t_Desc =
+						*reinterpret_cast<DescriptorDebugInfo*>(t_Entry->typeInfo);
 
-					for (size_t i = 0; i < t_Desc.bindings.size(); i++)
+					for (size_t i = 0; i < t_Desc.bindingCount; i++)
 					{
 						const DescriptorBinding& t_Bind = t_Desc.bindings[i];
 						if (ImGui::TreeNode((void*)(intptr_t)i, "Binding: %u", t_Bind.binding))
