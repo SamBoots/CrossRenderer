@@ -587,6 +587,8 @@ namespace BB
 		ShaderInfo* shaderInfo = nullptr;
 		uint32_t attributeCount = 0;
 		VertexAttributeDesc* attributes = nullptr;
+		uint32_t immutableSamplerCount = 0;
+		SamplerCreateInfo* immutableSamplers = nullptr;
 	};
 #endif _DEBUG
 

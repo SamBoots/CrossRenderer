@@ -111,11 +111,14 @@ void BB::RenderResourceTracker::AddCommandList(const RenderCommandListCreateInfo
 void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline, const char* a_Name, const uint64_t a_ID)
 {
 	//Pipeline has multiple dynamic entries so account for that.
-	const size_t t_EntrySize = sizeof(PipelineDebugInfo) + sizeof(Entry);
+	constexpr size_t t_EntrySize = sizeof(PipelineDebugInfo) + sizeof(Entry);
 	const size_t t_ShaderInfoSize = a_Pipeline.shaderCount * sizeof(PipelineDebugInfo::ShaderInfo);
 	const size_t t_AttributeSize = a_Pipeline.attributeCount * sizeof(VertexAttributeDesc);
+	const size_t t_ImmutableSamplerSize = a_Pipeline.immutableSamplerCount * sizeof(SamplerCreateInfo);
+	const size_t t_AllocSize = t_EntrySize + t_ShaderInfoSize + t_AttributeSize + t_ImmutableSamplerSize;
 
-	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_EntrySize + t_ShaderInfoSize + t_AttributeSize));
+
+	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_AllocSize));
 	t_Entry->type = RESOURCE_TYPE::PIPELINE;
 	t_Entry->id = a_ID;
 	t_Entry->name = a_Name;
@@ -133,6 +136,11 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 	{
 		t_PipelineInfo->attributes = reinterpret_cast<VertexAttributeDesc*>(Pointer::Add(t_Entry, t_EntrySize + t_ShaderInfoSize));
 		t_PipelineInfo->attributes[i] = a_Pipeline.attributes[i];
+	}
+	for (size_t i = 0; i < a_Pipeline.immutableSamplerCount; i++)
+	{
+		t_PipelineInfo->immutableSamplers = reinterpret_cast<SamplerCreateInfo*>(Pointer::Add(t_Entry, t_EntrySize + t_ShaderInfoSize + t_ImmutableSamplerSize));
+		t_PipelineInfo->immutableSamplers[i] = a_Pipeline.immutableSamplers[i];
 	}
 	++m_Instance->entries;
 	m_Instance->headEntry = t_Entry;
@@ -316,6 +324,18 @@ void BB::RenderResourceTracker::SortByTime()
 #include "imgui.h"
 #include "RenderBackendCommon.inl"
 
+//Does not show the name.
+static inline void ShowSamplerImgui(const SamplerCreateInfo& a_Sampler)
+{
+	ImGui::Text("U Address: %s", SamplerAddressStr(a_Sampler.addressModeU));
+	ImGui::Text("V Address: %s", SamplerAddressStr(a_Sampler.addressModeV));
+	ImGui::Text("W Address: %s", SamplerAddressStr(a_Sampler.addressModeW));
+	ImGui::Text("Filter: %s", SamplerFilterStr(a_Sampler.filter));
+	ImGui::Text("Anistoropy: %.6f", a_Sampler.maxAnistoropy);
+	ImGui::Text("Min LOD: %.6f", a_Sampler.minLod);
+	ImGui::Text("Max LOD: %.6f", a_Sampler.maxLod);
+}
+
 void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 {
 	RenderResourceTracker_Inst* t_Inst = a_ResTracker.m_Instance;
@@ -355,10 +375,9 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 
 					for (size_t i = 0; i < t_Desc.bindings.size(); i++)
 					{
-						if (ImGui::TreeNode("PLACE_HOLDER_DESC_NAME_WILL_CRASH"))
+						const DescriptorBinding& t_Bind = t_Desc.bindings[i];
+						if (ImGui::TreeNode((void*)(intptr_t)i, "Binding: %u", t_Bind.binding))
 						{
-							const DescriptorBinding& t_Bind = t_Desc.bindings[i];
-							ImGui::Text("Binding: %u", t_Bind.binding);
 							ImGui::Text("DescriptorCount: %u", t_Bind.descriptorCount);
 							ImGui::Text("Descriptor Type: %s", DescriptorTypeStr(t_Bind.type));
 							ImGui::Text("Shader Stage: %s", ShaderStageStr(t_Bind.stage));
@@ -502,12 +521,25 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 						}
 						ImGui::TreePop();
 					}
+
+					if (ImGui::TreeNode("Immutable Samplers"))
+					{
+						for (size_t i = 0; i < t_Pipeline.immutableSamplerCount; i++)
+						{
+							const SamplerCreateInfo& t_Sampler = t_Pipeline.immutableSamplers[i];
+							if (ImGui::TreeNode(t_Sampler.name))
+							{
+								ShowSamplerImgui(t_Sampler);
+								ImGui::TreePop();
+							}
+						}
+						ImGui::TreePop();
+					}
 				}
 				break;
 				case RESOURCE_TYPE::BUFFER:
 				{
-					const RenderBufferCreateInfo& t_Buffer =
-						*reinterpret_cast<RenderBufferCreateInfo*>(t_Entry->typeInfo);
+					const RenderBufferCreateInfo& t_Buffer = *reinterpret_cast<RenderBufferCreateInfo*>(t_Entry->typeInfo);
 					ImGui::Text("Size: %u", t_Buffer.size);
 					switch (t_Buffer.usage)
 					{
@@ -571,13 +603,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 					const SamplerCreateInfo& t_Sampler =
 						*reinterpret_cast<SamplerCreateInfo*>(t_Entry->typeInfo);
 
-					ImGui::Text("U Address: %s", SamplerAddressStr(t_Sampler.addressModeU));
-					ImGui::Text("V Address: %s", SamplerAddressStr(t_Sampler.addressModeV));
-					ImGui::Text("W Address: %s", SamplerAddressStr(t_Sampler.addressModeW));
-					ImGui::Text("Filter: %s", SamplerFilterStr(t_Sampler.filter));
-					ImGui::Text("Anistoropy: %.6f", t_Sampler.maxAnistoropy);
-					ImGui::Text("Min LOD: %.6f", t_Sampler.minLod);
-					ImGui::Text("Max LOD: %.6f", t_Sampler.maxLod);
+					ShowSamplerImgui(t_Sampler);
 				}
 				break;
 				case RESOURCE_TYPE::FENCE:

@@ -29,25 +29,34 @@ PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 	{
 		m_DebugInfo.renderTargetBlends[i] = a_InitInfo.renderTargetBlends[i];
 	}
+
+	m_DebugInfo.immutableSamplerCount = static_cast<uint32_t>(a_InitInfo.immutableSamplers.size());
+	m_DebugInfo.immutableSamplers = (SamplerCreateInfo*)(_malloca(a_InitInfo.immutableSamplers.sizeInBytes()));
+	for (size_t i = 0; i < m_DebugInfo.immutableSamplerCount; i++)
+	{
+		m_DebugInfo.immutableSamplers[i] = a_InitInfo.immutableSamplers[i];
+	}
 #endif //_DEBUG
 }
 
 PipelineBuilder::~PipelineBuilder()
 {
 	BB_ASSERT(m_BuilderHandle.handle == 0, "Unfinished pipeline destructed! Big memory leak and improper graphics API usage.");
-
 #ifdef _DEBUG
 	if (m_DebugInfo.shaderInfo)
 	{
 		_freea(m_DebugInfo.shaderInfo);
-		m_DebugInfo.shaderInfo = nullptr;
 	}
-	if (m_DebugInfo.shaderInfo)
+	if (m_DebugInfo.attributes)
 	{
 		_freea(m_DebugInfo.attributes);
-		m_DebugInfo.attributes = nullptr;
+	}
+	if (m_DebugInfo.immutableSamplerCount)
+	{
+		_freea(m_DebugInfo.immutableSamplers);
 	}
 #endif //_DEBUG
+	memset(this, 0, sizeof(*this));
 }
 
 void PipelineBuilder::BindDescriptor(const RDescriptor a_Handle)
@@ -97,10 +106,15 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 		_freea(m_DebugInfo.shaderInfo);
 		m_DebugInfo.shaderInfo = nullptr;
 	}
-	if (m_DebugInfo.shaderInfo)
+	if (m_DebugInfo.attributes)
 	{
 		_freea(m_DebugInfo.attributes);
 		m_DebugInfo.attributes = nullptr;
+	}
+	if (m_DebugInfo.immutableSamplerCount)
+	{
+		_freea(m_DebugInfo.immutableSamplers);
+		m_DebugInfo.immutableSamplers = nullptr;
 	}
 #endif //_DEBUG
 
