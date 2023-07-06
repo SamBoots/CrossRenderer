@@ -273,15 +273,6 @@ namespace BB
 		float maxLod = 0;
 	};
 
-	struct DescriptorBinding
-	{
-		uint32_t binding = 0;
-		uint32_t descriptorCount = 0;
-		RENDER_DESCRIPTOR_TYPE type{};
-		RENDER_SHADER_STAGE stage{};
-		RENDER_DESCRIPTOR_FLAG flags{};
-	};
-
 	struct DescriptorAllocation
 	{
 		uint32_t offset = 0;
@@ -349,9 +340,19 @@ namespace BB
 		BB::Slice<WriteDescriptorData> data;
 	};
 
+	struct DescriptorBinding
+	{
+		uint32_t binding = 0;
+		uint32_t descriptorCount = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
+		RENDER_SHADER_STAGE stage{};
+		RENDER_DESCRIPTOR_FLAG flags{};
+	};
+
 	struct RenderDescriptorCreateInfo
 	{
 		const char* name = nullptr;
+		RENDER_BINDING_SET bindingSet{};
 		BB::Slice<DescriptorBinding> bindings{};
 	};
 

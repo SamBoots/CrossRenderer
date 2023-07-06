@@ -20,21 +20,6 @@ const D3D12_SHADER_VISIBILITY BB::DXConv::ShaderVisibility(const RENDER_SHADER_S
 	}
 }
 
-const D3D12_RESOURCE_STATES BB::DXConv::ResourceStates(const RENDER_BUFFER_USAGE a_Usage)
-{
-	switch (a_Usage)
-	{
-	case RENDER_BUFFER_USAGE::VERTEX:				return D3D12_RESOURCE_STATE_COPY_DEST;
-	case RENDER_BUFFER_USAGE::INDEX:				return D3D12_RESOURCE_STATE_COPY_DEST;
-	case RENDER_BUFFER_USAGE::STORAGE:				return D3D12_RESOURCE_STATE_COPY_DEST;
-	case RENDER_BUFFER_USAGE::STAGING:				return D3D12_RESOURCE_STATE_GENERIC_READ;
-	default:
-		BB_ASSERT(false, "DX12, this Buffer Usage not supported by DX12!");
-		return D3D12_RESOURCE_STATE_COMMON;
-		break;
-	}
-}
-
 const D3D12_RESOURCE_STATES BB::DXConv::ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout)
 {
 	switch (a_ImageLayout)
@@ -117,13 +102,6 @@ const D3D12_LOGIC_OP BB::DXConv::LogicOp(const RENDER_LOGIC_OP a_LogicOp)
 	}
 }
 
-//Safely releases a type by setting it back to null
-void BB::DXRelease(IUnknown* a_Obj)
-{
-	if (a_Obj)
-		a_Obj->Release();
-}
-
 DXFence::DXFence(const char* a_Name)
 {
 	DXASSERT(s_DX12B.device->CreateFence(0,
@@ -147,6 +125,7 @@ DXFence::~DXFence()
 {
 	CloseHandle(m_FenceEvent);
 	DXRelease(m_Fence);
+	memset(this, 0, sizeof(*this));
 }
 
 uint64_t DXFence::PollFenceValue()
@@ -239,6 +218,7 @@ DXResource::~DXResource()
 {
 	m_Resource->Release();
 	m_Allocation->Release();
+	memset(this, 0, sizeof(*this));
 }
 
 DXImage::DXImage(const RenderImageCreateInfo& a_CreateInfo)
@@ -263,11 +243,15 @@ DXImage::DXImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		t_StartState = D3D12_RESOURCE_STATE_COMMON;
+
+		m_TextureData.format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
 		break;
 	case RENDER_IMAGE_FORMAT::RGBA8_UNORM:
 		t_Desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		t_Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		t_StartState = D3D12_RESOURCE_STATE_COMMON;
+
+		m_TextureData.format = DXGI_FORMAT_B8G8R8A8_UNORM;
 		break;
 	case RENDER_IMAGE_FORMAT::DEPTH_STENCIL:
 		t_Desc.Format = DEPTH_FORMAT;
@@ -315,8 +299,8 @@ DXImage::DXImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_DepthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		t_DepthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
-		DescriptorHeapHandle t_HeapHandle = s_DX12B.dsvHeap->Allocate(1);
-		m_DepthData.dsvHandle = t_HeapHandle.cpuHandle;
+		D3D12_CPU_DESCRIPTOR_HANDLE t_HeapHandle = s_DX12B.dsvHeap.Allocate();
+		m_DepthData.dsvHandle = t_HeapHandle;
 		s_DX12B.device->CreateDepthStencilView(m_Resource, &t_DepthStencilDesc, m_DepthData.dsvHandle);
 	}
 
@@ -333,6 +317,7 @@ DXImage::~DXImage()
 
 	m_Resource->Release();
 	m_Allocation->Release();
+	memset(this, 0, sizeof(*this));
 }
 
 DXSampler::DXSampler(const SamplerCreateInfo& a_Info)
@@ -350,7 +335,7 @@ DXSampler::DXSampler(const SamplerCreateInfo& a_Info)
 }
 DXSampler::~DXSampler()
 {
-
+	memset(this, 0, sizeof(*this));
 }
 
 void DXSampler::UpdateSamplerInfo(const SamplerCreateInfo& a_Info)
@@ -420,6 +405,7 @@ DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D
 DXCommandQueue::~DXCommandQueue()
 {
 	DXRelease(m_Queue);
+	memset(this, 0, sizeof(*this));
 }
 
 void DXCommandQueue::InsertWait(const uint64_t a_FenceValue)
@@ -477,6 +463,7 @@ DXCommandAllocator::~DXCommandAllocator()
 {
 	m_Lists.DestroyPool(s_DX12Allocator);
 	DXRelease(m_Allocator);
+	memset(this, 0, sizeof(*this));
 }
 
 void DXCommandAllocator::FreeCommandList(DXCommandList* a_CmdList)
@@ -512,8 +499,7 @@ DXCommandList::DXCommandList(DXCommandAllocator& a_CmdAllocator)
 DXCommandList::~DXCommandList()
 {
 	DXRelease(m_List);
-	rtv = nullptr;
-	boundPipeline = nullptr;
+	memset(this, 0, sizeof(*this));
 }
 
 void DXCommandList::Reset(ID3D12PipelineState* a_PipeState)
@@ -532,11 +518,9 @@ void DXCommandList::Free()
 	m_CmdAllocator.FreeCommandList(this);
 }
 
-DescriptorHeap::DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
-	uint32_t a_DescriptorCount, bool a_ShaderVisible)
+DXDescriptorHeap::DXDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible, const char* a_Name)
+	:	m_HeapType(a_HeapType), m_MaxDescriptors(a_DescriptorCount), m_IncrementSize(s_DX12B.device->GetDescriptorHandleIncrementSize(a_HeapType))
 {
-	m_HeapType = a_HeapType;
-	m_MaxDescriptors = a_DescriptorCount;
 	m_HeapGPUStart = {};
 	D3D12_DESCRIPTOR_HEAP_DESC t_HeapInfo{};
 	t_HeapInfo.Type = a_HeapType;
@@ -546,6 +530,10 @@ DescriptorHeap::DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
 
 	DXASSERT(s_DX12B.device->CreateDescriptorHeap(&t_HeapInfo, IID_PPV_ARGS(&m_DescriptorHeap)),
 		"DX12, Failed to create descriptor heap.");
+#ifdef _DEBUG
+	if (a_Name)
+		m_DescriptorHeap->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Name));
+#endif
 
 	m_HeapCPUStart = m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
@@ -553,36 +541,35 @@ DescriptorHeap::DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType,
 	{
 		m_HeapGPUStart = m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	}
-
-	m_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(a_HeapType);
-	
 }
 
-DescriptorHeap::~DescriptorHeap()
+DXDescriptorHeap::~DXDescriptorHeap()
 {
 	DXRelease(m_DescriptorHeap);
 	m_DescriptorHeap = nullptr;
+	memset(this, 0, sizeof(*this));
 }
 
-DescriptorHeapHandle DescriptorHeap::Allocate(const uint32_t a_Count)
+DescriptorAllocation DXDescriptorHeap::Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
 {
-	DescriptorHeapHandle t_AllocHandle{};
-	BB_ASSERT((m_InUse + a_Count < m_MaxDescriptors),
-		"DX12, Descriptorheap has no more descriptors left!");
+	DXDescriptor* t_Desc = reinterpret_cast<DXDescriptor*>(a_Layout.handle);
+	const uint64_t t_AllocSize = static_cast<uint64_t>(t_Desc->descriptorCount) * m_IncrementSize;
 
-	t_AllocHandle.heap = m_DescriptorHeap;
-	t_AllocHandle.cpuHandle.ptr = m_HeapCPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
-	t_AllocHandle.gpuHandle.ptr = m_HeapGPUStart.ptr + static_cast<uintptr_t>(m_InUse * m_IncrementSize);
-	t_AllocHandle.incrementSize = m_IncrementSize;
-	t_AllocHandle.heapIndex = m_InUse;
-	t_AllocHandle.count = a_Count;
+	DescriptorAllocation t_Allocation{};
+	t_Allocation.descriptorCount = t_Desc->descriptorCount;
+	t_Allocation.offset = a_HeapOffset;
+	t_Allocation.descriptor = a_Layout;
+	t_Allocation.bufferStart = reinterpret_cast<void*>(m_HeapCPUStart.ptr);
 
-	m_InUse += a_Count;
-
-	return t_AllocHandle;
+	m_InUse += t_Allocation.descriptorCount;
+	return t_Allocation;
 }
 
-void DescriptorHeap::Reset()
+D3D12_CPU_DESCRIPTOR_HANDLE DepthDescriptorHeap::Allocate()
 {
-	m_InUse = 0;
+	D3D12_CPU_DESCRIPTOR_HANDLE t_Handle = heap->GetCPUDescriptorHandleForHeapStart();
+	t_Handle.ptr += static_cast<uint64_t>(pos) * s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	++pos;
+	BB_ASSERT(max > pos, "DX12, too many depth allocations!");
+	return t_Handle;
 }

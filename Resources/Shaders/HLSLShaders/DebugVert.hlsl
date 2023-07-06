@@ -1,9 +1,12 @@
 #ifdef _VULKAN
 #define _BBEXT(num) [[vk::location(num)]]
+#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #elif _DIRECTX12
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #else
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #endif
 
 struct VSInput
@@ -60,10 +63,10 @@ struct BaseFrameInfo
     float ambientStrength;
 };
 //Maybe add in common if I find a way to combine them.
-StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space1);
+_BBBIND(0, 1) StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
 
-StructuredBuffer<Camera> cam : register(t1, space1);
-StructuredBuffer<ModelInstance> modelInstances : register(t2, space1);
+_BBBIND(1, 1) StructuredBuffer<Camera> cam : register(t1, space0);
+_BBBIND(2, 1) StructuredBuffer<ModelInstance> modelInstances : register(t2, space0);
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {

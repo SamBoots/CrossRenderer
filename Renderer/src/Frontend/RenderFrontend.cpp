@@ -218,7 +218,7 @@ void Draw3DFrame()
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
+	//RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
@@ -231,7 +231,7 @@ void Draw3DFrame()
 		t_ImguiStart.clearColor[1] = 0.0f;
 		t_ImguiStart.clearColor[2] = 0.0f;
 		t_ImguiStart.clearColor[3] = 1.0f;
-		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+		//RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
 
 		ImDrawData* t_DrawData = ImGui::GetDrawData();
 		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
@@ -697,6 +697,9 @@ void BB::Render::Update(const float a_DeltaTime)
 {
 	s_GlobalInfo.lightSystem->Editor();
 	RenderBackend::DisplayDebugInfo();
+
+	UpdateSceneDescriptors();
+	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
 	Draw3DFrame();
 }
 
@@ -912,8 +915,6 @@ void BB::Render::EndFrame()
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
 
-	UpdateSceneDescriptors();
-	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,
 		2,
