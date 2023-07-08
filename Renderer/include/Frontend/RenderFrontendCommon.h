@@ -82,11 +82,11 @@ namespace BB
 
 	struct BaseFrameInfo
 	{
-		uint32_t lightCount = 0;
-		uint3 padding{};
-
 		float3 ambientLight{};
 		float ambientStrength = 0.f;
+
+		uint32_t lightCount = 0;
+		uint3 padding{};
 	};
 
 	struct DrawObject

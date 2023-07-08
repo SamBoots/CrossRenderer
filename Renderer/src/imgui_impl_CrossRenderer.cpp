@@ -245,14 +245,10 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
             else
             {
                 // Project scissor/clipping rectangles into framebuffer space
-                ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x, (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
-                ImVec2 clip_max((pcmd->ClipRect.z - clip_off.x) * clip_scale.x, (pcmd->ClipRect.w - clip_off.y) * clip_scale.y);
+                ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+                ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
 
                 // Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
-                if (clip_min.x < 0.0f) { clip_min.x = 0.0f; }
-                if (clip_min.y < 0.0f) { clip_min.y = 0.0f; }
-                if (clip_max.x > fb_width) { clip_max.x = (float)fb_width; }
-                if (clip_max.y > fb_height) { clip_max.y = (float)fb_height; }
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
 
@@ -260,8 +256,8 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 ScissorInfo t_SciInfo;
                 t_SciInfo.offset.x = (int32_t)(clip_min.x);
                 t_SciInfo.offset.y = (int32_t)(clip_min.y);
-                t_SciInfo.extent.x = (uint32_t)(clip_max.x - clip_min.x);
-                t_SciInfo.extent.y = (uint32_t)(clip_max.y - clip_min.y);
+                t_SciInfo.extent.x = (uint32_t)(clip_max.x);
+                t_SciInfo.extent.y = (uint32_t)(clip_max.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 
                 RDescriptor t_Set[1] = {(RDescriptor)pcmd->TextureId};

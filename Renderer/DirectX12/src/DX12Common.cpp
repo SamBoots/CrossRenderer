@@ -850,12 +850,8 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 
 	t_CommandList->List()->RSSetViewports(1, &t_Viewport);
 
-	D3D12_RECT t_Rect{};
-	t_Rect.left = 0;
-	t_Rect.top = 0;
-	t_Rect.right = static_cast<LONG>(a_RenderInfo.viewportWidth);
-	t_Rect.bottom = static_cast<LONG>(a_RenderInfo.viewportHeight);
-	
+	D3D12_RECT t_Rect{ 0, 0, a_RenderInfo.viewportWidth, a_RenderInfo.viewportHeight };
+
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 	t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
 }
@@ -864,11 +860,7 @@ void BB::DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, c
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	D3D12_RECT t_Rect{};
-	t_Rect.left = static_cast<LONG>(a_ScissorInfo.offset.x);
-	t_Rect.top = static_cast<LONG>(a_ScissorInfo.offset.y);
-	t_Rect.right = static_cast<LONG>(a_ScissorInfo.extent.x);
-	t_Rect.bottom = static_cast<LONG>(a_ScissorInfo.extent.y);
+	D3D12_RECT t_Rect{ a_ScissorInfo.offset.x, a_ScissorInfo.offset.y, a_ScissorInfo.extent.x, a_ScissorInfo.extent.y };
 
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 }
@@ -957,11 +949,11 @@ void BB::DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmd
 	uint32_t t_HeapCount = 1;
 	ID3D12DescriptorHeap* t_Heaps[2]{};
 	t_Heaps[0] = reinterpret_cast<DXDescriptorHeap*>(a_ResourceHeap.handle)->GetHeap();
-	t_CommandList->heaps[0] = t_Heaps[0];
+	t_CommandList->heaps[0] = reinterpret_cast<DXDescriptorHeap*>(a_ResourceHeap.handle);
 	if (a_SamplerHeap.handle != 0)
 	{
 		t_Heaps[1] = reinterpret_cast<DXDescriptorHeap*>(a_SamplerHeap.handle)->GetHeap();
-		t_CommandList->heaps[1] = t_Heaps[1];
+		t_CommandList->heaps[1] = reinterpret_cast<DXDescriptorHeap*>(a_SamplerHeap.handle);
 		++t_HeapCount;
 	}
 
@@ -985,7 +977,8 @@ void BB::DX12SetDescriptorHeapOffsets(const RecordingCommandListHandle a_Recordi
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	for (size_t i = 0; i < a_SetCount; i++)
 	{
-		D3D12_GPU_DESCRIPTOR_HANDLE t_GpuHandle{ t_CommandList->heaps[0]->GetGPUDescriptorHandleForHeapStart().ptr + a_Offsets[i] };
+		const UINT t_Offset = a_Offsets[i] * t_CommandList->heaps[0]->GetIncrementSize();
+		D3D12_GPU_DESCRIPTOR_HANDLE t_GpuHandle{ t_CommandList->heaps[0]->GetGPUStartPtr().ptr + t_Offset};
 		t_CommandList->List()->SetGraphicsRootDescriptorTable(
 			t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(a_FirstSet)], 
 			t_GpuHandle);

@@ -123,6 +123,7 @@ namespace BB
 		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
 		ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
 		const D3D12_DESCRIPTOR_HEAP_TYPE GetHeapType() const { return m_HeapType; }
+		const UINT GetIncrementSize() const { return m_IncrementSize; }
 
 	private:
 		ID3D12DescriptorHeap* m_DescriptorHeap;
@@ -289,7 +290,7 @@ namespace BB
 		//Puts the commandlist back into the command allocator, does not delete the ID3D12GraphicsCommandList.
 		void Free();
 
-		ID3D12DescriptorHeap* heaps[2]{};
+		DXDescriptorHeap* heaps[2]{};
 
 	private:
 		union

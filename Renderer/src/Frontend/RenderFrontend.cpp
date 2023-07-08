@@ -125,8 +125,7 @@ void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
-	s_GlobalInfo.perFrameInfo->lightCount = 
-		s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
+	s_GlobalInfo.perFrameInfo->lightCount = 0;// s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
 
 	ImGui::Render();
 
@@ -218,7 +217,7 @@ void Draw3DFrame()
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
+	//RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
@@ -231,7 +230,7 @@ void Draw3DFrame()
 		t_ImguiStart.clearColor[1] = 0.0f;
 		t_ImguiStart.clearColor[2] = 0.0f;
 		t_ImguiStart.clearColor[3] = 1.0f;
-		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+		//RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
 
 		ImDrawData* t_DrawData = ImGui::GetDrawData();
 		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
