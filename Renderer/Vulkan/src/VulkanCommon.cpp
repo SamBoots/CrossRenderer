@@ -527,20 +527,20 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 		t_DeviceProperties.pNext = nullptr;
 		vkGetPhysicalDeviceProperties2(t_PhysicalDevices[i], &t_DeviceProperties);
 		
-		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
-		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
-		VkPhysicalDeviceTimelineSemaphoreFeatures t_SyncFeatures{};
-		t_SyncFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-		t_SyncFeatures.pNext = &t_IndexingFeatures;
-		VkPhysicalDeviceFeatures2 t_DeviceFeatures{};
-		t_DeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT };
+		VkPhysicalDeviceTimelineSemaphoreFeatures t_SemFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES };
+		t_SemFeatures.pNext = &t_IndexingFeatures;
+		VkPhysicalDeviceSynchronization2Features t_SyncFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
+		t_SyncFeatures.pNext = &t_SemFeatures;
+		VkPhysicalDeviceFeatures2 t_DeviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 		t_DeviceFeatures.pNext = &t_SyncFeatures;
 		vkGetPhysicalDeviceFeatures2(t_PhysicalDevices[i], &t_DeviceFeatures);
 
 		SwapchainSupportDetails t_SwapChainDetails = QuerySwapChainSupport(a_Surface, t_PhysicalDevices[i]);
 
 		if (t_DeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-			t_SyncFeatures.timelineSemaphore == VK_TRUE &&
+			t_SemFeatures.timelineSemaphore == VK_TRUE &&
+			t_SyncFeatures.synchronization2 == VK_TRUE &&
 			t_DeviceFeatures.features.geometryShader &&
 			t_DeviceFeatures.features.samplerAnisotropy &&
 			QueueFindGraphicsBit(t_PhysicalDevices[i]) &&
@@ -667,15 +667,18 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 	t_DescriptorBufferInfo.descriptorBuffer = VK_TRUE;
 	t_DescriptorBufferInfo.pNext = &t_AddressFeature;
 
+	VkPhysicalDeviceSynchronization2Features t_SyncFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
+	t_SyncFeatures.synchronization2 = VK_TRUE;
+	t_SyncFeatures.pNext = &t_DescriptorBufferInfo;
+
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	t_CreateInfo.pQueueCreateInfos = t_QueueCreateInfos;
 	t_CreateInfo.queueCreateInfoCount = t_DifferentQueues;
 	t_CreateInfo.pEnabledFeatures = &t_DeviceFeatures;
-
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
-	t_CreateInfo.pNext = &t_DescriptorBufferInfo;
+	t_CreateInfo.pNext = &t_SyncFeatures;
 
 	VKASSERT(vkCreateDevice(s_VKB.physicalDevice, 
 		&t_CreateInfo, 
@@ -1873,29 +1876,20 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	VkImageMemoryBarrier t_ColorBarrier{};
-	//Color attachment.
-	t_ColorBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	t_ColorBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	t_ColorBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
-	t_ColorBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
-	t_ColorBarrier.image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
-	t_ColorBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_ColorBarrier.subresourceRange.baseArrayLayer = 0;
-	t_ColorBarrier.subresourceRange.layerCount = 1;
-	t_ColorBarrier.subresourceRange.baseMipLevel = 0;
-	t_ColorBarrier.subresourceRange.levelCount = 1;
-
-	vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		0,
-		0,
-		nullptr,
-		0,
-		nullptr,
-		1,
-		&t_ColorBarrier);
+	uint32_t t_BarrierCount = 1;
+	VkImageMemoryBarrier2 t_Barriers[2]{};
+	t_Barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	t_Barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	t_Barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+	t_Barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	t_Barriers[0].oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
+	t_Barriers[0].newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
+	t_Barriers[0].image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
+	t_Barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_Barriers[0].subresourceRange.baseArrayLayer = 0;
+	t_Barriers[0].subresourceRange.layerCount = 1;
+	t_Barriers[0].subresourceRange.baseMipLevel = 0;
+	t_Barriers[0].subresourceRange.levelCount = 1;
 
 	VkRenderingInfo t_RenderInfo{};
 	VkRenderingAttachmentInfo t_RenderDepthAttach{};
@@ -1903,28 +1897,19 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	//If we handle the depth stencil we do that here. 
 	if (a_RenderInfo.depthStencil.ptrHandle != nullptr) 
 	{
-		VkImageMemoryBarrier t_DepthBarrier{};
-		t_DepthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		t_DepthBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		t_DepthBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		t_DepthBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		t_DepthBarrier.image = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
-		t_DepthBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		t_DepthBarrier.subresourceRange.baseArrayLayer = 0;
-		t_DepthBarrier.subresourceRange.layerCount = 1;
-		t_DepthBarrier.subresourceRange.baseMipLevel = 0;
-		t_DepthBarrier.subresourceRange.levelCount = 1;
-
-		vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			0,
-			0,
-			nullptr,
-			0,
-			nullptr,
-			1,
-			&t_DepthBarrier);
+		++t_BarrierCount;
+		t_Barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		t_Barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		t_Barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		t_Barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		t_Barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		t_Barriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		t_Barriers[1].image = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
+		t_Barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		t_Barriers[1].subresourceRange.baseArrayLayer = 0;
+		t_Barriers[1].subresourceRange.layerCount = 1;
+		t_Barriers[1].subresourceRange.baseMipLevel = 0;
+		t_Barriers[1].subresourceRange.levelCount = 1;
 
 		t_Cmdlist->depthImage = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
 		
@@ -1937,6 +1922,13 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 		t_RenderInfo.pDepthAttachment = &t_RenderDepthAttach;
 		t_RenderInfo.pStencilAttachment = &t_RenderDepthAttach;
 	}
+
+	//Color and possibly a depth stencil barrier.
+	VkDependencyInfo t_BarrierInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	t_BarrierInfo.imageMemoryBarrierCount = t_BarrierCount;
+	t_BarrierInfo.pImageMemoryBarriers = t_Barriers;
+
+	vkCmdPipelineBarrier2(t_Cmdlist->Buffer(), &t_BarrierInfo);
 
 	VkRenderingAttachmentInfo t_RenderColorAttach{};
 	t_RenderColorAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -2072,13 +2064,18 @@ void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHa
 
 void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
 {
-	VkImageMemoryBarrier t_Barrier{};
-	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	VkImageMemoryBarrier2 t_Barrier{};
+	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
+	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
+	t_Barrier.srcStageMask = VKConv::PipelineStage(a_TransitionInfo.srcStage);
+	t_Barrier.dstStageMask = VKConv::PipelineStage(a_TransitionInfo.dstStage);
 	t_Barrier.oldLayout = VKConv::ImageLayout(a_TransitionInfo.oldLayout);
 	t_Barrier.newLayout = VKConv::ImageLayout(a_TransitionInfo.newLayout);
 	t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
+
 	if (a_TransitionInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT || 
 		a_TransitionInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
 		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -2088,16 +2085,14 @@ void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, 
 	t_Barrier.subresourceRange.levelCount = a_TransitionInfo.levelCount;
 	t_Barrier.subresourceRange.baseArrayLayer = a_TransitionInfo.baseArrayLayer;
 	t_Barrier.subresourceRange.layerCount = a_TransitionInfo.layerCount;
-	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
-	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
 
-	vkCmdPipelineBarrier(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(),
-		VKConv::PipelineStage(a_TransitionInfo.srcStage),
-		VKConv::PipelineStage(a_TransitionInfo.dstStage),
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &t_Barrier);
+	//Color and possibly a depth stencil barrier.
+	VkDependencyInfo t_BarrierInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	t_BarrierInfo.imageMemoryBarrierCount = 1;
+	t_BarrierInfo.pImageMemoryBarriers = &t_Barrier;
+
+	vkCmdPipelineBarrier2(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(), 
+		&t_BarrierInfo);
 }
 
 void BB::VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
