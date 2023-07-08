@@ -125,7 +125,7 @@ void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
-	s_GlobalInfo.perFrameInfo->lightCount = 0;// s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
+	s_GlobalInfo.perFrameInfo->lightCount = s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
 
 	ImGui::Render();
 
