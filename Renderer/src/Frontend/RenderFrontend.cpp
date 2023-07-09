@@ -692,19 +692,6 @@ void BB::Render::DestroyRenderer()
 	RenderBackend::DestroyBackend();
 }
 
-void BB::Render::Update(const float a_DeltaTime)
-{
-	s_GlobalInfo.lightSystem->Editor();
-	RenderBackend::DisplayDebugInfo();
-
-	UpdateSceneDescriptors();
-	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
-	Draw3DFrame();
-
-	Editor::DisplayAllocator(m_SystemAllocator);
-	m_TempAllocator.Clear();
-}
-
 void BB::Render::SetProjection(const glm::mat4& a_Proj)
 {
 	s_GlobalInfo.cameraData->projection = a_Proj;
@@ -910,6 +897,18 @@ void BB::Render::StartFrame()
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
 	ImGui_ImplCross_NewFrame();
 	ImGui::NewFrame();
+}
+
+void BB::Render::Update(const float a_DeltaTime)
+{
+	s_GlobalInfo.lightSystem->Editor();
+	RenderBackend::DisplayDebugInfo();
+
+	UpdateSceneDescriptors();
+	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
+
+	Editor::DisplayAllocator(m_SystemAllocator);
+	m_TempAllocator.Clear();
 }
 
 void BB::Render::EndFrame()

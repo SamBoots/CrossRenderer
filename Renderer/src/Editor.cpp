@@ -20,8 +20,6 @@ void BB::Editor::StartEditorFrame(const char* a_Name)
 
 void BB::Editor::EndEditorFrame()
 {
-	if (!g_ShowEditor)
-		return;
 	ImGui::End();
 }
 
