@@ -18,9 +18,7 @@ add_executable (Renderer
 "src/Backend/RenderResourceTracker.cpp"
 #Frontend
 "src/Frontend/RenderFrontend.cpp"
-"src/Frontend/RenderBuffers.cpp"
 "src/Frontend/LightSystem.cpp"
-"src/Frontend/ModelLoader.cpp"
 "src/Frontend/Transform.cpp"
 "src/Frontend/Materials.cpp"
 "src/Frontend/Camera.cpp"
@@ -30,7 +28,7 @@ add_executable (Renderer
 "src/Editor.cpp"
 
 #temporary to test
-"src/main.cpp" )
+"src/main.cpp")
 
 target_link_libraries(Renderer
     DXCompiler

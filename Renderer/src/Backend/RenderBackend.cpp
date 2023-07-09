@@ -263,7 +263,7 @@ DescriptorManager::~DescriptorManager()
 	m_Inst->~DescriptorManager_inst();
 }
 
-const DescriptorAllocation DescriptorManager::Allocate(const RDescriptor a_Descriptor)
+DescriptorAllocation DescriptorManager::Allocate(const RDescriptor a_Descriptor)
 {
 	return m_Inst->uploadHeap.Allocate(a_Descriptor);
 }

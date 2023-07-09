@@ -318,14 +318,9 @@ public:
 	inline DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
 	{
 		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
-		VkDeviceSize t_AllocSize = s_DescriptorBiggestResourceType * t_Desc->descriptorCount;
+		const VkDeviceSize t_AllocSize = Pointer::AlignPad(s_DescriptorBiggestResourceType * t_Desc->descriptorCount, s_DescriptorBufferAlignment * 4);
 
-		Pointer::AlignPad(t_AllocSize, s_DescriptorBufferAlignment);
-
-		//Descriptors for resources can be either 4 words or 
-		//Add one more descriptor just to make sure we have enough space. 
-		//This is peak programming
-		const uint32_t t_DescriptorCount = t_AllocSize / s_DescriptorBiggestResourceType;
+		const uint32_t t_DescriptorCount = static_cast<uint32_t>(t_AllocSize / s_DescriptorBiggestResourceType);
 		
 		DescriptorAllocation t_Allocation{};
 		t_Allocation.descriptorCount = t_DescriptorCount;
@@ -977,10 +972,10 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 		vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
 
-		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT)] = t_DescBufferInfo.uniformBufferDescriptorSize;
-		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER)] = t_DescBufferInfo.storageBufferDescriptorSize;
-		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READWRITE)] = t_DescBufferInfo.storageBufferDescriptorSize;
-		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::IMAGE)] = t_DescBufferInfo.sampledImageDescriptorSize;
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT)] = static_cast<uint32_t>(t_DescBufferInfo.uniformBufferDescriptorSize);
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER)] = static_cast<uint32_t>(t_DescBufferInfo.storageBufferDescriptorSize);
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READWRITE)] = static_cast<uint32_t>(t_DescBufferInfo.storageBufferDescriptorSize);
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::IMAGE)] = static_cast<uint32_t>(t_DescBufferInfo.sampledImageDescriptorSize);
 	
 		uint32_t t_BiggestDescriptorType = s_DescriptorTypeSize[0];
 		for (size_t i = 1; i < static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::ENUM_SIZE); i++)
@@ -989,12 +984,12 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 				t_BiggestDescriptorType = s_DescriptorTypeSize[i];
 		}
 		s_DescriptorBiggestResourceType = t_BiggestDescriptorType;
-		s_DescriptorSamplerSize = t_DescBufferInfo.samplerDescriptorSize;
-		s_DescriptorBufferAlignment = t_DescBufferInfo.descriptorBufferOffsetAlignment;
+		s_DescriptorSamplerSize = static_cast<uint32_t>(t_DescBufferInfo.samplerDescriptorSize);
+		s_DescriptorBufferAlignment = static_cast<uint32_t>(t_DescBufferInfo.descriptorBufferOffsetAlignment);
 
-		t_BackendInfo.minReadonlyConstantOffset = t_DeviceProperties.properties.limits.minUniformBufferOffsetAlignment;
-		t_BackendInfo.minReadonlyBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
-		t_BackendInfo.minReadWriteBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
+		t_BackendInfo.minReadonlyConstantOffset = static_cast<uint32_t>(t_DeviceProperties.properties.limits.minUniformBufferOffsetAlignment);
+		t_BackendInfo.minReadonlyBufferOffset = static_cast<uint32_t>(t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment);
+		t_BackendInfo.minReadWriteBufferOffset = static_cast<uint32_t>(t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment);
 	}
 
 	CreateSwapchain(s_VKB.surface,
@@ -1614,7 +1609,7 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 		{
 			VkSampler* t_Sampler = BBnew(t_BuildInfo->buildAllocator, VkSampler);
 			*t_Sampler = CreateSampler(a_InitInfo.immutableSamplers[i]);
-			t_LayoutBinds[i].binding = i;
+			t_LayoutBinds[i].binding = static_cast<uint32_t>(i);
 			t_LayoutBinds[i].descriptorCount = 1;
 			t_LayoutBinds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
 			t_LayoutBinds[i].pImmutableSamplers = t_Sampler;
@@ -1774,8 +1769,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 	{ //Create the pipeline.
 		//Get dynamic state for the viewport and scissor.
 		VkDynamicState t_DynamicStates[2]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-		VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{};
-		t_DynamicPipeCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		VkPipelineDynamicStateCreateInfo t_DynamicPipeCreateInfo{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
 		t_DynamicPipeCreateInfo.dynamicStateCount = 2;
 		t_DynamicPipeCreateInfo.pDynamicStates = t_DynamicStates;
 
@@ -1791,11 +1785,20 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		t_InputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		t_InputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		t_InputAssembly.primitiveRestartEnable = VK_FALSE;
+		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
+
+		if (t_BuildInfo->pipeInfo.pVertexInputState == nullptr)
+		{
+			VkPipelineVertexInputStateCreateInfo* t_VertexInputInfo = BBnew(
+				t_BuildInfo->buildAllocator,
+				VkPipelineVertexInputStateCreateInfo) {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+			t_VertexInputInfo->vertexBindingDescriptionCount = 0;
+			t_VertexInputInfo->vertexAttributeDescriptionCount = 0;
+			t_BuildInfo->pipeInfo.pVertexInputState = t_VertexInputInfo;
+		}
 
 
-
-		VkPipelineMultisampleStateCreateInfo t_Multisampling{};
-		t_Multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		VkPipelineMultisampleStateCreateInfo t_Multisampling{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
 		t_Multisampling.sampleShadingEnable = VK_FALSE;
 		t_Multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 		t_Multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -1806,7 +1809,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		//viewport is always controlled by the dynamic state so we just initialize them here.
 		t_BuildInfo->pipeInfo.pViewportState = &t_ViewportState;
 		t_BuildInfo->pipeInfo.pDynamicState = &t_DynamicPipeCreateInfo;
-		t_BuildInfo->pipeInfo.pInputAssemblyState = &t_InputAssembly;
 		t_BuildInfo->pipeInfo.pMultisampleState = &t_Multisampling;
 
 		//Optimalization for later.

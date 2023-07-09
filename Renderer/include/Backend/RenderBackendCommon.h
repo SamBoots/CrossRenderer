@@ -52,7 +52,7 @@ namespace BB
 		INDEX,
 		UNIFORM,
 		STORAGE,
-		STAGING
+		STAGING,
 	};
 
 	enum class RENDER_DESCRIPTOR_SET : uint32_t
@@ -621,10 +621,12 @@ namespace BB
 
 	struct Vertex
 	{
-		float3 pos{};
-		float3 normal{};
-		float2 uv{};
-		float3 color{};
+		float3 pos{}; //12
+		float3 normal{}; //24
+		float2 uv{}; //32
+		float3 color{}; //44
+		float pad; //48
+		float4 padd; //64
 	};
 
 	struct BackendInfo

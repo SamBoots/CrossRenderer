@@ -110,7 +110,7 @@ void BB::RenderResourceTracker::AddDescriptor(const RenderDescriptorCreateInfo& 
 	t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
 	DescriptorDebugInfo* t_DescDebug = reinterpret_cast<DescriptorDebugInfo*>(t_Entry->typeInfo);
 	t_DescDebug->name = a_Name;
-	t_DescDebug->bindingCount = a_Descriptor.bindings.size();
+	t_DescDebug->bindingCount = static_cast<uint32_t>(a_Descriptor.bindings.size());
 	t_DescDebug->bindings = reinterpret_cast<DescriptorBinding*>(Pointer::Add(t_Entry, t_EntrySize));
 	Memory::Copy(t_DescDebug->bindings, a_Descriptor.bindings.data(), t_DescDebug->bindingCount);
 
@@ -167,7 +167,7 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 	}
 	for (size_t i = 0; i < a_Pipeline.immutableSamplerCount; i++)
 	{
-		t_PipelineInfo->immutableSamplers = reinterpret_cast<SamplerCreateInfo*>(Pointer::Add(t_Entry, t_EntrySize + t_ShaderInfoSize + t_ImmutableSamplerSize));
+		t_PipelineInfo->immutableSamplers = reinterpret_cast<SamplerCreateInfo*>(Pointer::Add(t_Entry, t_EntrySize + t_ShaderInfoSize + t_AttributeSize));
 		t_PipelineInfo->immutableSamplers[i] = a_Pipeline.immutableSamplers[i];
 	}
 
@@ -571,9 +571,6 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 					ImGui::Text("Size: %u", t_Buffer.size);
 					switch (t_Buffer.usage)
 					{
-					case RENDER_BUFFER_USAGE::VERTEX:
-						ImGui::Text("Usage: VERTEX");
-						break;
 					case RENDER_BUFFER_USAGE::INDEX:
 						ImGui::Text("Usage: INDEX");
 						break;

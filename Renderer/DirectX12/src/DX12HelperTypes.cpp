@@ -186,9 +186,6 @@ DXResource::DXResource(const RenderBufferCreateInfo& a_CreateInfo)
 	D3D12_RESOURCE_STATES t_State{};
 	switch (a_CreateInfo.usage)
 	{
-	case RENDER_BUFFER_USAGE::VERTEX:
-		t_State = D3D12_RESOURCE_STATE_COMMON;
-		break;
 	case RENDER_BUFFER_USAGE::INDEX:
 		t_State = D3D12_RESOURCE_STATE_COMMON;
 		break;

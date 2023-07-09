@@ -55,7 +55,7 @@ namespace BB
 		DescriptorManager(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount);
 		~DescriptorManager();
 
-		const DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
+		DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
 		void UploadToGPUHeap(const uint32_t a_FrameNum) const;
 
 		const uint32_t GetCPUOffsetFlag() const;

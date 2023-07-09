@@ -5,7 +5,6 @@
 
 #include "Storage/Slotmap.h"
 #include "OS/Program.h"
-#include "ModelLoader.h"
 #include "LightSystem.h"
 #include "imgui_impl_CrossRenderer.h"
 #include "Editor.h"
@@ -17,6 +16,8 @@
 
 using namespace BB;
 using namespace BB::Render;
+
+void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path);
 
 static FreelistAllocator_t m_SystemAllocator{ mbSize * 4 };
 static TemporaryAllocator m_TempAllocator{ m_SystemAllocator };
@@ -67,12 +68,15 @@ RecordingCommandListHandle t_RecordingTransfer;
 RFenceHandle t_SwapchainFence[3];
 
 RDescriptor t_Descriptor1;
+RDescriptor t_MeshDescriptor;
 PipelineHandle t_Pipeline;
 
 DescriptorManager* g_descriptorManager;
 DescriptorAllocation sceneDescAllocation;
 
 UploadBuffer* t_UploadBuffer;
+LinearRenderBuffer* t_VertexBuffer;
+LinearRenderBuffer* t_IndexBuffer;
 
 RImageHandle t_ExampleImage;
 RImageHandle t_DepthImage;
@@ -170,9 +174,9 @@ void Draw3DFrame()
 	size_t t_HeapOffset = sceneDescAllocation.offset;
 	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
 
-	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexBuffer, 0);
+	uint64_t t_BufferOffsets[1]{ t_Model->descAllocation.offset };
+	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
+	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexView.bufferHandle, t_Model->indexView.offset);
 
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
@@ -186,8 +190,9 @@ void Draw3DFrame()
 				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
 			}
 
-			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
-			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexBuffer, 0);
+			uint64_t t_BufferOffsets[1]{ t_NewModel->descAllocation.offset };
+			RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
+			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexView.bufferHandle, t_NewModel->indexView.offset);
 
 			t_Model = t_NewModel;
 		}
@@ -324,6 +329,24 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
 	}
 
+	{//global vertex buffer
+		RenderBufferCreateInfo t_VertexBufferInfo;
+		t_VertexBufferInfo.name = "Big vertex buffer";
+		t_VertexBufferInfo.size = mbSize * 128;
+		t_VertexBufferInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
+		t_VertexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_VertexBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_VertexBufferInfo);
+	}
+
+	{//global index buffer
+		RenderBufferCreateInfo t_IndexBufferInfo;
+		t_IndexBufferInfo.name = "Big index buffer";
+		t_IndexBufferInfo.size = mbSize * 32;
+		t_IndexBufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
+		t_IndexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		t_IndexBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_IndexBufferInfo);
+	}
+
 	int x, y, c;
 	stbi_uc* t_Pixels = stbi_load("Resources/Textures/DuckCM.png", &x, &y, &c, 4);
 	BB_ASSERT(t_Pixels, "Failed to load test image!");
@@ -441,6 +464,21 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
+		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.name = "3d mesh descriptor";
+		FixedArray<DescriptorBinding, 1> t_DescBinds;
+		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
+
+		t_DescBinds[0].binding = 0;
+		t_DescBinds[0].descriptorCount = 1;
+		t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
+
+		t_MeshDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
+	}
+
+	{
 		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
 		WriteDescriptorInfos t_BufferUpdate{};
 		t_BufferUpdate.allocation = sceneDescAllocation;
@@ -461,6 +499,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	t_BasicPipe.BindDescriptor(t_Descriptor1);
+	t_BasicPipe.BindDescriptor(t_MeshDescriptor);
 
 	const wchar_t* t_ShaderPath[2]{};
 	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
@@ -492,41 +531,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	t_BasicPipe.BindShaders(BB::Slice(t_ShaderBuffers, 2));
 
-	{ //bind attributes
-		FixedArray<VertexAttributeDesc, 4> t_AttributeDescriptions;
-		t_AttributeDescriptions[0].semanticName = "POSITION";
-		t_AttributeDescriptions[0].format = RENDER_INPUT_FORMAT::RGB32;
-		t_AttributeDescriptions[0].location = 0;
-		t_AttributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-		t_AttributeDescriptions[1].semanticName = "NORMAL";
-		t_AttributeDescriptions[1].format = RENDER_INPUT_FORMAT::RGB32;
-		t_AttributeDescriptions[1].location = 1;
-		t_AttributeDescriptions[1].offset = offsetof(Vertex, normal);
-
-		t_AttributeDescriptions[2].semanticName = "UV";
-		t_AttributeDescriptions[2].format = RENDER_INPUT_FORMAT::RG32;
-		t_AttributeDescriptions[2].location = 2;
-		t_AttributeDescriptions[2].offset = offsetof(Vertex, uv);
-
-		t_AttributeDescriptions[3].semanticName = "COLOR";
-		t_AttributeDescriptions[3].format = RENDER_INPUT_FORMAT::RGB32;
-		t_AttributeDescriptions[3].location = 3;
-		t_AttributeDescriptions[3].offset = offsetof(Vertex, color);
-
-		PipelineAttributes t_Attribs{};
-		t_Attribs.stride = sizeof(Vertex);
-		t_Attribs.attributes = BB::Slice(
-			t_AttributeDescriptions.data(),
-			t_AttributeDescriptions.size());
-
-		t_BasicPipe.BindAttributes(t_Attribs);
-	}
-
 	t_Pipeline = t_BasicPipe.BuildPipeline();
 
 #pragma endregion //PipelineCreation
-
 	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.name = "Graphics queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
@@ -658,8 +665,7 @@ void BB::Render::DestroyRenderer()
 
 	for (auto it = s_RendererInst.models.begin(); it < s_RendererInst.models.end(); it++)
 	{
-		RenderBackend::DestroyBuffer(it->indexBuffer);
-		RenderBackend::DestroyBuffer(it->vertexBuffer);
+		
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
 
@@ -716,6 +722,16 @@ void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
 {
 	a_MatrixSpace = s_RendererInst.modelMatrixMax;
 	return s_GlobalInfo.transferBufferMatrixStart;
+}
+
+RenderBufferPart BB::Render::AllocateFromVertexBuffer(const size_t a_Size)
+{
+	return t_VertexBuffer->SubAllocateFromBuffer(a_Size, __alignof(Vertex));
+}
+
+RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
+{
+	return t_IndexBuffer->SubAllocateFromBuffer(a_Size, __alignof(uint32_t));
 }
 
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
@@ -794,20 +810,14 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
 
-		RenderBufferCreateInfo t_VertexInfo;
-		t_VertexInfo.name = "VertexBuffer model";
-		t_VertexInfo.usage = RENDER_BUFFER_USAGE::VERTEX;
-		t_VertexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-		t_VertexInfo.size = a_CreateInfo.vertices.sizeInBytes();
-
-		t_Model.vertexBuffer = RenderBackend::CreateBuffer(t_VertexInfo);
+		t_Model.vertexView = AllocateFromVertexBuffer(a_CreateInfo.vertices.sizeInBytes());
 
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
-		t_CopyInfo.dst = t_Model.vertexBuffer;
+		t_CopyInfo.dst = t_Model.vertexView.bufferHandle;
 		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
-		t_CopyInfo.dstOffset = 0;
-		t_CopyInfo.size = a_CreateInfo.vertices.sizeInBytes();
+		t_CopyInfo.dstOffset = t_Model.vertexView.offset;
+		t_CopyInfo.size = t_Model.vertexView.size;
 
 		RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
 	}
@@ -816,22 +826,34 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.indices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.indices.data(), a_CreateInfo.indices.sizeInBytes());
 
-		RenderBufferCreateInfo t_IndexInfo;
-		t_IndexInfo.name = "IndexBuffer";
-		t_IndexInfo.usage = RENDER_BUFFER_USAGE::INDEX;
-		t_IndexInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-		t_IndexInfo.size = a_CreateInfo.indices.sizeInBytes();
-
-		t_Model.indexBuffer = RenderBackend::CreateBuffer(t_IndexInfo);
+		t_Model.indexView = AllocateFromIndexBuffer(a_CreateInfo.indices.sizeInBytes());
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
-		t_CopyInfo.dst = t_Model.indexBuffer;
+		t_CopyInfo.dst = t_Model.indexView.bufferHandle;
 		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
-		t_CopyInfo.dstOffset = 0;
-		t_CopyInfo.size = a_CreateInfo.indices.sizeInBytes();
+		t_CopyInfo.dstOffset = t_Model.indexView.offset;
+		t_CopyInfo.size = t_Model.indexView.size;
 
 		RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
+	}
+
+	{ //descriptor allocation
+		t_Model.meshDescriptor = t_MeshDescriptor;
+		t_Model.descAllocation = g_descriptorManager->Allocate(t_Model.meshDescriptor);
+
+		WriteDescriptorData t_WriteData{};
+		t_WriteData.binding = 0;
+		t_WriteData.descriptorIndex = 0;
+		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_WriteData.buffer.buffer = t_Model.vertexView.bufferHandle;
+		t_WriteData.buffer.offset = t_Model.vertexView.offset;
+		t_WriteData.buffer.range = t_Model.vertexView.size;
+		WriteDescriptorInfos t_WriteInfos{};
+		t_WriteInfos.allocation = t_Model.descAllocation;
+		t_WriteInfos.descriptorHandle = t_MeshDescriptor;
+		t_WriteInfos.data = Slice(&t_WriteData, 1);
+		RenderBackend::WriteDescriptors(t_WriteInfos);
 	}
 	
 	t_Model.linearNodes = BBnewArr(m_SystemAllocator, 1, Model::Node);
@@ -1003,4 +1025,273 @@ void BB::Editor::DisplayLightSystem(const BB::LightSystem& a_System)
 	}
 
 	ImGui::End();
+}
+
+#pragma warning(push, 0)
+#define CGLTF_IMPLEMENTATION
+#include "cgltf/cgltf.h"
+#pragma warning (pop)
+
+static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
+{
+	void* t_Data = a_Accessor->buffer_view->buffer->data;
+	t_Data = Pointer::Add(t_Data, a_Accessor->buffer_view->offset);
+	t_Data = Pointer::Add(t_Data, a_Accessor->offset);
+	return t_Data;
+}
+
+static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
+{
+	uint32_t t_NodeCount = 0;
+	for (size_t i = 0; i < a_Node.children_count; i++)
+	{
+		t_NodeCount += GetChildNodeCount(*a_Node.children[i]);
+	}
+	return t_NodeCount;
+}
+
+//Maybe use own allocators for this?
+void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path)
+{
+	cgltf_options t_Options = {};
+	cgltf_data* t_Data = { 0 };
+
+	cgltf_result t_ParseResult = cgltf_parse_file(&t_Options, a_Path, &t_Data);
+
+	BB_ASSERT(t_ParseResult == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
+
+	cgltf_load_buffers(&t_Options, t_Data, a_Path);
+
+	BB_ASSERT(cgltf_validate(t_Data) == cgltf_result_success, "GLTF model validation failed!");
+
+	uint32_t t_IndexCount = 0;
+	uint32_t t_VertexCount = 0;
+	uint32_t t_LinearNodeCount = static_cast<uint32_t>(t_Data->nodes_count);
+	uint32_t t_MeshCount = static_cast<uint32_t>(t_Data->meshes_count);
+	uint32_t t_PrimitiveCount = 0;
+
+	//Get the node count.
+	for (size_t nodeIndex = 0; nodeIndex < t_Data->nodes_count; nodeIndex++)
+	{
+		const cgltf_node& t_Node = t_Data->nodes[nodeIndex];
+		t_LinearNodeCount += GetChildNodeCount(t_Node);
+	}
+
+	//Get the sizes first for efficient allocation.
+	for (size_t meshIndex = 0; meshIndex < t_Data->meshes_count; meshIndex++)
+	{
+		cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
+		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
+		{
+			++t_PrimitiveCount;
+			cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+			t_IndexCount += static_cast<uint32_t>(t_Mesh.primitives[meshIndex].indices->count);
+
+			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
+			{
+				cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
+				if (t_Attribute.type == cgltf_attribute_type_position)
+				{
+					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position type is not a vec3!");
+					t_VertexCount += static_cast<uint32_t>(t_Attribute.data->count);
+				}
+			}
+		}
+	}
+
+	//Maybe allocate this all in one go
+	Model::Mesh* t_Meshes = BBnewArr(
+		a_SystemAllocator,
+		t_MeshCount,
+		Model::Mesh);
+	a_Model.meshes = t_Meshes;
+	a_Model.meshCount = t_MeshCount;
+
+	Model::Primitive* t_Primitives = BBnewArr(
+		a_SystemAllocator,
+		t_PrimitiveCount,
+		Model::Primitive);
+	a_Model.primitives = t_Primitives;
+	a_Model.primitiveCount = t_PrimitiveCount;
+
+	Model::Node* t_LinearNodes = BBnewArr(
+		a_SystemAllocator,
+		t_LinearNodeCount,
+		Model::Node);
+	a_Model.linearNodes = t_LinearNodes;
+	a_Model.linearNodeCount = t_LinearNodeCount;
+
+	//Temporary stuff
+	uint32_t* t_Indices = BBnewArr(
+		a_TempAllocator,
+		t_IndexCount,
+		uint32_t);
+	Vertex* t_Vertices = BBnewArr(
+		a_TempAllocator,
+		t_VertexCount,
+		Vertex);
+
+	uint32_t t_CurrentIndex = 0;
+
+	uint32_t t_CurrentNode = 0;
+	uint32_t t_CurrentMesh = 0;
+	uint32_t t_CurrentPrimitive = 0;
+
+	for (size_t nodeIndex = 0; nodeIndex < t_LinearNodeCount; nodeIndex++)
+	{
+		//TODO: we do not handle childeren now, we should!
+		const cgltf_node& t_Node = t_Data->nodes[nodeIndex];
+		Model::Node& t_ModelNode = t_LinearNodes[t_CurrentNode++];
+		t_ModelNode.childCount = 0;
+		t_ModelNode.childeren = nullptr; //For now we don't care.
+		t_ModelNode.meshIndex = MESH_INVALID_INDEX;
+		if (t_Node.mesh != nullptr)
+		{
+			const cgltf_mesh& t_Mesh = *t_Node.mesh;
+
+			Model::Mesh& t_ModelMesh = t_Meshes[t_CurrentMesh];
+			t_ModelNode.meshIndex = t_CurrentMesh++;
+			t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
+			t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
+
+			for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
+			{
+				const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+				Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
+				t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);
+				t_MeshPrimitive.indexStart = t_CurrentIndex;
+
+				void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
+				if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
+				{
+					for (size_t i = 0; i < t_Primitive.indices->count; i++)
+						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
+				}
+				else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
+				{
+					for (size_t i = 0; i < t_Primitive.indices->count; i++)
+						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
+				}
+				else
+				{
+					BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+				}
+
+				for (size_t i = 0; i < t_VertexCount; i++)
+				{
+					t_Vertices[i].color.x = 1.0f;
+					t_Vertices[i].color.y = 1.0f;
+					t_Vertices[i].color.z = 1.0f;
+				}
+
+				for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
+				{
+					const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
+					float* t_PosData = nullptr;
+					size_t t_CurrentVertex = 0;
+
+					switch (t_Attribute.type)
+					{
+					case cgltf_attribute_type_position:
+						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+						{
+							t_Vertices[t_CurrentVertex].pos.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].pos.y = t_PosData[1];
+							t_Vertices[t_CurrentVertex].pos.z = t_PosData[2];
+
+							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+							++t_CurrentVertex;
+						}
+						break;
+					case cgltf_attribute_type_texcoord:
+						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+						{
+							t_Vertices[t_CurrentVertex].uv.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].uv.y = t_PosData[1];
+
+							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+							++t_CurrentVertex;
+						}
+
+						break;
+					case cgltf_attribute_type_normal:
+						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+						{
+							t_Vertices[t_CurrentVertex].normal.x = t_PosData[0];
+							t_Vertices[t_CurrentVertex].normal.y = t_PosData[1];
+							t_Vertices[t_CurrentVertex].normal.z = t_PosData[2];
+
+							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+							++t_CurrentVertex;
+						}
+						break;
+					}
+					BB_ASSERT(t_VertexCount >= t_CurrentVertex, "Overwriting vertices in the gltf loader!");
+				}
+			}
+		}
+	}
+
+	//get it all in GPU buffers now.
+	{
+		const size_t t_VertexBufferSize = t_VertexCount * sizeof(Vertex);
+
+		const UploadBufferChunk t_VertChunk = a_UploadBuffer.Alloc(t_VertexBufferSize);
+		memcpy(t_VertChunk.memory, t_Vertices, t_VertexBufferSize);
+
+		a_Model.vertexView = AllocateFromVertexBuffer(t_VertexBufferSize);
+
+		RenderCopyBufferInfo t_CopyInfo{};
+		t_CopyInfo.src = a_UploadBuffer.Buffer();
+		t_CopyInfo.dst = a_Model.vertexView.bufferHandle;
+		t_CopyInfo.srcOffset = t_VertChunk.bufferOffset;
+		t_CopyInfo.dstOffset = a_Model.vertexView.offset;
+		t_CopyInfo.size = a_Model.vertexView.size;
+
+		RenderBackend::CopyBuffer(a_TransferCmdList, t_CopyInfo);
+	}
+
+	{
+		const size_t t_IndexBufferSize = t_IndexCount * sizeof(uint32_t);
+
+		const UploadBufferChunk t_IndexChunk = a_UploadBuffer.Alloc(t_IndexBufferSize);
+		memcpy(t_IndexChunk.memory, t_Indices, t_IndexBufferSize);
+
+		a_Model.indexView = AllocateFromIndexBuffer(t_IndexBufferSize);
+
+		RenderCopyBufferInfo t_CopyInfo{};
+		t_CopyInfo.src = a_UploadBuffer.Buffer();
+		t_CopyInfo.dst = a_Model.indexView.bufferHandle;
+		t_CopyInfo.srcOffset = t_IndexChunk.bufferOffset;
+		t_CopyInfo.dstOffset = a_Model.indexView.offset;
+		t_CopyInfo.size = a_Model.indexView.size;
+
+		RenderBackend::CopyBuffer(a_TransferCmdList, t_CopyInfo);
+	}
+
+	{ //descriptor allocation
+		a_Model.meshDescriptor = t_MeshDescriptor;
+		a_Model.descAllocation = g_descriptorManager->Allocate(a_Model.meshDescriptor);
+
+		WriteDescriptorData t_WriteData{};
+		t_WriteData.binding = 0;
+		t_WriteData.descriptorIndex = 0;
+		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_WriteData.buffer.buffer = t_VertexBuffer->m_Buffer;
+		t_WriteData.buffer.offset = 0;
+		t_WriteData.buffer.range = t_VertexBuffer->m_Size;
+		WriteDescriptorInfos t_WriteInfos{};
+		t_WriteInfos.allocation = a_Model.descAllocation;
+		t_WriteInfos.descriptorHandle = t_MeshDescriptor;
+		t_WriteInfos.data = Slice(&t_WriteData, 1);
+		RenderBackend::WriteDescriptors(t_WriteInfos);
+	}
+
+	cgltf_free(t_Data);
 }
