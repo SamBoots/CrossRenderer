@@ -42,6 +42,58 @@ namespace BB
 			}
 		}
 
+		static inline D3D12_BARRIER_LAYOUT BarrierLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+		{
+			switch (a_ImageLayout)
+			{
+			case RENDER_IMAGE_LAYOUT::UNDEFINED:				return D3D12_BARRIER_LAYOUT_UNDEFINED;
+			case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return D3D12_BARRIER_LAYOUT_RENDER_TARGET;
+			case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ;
+			case RENDER_IMAGE_LAYOUT::GENERAL:					return D3D12_BARRIER_LAYOUT_COMMON;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return D3D12_BARRIER_LAYOUT_COPY_SOURCE;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return D3D12_BARRIER_LAYOUT_COPY_DEST;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return D3D12_BARRIER_LAYOUT_SHADER_RESOURCE;
+			case RENDER_IMAGE_LAYOUT::PRESENT:					return D3D12_BARRIER_LAYOUT_PRESENT;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_IMAGE_LAYOUT failed to convert to a D3D12_BARRIER_LAYOUT.");
+				return D3D12_BARRIER_LAYOUT_UNDEFINED;
+				break;
+			}
+		}
+
+		static inline D3D12_BARRIER_ACCESS BarrierAccess(const RENDER_ACCESS_MASK a_Type)
+		{
+			switch (a_Type)
+			{
+			case RENDER_ACCESS_MASK::NONE:						return D3D12_BARRIER_ACCESS_NO_ACCESS;
+			case RENDER_ACCESS_MASK::TRANSFER_WRITE:			return D3D12_BARRIER_ACCESS_COPY_DEST;
+			case RENDER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE;
+			case RENDER_ACCESS_MASK::SHADER_READ:				return D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_ACCESS_MASK failed to convert to a D3D12_BARRIER_ACCESS.");
+				return D3D12_BARRIER_ACCESS_NO_ACCESS;
+				break;
+			}
+		}
+
+		static inline D3D12_BARRIER_SYNC BarrierSync(const RENDER_PIPELINE_STAGE a_Stage)
+		{
+			switch (a_Stage)
+			{
+			case RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE:		return D3D12_BARRIER_SYNC_ALL;
+			case RENDER_PIPELINE_STAGE::TRANSFER:				return D3D12_BARRIER_SYNC_COPY;
+			case RENDER_PIPELINE_STAGE::VERTEX_INPUT:			return D3D12_BARRIER_SYNC_VERTEX_SHADING;
+			case RENDER_PIPELINE_STAGE::VERTEX_SHADER:			return D3D12_BARRIER_SYNC_VERTEX_SHADING;
+			case RENDER_PIPELINE_STAGE::EARLY_FRAG_TEST:		return D3D12_BARRIER_SYNC_DEPTH_STENCIL;
+			case RENDER_PIPELINE_STAGE::FRAGMENT_SHADER:		return D3D12_BARRIER_SYNC_PIXEL_SHADING;
+			case RENDER_PIPELINE_STAGE::END_OF_PIPELINE:		return D3D12_BARRIER_SYNC_ALL;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_PIPELINE_STAGE failed to convert to a D3D12_BARRIER_SYNC.");
+				return D3D12_BARRIER_SYNC_ALL;
+				break;
+			}
+		}
+
 		const D3D12_SHADER_VISIBILITY ShaderVisibility(const RENDER_SHADER_STAGE a_Stage);
 
 		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
@@ -281,7 +333,7 @@ namespace BB
 		ID3D12Resource* rtv;
 		DXPipeline* boundPipeline;
 
-		ID3D12GraphicsCommandList* List() const { return m_List; }
+		ID3D12GraphicsCommandList7* List() const { return m_List; }
 		//Commandlist holds the allocator info, so use this instead of List()->Reset
 		void Reset(ID3D12PipelineState* a_PipeState = nullptr);
 		//Prefer to use this Close instead of List()->Close() for error testing purposes
@@ -295,7 +347,7 @@ namespace BB
 	private:
 		union
 		{
-			ID3D12GraphicsCommandList* m_List;
+			ID3D12GraphicsCommandList7* m_List;
 		};
 		DXCommandAllocator& m_CmdAllocator;
 	};

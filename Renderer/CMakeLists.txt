@@ -70,3 +70,13 @@ add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxil.dll"
         $<TARGET_FILE_DIR:Renderer>)
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/D3D12Core.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/d3d12SDKLayers.dll"
+        $<TARGET_FILE_DIR:Renderer>)

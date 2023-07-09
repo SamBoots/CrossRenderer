@@ -29,7 +29,15 @@ target_link_libraries(BB_DirectXDLL
     DX12MA
     d3d12.lib
     dxgi.lib
-    dxguid.lib)
+    dxguid.lib
+    DX12_agility_sdk)
 
-install(TARGETS BB_DirectXDLL
-DESTINATION $<TARGET_FILE_DIR:Renderer>)
+add_custom_command(TARGET BB_DirectXDLL POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/D3D12Core.dll"
+        $<TARGET_FILE_DIR:BB_DirectXDLL>)
+
+add_custom_command(TARGET BB_DirectXDLL POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/d3d12SDKLayers.dll"
+        $<TARGET_FILE_DIR:BB_DirectXDLL>)

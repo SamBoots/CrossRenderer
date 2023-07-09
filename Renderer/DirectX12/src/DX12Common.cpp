@@ -7,6 +7,9 @@
 
 #include "TemporaryAllocator.h"
 
+extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = 610; }
+extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
+
 //Tutorial used for this DX12 backend was https://alain.xyz/blog/raw-directx12 
 
 using namespace BB;
@@ -31,6 +34,15 @@ enum class ShaderType
 	VERTEX,
 	PIXEL
 };
+
+static void CheckFeatureSupport()
+{
+	D3D12_FEATURE_DATA_D3D12_OPTIONS12 t_DeviceOptions{};
+
+	s_DX12B.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &t_DeviceOptions, sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS12));
+
+	BB_ASSERT(t_DeviceOptions.EnhancedBarriersSupported, "DX12, enhanced barriers not supported!");
+}
 
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
 {
@@ -109,7 +121,6 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	}
 }
 
-
 BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	UINT t_FactoryFlags = 0;
@@ -140,7 +151,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 #pragma region DEVICE_CREATION
 	IDXGIAdapter1* t_CurrentBestAdapter = nullptr;
 	SIZE_T t_BestDedicatedVRAM = 0;
-
+	
 	for (UINT adapterIndex = 0;
 		DXGI_ERROR_NOT_FOUND != s_DX12B.factory->EnumAdapters1(adapterIndex, &s_DX12B.adapter);
 		++adapterIndex)
@@ -161,7 +172,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_DX12B.adapter = t_CurrentBestAdapter;
 
 	DXASSERT(D3D12CreateDevice(s_DX12B.adapter,
-		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_12_2,
 		IID_PPV_ARGS(&s_DX12B.device)),
 		"DX12: Failed to create logical device.");
 
@@ -221,6 +232,8 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		s_DX12B.heap_cbv_srv_uav_increment_size = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		s_DX12B.heap_sampler_size = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	}
+
+	CheckFeatureSupport();
 
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
@@ -819,25 +832,35 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->rtv = s_DX12B.swapchainRenderTargets[s_DX12B.currentFrame];
 
-	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier{};
-	t_RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	t_RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	t_RenderTargetBarrier.Transition.pResource = t_CommandList->rtv;
-	t_RenderTargetBarrier.Transition.StateBefore = DXConv::ResourceStates(a_RenderInfo.colorInitialLayout);;
-	t_RenderTargetBarrier.Transition.StateAfter = DXConv::ResourceStates(a_RenderInfo.colorFinalLayout);;
-	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList->List()->ResourceBarrier(1, &t_RenderTargetBarrier);
+	D3D12_TEXTURE_BARRIER t_TextBarrier{};
+	t_TextBarrier.AccessAfter = D3D12_BARRIER_ACCESS_RENDER_TARGET;
+	t_TextBarrier.LayoutBefore = DXConv::BarrierLayout(a_RenderInfo.colorInitialLayout);
+	t_TextBarrier.LayoutAfter = DXConv::BarrierLayout(a_RenderInfo.colorFinalLayout);
+	t_TextBarrier.pResource = t_CommandList->rtv;
+	t_TextBarrier.Subresources.FirstPlane = 0;
+	t_TextBarrier.Subresources.NumPlanes = 1;
+	t_TextBarrier.Subresources.IndexOrFirstMipLevel = 0;
+	t_TextBarrier.Subresources.NumMipLevels = 1;
+
+	D3D12_BARRIER_GROUP t_RenderTargetBarrier{};
+	t_RenderTargetBarrier.Type = D3D12_BARRIER_TYPE_TEXTURE;
+	t_RenderTargetBarrier.NumBarriers = 1;
+	t_RenderTargetBarrier.pTextureBarriers = &t_TextBarrier;
+	t_CommandList->List()->Barrier(1, &t_RenderTargetBarrier);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE t_RtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame *
 		s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-
 	//set depth
 	if (a_RenderInfo.depthStencil.handle != 0)
 	{
 		D3D12_CPU_DESCRIPTOR_HANDLE t_DsvHandle = reinterpret_cast<DXImage*>(a_RenderInfo.depthStencil.ptrHandle)->GetDepthMetaData().dsvHandle;
 		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, &t_DsvHandle);
 		t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	}
+	else
+	{
+		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, nullptr);
 	}
 
 
@@ -853,6 +876,22 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	D3D12_RECT t_Rect{ 0, 0, a_RenderInfo.viewportWidth, a_RenderInfo.viewportHeight };
 
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
+
+	switch (a_RenderInfo.colorLoadOp)
+	{
+	case RENDER_LOAD_OP::LOAD:
+
+		break;
+	case RENDER_LOAD_OP::CLEAR:
+		t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
+		break;
+	case RENDER_LOAD_OP::DONT_CARE:
+		
+		break;
+	default:
+		BB_ASSERT(false, "DX12, no color load op specified!");
+		break;
+	}
 	t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
 }
 
@@ -869,16 +908,21 @@ void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle,
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	//// Indicate that the back buffer will now be used to present.
-	D3D12_RESOURCE_BARRIER t_PresentBarrier{};
-	t_PresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	t_PresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	t_PresentBarrier.Transition.pResource = t_CommandList->rtv;
-	t_PresentBarrier.Transition.StateBefore = DXConv::ResourceStates(a_EndInfo.colorInitialLayout);
-	t_PresentBarrier.Transition.StateAfter = DXConv::ResourceStates(a_EndInfo.colorFinalLayout);
-	t_PresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	D3D12_TEXTURE_BARRIER t_TextBarrier{};
+	t_TextBarrier.AccessBefore = D3D12_BARRIER_ACCESS_RENDER_TARGET;
+	t_TextBarrier.LayoutBefore = DXConv::BarrierLayout(a_EndInfo.colorInitialLayout);
+	t_TextBarrier.LayoutAfter = DXConv::BarrierLayout(a_EndInfo.colorFinalLayout);
+	t_TextBarrier.pResource = t_CommandList->rtv;
+	t_TextBarrier.Subresources.FirstPlane = 0;
+	t_TextBarrier.Subresources.NumPlanes = 1;
+	t_TextBarrier.Subresources.IndexOrFirstMipLevel = 0;
+	t_TextBarrier.Subresources.NumMipLevels = 1;
 
-	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
+	D3D12_BARRIER_GROUP t_PresentBarrier{};
+	t_PresentBarrier.Type = D3D12_BARRIER_TYPE_TEXTURE;
+	t_PresentBarrier.NumBarriers = 1;
+	t_PresentBarrier.pTextureBarriers = &t_TextBarrier;
+	t_CommandList->List()->Barrier(1, &t_PresentBarrier);
 }
 
 void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
@@ -933,14 +977,25 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 void BB::DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	D3D12_RESOURCE_BARRIER t_Barrier{};
-	t_Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	t_Barrier.Transition.pResource = reinterpret_cast<DXImage*>(a_TransitionInfo.image.ptrHandle)->GetResource();
-	t_Barrier.Transition.StateBefore = DXConv::ResourceStateImage(a_TransitionInfo.oldLayout);
-	t_Barrier.Transition.StateAfter = DXConv::ResourceStateImage(a_TransitionInfo.newLayout);
-	t_Barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList->List()->ResourceBarrier(1, &t_Barrier);
+	D3D12_TEXTURE_BARRIER t_TextBarrier{};
+	t_TextBarrier.AccessBefore = DXConv::BarrierAccess(a_TransitionInfo.srcMask);
+	t_TextBarrier.AccessAfter = DXConv::BarrierAccess(a_TransitionInfo.dstMask);
+	t_TextBarrier.LayoutBefore = DXConv::BarrierLayout(a_TransitionInfo.oldLayout);
+	t_TextBarrier.LayoutAfter = DXConv::BarrierLayout(a_TransitionInfo.newLayout);
+	t_TextBarrier.SyncBefore = DXConv::BarrierSync(a_TransitionInfo.srcStage);
+	t_TextBarrier.SyncAfter = DXConv::BarrierSync(a_TransitionInfo.dstStage);
+	t_TextBarrier.pResource = reinterpret_cast<DXImage*>(a_TransitionInfo.image.ptrHandle)->GetResource();
+	t_TextBarrier.Subresources.FirstPlane = a_TransitionInfo.baseArrayLayer;
+	t_TextBarrier.Subresources.NumPlanes = a_TransitionInfo.layerCount;
+	t_TextBarrier.Subresources.IndexOrFirstMipLevel = a_TransitionInfo.baseMipLevel;
+	t_TextBarrier.Subresources.NumMipLevels = a_TransitionInfo.levelCount;
+	
+	D3D12_BARRIER_GROUP t_PresentBarrier{};
+	t_PresentBarrier.Type = D3D12_BARRIER_TYPE_TEXTURE;
+	t_PresentBarrier.NumBarriers = 1;
+	t_PresentBarrier.pTextureBarriers = &t_TextBarrier;
+	t_CommandList->List()->Barrier(1, &t_PresentBarrier);
 }
 
 void BB::DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
