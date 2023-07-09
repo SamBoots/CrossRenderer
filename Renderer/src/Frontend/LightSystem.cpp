@@ -81,7 +81,7 @@ void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_Recordi
 	t_CopyInfo.size = t_AllocSize;
 	t_CopyInfo.src = m_UploadBuffer;
 	t_CopyInfo.srcOffset = m_UploadBufferOffset;
-	t_CopyInfo.dst = m_BufferPart.bufferHandle;
+	t_CopyInfo.dst = m_BufferPart.buffer;
 	t_CopyInfo.dstOffset = static_cast<uint64_t>(m_BufferPart.offset + t_DstBufferOffset);
 
 	RenderBackend::CopyBuffer(t_RecordingCmdList, t_CopyInfo);
@@ -129,7 +129,7 @@ void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor, const Descrip
 	t_WriteData.binding = 3;
 	t_WriteData.descriptorIndex = 0;
 	t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-	t_WriteData.buffer.buffer = t_LightBufferPart.bufferHandle;
+	t_WriteData.buffer.buffer = t_LightBufferPart.buffer;
 	t_WriteData.buffer.offset = t_LightBufferPart.offset;
 	t_WriteData.buffer.range = t_LightBufferPart.size;
 

@@ -173,10 +173,11 @@ void Draw3DFrame()
 	uint32_t t_IsSamplerHeap = false;
 	size_t t_HeapOffset = sceneDescAllocation.offset;
 	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
-
-	uint64_t t_BufferOffsets[1]{ t_Model->descAllocation.offset };
-	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
-	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexView.bufferHandle, t_Model->indexView.offset);
+	{
+		uint64_t t_BufferOffsets[1]{ t_Model->descAllocation.offset };
+		RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
+		RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexView.buffer, t_Model->indexView.offset);
+	}
 
 	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
 	{
@@ -192,7 +193,7 @@ void Draw3DFrame()
 
 			uint64_t t_BufferOffsets[1]{ t_NewModel->descAllocation.offset };
 			RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
-			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexView.bufferHandle, t_NewModel->indexView.offset);
+			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexView.buffer, t_NewModel->indexView.offset);
 
 			t_Model = t_NewModel;
 		}
@@ -814,7 +815,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
-		t_CopyInfo.dst = t_Model.vertexView.bufferHandle;
+		t_CopyInfo.dst = t_Model.vertexView.buffer;
 		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
 		t_CopyInfo.dstOffset = t_Model.vertexView.offset;
 		t_CopyInfo.size = t_Model.vertexView.size;
@@ -830,7 +831,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.src = t_UploadBuffer->Buffer();
-		t_CopyInfo.dst = t_Model.indexView.bufferHandle;
+		t_CopyInfo.dst = t_Model.indexView.buffer;
 		t_CopyInfo.srcOffset = t_StageBuffer.bufferOffset;
 		t_CopyInfo.dstOffset = t_Model.indexView.offset;
 		t_CopyInfo.size = t_Model.indexView.size;
@@ -846,7 +847,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_WriteData.binding = 0;
 		t_WriteData.descriptorIndex = 0;
 		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteData.buffer.buffer = t_Model.vertexView.bufferHandle;
+		t_WriteData.buffer.buffer = t_Model.vertexView.buffer;
 		t_WriteData.buffer.offset = t_Model.vertexView.offset;
 		t_WriteData.buffer.range = t_Model.vertexView.size;
 		WriteDescriptorInfos t_WriteInfos{};
@@ -1249,7 +1250,7 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
-		t_CopyInfo.dst = a_Model.vertexView.bufferHandle;
+		t_CopyInfo.dst = a_Model.vertexView.buffer;
 		t_CopyInfo.srcOffset = t_VertChunk.bufferOffset;
 		t_CopyInfo.dstOffset = a_Model.vertexView.offset;
 		t_CopyInfo.size = a_Model.vertexView.size;
@@ -1267,7 +1268,7 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 
 		RenderCopyBufferInfo t_CopyInfo{};
 		t_CopyInfo.src = a_UploadBuffer.Buffer();
-		t_CopyInfo.dst = a_Model.indexView.bufferHandle;
+		t_CopyInfo.dst = a_Model.indexView.buffer;
 		t_CopyInfo.srcOffset = t_IndexChunk.bufferOffset;
 		t_CopyInfo.dstOffset = a_Model.indexView.offset;
 		t_CopyInfo.size = a_Model.indexView.size;
@@ -1283,9 +1284,9 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 		t_WriteData.binding = 0;
 		t_WriteData.descriptorIndex = 0;
 		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteData.buffer.buffer = t_VertexBuffer->m_Buffer;
-		t_WriteData.buffer.offset = 0;
-		t_WriteData.buffer.range = t_VertexBuffer->m_Size;
+		t_WriteData.buffer.buffer = a_Model.vertexView.buffer;
+		t_WriteData.buffer.offset = a_Model.vertexView.offset;
+		t_WriteData.buffer.range = a_Model.vertexView.size;
 		WriteDescriptorInfos t_WriteInfos{};
 		t_WriteInfos.allocation = a_Model.descAllocation;
 		t_WriteInfos.descriptorHandle = t_MeshDescriptor;

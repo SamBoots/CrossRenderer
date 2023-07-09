@@ -17,7 +17,7 @@ namespace BB
 
 	struct RenderBufferPart
 	{
-		RBufferHandle bufferHandle{};
+		RBufferHandle buffer{};
 		uint32_t size = 0; //the size of the buffer part.
 		uint32_t offset = 0; //offset starting from the bufferhandle
 	};

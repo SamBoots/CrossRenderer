@@ -15,8 +15,6 @@ struct Vertex
     float3 normal;
     float2 uv;
     float3 color;
-    float pad;
-    float4 padd;
 };
 
 struct VSOutput
@@ -69,7 +67,11 @@ VSOutput main(uint VertexIndex : SV_VertexID)
     float4x4 t_InverseModel = t_ModelInstance.inverse;
     
     uint t_VertIndex = VertexIndex * sizeof(Vertex);
-    Vertex t_Vertex = vertData.Load<Vertex>(t_VertIndex);
+    Vertex t_Vertex;// = vertData.Load < Vertex > (t_VertIndex);
+    t_Vertex.position = asfloat(vertData.Load3(t_VertIndex));
+    t_Vertex.normal = asfloat(vertData.Load3(t_VertIndex + 12));
+    t_Vertex.uv = asfloat(vertData.Load2(t_VertIndex + 24));
+    t_Vertex.color = asfloat(vertData.Load3(t_VertIndex + 32));
     
     output.pos = mul(t_Cam.proj, mul(t_Cam.view, mul(t_Model, float4(t_Vertex.position.xyz, 1.0))));
     output.fragPos = float4(mul(t_Model, float4(t_Vertex.position, 1.0f))).xyz;

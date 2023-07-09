@@ -625,8 +625,6 @@ namespace BB
 		float3 normal{}; //24
 		float2 uv{}; //32
 		float3 color{}; //44
-		float pad; //48
-		float4 padd; //64
 	};
 
 	struct BackendInfo
