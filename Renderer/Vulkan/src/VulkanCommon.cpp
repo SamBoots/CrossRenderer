@@ -1,10 +1,12 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.2
+#define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 constexpr int VULKAN_VERSION = 3;
+constexpr int RESOURCE_DESCRIPTOR_BUFFER_INDEX = 0;
+constexpr int SAMPLER_DESCRIPTOR_BUFFER_INDEX = 1;
 
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
@@ -13,17 +15,29 @@ constexpr int VULKAN_VERSION = 3;
 #include "Allocators/TemporaryAllocator.h"
 #include "BBMemory.h"
 #include "Math.inl"
+#include "Program.h"
 
 #include "VulkanCommon.h"
 
 #include <iostream>
 
 using namespace BB;
-
+static PFN_vkGetDescriptorSetLayoutSizeEXT GetDescriptorSetLayoutSizeEXT;
+static PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
+static PFN_vkGetDescriptorEXT GetDescriptorEXT;
+static PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
+static PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT CmdBindDescriptorBufferEmbeddedSamplersEXT;
+static PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 
 static inline void VulkanLoadFunctions(VkInstance a_Instance)
 {
+	GetDescriptorSetLayoutSizeEXT = (PFN_vkGetDescriptorSetLayoutSizeEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutSizeEXT");
+	GetDescriptorSetLayoutBindingOffsetEXT = (PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorSetLayoutBindingOffsetEXT");
+	GetDescriptorEXT = (PFN_vkGetDescriptorEXT)vkGetInstanceProcAddr(a_Instance, "vkGetDescriptorEXT");
+	CmdBindDescriptorBuffersEXT = (PFN_vkCmdBindDescriptorBuffersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBuffersEXT");
+	CmdBindDescriptorBufferEmbeddedSamplersEXT = (PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT");
+	CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(a_Instance, "vkCmdSetDescriptorBufferOffsetsEXT");
 	SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(a_Instance, "vkSetDebugUtilsObjectNameEXT");
 }
 
@@ -101,29 +115,6 @@ struct VkCommandAllocator
 	}
 };
 
-static VkDescriptorPoolSize s_DescriptorPoolSizes[]
-{
-	{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
-	{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 },
-	{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 2 },
-	{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 },
-	{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 2 }
-};
-
-struct DescriptorAllocator
-{
-	const VkDescriptorPool GetPool() const
-	{
-		return descriptorPool;
-	}
-
-	void CreateDescriptorPool();
-	void Destroy();
-
-private:
-	VkDescriptorPool descriptorPool;
-};
-
 struct VKPipelineBuildInfo
 {
 	const char* name;
@@ -136,7 +127,8 @@ struct VKPipelineBuildInfo
 	VkPipelineLayoutCreateInfo pipeLayoutInfo{};
 
 	uint32_t layoutCount;
-	VkDescriptorSetLayout layout[BINDING_MAX];
+	//Also accept immutable samplers
+	VkDescriptorSetLayout layout[BINDING_MAX + 1];
 };
 
 using PipelineLayoutHash = uint64_t;
@@ -146,9 +138,12 @@ struct VulkanBackend_inst
 	FrameIndex frameCount = 0;
 	uint32_t imageIndex = 0;
 
+	uint32_t minReadonlyConstantOffset;
+	uint32_t minReadonlyBufferOffset;
+	uint32_t minReadWriteBufferOffset;
+
 	VkInstance instance{};
 	VkSurfaceKHR surface{};
-	DescriptorAllocator descriptorAllocator;
 
 	VkDevice device;
 	VkPhysicalDevice physicalDevice;
@@ -165,7 +160,6 @@ struct VulkanBackend_inst
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
 	Pool<VulkanImage> imagePool;
-	Pool<VulkanBindingSet> bindingSetPool;
 	Pool<VulkanFence> vulkanFencePool;
 
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
@@ -180,7 +174,6 @@ struct VulkanBackend_inst
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
-		bindingSetPool.CreatePool(s_VulkanAllocator, 16);
 		vulkanFencePool.CreatePool(s_VulkanAllocator, 16);
 	}
 
@@ -191,12 +184,16 @@ struct VulkanBackend_inst
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
-		bindingSetPool.DestroyPool(s_VulkanAllocator);
 		vulkanFencePool.DestroyPool(s_VulkanAllocator);
 	}
 };
 static VulkanBackend_inst s_VKB;
+static uint32_t s_DescriptorBiggestResourceType = 0;
+static uint32_t s_DescriptorSamplerSize = 0;
+static uint32_t s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::ENUM_SIZE)];
+static uint32_t s_DescriptorBufferAlignment = 0;
 
+#ifdef _DEBUG
 static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHandle, const VkObjectType a_ObjType)
 {
 	VkDebugUtilsObjectNameInfoEXT t_DebugName{};
@@ -208,7 +205,6 @@ static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHan
 	SetDebugUtilsObjectNameEXT(s_VKB.device, &t_DebugName);
 }
 
-#ifdef _DEBUG
 #define SetDebugName(a_Name, a_ObjectHandle, a_ObjType) SetDebugName_f(a_Name, (uint64_t)a_ObjectHandle, a_ObjType)
 #else
 #define SetDebugName()
@@ -221,27 +217,142 @@ static inline VkDeviceSize PadUBOBufferSize(const VkDeviceSize a_BuffSize)
 	return Pointer::AlignPad(a_BuffSize, t_Properties.limits.minUniformBufferOffsetAlignment);
 }
 
-void DescriptorAllocator::CreateDescriptorPool()
+static inline VkDeviceSize GetBufferDeviceAddress(const VkBuffer a_Buffer)
 {
-	VkDescriptorPoolCreateInfo t_CreateInfo{};
-	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	t_CreateInfo.pPoolSizes = s_DescriptorPoolSizes;
-	t_CreateInfo.poolSizeCount = _countof(s_DescriptorPoolSizes);
-	t_CreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-	
-	t_CreateInfo.maxSets = 1024;
-
-	VKASSERT(vkCreateDescriptorPool(s_VKB.device,
-		&t_CreateInfo, nullptr, &descriptorPool),
-		"Vulkan: Failed to create descriptorPool.");
+	VkBufferDeviceAddressInfoKHR t_BuffAddressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	t_BuffAddressInfo.buffer = a_Buffer;
+	return vkGetBufferDeviceAddress(s_VKB.device, &t_BuffAddressInfo);
 }
 
-void DescriptorAllocator::Destroy()
+static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
-	vkDestroyDescriptorPool(s_VKB.device,
-		descriptorPool,
-		nullptr);
+	VkSampler t_Sampler{};
+	VkSamplerCreateInfo t_SamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+	t_SamplerInfo.addressModeU = VKConv::AddressMode(a_CreateInfo.addressModeU);
+	t_SamplerInfo.addressModeV = VKConv::AddressMode(a_CreateInfo.addressModeV);
+	t_SamplerInfo.addressModeW = VKConv::AddressMode(a_CreateInfo.addressModeW);
+	switch (a_CreateInfo.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		t_SamplerInfo.magFilter = VK_FILTER_NEAREST;
+		t_SamplerInfo.minFilter = VK_FILTER_NEAREST;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
+		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
+		break;
+	}
+	t_SamplerInfo.minLod = a_CreateInfo.minLod;
+	t_SamplerInfo.maxLod = a_CreateInfo.maxLod;
+	t_SamplerInfo.mipLodBias = 0;
+	if (a_CreateInfo.maxAnistoropy > 0)
+	{
+		t_SamplerInfo.anisotropyEnable = VK_TRUE;
+		t_SamplerInfo.maxAnisotropy = a_CreateInfo.maxAnistoropy;
+	}
+
+	VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_Sampler),
+		"Vulkan: Failed to create image sampler!");
+	SetDebugName(a_CreateInfo.name, t_Sampler, VK_OBJECT_TYPE_SAMPLER);
+
+	return t_Sampler;
 }
+
+//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
+class VulkanDescriptorBuffer
+{
+public:
+	VulkanDescriptorBuffer(const uint32_t a_BufferSize, const VkBufferUsageFlags a_Usage, const bool a_GPUHeap, const char* a_Name)
+		: m_BufferSize(a_BufferSize)
+	{
+		if (a_GPUHeap)
+		{
+			VkBufferCreateInfo t_BufferInfo{};
+			t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+			t_BufferInfo.size = a_BufferSize;
+			t_BufferInfo.usage = a_Usage;
+			t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+			VmaAllocationCreateInfo t_VmaAlloc{};
+			t_VmaAlloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+			t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+			VKASSERT(vmaCreateBuffer(s_VKB.vma,
+				&t_BufferInfo, &t_VmaAlloc,
+				&m_Buffer, &m_Allocation,
+				nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
+
+			VKASSERT(vmaMapMemory(s_VKB.vma, m_Allocation, &m_Start),
+				"Vulkan: Failed to map memory for descriptor buffer");
+			m_StartAddress = GetBufferDeviceAddress(m_Buffer);
+
+			SetDebugName(a_Name, m_Buffer, VK_OBJECT_TYPE_BUFFER);
+		}
+		else
+		{
+			//Mark m_Buffer is NULL so that we can be sure that it's a CPU heap.
+			m_Buffer = VK_NULL_HANDLE;
+			m_Start = ReserveVirtualMemory(m_BufferSize);
+			CommitVirtualMemory(m_Start, m_BufferSize);
+		}
+	}
+
+	~VulkanDescriptorBuffer()
+	{
+		//If m_Buffer is initialized then it's a GPU heap.
+		if (m_Buffer)
+		{
+			vmaUnmapMemory(s_VKB.vma, m_Allocation);
+			vmaDestroyBuffer(s_VKB.vma, m_Buffer, m_Allocation);
+		}
+		else
+		{
+			ReleaseVirtualMemory(m_Start);
+		}
+		memset(this, 0, sizeof(VulkanDescriptorBuffer));
+	}
+
+	inline DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
+	{
+		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
+		VkDeviceSize t_AllocSize = s_DescriptorBiggestResourceType * t_Desc->descriptorCount;
+
+		Pointer::AlignPad(t_AllocSize, s_DescriptorBufferAlignment);
+
+		//Descriptors for resources can be either 4 words or 
+		//Add one more descriptor just to make sure we have enough space. 
+		//This is peak programming
+		const uint32_t t_DescriptorCount = t_AllocSize / s_DescriptorBiggestResourceType;
+		
+		DescriptorAllocation t_Allocation{};
+		t_Allocation.descriptorCount = t_DescriptorCount;
+		t_Allocation.offset = a_HeapOffset * s_DescriptorBiggestResourceType;
+		t_Allocation.descriptor = a_Layout;
+		t_Allocation.bufferStart = m_Start;
+		return t_Allocation;
+	}
+
+	void inline Reset()
+	{
+		memset(m_Start, 0, m_BufferSize);
+	}
+
+	const inline VkBuffer GetBuffer() const { return m_Buffer; }
+	inline void* GetStartOfBuffer() const { return m_Start; }
+	const inline VkDeviceAddress GetBaseAddress() const { return m_StartAddress; }
+
+private:
+	VkBuffer m_Buffer;
+	VmaAllocation m_Allocation;
+	//using uint32_t since descriptor buffers on some drivers
+	//only spend 32-bits virtual address.
+	uint32_t m_BufferSize;
+	void* m_Start;
+	VkDeviceAddress m_StartAddress;
+};
 
 PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
 {
@@ -416,20 +527,20 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 		t_DeviceProperties.pNext = nullptr;
 		vkGetPhysicalDeviceProperties2(t_PhysicalDevices[i], &t_DeviceProperties);
 		
-		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{};
-		t_IndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
-		VkPhysicalDeviceTimelineSemaphoreFeatures t_SyncFeatures{};
-		t_SyncFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-		t_SyncFeatures.pNext = &t_IndexingFeatures;
-		VkPhysicalDeviceFeatures2 t_DeviceFeatures{};
-		t_DeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT };
+		VkPhysicalDeviceTimelineSemaphoreFeatures t_SemFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES };
+		t_SemFeatures.pNext = &t_IndexingFeatures;
+		VkPhysicalDeviceSynchronization2Features t_SyncFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
+		t_SyncFeatures.pNext = &t_SemFeatures;
+		VkPhysicalDeviceFeatures2 t_DeviceFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 		t_DeviceFeatures.pNext = &t_SyncFeatures;
 		vkGetPhysicalDeviceFeatures2(t_PhysicalDevices[i], &t_DeviceFeatures);
 
 		SwapchainSupportDetails t_SwapChainDetails = QuerySwapChainSupport(a_Surface, t_PhysicalDevices[i]);
 
 		if (t_DeviceProperties.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-			t_SyncFeatures.timelineSemaphore == VK_TRUE &&
+			t_SemFeatures.timelineSemaphore == VK_TRUE &&
+			t_SyncFeatures.synchronization2 == VK_TRUE &&
 			t_DeviceFeatures.features.geometryShader &&
 			t_DeviceFeatures.features.samplerAnisotropy &&
 			QueueFindGraphicsBit(t_PhysicalDevices[i]) &&
@@ -548,15 +659,26 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 	t_IndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
 	t_IndexingFeatures.pNext = &t_DynamicRendering;
 
+	VkPhysicalDeviceBufferDeviceAddressFeatures t_AddressFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
+	t_AddressFeature.bufferDeviceAddress = VK_TRUE;
+	t_AddressFeature.pNext = &t_IndexingFeatures;
+
+	VkPhysicalDeviceDescriptorBufferFeaturesEXT  t_DescriptorBufferInfo{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT };
+	t_DescriptorBufferInfo.descriptorBuffer = VK_TRUE;
+	t_DescriptorBufferInfo.pNext = &t_AddressFeature;
+
+	VkPhysicalDeviceSynchronization2Features t_SyncFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
+	t_SyncFeatures.synchronization2 = VK_TRUE;
+	t_SyncFeatures.pNext = &t_DescriptorBufferInfo;
+
 	VkDeviceCreateInfo t_CreateInfo{};
 	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	t_CreateInfo.pQueueCreateInfos = t_QueueCreateInfos;
 	t_CreateInfo.queueCreateInfoCount = t_DifferentQueues;
 	t_CreateInfo.pEnabledFeatures = &t_DeviceFeatures;
-
 	t_CreateInfo.ppEnabledExtensionNames = a_DeviceExtensions.data();
 	t_CreateInfo.enabledExtensionCount = static_cast<uint32_t>(a_DeviceExtensions.size());
-	t_CreateInfo.pNext = &t_IndexingFeatures;
+	t_CreateInfo.pNext = &t_SyncFeatures;
 
 	VKASSERT(vkCreateDevice(s_VKB.physicalDevice, 
 		&t_CreateInfo, 
@@ -759,9 +881,11 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 
 BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
+	//Returns some info to the global backend that is important.
+	BackendInfo t_BackendInfo;
+
 	//Initialize data structure
 	s_VKB.CreatePools();
-
 
 	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
 		s_VulkanTempAllocator,
@@ -784,8 +908,7 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	}
 #endif //_DEBUG
 	{
-		VkApplicationInfo t_AppInfo{};
-		t_AppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		VkApplicationInfo t_AppInfo{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
 		t_AppInfo.pApplicationName = a_CreateInfo.appName;
 		t_AppInfo.pEngineName = a_CreateInfo.engineName;
 		t_AppInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
@@ -847,6 +970,32 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	//Get the logical device and the graphics queue.
 	s_VKB.device = CreateLogicalDevice(BB::Slice(t_DeviceExtensions.extensions, t_DeviceExtensions.count));
 
+	{
+		VkPhysicalDeviceDescriptorBufferPropertiesEXT t_DescBufferInfo{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT, nullptr };
+		VkPhysicalDeviceProperties2 t_DeviceProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+		t_DeviceProperties.pNext = &t_DescBufferInfo;
+
+		vkGetPhysicalDeviceProperties2(s_VKB.physicalDevice, &t_DeviceProperties);
+
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT)] = t_DescBufferInfo.uniformBufferDescriptorSize;
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER)] = t_DescBufferInfo.storageBufferDescriptorSize;
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::READWRITE)] = t_DescBufferInfo.storageBufferDescriptorSize;
+		s_DescriptorTypeSize[static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::IMAGE)] = t_DescBufferInfo.sampledImageDescriptorSize;
+	
+		uint32_t t_BiggestDescriptorType = s_DescriptorTypeSize[0];
+		for (size_t i = 1; i < static_cast<uint32_t>(RENDER_DESCRIPTOR_TYPE::ENUM_SIZE); i++)
+		{
+			if (s_DescriptorTypeSize[i] > t_BiggestDescriptorType)
+				t_BiggestDescriptorType = s_DescriptorTypeSize[i];
+		}
+		s_DescriptorBiggestResourceType = t_BiggestDescriptorType;
+		s_DescriptorSamplerSize = t_DescBufferInfo.samplerDescriptorSize;
+		s_DescriptorBufferAlignment = t_DescBufferInfo.descriptorBufferOffsetAlignment;
+
+		t_BackendInfo.minReadonlyConstantOffset = t_DeviceProperties.properties.limits.minUniformBufferOffsetAlignment;
+		t_BackendInfo.minReadonlyBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
+		t_BackendInfo.minReadWriteBufferOffset = t_DeviceProperties.properties.limits.minStorageBufferOffsetAlignment;
+	}
 
 	CreateSwapchain(s_VKB.surface,
 		s_VKB.physicalDevice,
@@ -871,29 +1020,41 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	t_AllocatorCreateInfo.device = s_VKB.device;
 	t_AllocatorCreateInfo.instance = s_VKB.instance;
 	t_AllocatorCreateInfo.pVulkanFunctions = &t_VkFunctions;
-
+	t_AllocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	
 	vmaCreateAllocator(&t_AllocatorCreateInfo, &s_VKB.vma);
 
-	//Create descriptor allocator.
-	s_VKB.descriptorAllocator.CreateDescriptorPool();
-
 	//Returns some info to the global backend that is important.
-	BackendInfo t_BackendInfo;
 	t_BackendInfo.currentFrame = s_VKB.currentFrame;
 	t_BackendInfo.framebufferCount = s_VKB.frameCount;
 
 	return t_BackendInfo;
 }
 
-RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptorHeap BB::VulkanCreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible)
+{
+	VkBufferUsageFlags t_BufferUsage;
+	uint32_t t_BufferSize;
+
+	if (a_CreateInfo.isSampler)
+	{
+		t_BufferUsage = VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorSamplerSize;
+	}
+	else
+	{
+		t_BufferUsage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		t_BufferSize = a_CreateInfo.descriptorCount * s_DescriptorBiggestResourceType;
+	}
+
+	return BBnew(s_VulkanAllocator, VulkanDescriptorBuffer)(t_BufferSize, t_BufferUsage, a_GpuVisible, a_CreateInfo.name);
+}
+
+RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
 	bool bindlessSet = false;
-	VulkanBindingSet* t_BindingSet = s_VKB.bindingSetPool.Get();
-	*t_BindingSet = {}; //set to 0
 
-	t_BindingSet->bindingSet = a_CreateInfo.bindingSet;
-
-	uint32_t t_DescriptorCount = 0;
+	VulkanDescriptor t_ReturnDesc{};
 	
 	{
 		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
@@ -909,36 +1070,21 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 		for (size_t i = 0; i < a_CreateInfo.bindings.size(); i++)
 		{
 			const DescriptorBinding& t_Binding = a_CreateInfo.bindings[i];
-			VkSampler* t_Samplers = nullptr;
-			if (t_Binding.staticSamplers.size())
-			{
-				t_Samplers = BBnewArr(s_VulkanTempAllocator, t_Binding.staticSamplers.size(), VkSampler);
-				for (size_t i = 0; i < t_Binding.staticSamplers.size(); i++)
-				{
-					//Hacky for now... we just create the sampler like this. (WE WILL DO THIS LATER LMAO)
-					//t_Samplers[i] = *reinterpret_cast<VkSampler*>(VulkanCreateSampler(t_Binding.staticSamplers[i]).ptrHandle);
-					BB_ASSERT(false, "Vulkan: static samplers not yet implemented!");
-				}
-				t_LayoutBinds[i].pImmutableSamplers = t_Samplers;
-			}
-
 			t_LayoutBinds[i].binding = t_Binding.binding;
 			t_LayoutBinds[i].descriptorCount = t_Binding.descriptorCount;
 			t_LayoutBinds[i].descriptorType = VKConv::DescriptorBufferType(t_Binding.type);
-			t_LayoutBinds[i].pImmutableSamplers = t_Samplers; //Is null or we provide these elements.
 			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
 
+			t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
 			switch (t_Binding.flags)
 			{
 			case BB::RENDER_DESCRIPTOR_FLAG::NONE:
 				t_BindlessFlags[i] = 0;
 				break;
 			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
-				t_DescriptorCount += t_Binding.descriptorCount;
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT |
-					VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
-
+					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+				
 				bindlessSet = true;
 				break;
 			default:
@@ -947,17 +1093,14 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 			}
 		}
 
-		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{};
-		t_LayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		t_LayoutInfo.pBindings = t_LayoutBinds;
 		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_CreateInfo.bindings.size());
-		
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
 		if (bindlessSet) //if bindless add another struct and return here.
 		{
-			t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-
-			VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{};
-			t_LayoutExtInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+			VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT };
 			t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_CreateInfo.bindings.size());
 			t_LayoutExtInfo.pBindingFlags = t_BindlessFlags;
 
@@ -965,49 +1108,20 @@ RDescriptorHandle BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a
 
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				&t_LayoutInfo, nullptr, &t_ReturnDesc.layout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 		else
 		{
 			//Do some algorithm to see if I already made a descriptorlayout like this one.
 			VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
-				&t_LayoutInfo, nullptr, &t_BindingSet->setLayout),
+				&t_LayoutInfo, nullptr, &t_ReturnDesc.layout),
 				"Vulkan: Failed to create a descriptorsetlayout.");
 		}
 	}
 
-	{
-		//Now we create the descriptor set.
-		VkDescriptorSetAllocateInfo t_AllocInfo = {};
-		t_AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		t_AllocInfo.pSetLayouts = &t_BindingSet->setLayout;
-		t_AllocInfo.descriptorSetCount = 1;
-		//Lmao creat pool
-		t_AllocInfo.descriptorPool = s_VKB.descriptorAllocator.GetPool();
-
-		if (bindlessSet) //if bindless add another struct and return here.
-		{
-			VkDescriptorSetVariableDescriptorCountAllocateInfo t_CountInfo{};
-			t_CountInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
-			t_CountInfo.descriptorSetCount = 1;
-			t_CountInfo.pDescriptorCounts = &t_DescriptorCount;
-
-			t_AllocInfo.pNext = &t_CountInfo;
-
-			VKASSERT(vkAllocateDescriptorSets(s_VKB.device, &t_AllocInfo, &t_BindingSet->set),
-				"Vulkan: Allocating bindless descriptor sets failed.");
-			
-			return RDescriptorHandle(t_BindingSet);
-		}
-
-		VKASSERT(vkAllocateDescriptorSets(s_VKB.device, &t_AllocInfo, &t_BindingSet->set),
-			"Vulkan: Allocating descriptor sets failed.");
-	}
-
-	SetDebugName(a_CreateInfo.name, t_BindingSet->set, VK_OBJECT_TYPE_DESCRIPTOR_SET);
-
-	return RDescriptorHandle(t_BindingSet);
+	VulkanDescriptor* t_DescLayout = BBnew(s_VulkanAllocator, VulkanDescriptor)(t_ReturnDesc);
+	return RDescriptor(t_DescLayout);
 }
 
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
@@ -1036,15 +1150,11 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 		0,
 		&t_Queue->queue);
 
-
-
-	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
-	t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
 	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
 	t_TimelineSemInfo.initialValue = 0;
 
-	VkSemaphoreCreateInfo t_SemCreateInfo{};
-	t_SemCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkSemaphoreCreateInfo t_SemCreateInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
 	vkCreateSemaphore(s_VKB.device,
@@ -1065,8 +1175,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 {
 	VkCommandAllocator* t_CmdAllocator = s_VKB.cmdAllocators.Get();
 
-	VkCommandPoolCreateInfo t_CreateInfo{};
-	t_CreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	VkCommandPoolCreateInfo t_CreateInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	switch (a_CreateInfo.queueType)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:
@@ -1091,8 +1200,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 
 	t_CmdAllocator->buffers.CreatePool(s_VulkanAllocator, a_CreateInfo.commandListCount);
 
-	VkCommandBufferAllocateInfo t_AllocCreateInfo{};
-	t_AllocCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	VkCommandBufferAllocateInfo t_AllocCreateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
 	t_AllocCreateInfo.commandPool = t_CmdAllocator->pool;
 	t_AllocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	t_AllocCreateInfo.commandBufferCount = a_CreateInfo.commandListCount;
@@ -1119,8 +1227,7 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 {
 	VulkanBuffer* t_Buffer = s_VKB.bufferPool.Get();
 
-	VkBufferCreateInfo t_BufferInfo{};
-	t_BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	VkBufferCreateInfo t_BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	t_BufferInfo.size = a_CreateInfo.size;
 	t_BufferInfo.usage = VKConv::RenderBufferUsage(a_CreateInfo.usage);
 	t_BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -1129,7 +1236,6 @@ RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 	t_VmaAlloc.usage = MemoryPropertyFlags(a_CreateInfo.memProperties);
 	if (t_VmaAlloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_HOST)
 		t_VmaAlloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
 
 	VKASSERT(vmaCreateBuffer(s_VKB.vma,
 		&t_BufferInfo, &t_VmaAlloc,
@@ -1147,11 +1253,9 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
 	VulkanImage* t_Image = s_VKB.imagePool.Get();
 
-	VkImageCreateInfo t_ImageCreateInfo{};
-	t_ImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	VkImageCreateInfo t_ImageCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 
-	VkImageViewCreateInfo t_ViewInfo{};
-	t_ViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	VkImageViewCreateInfo t_ViewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	t_ImageCreateInfo.extent.width = a_CreateInfo.width;
 	t_ImageCreateInfo.extent.height = a_CreateInfo.height;
 	t_ImageCreateInfo.extent.depth = a_CreateInfo.depth;
@@ -1247,41 +1351,7 @@ RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 
 RSamplerHandle BB::VulkanCreateSampler(const SamplerCreateInfo& a_CreateInfo)
 {
-	VkSampler t_Sampler{};
-	VkSamplerCreateInfo t_SamplerInfo{};
-	t_SamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	t_SamplerInfo.addressModeU = VKConv::AddressMode(a_CreateInfo.addressModeU);
-	t_SamplerInfo.addressModeV = VKConv::AddressMode(a_CreateInfo.addressModeV);
-	t_SamplerInfo.addressModeW = VKConv::AddressMode(a_CreateInfo.addressModeW);
-	switch (a_CreateInfo.filter)
-	{
-	case SAMPLER_FILTER::NEAREST:
-		t_SamplerInfo.magFilter = VK_FILTER_NEAREST;
-		t_SamplerInfo.minFilter = VK_FILTER_NEAREST;
-		break;
-	case SAMPLER_FILTER::LINEAR:
-		t_SamplerInfo.magFilter = VK_FILTER_LINEAR;
-		t_SamplerInfo.minFilter = VK_FILTER_LINEAR;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
-		break;
-	}
-	t_SamplerInfo.minLod = a_CreateInfo.minLod;
-	t_SamplerInfo.maxLod = a_CreateInfo.maxLod;
-	t_SamplerInfo.mipLodBias = 0;
-	if (a_CreateInfo.maxAnistoropy > 0)
-	{
-		t_SamplerInfo.anisotropyEnable = VK_TRUE;
-		t_SamplerInfo.maxAnisotropy = a_CreateInfo.maxAnistoropy;
-	}
-
-	VKASSERT(vkCreateSampler(s_VKB.device, &t_SamplerInfo, nullptr, &t_Sampler),
-		"Vulkan: Failed to create image sampler!");
-
-	SetDebugName(a_CreateInfo.name, t_Sampler, VK_OBJECT_TYPE_SAMPLER);
-
-	return RSamplerHandle(t_Sampler);
+	return RSamplerHandle(CreateSampler(a_CreateInfo));
 }
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
@@ -1290,13 +1360,11 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 	t_Fence->lastCompleteValue = 0;
 	t_Fence->nextFenceValue = 1;
 
-	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
-	t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
 	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
 	t_TimelineSemInfo.initialValue = 0;
 
-	VkSemaphoreCreateInfo t_SemCreateInfo{};
-	t_SemCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkSemaphoreCreateInfo t_SemCreateInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
 	vkCreateSemaphore(s_VKB.device,
@@ -1309,140 +1377,98 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 	return RFenceHandle(t_Fence);
 }
 
-void BB::VulkanUpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+DescriptorAllocation BB::VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
 {
-	VkDescriptorBufferInfo t_BufferInfo{};
-	t_BufferInfo.buffer = reinterpret_cast<VulkanBuffer*>(a_Info.buffer.ptrHandle)->buffer;
-	t_BufferInfo.offset = a_Info.bufferOffset;
-	t_BufferInfo.range = a_Info.bufferSize;
-
-	VkWriteDescriptorSet t_Write{};
-	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	t_Write.dstBinding = a_Info.binding;
-	t_Write.dstArrayElement = a_Info.descriptorIndex;
-	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
-	t_Write.descriptorCount = 1;
-	t_Write.descriptorType = VKConv::DescriptorBufferType(a_Info.type);
-	t_Write.pBufferInfo = &t_BufferInfo;
-
-	vkUpdateDescriptorSets(s_VKB.device,
-		1,
-		&t_Write,
-		0,
-		nullptr);
+	return reinterpret_cast<VulkanDescriptorBuffer*>(a_AllocateInfo.heap.handle)->Allocate(a_AllocateInfo.descriptor, a_AllocateInfo.heapOffset);
 }
 
-void BB::VulkanUpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+void BB::VulkanCopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo)
 {
-	VkDescriptorImageInfo t_ImageInfo{};
+	VulkanDescriptorBuffer* t_SrcHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.srcHeap.handle);
+	VulkanDescriptorBuffer* t_DstHeap = reinterpret_cast<VulkanDescriptorBuffer*>(a_CopyInfo.dstHeap.handle);
+	BB_ASSERT(t_SrcHeap->GetBuffer() == VK_NULL_HANDLE, "Trying to copy descriptors but the source is a GPU visible heap!");
+	size_t t_DescriptorSize;
+	if (a_CopyInfo.isSamplerHeap)
+		t_DescriptorSize = s_DescriptorSamplerSize;
+	else
+		t_DescriptorSize = s_DescriptorBiggestResourceType;
 
-	VkWriteDescriptorSet t_Write{};
-	t_Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	t_Write.dstBinding = a_Info.binding;
-	t_Write.dstArrayElement = a_Info.descriptorIndex;
-	t_Write.dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info.set.ptrHandle)->set;
-	t_Write.descriptorCount = 1;
-	switch (a_Info.type)
-	{
-	case RENDER_DESCRIPTOR_TYPE::IMAGE:
-		t_ImageInfo.imageLayout = VKConv::ImageLayout(a_Info.imageLayout);
-		t_ImageInfo.imageView = reinterpret_cast<VulkanImage*>(a_Info.image.ptrHandle)->view;
-		t_ImageInfo.sampler = VK_NULL_HANDLE;
-		t_Write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		break;
-	case RENDER_DESCRIPTOR_TYPE::SAMPLER:
-		t_ImageInfo.imageView = VK_NULL_HANDLE;
-		t_ImageInfo.sampler = reinterpret_cast<VkSampler>(a_Info.sampler.ptrHandle);
-		t_Write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-		break;
-	default:
-		BB_ASSERT(false, "Vulkan: Trying to update an invalid descriptor type for update image!");
-		break;
-	}
-	t_Write.pImageInfo = &t_ImageInfo;
-
-	//maybe make this a scheduler
-	vkUpdateDescriptorSets(s_VKB.device,
-		1,
-		&t_Write,
-		0,
-		nullptr);
+	memcpy(Pointer::Add(t_DstHeap->GetStartOfBuffer(), a_CopyInfo.dstOffset * t_DescriptorSize),
+		Pointer::Add(t_SrcHeap->GetStartOfBuffer(), a_CopyInfo.srcOffset * t_DescriptorSize),
+		t_DescriptorSize * a_CopyInfo.descriptorCount);
 }
 
-void BB::VulkanUpdateDescriptorBuffers(const Slice<UpdateDescriptorBufferInfo> a_Info)
+static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const WriteDescriptorBuffer& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
-	VkDescriptorBufferInfo* t_BufferInfos = BBnewArr(
-		s_VulkanTempAllocator,
-		a_Info.size(),
-		VkDescriptorBufferInfo);
-	VkWriteDescriptorSet* t_Writes = BBnewArr(s_VulkanTempAllocator,
-		a_Info.size(),
-		VkWriteDescriptorSet);
-
-	for (size_t i = 0; i < a_Info.size(); i++)
-	{
-		t_BufferInfos[i].buffer = reinterpret_cast<VulkanBuffer*>(a_Info[i].buffer.ptrHandle)->buffer;
-		t_BufferInfos[i].offset = a_Info[i].bufferOffset;
-		t_BufferInfos[i].range = a_Info[i].bufferSize;
-
-		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].dstBinding = a_Info[i].binding;
-		t_Writes[i].dstArrayElement = a_Info[i].descriptorIndex;
-		t_Writes[i].dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info[i].set.ptrHandle)->set;
-		t_Writes[i].descriptorCount = 1;
-		t_Writes[i].descriptorType = VKConv::DescriptorBufferType(a_Info[i].type);
-		t_Writes[i].pBufferInfo = &t_BufferInfos[i];
-	}
-
-	vkUpdateDescriptorSets(s_VKB.device,
-		static_cast<uint32_t>(a_Info.size()),
-		t_Writes,
-		0,
-		nullptr);
+	VkDescriptorAddressInfoEXT t_Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
+	t_Info.range = a_Buffer.range;
+	t_Info.address = GetBufferDeviceAddress(reinterpret_cast<VulkanBuffer*>(a_Buffer.buffer.handle)->buffer);
+	//offset the address.
+	t_Info.address += a_Buffer.offset;
+	t_Info.format = a_Format;
+	return t_Info;
 }
 
-void BB::VulkanUpdateDescriptorImages(const Slice <UpdateDescriptorImageInfo> a_Info)
+static inline VkDescriptorImageInfo GetDescriptorImageInfo(const WriteDescriptorImage& a_Image)
 {
-	VkDescriptorImageInfo* t_ImageInfos = BBnewArr(
-		s_VulkanTempAllocator,
-		a_Info.size(),
-		VkDescriptorImageInfo);
-	VkWriteDescriptorSet* t_Writes = BBnewArr(s_VulkanTempAllocator,
-		a_Info.size(),
-		VkWriteDescriptorSet);
+	VkDescriptorImageInfo t_Info{};
+	t_Info.sampler = reinterpret_cast<VkSampler>(a_Image.sampler.handle);
+	const VulkanImage* t_Image = reinterpret_cast<VulkanImage*>(a_Image.image.handle);
+	t_Info.imageView = t_Image->view;
+	t_Info.imageLayout = VKConv::ImageLayout(a_Image.layout);
+	return t_Info;
+}
 
-	for (size_t i = 0; i < a_Info.size(); i++)
+void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
+{
+	for (size_t i = 0; i < a_WriteInfo.data.size(); i++)
 	{
-		t_Writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		t_Writes[i].dstBinding = a_Info[i].binding;
-		t_Writes[i].dstArrayElement = a_Info[i].descriptorIndex;
-		t_Writes[i].dstSet = reinterpret_cast<VulkanBindingSet*>(a_Info[i].set.ptrHandle)->set;
-		t_Writes[i].descriptorCount = 1;
-		switch (a_Info[i].type)
+		const WriteDescriptorData& t_WriteData = a_WriteInfo.data[i];
+
+		VkDeviceSize t_Offset;
+		GetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device,
+			reinterpret_cast<VulkanDescriptor*>(a_WriteInfo.descriptorHandle.handle)->layout,
+			t_WriteData.binding,
+			&t_Offset);
+		
+		void* t_DescriptorLocation = Pointer::Add(a_WriteInfo.allocation.bufferStart, a_WriteInfo.allocation.offset + t_Offset);
+
+		union VkDescData
 		{
-		case RENDER_DESCRIPTOR_TYPE::IMAGE:
-			t_ImageInfos[i].imageLayout = VKConv::ImageLayout(a_Info[i].imageLayout);
-			t_ImageInfos[i].imageView = reinterpret_cast<VulkanImage*>(a_Info[i].image.ptrHandle)->view;
-			t_ImageInfos[i].sampler = VK_NULL_HANDLE;
-			t_Writes[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			VkDescriptorAddressInfoEXT buffer;
+			VkDescriptorImageInfo image;
+		};
+
+		VkDescData t_Data{};
+
+		VkDescriptorGetInfoEXT t_DescInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+		switch (t_WriteData.type)
+		{
+		case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
+			t_Data.buffer = GetDescriptorAddressInfo(t_WriteData.buffer);
+			t_DescInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			t_DescInfo.data.pUniformBuffer = &t_Data.buffer;
 			break;
-		case RENDER_DESCRIPTOR_TYPE::SAMPLER:
-			t_ImageInfos[i].imageView = VK_NULL_HANDLE;
-			t_ImageInfos[i].sampler = reinterpret_cast<VkSampler>(a_Info[i].sampler.ptrHandle);
-			t_Writes[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
+		case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:
+			t_Data.buffer = GetDescriptorAddressInfo(t_WriteData.buffer);
+			t_DescInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			t_DescInfo.data.pStorageBuffer = &t_Data.buffer;
+			break;
+		case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:
+			t_Data.image = GetDescriptorImageInfo(t_WriteData.image);
+			t_DescInfo.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			t_DescInfo.data.pSampledImage = &t_Data.image;
 			break;
 		default:
-			BB_ASSERT(false, "Vulkan: Trying to update an invalid descriptor type for update image!");
+			BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+			t_DescInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			break;
 		}
-		t_Writes[i].pImageInfo = &t_ImageInfos[i];
-	}
 
-	vkUpdateDescriptorSets(s_VKB.device,
-		static_cast<uint32_t>(a_Info.size()),
-		t_Writes,
-		0,
-		nullptr);
+		const size_t t_DescriptorSize = s_DescriptorTypeSize[static_cast<uint32_t>(t_WriteData.type)];
+		GetDescriptorEXT(s_VKB.device, &t_DescInfo, t_DescriptorSize, t_DescriptorLocation);
+	}
 }
 
 ImageReturnInfo BB::VulkanGetImageInfo(const RImageHandle a_Handle)
@@ -1507,7 +1533,6 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 
 		t_BuildInfo->pipeInfo.pDepthStencilState = t_DepthCreateInfo;
 	}
-
 
 	{
 		VkPipelineColorBlendAttachmentState* t_ColorBlendAttachment = BBnewArr(
@@ -1579,19 +1604,43 @@ PipelineBuilderHandle BB::VulkanPipelineBuilderInit(const PipelineInitInfo& a_In
 		t_BuildInfo->pipeLayoutInfo.pPushConstantRanges = nullptr;
 	}
 
+	//if we have static samplers, init a special layout for this. Jank but whatever vulkan lmao
+	if (a_InitInfo.immutableSamplers.size() != 0)
+	{
+		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(t_BuildInfo->buildAllocator, 
+			a_InitInfo.immutableSamplers.size(), VkDescriptorSetLayoutBinding);
+
+		for (size_t i = 0; i < a_InitInfo.immutableSamplers.size(); i++)
+		{
+			VkSampler* t_Sampler = BBnew(t_BuildInfo->buildAllocator, VkSampler);
+			*t_Sampler = CreateSampler(a_InitInfo.immutableSamplers[i]);
+			t_LayoutBinds[i].binding = i;
+			t_LayoutBinds[i].descriptorCount = 1;
+			t_LayoutBinds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			t_LayoutBinds[i].pImmutableSamplers = t_Sampler;
+			t_LayoutBinds[i].stageFlags = VK_SHADER_STAGE_ALL;
+		}
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+		t_LayoutInfo.pBindings = t_LayoutBinds;
+		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_InitInfo.immutableSamplers.size());
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_VKB.device,
+			&t_LayoutInfo, nullptr, &t_BuildInfo->layout[t_BuildInfo->layoutCount++]),
+			"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
+	}
+	else
+		BB_ASSERT(false, "No sampler attached to a pipeline! Not supported for now as layout set 0 is sampler set.");
+
 	return PipelineBuilderHandle(t_BuildInfo);
 }
 
-void BB::VulkanPipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor)
+void BB::VulkanPipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptor a_Descriptor)
 {
 	constexpr uint32_t MAX_PUSHCONSTANTSIZE = 128;
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
-	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Descriptor.ptrHandle);
-
-	const uint32_t t_BindingSet = static_cast<uint32_t>(t_Set->bindingSet);
-
-	t_BuildInfo->layout[t_BindingSet] = t_Set->setLayout;
-	++t_BuildInfo->layoutCount;
+	t_BuildInfo->layout[t_BuildInfo->layoutCount++] = reinterpret_cast<VulkanDescriptor*>(a_Descriptor.handle)->layout;
 }
 
 void BB::VulkanPipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo)
@@ -1633,7 +1682,6 @@ void BB::VulkanPipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handl
 {
 	VKPipelineBuildInfo* t_BuildInfo = reinterpret_cast<VKPipelineBuildInfo*>(a_Handle.ptrHandle);
 	BB_ASSERT(t_BuildInfo->pipeInfo.pVertexInputState == nullptr, "Vulkan: Already bound attributes to this pipeline builder!");
-
 
 	VkVertexInputBindingDescription* t_BindingDescription = BBnew(
 		t_BuildInfo->buildAllocator,
@@ -1764,6 +1812,7 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 		//Optimalization for later.
 		t_BuildInfo->pipeInfo.basePipelineHandle = VK_NULL_HANDLE;
 		t_BuildInfo->pipeInfo.basePipelineIndex = -1;
+		t_BuildInfo->pipeInfo.flags = VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
 		VKASSERT(vkCreateGraphicsPipelines(s_VKB.device,
 			VK_NULL_HANDLE,
@@ -1789,8 +1838,6 @@ PipelineHandle BB::VulkanPipelineBuildPipeline(const PipelineBuilderHandle a_Han
 
 	return PipelineHandle(t_ReturnPipeline);
 }
-
-
 
 void BB::VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
@@ -1829,29 +1876,20 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	VkImageMemoryBarrier t_ColorBarrier{};
-	//Color attachment.
-	t_ColorBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	t_ColorBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	t_ColorBarrier.oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
-	t_ColorBarrier.newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
-	t_ColorBarrier.image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
-	t_ColorBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_ColorBarrier.subresourceRange.baseArrayLayer = 0;
-	t_ColorBarrier.subresourceRange.layerCount = 1;
-	t_ColorBarrier.subresourceRange.baseMipLevel = 0;
-	t_ColorBarrier.subresourceRange.levelCount = 1;
-
-	vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		0,
-		0,
-		nullptr,
-		0,
-		nullptr,
-		1,
-		&t_ColorBarrier);
+	uint32_t t_BarrierCount = 1;
+	VkImageMemoryBarrier2 t_Barriers[2]{};
+	t_Barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	t_Barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	t_Barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+	t_Barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	t_Barriers[0].oldLayout = VKConv::ImageLayout(a_RenderInfo.colorInitialLayout);
+	t_Barriers[0].newLayout = VKConv::ImageLayout(a_RenderInfo.colorFinalLayout);
+	t_Barriers[0].image = s_VKB.swapChain.frames[s_VKB.currentFrame].image;
+	t_Barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_Barriers[0].subresourceRange.baseArrayLayer = 0;
+	t_Barriers[0].subresourceRange.layerCount = 1;
+	t_Barriers[0].subresourceRange.baseMipLevel = 0;
+	t_Barriers[0].subresourceRange.levelCount = 1;
 
 	VkRenderingInfo t_RenderInfo{};
 	VkRenderingAttachmentInfo t_RenderDepthAttach{};
@@ -1859,28 +1897,19 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	//If we handle the depth stencil we do that here. 
 	if (a_RenderInfo.depthStencil.ptrHandle != nullptr) 
 	{
-		VkImageMemoryBarrier t_DepthBarrier{};
-		t_DepthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		t_DepthBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		t_DepthBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		t_DepthBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		t_DepthBarrier.image = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
-		t_DepthBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		t_DepthBarrier.subresourceRange.baseArrayLayer = 0;
-		t_DepthBarrier.subresourceRange.layerCount = 1;
-		t_DepthBarrier.subresourceRange.baseMipLevel = 0;
-		t_DepthBarrier.subresourceRange.levelCount = 1;
-
-		vkCmdPipelineBarrier(t_Cmdlist->Buffer(),
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-			0,
-			0,
-			nullptr,
-			0,
-			nullptr,
-			1,
-			&t_DepthBarrier);
+		++t_BarrierCount;
+		t_Barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		t_Barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		t_Barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		t_Barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		t_Barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		t_Barriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		t_Barriers[1].image = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
+		t_Barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		t_Barriers[1].subresourceRange.baseArrayLayer = 0;
+		t_Barriers[1].subresourceRange.layerCount = 1;
+		t_Barriers[1].subresourceRange.baseMipLevel = 0;
+		t_Barriers[1].subresourceRange.levelCount = 1;
 
 		t_Cmdlist->depthImage = reinterpret_cast<VulkanImage*>(a_RenderInfo.depthStencil.ptrHandle)->image;
 		
@@ -1893,6 +1922,13 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 		t_RenderInfo.pDepthAttachment = &t_RenderDepthAttach;
 		t_RenderInfo.pStencilAttachment = &t_RenderDepthAttach;
 	}
+
+	//Color and possibly a depth stencil barrier.
+	VkDependencyInfo t_BarrierInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	t_BarrierInfo.imageMemoryBarrierCount = t_BarrierCount;
+	t_BarrierInfo.pImageMemoryBarriers = t_Barriers;
+
+	vkCmdPipelineBarrier2(t_Cmdlist->Buffer(), &t_BarrierInfo);
 
 	VkRenderingAttachmentInfo t_RenderColorAttach{};
 	t_RenderColorAttach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -2028,13 +2064,18 @@ void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHa
 
 void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
 {
-	VkImageMemoryBarrier t_Barrier{};
-	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	VkImageMemoryBarrier2 t_Barrier{};
+	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
+	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
+	t_Barrier.srcStageMask = VKConv::PipelineStage(a_TransitionInfo.srcStage);
+	t_Barrier.dstStageMask = VKConv::PipelineStage(a_TransitionInfo.dstStage);
 	t_Barrier.oldLayout = VKConv::ImageLayout(a_TransitionInfo.oldLayout);
 	t_Barrier.newLayout = VKConv::ImageLayout(a_TransitionInfo.newLayout);
 	t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
+
 	if (a_TransitionInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT || 
 		a_TransitionInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
 		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -2044,16 +2085,39 @@ void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, 
 	t_Barrier.subresourceRange.levelCount = a_TransitionInfo.levelCount;
 	t_Barrier.subresourceRange.baseArrayLayer = a_TransitionInfo.baseArrayLayer;
 	t_Barrier.subresourceRange.layerCount = a_TransitionInfo.layerCount;
-	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
-	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
 
-	vkCmdPipelineBarrier(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(),
-		VKConv::PipelineStage(a_TransitionInfo.srcStage),
-		VKConv::PipelineStage(a_TransitionInfo.dstStage),
-		0,
-		0, nullptr,
-		0, nullptr,
-		1, &t_Barrier);
+	//Color and possibly a depth stencil barrier.
+	VkDependencyInfo t_BarrierInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	t_BarrierInfo.imageMemoryBarrierCount = 1;
+	t_BarrierInfo.pImageMemoryBarriers = &t_Barrier;
+
+	vkCmdPipelineBarrier2(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(), 
+		&t_BarrierInfo);
+}
+
+void BB::VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
+{
+	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	const VulkanDescriptorBuffer* t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_ResourceHeap.handle);
+
+	uint32_t t_HeapCount = 1;
+	VkDescriptorBufferBindingInfoEXT t_BindingInfos[2];
+	t_BindingInfos[0].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+	t_BindingInfos[0].pNext = nullptr;
+	t_BindingInfos[0].usage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
+	t_BindingInfos[0].address = t_DescBuffer->GetBaseAddress();
+
+	if (a_SamplerHeap.handle != 0) //sampler heap is optional
+	{
+		t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_SamplerHeap.handle);
+		t_BindingInfos[1].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+		t_BindingInfos[1].pNext = nullptr;
+		t_BindingInfos[1].usage = VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+		t_BindingInfos[1].address = t_DescBuffer->GetBaseAddress();
+		++t_HeapCount;
+	}
+
+	CmdBindDescriptorBuffersEXT(t_Cmdlist->Buffer(), t_HeapCount, t_BindingInfos);
 }
 
 void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
@@ -2066,7 +2130,24 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Pipeline->pipeline);
 
+	CmdBindDescriptorBufferEmbeddedSamplersEXT(t_Cmdlist->Buffer(),
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		t_Pipeline->layout,
+		0);
+
 	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
+}
+
+void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
+{
+	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		t_Cmdlist->currentPipelineLayout,
+		static_cast<const uint32_t>(a_FirstSet) + 1,
+		a_SetCount,
+		a_HeapIndex,
+		a_Offsets);
 }
 
 void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -2095,26 +2176,6 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 		reinterpret_cast<VulkanBuffer*>(a_Buffer.ptrHandle)->buffer,
 		a_Offset,
 		VK_INDEX_TYPE_UINT32);
-}
-
-void BB::VulkanBindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
-{
-	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	VkDescriptorSet t_BindSets[4]{};
-
-	for (uint32_t i = 0; i < a_SetCount; i++)
-	{
-		t_BindSets[i] = reinterpret_cast<VulkanBindingSet*>(a_Sets[i].ptrHandle)->set;
-	}
-
-	vkCmdBindDescriptorSets(t_Cmdlist->Buffer(),
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		t_Cmdlist->currentPipelineLayout, //Set pipeline layout.
-		static_cast<uint32_t>(reinterpret_cast<VulkanBindingSet*>(a_Sets[0].ptrHandle)->bindingSet),
-		a_SetCount,
-		t_BindSets,
-		a_DynamicOffsetCount,
-		a_DynamicOffsets);
 }
 
 void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
@@ -2497,12 +2558,15 @@ void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 	s_VKB.commandLists.erase(a_Handle.handle);
 }
 
-void BB::VulkanDestroyDescriptor(const RDescriptorHandle a_Handle)
+void BB::VulkanDestroyDescriptorHeap(const RDescriptorHeap a_Handle)
 {
-	VulkanBindingSet* t_Set = reinterpret_cast<VulkanBindingSet*>(a_Handle.ptrHandle);
-	*t_Set = {}; //zero it for safety
-	//maybe store the sets? For now we just get new ones.
-	s_VKB.bindingSetPool.Free(t_Set);
+	BBfree(s_VulkanAllocator, reinterpret_cast<VulkanDescriptorBuffer*>(a_Handle.handle));
+}
+
+void BB::VulkanDestroyDescriptor(const RDescriptor a_Handle)
+{
+	BBfree(s_VulkanAllocator, a_Handle.ptrHandle);
+	//refcount a descriptor layout then delete it when we do not use it
 }
 
 void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
@@ -2527,8 +2591,6 @@ void BB::VulkanDestroyBackend()
 			nullptr);
 	}
 	s_VKB.pipelineLayouts.clear();
-
-	s_VKB.descriptorAllocator.Destroy();
 
 	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{

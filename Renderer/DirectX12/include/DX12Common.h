@@ -10,7 +10,8 @@
 namespace BB
 {
 	BackendInfo DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo);
-	RDescriptorHandle DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
+	RDescriptorHeap DX12CreateDescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible);
+	RDescriptor DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 	CommandQueueHandle DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 	CommandAllocatorHandle DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	CommandListHandle DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -19,13 +20,14 @@ namespace BB
 	RSamplerHandle DX12CreateSampler(const SamplerCreateInfo& a_CreateInfo);
 	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_CreateInfo);
 
-	void DX12UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
-	void DX12UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
+	DescriptorAllocation DX12AllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo);
+	void DX12CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
+	void DX12WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
 	ImageReturnInfo DX12GetImageInfo(const RImageHandle a_Handle);
 
 	//PipelineBuilder
 	PipelineBuilderHandle DX12PipelineBuilderInit(const PipelineInitInfo& t_InitInfo);
-	void DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
+	void DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptor a_Descriptor);
 	void DX12PipelineBuilderBindShaders(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
 	void DX12PipelineBuilderBindAttributes(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo);
 	PipelineHandle DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handle);
@@ -42,10 +44,11 @@ namespace BB
 	void DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 	void DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
 
+	void DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
 	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	void DX12SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
 	void DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	void DX12BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 	void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
 	void DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
@@ -74,6 +77,7 @@ namespace BB
 	void DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);
 	void DX12DestroyCommandQueue(const CommandQueueHandle a_Handle);
 	void DX12DestroyPipeline(const PipelineHandle a_Handle);
-	void DX12DestroyDescriptor(const RDescriptorHandle a_Handle);
+	void DX12DestroyDescriptor(const RDescriptor a_Handle);
+	void DX12DestroyDescriptorHeap(const RDescriptorHeap a_Handle);
 	void DX12DestroyBackend();
 }

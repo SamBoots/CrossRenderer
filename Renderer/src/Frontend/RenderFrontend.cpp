@@ -66,15 +66,16 @@ RecordingCommandListHandle t_RecordingTransfer;
 
 RFenceHandle t_SwapchainFence[3];
 
-RDescriptorHandle t_Descriptor1;
-RDescriptorHandle t_Descriptor2;
+RDescriptor t_Descriptor1;
 PipelineHandle t_Pipeline;
+
+DescriptorManager* g_descriptorManager;
+DescriptorAllocation sceneDescAllocation;
 
 UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
 RImageHandle t_DepthImage;
-RSamplerHandle t_StandardSampler;
 
 static FrameIndex s_CurrentFrame;
 
@@ -86,12 +87,45 @@ sizeof(BaseFrameInfo) +
 sizeof(CameraRenderData) +
 sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
 
-static void Draw3DFrame()
+static void UpdateSceneDescriptors()
+{
+	const size_t t_BufferOffset = PERFRAME_TRANSFER_BUFFER_SIZE * s_CurrentFrame;
+
+	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
+	WriteDescriptorInfos t_BufferUpdate{};
+	t_BufferUpdate.allocation = sceneDescAllocation;
+	t_BufferUpdate.descriptorHandle = t_Descriptor1;
+	t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
+
+	t_WriteDatas[0].binding = 0;
+	t_WriteDatas[0].descriptorIndex = 0;
+	t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[0].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[0].buffer.offset = t_BufferOffset;
+	t_WriteDatas[0].buffer.range = sizeof(BaseFrameInfo);
+
+	t_WriteDatas[1].binding = 1;
+	t_WriteDatas[1].descriptorIndex = 0;
+	t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[1].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[1].buffer.offset = sizeof(BaseFrameInfo) + t_BufferOffset;
+	t_WriteDatas[1].buffer.range = sizeof(CameraRenderData);
+
+	t_WriteDatas[2].binding = 2;
+	t_WriteDatas[2].descriptorIndex = 0;
+	t_WriteDatas[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteDatas[2].buffer.buffer = s_GlobalInfo.perFrameBuffer;
+	t_WriteDatas[2].buffer.offset = sizeof(BaseFrameInfo) + sizeof(CameraRenderData) + t_BufferOffset;
+	t_WriteDatas[2].buffer.range = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
+
+	RenderBackend::WriteDescriptors(t_BufferUpdate);
+}
+
+void Draw3DFrame()
 {
 	s_GlobalInfo.perFrameInfo->ambientLight = { 1.0f, 1.0f, 1.0f };
 	s_GlobalInfo.perFrameInfo->ambientStrength = 0.1f;
-	s_GlobalInfo.perFrameInfo->lightCount = 
-		s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
+	s_GlobalInfo.perFrameInfo->lightCount = s_GlobalInfo.lightSystem->GetLightPool().GetLightCount();
 
 	ImGui::Render();
 
@@ -129,11 +163,12 @@ static void Draw3DFrame()
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
 	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
 
+	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, g_descriptorManager->GetGPUHeap(s_CurrentFrame), nullptr);
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
-	RDescriptorHandle t_Descriptors[]{ t_Descriptor1 , t_Descriptor2 };
-	RenderBackend::BindDescriptors(t_RecordingGraphics, 
-		t_Descriptors, _countof(t_Descriptors), 
-		_countof(t_DynOffSets), t_DynOffSets);
+
+	uint32_t t_IsSamplerHeap = false;
+	size_t t_HeapOffset = sceneDescAllocation.offset;
+	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
 
 	uint64_t t_BufferOffsets[1]{ 0 };
 	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
@@ -149,7 +184,6 @@ static void Draw3DFrame()
 			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
 			{
 				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
-				RenderBackend::BindDescriptors(t_RecordingGraphics, t_Descriptors, _countof(t_Descriptors), 2, t_DynOffSets);
 			}
 
 			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
@@ -184,7 +218,6 @@ static void Draw3DFrame()
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
 	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
-	
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
@@ -247,37 +280,49 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
 	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
 
-#pragma region LightSystem
-	constexpr size_t LIGHT_COUNT_MAX = 1024;
-	constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
+	{
+		constexpr size_t SUBHEAPSIZE = 64 * 1024;
+		DescriptorHeapCreateInfo t_HeapInfo{};
+		t_HeapInfo.name = "Resource Heap";
+		t_HeapInfo.descriptorCount = SUBHEAPSIZE;
+		t_HeapInfo.isSampler = false;
+		g_descriptorManager = BBnew(m_SystemAllocator, DescriptorManager)(m_SystemAllocator, t_HeapInfo, s_RendererInst.frameBufferAmount);
+	}
 
-	s_GlobalInfo.lightSystem = BBnew(m_SystemAllocator, LightSystem)(LIGHT_COUNT_MAX);
+#pragma region LightSystem
+	{
+		constexpr size_t LIGHT_COUNT_MAX = 1024;
+		constexpr size_t LIGHT_ALLOC_SIZE = LIGHT_COUNT_MAX * sizeof(Light);
+
+		s_GlobalInfo.lightSystem = BBnew(m_SystemAllocator, LightSystem)(LIGHT_COUNT_MAX);
+	}
 #pragma endregion //LightSystem
 
 #pragma region PipelineCreation
+	{
+		RenderBufferCreateInfo t_PerFrameTransferBuffer;
+		t_PerFrameTransferBuffer.name = "per-frame transfer data";
+		t_PerFrameTransferBuffer.size = PERFRAME_TRANSFER_BUFFER_SIZE;
+		t_PerFrameTransferBuffer.usage = RENDER_BUFFER_USAGE::STAGING;
+		t_PerFrameTransferBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
+		s_GlobalInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
+		s_GlobalInfo.transferBufferStart = RenderBackend::MapMemory(s_GlobalInfo.perFrameTransferBuffer);
+		s_GlobalInfo.transferBufferBaseFrameInfoStart = s_GlobalInfo.transferBufferStart;
+		s_GlobalInfo.transferBufferCameraStart = Pointer::Add(s_GlobalInfo.transferBufferBaseFrameInfoStart, sizeof(BaseFrameInfo));
+		s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(CameraRenderData));
 
-	RenderBufferCreateInfo t_PerFrameTransferBuffer;
-	t_PerFrameTransferBuffer.name = "per-frame transfer data";
-	t_PerFrameTransferBuffer.size = PERFRAME_TRANSFER_BUFFER_SIZE;
-	t_PerFrameTransferBuffer.usage = RENDER_BUFFER_USAGE::STAGING;
-	t_PerFrameTransferBuffer.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
-	s_GlobalInfo.perFrameTransferBuffer = RenderBackend::CreateBuffer(t_PerFrameTransferBuffer);
-	s_GlobalInfo.transferBufferStart = RenderBackend::MapMemory(s_GlobalInfo.perFrameTransferBuffer);
-	s_GlobalInfo.transferBufferBaseFrameInfoStart = s_GlobalInfo.transferBufferStart;
-	s_GlobalInfo.transferBufferCameraStart = Pointer::Add(s_GlobalInfo.transferBufferBaseFrameInfoStart, sizeof(BaseFrameInfo));
-	s_GlobalInfo.transferBufferMatrixStart = Pointer::Add(s_GlobalInfo.transferBufferCameraStart, sizeof(CameraRenderData));
+		s_GlobalInfo.perFrameInfo = reinterpret_cast<BaseFrameInfo*>(s_GlobalInfo.transferBufferBaseFrameInfoStart);
+		s_GlobalInfo.cameraData = reinterpret_cast<CameraRenderData*>(s_GlobalInfo.transferBufferCameraStart);
 
-	s_GlobalInfo.perFrameInfo = reinterpret_cast<BaseFrameInfo*>(s_GlobalInfo.transferBufferBaseFrameInfoStart);
-	s_GlobalInfo.cameraData = reinterpret_cast<CameraRenderData*>(s_GlobalInfo.transferBufferCameraStart);
+		const uint64_t t_perFrameBufferEntireSize = PERFRAME_TRANSFER_BUFFER_SIZE * s_RendererInst.frameBufferAmount;
 
-	const uint64_t t_perFrameBufferEntireSize = PERFRAME_TRANSFER_BUFFER_SIZE * s_RendererInst.frameBufferAmount;
-
-	RenderBufferCreateInfo t_PerFrameBuffer;
-	t_PerFrameBuffer.name = "per-frame buffer";
-	t_PerFrameBuffer.size = t_perFrameBufferEntireSize;
-	t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
-	t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-	s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
+		RenderBufferCreateInfo t_PerFrameBuffer;
+		t_PerFrameBuffer.name = "per-frame buffer";
+		t_PerFrameBuffer.size = t_perFrameBufferEntireSize;
+		t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
+		t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+		s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
+	}
 
 	int x, y, c;
 	stbi_uc* t_Pixels = stbi_load("Resources/Textures/DuckCM.png", &x, &y, &c, 4);
@@ -336,34 +381,44 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_PipeInitInfo.constantData.dwordSize = 1;
 	t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
 
+	SamplerCreateInfo t_ImmutableSampler{};
+	t_ImmutableSampler.name = "standard sampler";
+	t_ImmutableSampler.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+	t_ImmutableSampler.filter = SAMPLER_FILTER::LINEAR;
+	t_ImmutableSampler.maxAnistoropy = 1.0f;
+	t_ImmutableSampler.maxLod = 100.f;
+	t_ImmutableSampler.minLod = -100.f;
+
+	t_PipeInitInfo.immutableSamplers = BB::Slice(&t_ImmutableSampler, 1);
+
 	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "per-frame descriptor";
-		FixedArray<DescriptorBinding, 4> t_DescBinds;
-		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+		t_CreateInfo.name = "3d scene descriptor";
+		FixedArray<DescriptorBinding, 5> t_DescBinds;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-
 		{//Per frame info Bind
 			t_DescBinds[0].binding = 0;
 			t_DescBinds[0].descriptorCount = 1;
 			t_DescBinds[0].stage = RENDER_SHADER_STAGE::ALL;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Cam Bind
 			t_DescBinds[1].binding = 1;
 			t_DescBinds[1].descriptorCount = 1;
 			t_DescBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Model Bind
 			t_DescBinds[2].binding = 2;
 			t_DescBinds[2].descriptorCount = 1;
 			t_DescBinds[2].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
+			t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[2].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
 		{//Light Binding
@@ -373,108 +428,39 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_DescBinds[3].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 			t_DescBinds[3].flags = RENDER_DESCRIPTOR_FLAG::NONE;
 		}
+		{//Image Binds
+			t_DescBinds[4].binding = 4;
+			t_DescBinds[4].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[4].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[4].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+			t_DescBinds[4].flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
+		}
 
 		t_Descriptor1 = RenderBackend::CreateDescriptor(t_CreateInfo);
+		sceneDescAllocation = g_descriptorManager->Allocate(t_Descriptor1);
 	}
 
 	{
-		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "Per-pass descriptor";
-		FixedArray<DescriptorBinding, 2> t_DescBinds;
-		t_CreateInfo.bindingSet = RENDER_BINDING_SET::PER_PASS;
-		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-		{//Sampler Binds
-			t_DescBinds[0].binding = 0;
-			t_DescBinds[0].descriptorCount = 1;
-			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
-			t_DescBinds[0].flags = RENDER_DESCRIPTOR_FLAG::NONE;
-		}
-		{//Image Binds
-			t_DescBinds[1].binding = 1;
-			t_DescBinds[1].descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-			t_DescBinds[1].flags = RENDER_DESCRIPTOR_FLAG::BINDLESS;
-		}
+		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
+		WriteDescriptorInfos t_BufferUpdate{};
+		t_BufferUpdate.allocation = sceneDescAllocation;
+		t_BufferUpdate.descriptorHandle = t_Descriptor1;
+		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
 
+		//example image
+		t_WriteDatas[0].binding = 4;
+		t_WriteDatas[0].descriptorIndex = 0;
+		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		t_WriteDatas[0].image.image = t_ExampleImage;
+		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_WriteDatas[0].image.sampler = nullptr;
 
-		t_Descriptor2 = RenderBackend::CreateDescriptor(t_CreateInfo);
+		RenderBackend::WriteDescriptors(t_BufferUpdate);
+
+		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1, sceneDescAllocation);
 	}
-
-	{
-		UpdateDescriptorBufferInfo t_BufferUpdate{};
-		t_BufferUpdate.set = t_Descriptor1;
-
-		t_BufferUpdate.binding = 0;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.buffer = s_GlobalInfo.perFrameBuffer;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(BaseFrameInfo);
-		t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER_DYNAMIC;
-
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
-
-		t_BufferUpdate.binding = 1;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(CameraRenderData);
-
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
-
-		t_BufferUpdate.binding = 2;
-		t_BufferUpdate.descriptorIndex = 0;
-		t_BufferUpdate.bufferOffset = 0;
-		t_BufferUpdate.bufferSize = sizeof(ModelBufferInfo) * s_RendererInst.modelMatrixMax;
-
-		RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
-
-		s_GlobalInfo.lightSystem->UpdateDescriptor(t_Descriptor1);
-	}
-
-	{
-		{
-			SamplerCreateInfo t_SamplerInfo{};
-			t_SamplerInfo.name = "standard sampler";
-			t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
-			t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
-			t_SamplerInfo.maxAnistoropy = 1.0f;
-			t_SamplerInfo.maxLod = 100.f;
-			t_SamplerInfo.minLod = -100.f;
-
-			//create the basic sampler.
-			t_StandardSampler = RenderBackend::CreateSampler(t_SamplerInfo);
-
-			UpdateDescriptorImageInfo t_SamplerUpdate{};
-			t_SamplerUpdate.binding = 0;
-			t_SamplerUpdate.descriptorIndex = 0;
-			t_SamplerUpdate.set = t_Descriptor2;
-			t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
-
-			t_SamplerUpdate.sampler = t_StandardSampler;
-
-			RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
-		}
-		{
-			UpdateDescriptorImageInfo t_ImageUpdate{};
-			t_ImageUpdate.binding = 1;
-			t_ImageUpdate.descriptorIndex = 0;
-			t_ImageUpdate.set = t_Descriptor2;
-			t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-			t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-			t_ImageUpdate.image = t_ExampleImage;
-
-			RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
-		}
-	}
-
-
 
 	t_BasicPipe.BindDescriptor(t_Descriptor1);
-	t_BasicPipe.BindDescriptor(t_Descriptor2);
 
 	const wchar_t* t_ShaderPath[2]{};
 	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
@@ -540,7 +526,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_Pipeline = t_BasicPipe.BuildPipeline();
 
 #pragma endregion //PipelineCreation
-
 
 	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.name = "Graphics queue";
@@ -678,9 +663,10 @@ void BB::Render::DestroyRenderer()
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
 
+	//descriptor manager has a leak but I don't care for now just clear the entire system allocator lmao
+	BBfree(m_SystemAllocator, g_descriptorManager);
+
 	RenderBackend::DestroyDescriptor(t_Descriptor1);
-	RenderBackend::DestroyDescriptor(t_Descriptor2);
-	RenderBackend::DestroySampler(t_StandardSampler);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
 	RenderBackend::UnmapMemory(s_GlobalInfo.perFrameTransferBuffer);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameTransferBuffer);
@@ -710,6 +696,11 @@ void BB::Render::Update(const float a_DeltaTime)
 {
 	s_GlobalInfo.lightSystem->Editor();
 	RenderBackend::DisplayDebugInfo();
+
+	UpdateSceneDescriptors();
+	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
+	Draw3DFrame();
+
 	Editor::DisplayAllocator(m_SystemAllocator);
 	m_TempAllocator.Clear();
 }
@@ -926,7 +917,7 @@ void BB::Render::EndFrame()
 	Draw3DFrame();
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
-	
+
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		m_TempAllocator,
 		2,

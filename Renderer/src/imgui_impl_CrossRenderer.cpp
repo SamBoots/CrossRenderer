@@ -40,7 +40,8 @@ struct ImGui_ImplCrossRenderer_Data
     // Font data
     RImageHandle                fontImage;
     RSamplerHandle              fontSampler;
-    RDescriptorHandle           fontDescriptor;
+    RDescriptor                 fontDescriptor;
+    DescriptorAllocation        descAllocation;
 
     uint32_t                    imageCount;
     uint32_t                    minImageCount;
@@ -244,14 +245,10 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
             else
             {
                 // Project scissor/clipping rectangles into framebuffer space
-                ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x, (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
-                ImVec2 clip_max((pcmd->ClipRect.z - clip_off.x) * clip_scale.x, (pcmd->ClipRect.w - clip_off.y) * clip_scale.y);
+                ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+                ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
 
                 // Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
-                if (clip_min.x < 0.0f) { clip_min.x = 0.0f; }
-                if (clip_min.y < 0.0f) { clip_min.y = 0.0f; }
-                if (clip_max.x > fb_width) { clip_max.x = (float)fb_width; }
-                if (clip_max.y > fb_height) { clip_max.y = (float)fb_height; }
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
 
@@ -259,18 +256,20 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 ScissorInfo t_SciInfo;
                 t_SciInfo.offset.x = (int32_t)(clip_min.x);
                 t_SciInfo.offset.y = (int32_t)(clip_min.y);
-                t_SciInfo.extent.x = (uint32_t)(clip_max.x - clip_min.x);
-                t_SciInfo.extent.y = (uint32_t)(clip_max.y - clip_min.y);
+                t_SciInfo.extent.x = (uint32_t)(clip_max.x);
+                t_SciInfo.extent.y = (uint32_t)(clip_max.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 
-                RDescriptorHandle t_Set[1] = {(RDescriptorHandle)pcmd->TextureId};
+                RDescriptor t_Set[1] = {(RDescriptor)pcmd->TextureId};
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
                     // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
-                    t_Set[0] = (RDescriptorHandle)bd->fontDescriptor.ptrHandle;
+                    t_Set[0] = (RDescriptor)bd->fontDescriptor.ptrHandle;
                 }
-                RenderBackend::BindDescriptors(a_CmdList, t_Set, 1, 0, nullptr);
+                const uint32_t t_IsSampler = false;
+                const size_t t_HeapOffset = bd->descAllocation.offset;
+                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
@@ -409,22 +408,14 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     bd->imageCount = a_Info.imageCount;
 
     {
-        FixedArray<DescriptorBinding, 2> t_DescBinds;
-        //font sampler.
+        FixedArray<DescriptorBinding, 1> t_DescBinds;
         t_DescBinds[0].binding = 0;
         t_DescBinds[0].descriptorCount = 1;
         t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
-
-        //image binding for font.
-        t_DescBinds[1].binding = 1;
-        t_DescBinds[1].descriptorCount = 1;
-        t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
         RenderDescriptorCreateInfo t_Info{};
-        t_Info.name = "Imgui per-pass data, wrongly a per-frame descriptor.";
-        t_Info.bindingSet = RENDER_BINDING_SET::PER_FRAME;
+        t_Info.name = "Imgui descriptor";
         t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
         bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
     }
@@ -451,6 +442,17 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
     //2 vec2's so 4 dwords.
     t_PipeInitInfo.constantData.dwordSize = 4;
+
+    SamplerCreateInfo t_SamplerInfo{};
+    t_SamplerInfo.name = "Imgui font sampler";
+    t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+    t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
+    t_SamplerInfo.maxAnistoropy = 1.0f;
+    t_SamplerInfo.maxLod = 100.f;
+    t_SamplerInfo.minLod = -100.f;
+    t_PipeInitInfo.immutableSamplers = Slice(&t_SamplerInfo, 1);
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };
     ShaderCreateInfo t_ShaderInfos[2]{};
@@ -559,45 +561,26 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     {
-        SamplerCreateInfo t_SamplerInfo{};
-        t_SamplerInfo.name = "Imgui font sampler";
-        t_SamplerInfo.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
-        t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
-        t_SamplerInfo.maxAnistoropy = 1.0f;
-        t_SamplerInfo.maxLod = 100.f;
-        t_SamplerInfo.minLod = -100.f;
+        bd->descAllocation = g_descriptorManager->Allocate(bd->fontDescriptor);
 
-        //create the basic sampler.
-        bd->fontSampler = RenderBackend::CreateSampler(t_SamplerInfo);
+        WriteDescriptorInfos t_ImguiDescData{};
+        WriteDescriptorData t_WriteData{};
+        t_WriteData.binding = 0;
+        t_WriteData.descriptorIndex = 0;
+        t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 
-        UpdateDescriptorImageInfo t_SamplerUpdate{};
-        t_SamplerUpdate.binding = 0;
-        t_SamplerUpdate.descriptorIndex = 0;
-        t_SamplerUpdate.set = bd->fontDescriptor;
-        t_SamplerUpdate.type = RENDER_DESCRIPTOR_TYPE::SAMPLER;
+        t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+        t_WriteData.image.image = a_Image;
+        t_WriteData.image.sampler = nullptr;
 
-        t_SamplerUpdate.sampler = bd->fontSampler;
-
-        RenderBackend::UpdateDescriptorImage(t_SamplerUpdate);
-    }
-
-    {
-        UpdateDescriptorImageInfo t_ImageUpdate{};
-        t_ImageUpdate.binding = 1;
-        t_ImageUpdate.descriptorIndex = 0;
-        t_ImageUpdate.set = bd->fontDescriptor;
-        t_ImageUpdate.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-        t_ImageUpdate.imageLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-        t_ImageUpdate.image = a_Image;
-
-        RenderBackend::UpdateDescriptorImage(t_ImageUpdate);
+        t_ImguiDescData.data = Slice(&t_WriteData, 1);
+        t_ImguiDescData.descriptorHandle = bd->fontDescriptor;
+        t_ImguiDescData.allocation = bd->descAllocation;
+        RenderBackend::WriteDescriptors(t_ImguiDescData);
     }
 }
 
-void ImGui_ImplCross_RemoveTexture(const RDescriptorHandle a_Set)
+void ImGui_ImplCross_RemoveTexture(const RDescriptor a_Set)
 {
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     RenderBackend::DestroyDescriptor(a_Set);

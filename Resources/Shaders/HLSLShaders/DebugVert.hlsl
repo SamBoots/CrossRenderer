@@ -1,9 +1,12 @@
 #ifdef _VULKAN
 #define _BBEXT(num) [[vk::location(num)]]
+#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #elif _DIRECTX12
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #else
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #endif
 
 struct VSInput
@@ -51,27 +54,19 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-struct BaseFrameInfo
-{
-    uint staticLightCount;
-    uint3 pad;
-    
-    float3 ambientLight;
-    float ambientStrength;
-};
-//Maybe add in common if I find a way to combine them.
-StructuredBuffer<BaseFrameInfo> baseFrameInfo : register(t0, space0);
-
-StructuredBuffer<Camera> cam : register(t1, space0);
-StructuredBuffer<ModelInstance> modelInstances : register(t2, space0);
+_BBBIND(1, 1) ByteAddressBuffer cam : register(t1, space0);
+_BBBIND(2, 1) ByteAddressBuffer modelInstances : register(t2, space0);
 
 VSOutput main(VSInput input, uint VertexIndex : SV_VertexID)
 {
-    VSOutput output = (VSOutput)0;
-    float4x4 t_Model = modelInstances[indices.model].model;
-    float4x4 t_InverseModel = modelInstances[indices.model].inverse;
+    ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.model);
+    Camera t_Cam = cam.Load<Camera>(0);
     
-    output.pos = mul(cam[0].proj, mul(cam[0].view, mul(t_Model, float4(input.inPosition.xyz, 1.0))));
+    VSOutput output = (VSOutput)0;
+    float4x4 t_Model = t_ModelInstance.model;
+    float4x4 t_InverseModel = t_ModelInstance.inverse;
+    
+    output.pos = mul(t_Cam.proj, mul(t_Cam.view, mul(t_Model, float4(input.inPosition.xyz, 1.0))));
     output.fragPos = float4(mul(t_Model, float4(input.inPosition, 1.0f))).xyz;
     output.uv = input.inUv;
     output.color = input.inColor;

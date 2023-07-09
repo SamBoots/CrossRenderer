@@ -116,21 +116,24 @@ LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_
 	return t_Handle;
 }
 
-void LightSystem::UpdateDescriptor(const RDescriptorHandle a_Descriptor)
+void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation)
 {
-	UpdateDescriptorBufferInfo t_BufferUpdate{};
-	t_BufferUpdate.set = a_Descriptor;
-
 	RenderBufferPart t_LightBufferPart = m_Lights.GetBufferAllocInfo();
 
-	t_BufferUpdate.binding = 3;
-	t_BufferUpdate.descriptorIndex = 0;
-	t_BufferUpdate.bufferOffset = t_LightBufferPart.offset;
-	t_BufferUpdate.bufferSize = t_LightBufferPart.size;
-	t_BufferUpdate.buffer = t_LightBufferPart.bufferHandle;
-	t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	WriteDescriptorInfos t_WriteInfo;
+	WriteDescriptorData t_WriteData{};
+	t_WriteInfo.data = Slice(&t_WriteData, 1);
+	t_WriteInfo.allocation = a_Allocation;
+	t_WriteInfo.descriptorHandle = a_Descriptor;
 
-	RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+	t_WriteData.binding = 3;
+	t_WriteData.descriptorIndex = 0;
+	t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteData.buffer.buffer = t_LightBufferPart.bufferHandle;
+	t_WriteData.buffer.offset = t_LightBufferPart.offset;
+	t_WriteData.buffer.range = t_LightBufferPart.size;
+
+	RenderBackend::WriteDescriptors(t_WriteInfo);
 }
 
 void LightSystem::Editor()

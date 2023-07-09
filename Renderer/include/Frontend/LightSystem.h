@@ -49,7 +49,7 @@ namespace BB
 		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList);
 		void UploadLights();
 
-		void UpdateDescriptor(const RDescriptorHandle a_Descriptor);
+		void UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation);
 
 		void Editor();
 

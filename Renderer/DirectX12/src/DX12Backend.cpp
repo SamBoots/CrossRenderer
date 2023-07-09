@@ -14,6 +14,7 @@ void TempResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
+	a_FuncCreateInfo.createDescriptorHeap = DX12CreateDescriptorHeap;
 	a_FuncCreateInfo.createDescriptor = DX12CreateDescriptor;
 	a_FuncCreateInfo.createCommandQueue = DX12CreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = DX12CreateCommandAllocator;
@@ -23,8 +24,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createSampler = DX12CreateSampler;
 	a_FuncCreateInfo.createFence = DX12CreateFence;
 
-	a_FuncCreateInfo.updateDescriptorBuffer = DX12UpdateDescriptorBuffer;
-	a_FuncCreateInfo.updateDescriptorImage = DX12UpdateDescriptorImage;
+	a_FuncCreateInfo.allocateDescriptor = DX12AllocateDescriptor;
+	a_FuncCreateInfo.copyDescriptors = DX12CopyDescriptors;
+	a_FuncCreateInfo.writeDescriptors = DX12WriteDescriptors;
 	a_FuncCreateInfo.getImageInfo = DX12GetImageInfo;
 
 	a_FuncCreateInfo.pipelineBuilderInit = DX12PipelineBuilderInit;
@@ -44,10 +46,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.setScissor = DX12SetScissor;
 	a_FuncCreateInfo.endRendering = DX12EndRendering;
 
+	a_FuncCreateInfo.bindDescriptorHeaps = DX12BindDescriptorHeaps;
 	a_FuncCreateInfo.bindPipeline = DX12BindPipeline;
+	a_FuncCreateInfo.setDescriptorHeapOffsets = DX12SetDescriptorHeapOffsets;
 	a_FuncCreateInfo.bindVertBuffers = DX12BindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = DX12BindIndexBuffer;
-	a_FuncCreateInfo.bindDescriptors = DX12BindDescriptors;
 	a_FuncCreateInfo.bindConstant = DX12BindConstant;
 
 	a_FuncCreateInfo.drawVertex = DX12DrawVertex;
@@ -70,6 +73,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitCommands = DX12WaitCommands;
 
 	a_FuncCreateInfo.destroyBackend = DX12DestroyBackend;
+	a_FuncCreateInfo.destroyDescriptorHeap = DX12DestroyDescriptorHeap;
 	a_FuncCreateInfo.destroyDescriptor = DX12DestroyDescriptor;
 	a_FuncCreateInfo.destroyPipeline = DX12DestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = DX12DestroyCommandQueue;

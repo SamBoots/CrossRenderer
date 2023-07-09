@@ -30,28 +30,37 @@ PipelineBuilder::PipelineBuilder(const PipelineInitInfo& a_InitInfo)
 	{
 		m_DebugInfo.renderTargetBlends[i] = a_InitInfo.renderTargetBlends[i];
 	}
+
+	m_DebugInfo.immutableSamplerCount = static_cast<uint32_t>(a_InitInfo.immutableSamplers.size());
+	m_DebugInfo.immutableSamplers = (SamplerCreateInfo*)(_malloca(a_InitInfo.immutableSamplers.sizeInBytes()));
+	for (size_t i = 0; i < m_DebugInfo.immutableSamplerCount; i++)
+	{
+		m_DebugInfo.immutableSamplers[i] = a_InitInfo.immutableSamplers[i];
+	}
 #endif //_DEBUG
 }
 
 PipelineBuilder::~PipelineBuilder()
 {
 	BB_ASSERT(m_BuilderHandle.handle == 0, "Unfinished pipeline destructed! Big memory leak and improper graphics API usage.");
-
 #ifdef _DEBUG
 	if (m_DebugInfo.shaderInfo)
 	{
 		_freea(m_DebugInfo.shaderInfo);
-		m_DebugInfo.shaderInfo = nullptr;
 	}
-	if (m_DebugInfo.shaderInfo)
+	if (m_DebugInfo.attributes)
 	{
 		_freea(m_DebugInfo.attributes);
-		m_DebugInfo.attributes = nullptr;
+	}
+	if (m_DebugInfo.immutableSamplerCount)
+	{
+		_freea(m_DebugInfo.immutableSamplers);
 	}
 #endif //_DEBUG
+	memset(this, 0, sizeof(*this));
 }
 
-void PipelineBuilder::BindDescriptor(const RDescriptorHandle a_Handle)
+void PipelineBuilder::BindDescriptor(const RDescriptor a_Handle)
 {
 	s_ApiFunc.pipelineBuilderBindDescriptor(m_BuilderHandle, a_Handle);
 }
@@ -61,7 +70,7 @@ void PipelineBuilder::BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo
 	s_ApiFunc.pipelineBuilderBindShaders(m_BuilderHandle, a_ShaderInfo);
 #ifdef _DEBUG
 	m_DebugInfo.shaderCount = static_cast<uint32_t>(a_ShaderInfo.size());
-	m_DebugInfo.shaderInfo = (PipelineDebugInfo::ShaderInfo*)(_malloca(sizeof(PipelineDebugInfo::ShaderInfo) * a_ShaderInfo.size()));
+	m_DebugInfo.shaderInfo = (PipelineDebugInfo::ShaderInfo*)(_malloca(a_ShaderInfo.sizeInBytes()));
 	for (size_t i = 0; i < m_DebugInfo.shaderCount; i++)
 	{
 		m_DebugInfo.shaderInfo[i].optionalShaderpath = a_ShaderInfo[i].optionalShaderpath;
@@ -75,7 +84,7 @@ void PipelineBuilder::BindAttributes(const PipelineAttributes& a_AttributeInfo)
 	s_ApiFunc.pipelineBuilderBindAttributes(m_BuilderHandle, a_AttributeInfo);
 #ifdef _DEBUG
 	m_DebugInfo.attributeCount = static_cast<uint32_t>(a_AttributeInfo.attributes.size());
-	m_DebugInfo.attributes = (VertexAttributeDesc*)(_malloca(sizeof(VertexAttributeDesc) * a_AttributeInfo.attributes.size()));
+	m_DebugInfo.attributes = (VertexAttributeDesc*)(_malloca(a_AttributeInfo.attributes.sizeInBytes()));
 	for (size_t i = 0; i < m_DebugInfo.attributeCount; i++)
 	{
 		m_DebugInfo.attributes[i] = a_AttributeInfo.attributes[i];
@@ -98,10 +107,15 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 		_freea(m_DebugInfo.shaderInfo);
 		m_DebugInfo.shaderInfo = nullptr;
 	}
-	if (m_DebugInfo.shaderInfo)
+	if (m_DebugInfo.attributes)
 	{
 		_freea(m_DebugInfo.attributes);
 		m_DebugInfo.attributes = nullptr;
+	}
+	if (m_DebugInfo.immutableSamplerCount)
+	{
+		_freea(m_DebugInfo.immutableSamplers);
+		m_DebugInfo.immutableSamplers = nullptr;
 	}
 #endif //_DEBUG
 
@@ -144,6 +158,162 @@ void UploadBuffer::Clear()
 	memset(m_Start, 0, m_Size);
 }
 
+class DescriptorHeap
+{
+public:
+	DescriptorHeap(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible)
+		: m_DescriptorMax(a_CreateInfo.descriptorCount), m_DescriptorStartOffset(0), m_GpuVisible(a_GpuVisible)
+	{
+		m_DescriptorHeapPos = 0;
+		m_Heap = s_ApiFunc.createDescriptorHeap(a_CreateInfo, a_GpuVisible);
+	}
+	~DescriptorHeap()
+	{
+		//only delete the heap if it's from the start offset.
+		if (m_DescriptorStartOffset == 0)
+			s_ApiFunc.destroyDescriptorHeap(m_Heap);
+		memset(this, 0, sizeof(DescriptorHeap));
+	}
+
+	const DescriptorAllocation Allocate(const RDescriptor a_Descriptor)
+	{
+		AllocateDescriptorInfo t_Info;
+		t_Info.heap = m_Heap;
+		t_Info.descriptor = a_Descriptor;
+		t_Info.heapOffset = m_DescriptorStartOffset + m_DescriptorHeapPos;
+		DescriptorAllocation t_Allocation = s_ApiFunc.allocateDescriptor(t_Info);
+		m_DescriptorHeapPos += t_Allocation.descriptorCount;
+		BB_ASSERT(m_DescriptorMax > m_DescriptorHeapPos,
+			"Descriptor Heap, over allocating descriptor memory!");
+		return t_Allocation;
+	}
+
+	//do not use this, descriptorheapmanager handles this now with seperate heaps per backbuffer.
+	inline DescriptorHeap SubAllocate(const uint32_t a_DescriptorCount)
+	{
+		const uint32_t t_NewHeapOffset = m_DescriptorHeapPos;
+		m_DescriptorHeapPos += a_DescriptorCount;
+		BB_ASSERT(m_DescriptorHeapPos > m_DescriptorMax,
+			"Descriptor Heap, over allocating descriptor memory!");
+		return DescriptorHeap(m_Heap, t_NewHeapOffset, a_DescriptorCount, m_GpuVisible);
+	}
+
+	inline void Reset()
+	{
+		m_DescriptorHeapPos = 0;
+	}
+
+	inline RDescriptorHeap GetHeap() const { return m_Heap; }
+	inline const uint32_t GetHeapOffset() const { return m_DescriptorStartOffset; }
+	inline void SetHeapOffset(const uint32_t a_DescriptorOffset)
+	{ 
+		m_DescriptorHeapPos = a_DescriptorOffset; 
+	}
+	inline const uint32_t GetHeapSize() const { return m_DescriptorMax; }
+
+private:
+	//Special constructor that is a suballocated heap.
+	//DescriptorHeap::SubAllocate uses this.
+	DescriptorHeap(const RDescriptorHeap& a_Heap, const uint32_t a_DescriptorCount, const uint32_t a_HeapOffset, const bool a_GpuVisible)
+		: m_Heap(a_Heap), m_DescriptorMax(a_DescriptorCount), m_DescriptorStartOffset(a_HeapOffset), m_GpuVisible(a_GpuVisible) 
+	{
+		m_DescriptorHeapPos = 0;
+	}
+	RDescriptorHeap m_Heap;
+	const uint32_t m_DescriptorMax;
+	const uint32_t m_DescriptorStartOffset;
+	uint32_t m_DescriptorHeapPos;
+	const bool m_GpuVisible;
+};
+
+struct BB::DescriptorManager_inst
+{
+	DescriptorManager_inst(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount)
+		: backBufferCount(a_BackbufferCount), uploadHeap(a_CreateInfo, false)
+	{
+		//allocate all the GPU visible heaps, we create equal per frame.
+		gpuHeaps = BBnewArr(a_SystemAllocator, backBufferCount, DescriptorHeap);
+		for (size_t i = 0; i < a_BackbufferCount; i++)
+		{
+			new (&gpuHeaps[i])DescriptorHeap(a_CreateInfo, true);
+		}
+	}
+	~DescriptorManager_inst()
+	{
+		for (size_t i = 0; i < backBufferCount; i++)
+		{
+			//leak lmao I'm lazy you shouldn't be destroying this without refreshing the entire render system allocator anyway.
+			gpuHeaps[i].~DescriptorHeap();
+		}
+	}
+	DescriptorHeap uploadHeap;
+	//maximum of 3 frames
+	const uint32_t backBufferCount;
+	DescriptorHeap* gpuHeaps;
+};
+
+//Will leak memory if you destruct it, but you should realistically only make this once.
+DescriptorManager::DescriptorManager(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount)
+{
+	m_Inst = BBnew(a_SystemAllocator, DescriptorManager_inst)(a_SystemAllocator, a_CreateInfo, a_BackbufferCount);
+}
+
+//MEMORY LEAK! m_Inst is leaked.
+DescriptorManager::~DescriptorManager()
+{
+	m_Inst->~DescriptorManager_inst();
+}
+
+const DescriptorAllocation DescriptorManager::Allocate(const RDescriptor a_Descriptor)
+{
+	return m_Inst->uploadHeap.Allocate(a_Descriptor);
+}
+
+void DescriptorManager::UploadToGPUHeap(const uint32_t a_FrameNum) const
+{
+	BB_ASSERT(a_FrameNum < m_Inst->backBufferCount,
+		"Trying to get a GPU descriptor heap that goes over the amount of backbuffers the renderer has");
+	CopyDescriptorsInfo t_Info;
+	t_Info.descriptorCount = m_Inst->uploadHeap.GetHeapSize();
+	t_Info.dstHeap = m_Inst->gpuHeaps[a_FrameNum].GetHeap();
+	t_Info.dstOffset = m_Inst->gpuHeaps[a_FrameNum].GetHeapOffset();
+	t_Info.srcHeap = m_Inst->uploadHeap.GetHeap();
+	t_Info.srcOffset = m_Inst->uploadHeap.GetHeapOffset();
+	s_ApiFunc.copyDescriptors(t_Info);
+}
+
+const uint32_t DescriptorManager::GetCPUOffsetFlag() const
+{
+	return m_Inst->uploadHeap.GetHeapOffset();
+}
+
+void DescriptorManager::SetCPUOffsetFlag(const uint32_t a_Offset)
+{
+	m_Inst->uploadHeap.SetHeapOffset(a_Offset);
+}
+
+void DescriptorManager::ClearCPUHeap()
+{ 
+	m_Inst->uploadHeap.Reset();
+};
+
+const RDescriptorHeap DescriptorManager::GetGPUHeap(const uint32_t a_FrameNum) const
+{ 
+	BB_ASSERT(a_FrameNum < m_Inst->backBufferCount, 
+		"Trying to get a GPU descriptor heap that goes over the amount of backbuffers the renderer has");
+	return m_Inst->gpuHeaps[a_FrameNum].GetHeap();
+}
+
+const uint32_t DescriptorManager::GetHeapOffset() const
+{ 
+	return m_Inst->uploadHeap.GetHeapOffset();
+}
+
+const uint32_t DescriptorManager::GetHeapSize() const
+{ 
+	return m_Inst->uploadHeap.GetHeapSize(); 
+}
+
 void BB::RenderBackend::DisplayDebugInfo()
 {
 	s_ResourceTracker.Editor();	
@@ -167,9 +337,9 @@ void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_BackendInfo = s_ApiFunc.createBackend(a_CreateInfo);
 }
 
-RDescriptorHandle BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
+RDescriptor BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
 {
-	RDescriptorHandle t_Desc = s_ApiFunc.createDescriptor(a_CreateInfo);
+	RDescriptor t_Desc = s_ApiFunc.createDescriptor(a_CreateInfo);
 #ifdef _DEBUG
 	s_ResourceTracker.AddDescriptor(a_CreateInfo, a_CreateInfo.name, t_Desc.handle);
 #endif //_DEBUG
@@ -248,16 +418,15 @@ RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 	return t_Fence;
 }
 
-void BB::RenderBackend::UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info)
+void BB::RenderBackend::WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 {
-	s_ApiFunc.updateDescriptorBuffer(a_Info);
+	s_ApiFunc.writeDescriptors(a_WriteInfo);
 }
 
-void BB::RenderBackend::UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info)
+void BB::RenderBackend::CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo)
 {
-	s_ApiFunc.updateDescriptorImage(a_Info);
+	s_ApiFunc.copyDescriptors(a_CopyInfo);
 }
-
 
 void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle)
 {
@@ -315,9 +484,19 @@ void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.transitionImage(a_RecordingCmdHandle, a_TransitionInfo);
 }
 
+void BB::RenderBackend::BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
+{
+	s_ApiFunc.bindDescriptorHeaps(a_RecordingCmdHandle, a_ResourceHeap, a_SamplerHeap);
+}
+
 void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
+}
+
+void BB::RenderBackend::SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
+{
+	s_ApiFunc.setDescriptorHeapOffsets(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_HeapIndex, a_Offsets);
 }
 
 void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
@@ -328,11 +507,6 @@ void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_Rec
 void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
-}
-
-void BB::RenderBackend::BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets)
-{
-	s_ApiFunc.bindDescriptors(a_RecordingCmdHandle, a_Sets, a_SetCount, a_DynamicOffsetCount, a_DynamicOffsets);
 }
 
 void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
@@ -406,65 +580,12 @@ uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
 	return s_ApiFunc.nextFenceValue(a_Handle);
 }
 
-void BB::RenderBackend::DestroyBackend()
-{
-	s_ApiFunc.destroyBackend();
-}
-
-void BB::RenderBackend::DestroyDescriptor(const RDescriptorHandle a_Handle)
+void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
 {
 #ifdef _DEBUG
 	s_ResourceTracker.RemoveEntry(a_Handle.handle);
 #endif //_DEBUG
-	s_ApiFunc.destroyDescriptor(a_Handle);
-}
-
-void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyPipeline(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandQueue(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandAllocator(a_Handle);
-}
-
-void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyCommandList(a_Handle);
-}
-
-void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyBuffer(a_Handle);
-}
-
-void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
-{
-#ifdef _DEBUG
-	s_ResourceTracker.RemoveEntry(a_Handle.handle);
-#endif //_DEBUG
-	s_ApiFunc.destroyImage(a_Handle);
+	s_ApiFunc.destroyFence(a_Handle);
 }
 
 void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
@@ -475,10 +596,63 @@ void BB::RenderBackend::DestroySampler(const RSamplerHandle a_Handle)
 	s_ApiFunc.destroySampler(a_Handle);
 }
 
-void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)
+void BB::RenderBackend::DestroyImage(const RImageHandle a_Handle)
 {
 #ifdef _DEBUG
 	s_ResourceTracker.RemoveEntry(a_Handle.handle);
 #endif //_DEBUG
-	s_ApiFunc.destroyFence(a_Handle);
+	s_ApiFunc.destroyImage(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBuffer(const RBufferHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyBuffer(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandList(const CommandListHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandList(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandAllocator(a_Handle);
+}
+
+void BB::RenderBackend::DestroyCommandQueue(const CommandQueueHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyCommandQueue(a_Handle);
+}
+
+void BB::RenderBackend::DestroyPipeline(const PipelineHandle a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyPipeline(a_Handle);
+}
+
+void BB::RenderBackend::DestroyDescriptor(const RDescriptor a_Handle)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.RemoveEntry(a_Handle.handle);
+#endif //_DEBUG
+	s_ApiFunc.destroyDescriptor(a_Handle);
+}
+
+void BB::RenderBackend::DestroyBackend()
+{
+	s_ApiFunc.destroyBackend();
 }
