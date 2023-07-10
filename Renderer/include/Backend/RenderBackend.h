@@ -92,20 +92,6 @@ namespace BB
 		struct DescriptorManager_inst* m_Inst;
 	};
 
-	class Queue;
-
-	namespace Render
-	{
-		RDescriptorHeap GetGPUHeap(const uint32_t a_FrameNum);
-		DescriptorAllocation AllocateDescriptor(const RDescriptor a_Descriptor);
-		void UploadDescriptorsToGPU(const uint32_t a_FrameNum);
-		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
-		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
-		
-		void StartFrame();
-		void EndFrame();
-	}
-
 	namespace RenderBackend
 	{
 		void DisplayDebugInfo();
