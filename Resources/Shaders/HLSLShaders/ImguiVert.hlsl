@@ -1,9 +1,12 @@
 #ifdef _VULKAN
 #define _BBEXT(num) [[vk::location(num)]]
+#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #elif _DIRECTX12
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #else
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #endif
 
 struct VSInput

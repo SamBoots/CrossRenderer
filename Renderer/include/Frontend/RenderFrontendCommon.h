@@ -40,8 +40,11 @@ namespace BB
 		PipelineHandle pipelineHandle{};
 		RImageHandle image{}; //This is temp, will be managed by the engine.
 
-		RBufferHandle vertexBuffer{};
-		RBufferHandle indexBuffer{};
+		DescriptorAllocation descAllocation;
+		RDescriptor meshDescriptor;
+
+		RenderBufferPart vertexView;
+		RenderBufferPart indexView;
 
 		Node* nodes = nullptr;
 		Node* linearNodes = nullptr;
@@ -82,23 +85,16 @@ namespace BB
 
 	struct BaseFrameInfo
 	{
-		uint32_t lightCount = 0;
-		uint3 padding{};
-
 		float3 ambientLight{};
 		float ambientStrength = 0.f;
+
+		uint32_t lightCount = 0;
+		uint3 padding{};
 	};
 
 	struct DrawObject
 	{
 		RModelHandle modelHandle{};
 		TransformHandle transformHandle{};
-	};
-
-	struct RenderBufferPart
-	{
-		RBufferHandle bufferHandle{};
-		uint32_t size = 0; //the size of the buffer part.
-		uint32_t offset = 0; //offset starting from the bufferhandle
 	};
 }

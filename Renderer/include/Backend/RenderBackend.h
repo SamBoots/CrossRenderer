@@ -10,7 +10,7 @@ namespace BB
 		PipelineBuilder(const PipelineInitInfo& a_InitInfo);
 		~PipelineBuilder();
 		
-		void BindDescriptor(const RDescriptorHandle a_Handle);
+		void BindDescriptor(const RDescriptor a_Handle);
 		void BindShaders(const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
 		void BindAttributes(const PipelineAttributes& a_AttributeInfo);
 		PipelineHandle BuildPipeline();
@@ -48,6 +48,50 @@ namespace BB
 		void* m_Start;
 	};
 
+	class LinearRenderBuffer
+	{
+	public:
+		LinearRenderBuffer(const RenderBufferCreateInfo& a_CreateInfo);
+		~LinearRenderBuffer();
+
+		RenderBufferPart SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment);
+
+		void MapBuffer() const;
+		void UnmapBuffer() const;
+
+		const RBufferHandle GetBuffer() const { return m_Buffer; }
+
+	private:
+		const RENDER_MEMORY_PROPERTIES m_MemoryProperties;
+		const RBufferHandle m_Buffer;
+		const uint64_t m_Size;
+		uint64_t m_Used;
+	};
+
+	//Linear allocator type descriptor manager. Writes to a CPU descriptor heap and can copy to local GPU visible descriptors.
+	class DescriptorManager
+	{
+	public:
+		DescriptorManager(Allocator a_SystemAllocator, const DescriptorHeapCreateInfo& a_CreateInfo, const uint32_t a_BackbufferCount);
+		~DescriptorManager();
+
+		DescriptorAllocation Allocate(const RDescriptor a_Descriptor);
+		void UploadToGPUHeap(const uint32_t a_FrameNum) const;
+
+		const uint32_t GetCPUOffsetFlag() const;
+		void SetCPUOffsetFlag(const uint32_t a_Offset);
+
+		//prefer to use SetCPUOffsetFlag so that you do not need to keep setting descriptors.
+		void ClearCPUHeap();
+
+		const RDescriptorHeap GetGPUHeap(const uint32_t a_FrameNum) const;
+		const uint32_t GetHeapOffset() const;
+		const uint32_t GetHeapSize() const;
+
+	private:
+		struct DescriptorManager_inst* m_Inst;
+	};
+
 	namespace RenderBackend
 	{
 		void DisplayDebugInfo();
@@ -55,8 +99,8 @@ namespace BB
 		const uint32_t GetFrameBufferAmount();
 		const FrameIndex GetCurrentFrameBufferIndex();
 
-		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
-		RDescriptorHandle CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
+		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo, Allocator a_SystemAllocator);
+		RDescriptor CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		CommandListHandle CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -65,9 +109,8 @@ namespace BB
 		RSamplerHandle CreateSampler(const SamplerCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_CreateInfo);
 
-		void UpdateDescriptorBuffer(const UpdateDescriptorBufferInfo& a_Info);
-		void UpdateDescriptorImage(const UpdateDescriptorImageInfo& a_Info);
-
+		void WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
+		void CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
 		ImageReturnInfo GetImageInfo(const RImageHandle a_Handle);
 
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
@@ -82,10 +125,11 @@ namespace BB
 		void CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 		void TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo);
 
+		void BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
 		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+		void SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
 		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-		void BindDescriptors(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 		void BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
 		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
@@ -108,7 +152,7 @@ namespace BB
 		void WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);
 
 		void DestroyBackend();
-		void DestroyDescriptor(const RDescriptorHandle a_Handle);
+		void DestroyDescriptor(const RDescriptor a_Handle);
 		void DestroyPipeline(const PipelineHandle a_Handle);
 		void DestroyCommandQueue(const CommandQueueHandle a_Handle);
 		void DestroyCommandAllocator(const CommandAllocatorHandle a_Handle);

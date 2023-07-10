@@ -6,6 +6,7 @@ using namespace BB;
 void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
+	a_FuncCreateInfo.createDescriptorHeap = VulkanCreateDescriptorHeap;
 	a_FuncCreateInfo.createDescriptor = VulkanCreateDescriptor;
 	a_FuncCreateInfo.createCommandQueue = VulkanCreateCommandQueue;
 	a_FuncCreateInfo.createCommandAllocator = VulkanCreateCommandAllocator;
@@ -15,8 +16,9 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createSampler = VulkanCreateSampler;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
-	a_FuncCreateInfo.updateDescriptorBuffer = VulkanUpdateDescriptorBuffer;
-	a_FuncCreateInfo.updateDescriptorImage = VulkanUpdateDescriptorImage;
+	a_FuncCreateInfo.allocateDescriptor = VulkanAllocateDescriptor;
+	a_FuncCreateInfo.copyDescriptors = VulkanCopyDescriptors;
+	a_FuncCreateInfo.writeDescriptors = VulkanWriteDescriptors;
 	a_FuncCreateInfo.getImageInfo = VulkanGetImageInfo;
 
 	a_FuncCreateInfo.pipelineBuilderInit = VulkanPipelineBuilderInit;
@@ -37,10 +39,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.copyBufferImage = VulkanCopyBufferImage;
 	a_FuncCreateInfo.transitionImage = VulkanTransitionImage;
 
+	a_FuncCreateInfo.bindDescriptorHeaps = VulkanBindDescriptorHeaps;
 	a_FuncCreateInfo.bindPipeline = VulkanBindPipeline;
+	a_FuncCreateInfo.setDescriptorHeapOffsets = VulkanSetDescriptorHeapOffsets;
 	a_FuncCreateInfo.bindVertBuffers = VulkanBindVertexBuffers;
 	a_FuncCreateInfo.bindIndexBuffer = VulkanBindIndexBuffer;
-	a_FuncCreateInfo.bindDescriptors = VulkanBindDescriptors;
 	a_FuncCreateInfo.bindConstant = VulkanBindConstant;
 
 	a_FuncCreateInfo.drawVertex = VulkanDrawVertex;
@@ -63,6 +66,7 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.waitCommands = VulkanWaitCommands;
 
 	a_FuncCreateInfo.destroyBackend = VulkanDestroyBackend;
+	a_FuncCreateInfo.destroyDescriptorHeap = VulkanDestroyDescriptorHeap;
 	a_FuncCreateInfo.destroyDescriptor = VulkanDestroyDescriptor;
 	a_FuncCreateInfo.destroyPipeline = VulkanDestroyPipeline;
 	a_FuncCreateInfo.destroyCommandQueue = VulkanDestroyCommandQueue;

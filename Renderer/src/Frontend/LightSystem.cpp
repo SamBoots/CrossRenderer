@@ -11,7 +11,7 @@ BB::LightPool::LightPool(UploadBuffer& a_UploadBuffer, LinearRenderBuffer& a_GPU
 	m_UploadBufferOffset = static_cast<uint32_t>(t_UploadChunk.bufferOffset);
 
 	m_LightsCPU = reinterpret_cast<Light*>(t_UploadChunk.memory);
-	m_BufferPart = a_GPUBuffer.SubAllocateFromBuffer(static_cast<uint64_t>(a_LightCount * sizeof(Light)), 1);
+	m_BufferPart = a_GPUBuffer.SubAllocate(static_cast<uint64_t>(a_LightCount * sizeof(Light)), 1);
 	m_LightCount = 0;
 }
 
@@ -81,7 +81,7 @@ void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_Recordi
 	t_CopyInfo.size = t_AllocSize;
 	t_CopyInfo.src = m_UploadBuffer;
 	t_CopyInfo.srcOffset = m_UploadBufferOffset;
-	t_CopyInfo.dst = m_BufferPart.bufferHandle;
+	t_CopyInfo.dst = m_BufferPart.buffer;
 	t_CopyInfo.dstOffset = static_cast<uint64_t>(m_BufferPart.offset + t_DstBufferOffset);
 
 	RenderBackend::CopyBuffer(t_RecordingCmdList, t_CopyInfo);
@@ -116,21 +116,24 @@ LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_
 	return t_Handle;
 }
 
-void LightSystem::UpdateDescriptor(const RDescriptorHandle a_Descriptor)
+void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation)
 {
-	UpdateDescriptorBufferInfo t_BufferUpdate{};
-	t_BufferUpdate.set = a_Descriptor;
-
 	RenderBufferPart t_LightBufferPart = m_Lights.GetBufferAllocInfo();
 
-	t_BufferUpdate.binding = 3;
-	t_BufferUpdate.descriptorIndex = 0;
-	t_BufferUpdate.bufferOffset = t_LightBufferPart.offset;
-	t_BufferUpdate.bufferSize = t_LightBufferPart.size;
-	t_BufferUpdate.buffer = t_LightBufferPart.bufferHandle;
-	t_BufferUpdate.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	WriteDescriptorInfos t_WriteInfo;
+	WriteDescriptorData t_WriteData{};
+	t_WriteInfo.data = Slice(&t_WriteData, 1);
+	t_WriteInfo.allocation = a_Allocation;
+	t_WriteInfo.descriptorHandle = a_Descriptor;
 
-	RenderBackend::UpdateDescriptorBuffer(t_BufferUpdate);
+	t_WriteData.binding = 3;
+	t_WriteData.descriptorIndex = 0;
+	t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	t_WriteData.buffer.buffer = t_LightBufferPart.buffer;
+	t_WriteData.buffer.offset = t_LightBufferPart.offset;
+	t_WriteData.buffer.range = t_LightBufferPart.size;
+
+	RenderBackend::WriteDescriptors(t_WriteInfo);
 }
 
 void LightSystem::Editor()

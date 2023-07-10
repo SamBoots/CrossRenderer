@@ -31,10 +31,10 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 	switch (a_ShaderType)
 	{
 	case RENDER_SHADER_STAGE::VERTEX:
-		shaderType = L"vs_6_0";
+		shaderType = L"vs_6_4";
 		break;
 	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:
-		shaderType = L"ps_6_0";
+		shaderType = L"ps_6_4";
 		break;
 	}
 

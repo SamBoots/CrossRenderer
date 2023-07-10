@@ -26,8 +26,24 @@ namespace BB
 
 	namespace DXConv
 	{
+		inline D3D12_DESCRIPTOR_RANGE_TYPE DescriptorRangeType(const RENDER_DESCRIPTOR_TYPE a_Type)
+		{
+			switch (a_Type)
+			{
+			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:	return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+			case BB::RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:	return D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+			case BB::RENDER_DESCRIPTOR_TYPE::READWRITE:			return D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+			case BB::RENDER_DESCRIPTOR_TYPE::IMAGE:				return D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+			case BB::RENDER_DESCRIPTOR_TYPE::SAMPLER:			return D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_DESCRIPTOR_TYPE failed to convert to a D3D12_DESCRIPTOR_RANGE_TYPE.");
+				return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+				break;
+			}
+		}
+
 		const D3D12_SHADER_VISIBILITY ShaderVisibility(const RENDER_SHADER_STAGE a_Stage);
-		const D3D12_RESOURCE_STATES ResourceStates(const RENDER_BUFFER_USAGE a_Usage);
+
 		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
 		const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties);
 		const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType);
@@ -45,6 +61,24 @@ namespace BB
 			default: return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 			}
 		}
+		inline const D3D12_RESOURCE_STATES ResourceStates(const RENDER_IMAGE_LAYOUT a_Layout)
+		{
+			switch (a_Layout)
+			{
+			case RENDER_IMAGE_LAYOUT::UNDEFINED:				return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return D3D12_RESOURCE_STATE_RENDER_TARGET;
+			case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+			case RENDER_IMAGE_LAYOUT::GENERAL:					return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return D3D12_RESOURCE_STATE_COPY_SOURCE;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return D3D12_RESOURCE_STATE_COPY_DEST;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			case RENDER_IMAGE_LAYOUT::PRESENT:					return D3D12_RESOURCE_STATE_PRESENT;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_IMAGE_LAYOUT failed to convert to a D3D12_RESOURCE_STATES.");
+				return D3D12_RESOURCE_STATE_COMMON;
+				break;
+			}
+		}
 	}
 
 	static inline wchar* UTF8ToUnicodeString(Allocator a_Allocator, const char* a_Char)
@@ -58,7 +92,11 @@ namespace BB
 	}
 
 	//Safely releases a DX type
-	void DXRelease(IUnknown* a_Obj);
+	inline void DXRelease(IUnknown* a_Obj)
+	{
+		if (a_Obj)
+			a_Obj->Release();
+	}
 
 	union DX12BufferView
 	{
@@ -66,41 +104,35 @@ namespace BB
 		D3D12_INDEX_BUFFER_VIEW indexView;
 		D3D12_CONSTANT_BUFFER_VIEW_DESC constantView;
 	};
-
-	//maybe make this a freelist, make sure to free it in DX12DestroyPipeline if I decide to add this.
-	struct DescriptorHeapHandle
-	{
-		ID3D12DescriptorHeap* heap;
-		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle{};
-		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{};
-		uint32_t heapIndex{};
-		uint32_t count{};
-		uint32_t incrementSize{};
-	};
 	
-	class DescriptorHeap
+	class DXDescriptorHeap
 	{
 	public:
-		DescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible);
-		~DescriptorHeap();
+		DXDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32_t a_DescriptorCount, bool a_ShaderVisible, const char* a_Name);
+		~DXDescriptorHeap();
 
-		DescriptorHeapHandle Allocate(const uint32_t a_Count);
+		DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset);
 
-		void Reset();
+		void Reset()
+		{
+			m_InUse = 0;
+		}
 
 		D3D12_CPU_DESCRIPTOR_HANDLE GetCPUStartPtr() const { return m_HeapCPUStart; }
 		D3D12_GPU_DESCRIPTOR_HANDLE GetGPUStartPtr() const { return m_HeapGPUStart; }
 		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
 		ID3D12DescriptorHeap* GetHeap() const { return m_DescriptorHeap; }
+		const D3D12_DESCRIPTOR_HEAP_TYPE GetHeapType() const { return m_HeapType; }
+		const UINT GetIncrementSize() const { return m_IncrementSize; }
 
 	private:
 		ID3D12DescriptorHeap* m_DescriptorHeap;
-		D3D12_DESCRIPTOR_HEAP_TYPE m_HeapType;
+		const D3D12_DESCRIPTOR_HEAP_TYPE m_HeapType;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_HeapCPUStart;
 		D3D12_GPU_DESCRIPTOR_HANDLE m_HeapGPUStart;
-		uint32_t m_MaxDescriptors = 0;
-		uint32_t m_InUse = 0;
-		uint32_t m_IncrementSize = 0;
+		const UINT m_MaxDescriptors = 0;
+		UINT m_InUse = 0;
+		const UINT m_IncrementSize = 0;
 	};
 
 	class DXFence
@@ -151,6 +183,11 @@ namespace BB
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle;
 		};
 
+		struct TextureData
+		{
+			DXGI_FORMAT format;
+		};
+
 		DXImage(const RenderImageCreateInfo& a_Info);
 		~DXImage();
 
@@ -159,14 +196,15 @@ namespace BB
 		//Optionally we can query the descriptor index if it has one. 
 		//DEPTH STENCIL ONLY
 		DXImage::DepthMetaData GetDepthMetaData() const { return m_DepthData; };
-
+		DXImage::TextureData GetTextureData() const { return m_TextureData; }
 	private:
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
 		//Some extra metadata.
 		union
 		{
-			DepthMetaData m_DepthData{};
+			TextureData m_TextureData{};
+			DepthMetaData m_DepthData;
 		};
 		
 	};
@@ -252,6 +290,8 @@ namespace BB
 		//Puts the commandlist back into the command allocator, does not delete the ID3D12GraphicsCommandList.
 		void Free();
 
+		DXDescriptorHeap* heaps[2]{};
+
 	private:
 		union
 		{
@@ -279,79 +319,13 @@ namespace BB
 		friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
 	};
 
-	struct RootConstant
-	{
-		uint32_t dwordCount = 0;
-		UINT rootIndex = INVALID_ROOT_INDEX;
-	};
-
-	struct RootDescriptor 
-	{
-		D3D12_GPU_VIRTUAL_ADDRESS virtAddress{};
-		UINT rootIndex = INVALID_ROOT_INDEX;
-	};
-
-	struct DescTable
-	{
-		DescriptorHeapHandle table{};
-		UINT rootIndex = INVALID_ROOT_INDEX;
-	};
-
-	enum class DESC_ATTACHMENT_TYPE : uint32_t
-	{
-		CONSTANT,
-		ROOT_CBV,
-		ROOT_SRV,
-		ROOT_UAV,
-		TABLE,
-		TABLE_SAMPLER
-	};
-
-	struct TableContent //8 bytes
-	{
-		D3D12_DESCRIPTOR_RANGE_TYPE rangeType{};
-		uint32_t descriptorCount = UINT32_MAX;
-		uint32_t tableIndex = 0;
-	};
-	struct RootContent //8 bytes
-	{
-		D3D12_DESCRIPTOR_RANGE_TYPE rangeType{};
-		D3D12_GPU_VIRTUAL_ADDRESS virtAddress = 0;
-		uint32_t rootIndex = UINT32_MAX;
-	};
-
-	struct DescriptorAttachment
-	{
-		DESC_ATTACHMENT_TYPE attachType;
-		union
-		{
-			TableContent tableContent{};
-			RootContent rootContent;
-		};
-	};
-
-	//This somewhat represents a vkDescriptorSet.
-	struct DXDescriptor
-	{
-		//Maximum of 4 bindings.
-		RENDER_BINDING_SET shaderSpace = {};
-
-		uint32_t tableParamCount = 0;
-		DescTable tables;
-
-		uint32_t samplerCount = 0;
-		DescTable samplerTable;
-
-		uint32_t descriptorAttachmentCount = 0;
-		DescriptorAttachment* descriptorAttachments{};
-
-		uint32_t dynamicBufferCount = 0;
-		RootContent** dynamicBuffers{};
-	};
-
 	//Maybe create a class and a builder for this?
 	struct DXPipeline
 	{
+		~DXPipeline()
+		{
+			memset(this, 0, sizeof(*this));
+		}
 		//Optmize Rootsignature and pipelinestate to cache them somewhere and reuse them.
 		ID3D12PipelineState* pipelineState{};
 		ID3D12RootSignature* rootSig{};
@@ -360,18 +334,46 @@ namespace BB
 		UINT rootParamBindingOffset[BINDING_MAX]{};
 	};
 
+	struct DXDescriptor
+	{
+		~DXDescriptor()
+		{
+			memset(this, 0, sizeof(*this));
+		}
+		D3D12_DESCRIPTOR_RANGE1* tableEntries = nullptr;
+		uint32_t tableEntryCount = 0;
+		uint32_t descriptorCount = 0;
+	};
+
+	//lazy to make it work for depth.
+	class DepthDescriptorHeap
+	{
+	public:
+		~DepthDescriptorHeap()
+		{
+			DXRelease(heap);
+			memset(this, 0, sizeof(*this));
+		}
+		D3D12_CPU_DESCRIPTOR_HANDLE Allocate();
+
+		ID3D12DescriptorHeap* heap = nullptr;
+		UINT pos = 0;
+		UINT max = 0;
+	};
+
 	struct DX12Backend_inst
 	{
 		FrameIndex currentFrame = 0;
 		UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
 		DXFence* frameFences; //Equal amount of fences to backBufferCount.
 
+		UINT heap_cbv_srv_uav_increment_size;
+		UINT heap_sampler_size;
+
 		IDXGIFactory4* factory{};
 		ID3D12Debug1* debugController{};
 
-		DescriptorHeap* CBV_SRV_UAVHeap;
-		DescriptorHeap* samplerHeap;
-		DescriptorHeap* dsvHeap;
+		DepthDescriptorHeap dsvHeap;
 
 		IDXGIAdapter1* adapter;
 		ID3D12Device* device;
@@ -387,7 +389,7 @@ namespace BB
 		D3D12MA::Allocator* DXMA;
 		ID3D12CommandQueue* directpresentqueue;
 
-		Pool<DXDescriptor> bindingSetPool;
+		Pool<DXDescriptor> descriptorPool;
 		Pool<DXPipeline> pipelinePool;
 		Pool<DXCommandQueue> cmdQueues;
 		Pool<DXCommandAllocator> cmdAllocators;
@@ -399,7 +401,7 @@ namespace BB
 		void CreatePools()
 		{
 			pipelinePool.CreatePool(s_DX12Allocator, 4);
-			bindingSetPool.CreatePool(s_DX12Allocator, 16);
+			descriptorPool.CreatePool(s_DX12Allocator, 16);
 			cmdQueues.CreatePool(s_DX12Allocator, 4);
 			cmdAllocators.CreatePool(s_DX12Allocator, 16);
 			renderResources.CreatePool(s_DX12Allocator, 32);
@@ -411,7 +413,7 @@ namespace BB
 		void DestroyPools()
 		{
 			pipelinePool.DestroyPool(s_DX12Allocator);
-			bindingSetPool.DestroyPool(s_DX12Allocator);
+			descriptorPool.DestroyPool(s_DX12Allocator);
 			cmdQueues.DestroyPool(s_DX12Allocator);
 			cmdAllocators.DestroyPool(s_DX12Allocator);
 			renderResources.DestroyPool(s_DX12Allocator);

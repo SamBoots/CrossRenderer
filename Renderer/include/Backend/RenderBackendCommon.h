@@ -22,12 +22,14 @@ namespace BB
 	//Index is the start index, Index 
 	using PipelineBuilderHandle = FrameworkHandle<struct PipelineBuilderHandleTag>;
 	using PipelineHandle = FrameworkHandle<struct PipelineHandleTag>;
-	
-	using RDescriptorHandle = FrameworkHandle<struct RDescriptorHandleTag>;
+	using RDescriptor = FrameworkHandle<struct RDescriptorHandleTag>;
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
 	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
+
+	using RDescriptorHeap = FrameworkHandle<struct RDescriptorHeapTag>;
+	using RDescriptorAllocation = FrameworkHandle<struct RDescriptorAllocationTag>;
 
 	using RFenceHandle = FrameworkHandle<struct RFenceHandleTag>;
 	using RBufferHandle = FrameworkHandle<struct RBufferHandleTag>;
@@ -50,19 +52,7 @@ namespace BB
 		INDEX,
 		UNIFORM,
 		STORAGE,
-		STAGING
-	};
-
-	enum class RENDER_DESCRIPTOR_TYPE : uint32_t
-	{
-		READONLY_CONSTANT, //CBV or uniform buffer
-		READONLY_BUFFER, //SRV or Storage buffer
-		READWRITE, //UAV or readwrite storage buffer(?)
-		READONLY_CONSTANT_DYNAMIC, //Root CBV or dynamic constant buffer
-		READONLY_BUFFER_DYNAMIC, //Root SRV or dynamic storage buffer
-		READWRITE_DYNAMIC, //Root UAV or readwrite dynamic storage buffer(?)
-		IMAGE,
-		SAMPLER
+		STAGING,
 	};
 
 	enum class RENDER_DESCRIPTOR_SET : uint32_t
@@ -71,6 +61,16 @@ namespace BB
 		PER_FRAME_SET = 1,
 		PER_MESH_SET = 2,
 		PER_MATERIAL_SET = 3
+	};
+
+	enum class RENDER_DESCRIPTOR_TYPE : uint32_t
+	{
+		READONLY_CONSTANT, //CBV or uniform buffer
+		READONLY_BUFFER, //SRV or Storage buffer
+		READWRITE, //UAV or readwrite storage buffer(?)
+		IMAGE,
+		SAMPLER,
+		ENUM_SIZE
 	};
 
 	enum class RENDER_DESCRIPTOR_FLAG : uint32_t
@@ -235,30 +235,6 @@ namespace BB
 		LINEAR
 	};
 
-	struct UpdateDescriptorImageInfo
-	{
-		RDescriptorHandle set{};
-		uint32_t binding = 0;
-		uint32_t descriptorIndex = 0;
-		RENDER_DESCRIPTOR_TYPE type{};
-
-		RImageHandle image;
-		RENDER_IMAGE_LAYOUT imageLayout;
-		RSamplerHandle sampler;
-	};
-
-	struct UpdateDescriptorBufferInfo
-	{
-		RDescriptorHandle set{};
-		uint32_t binding = 0;
-		uint32_t descriptorIndex = 0;
-		RENDER_DESCRIPTOR_TYPE type{};
-
-		RBufferHandle buffer{};
-		uint32_t bufferSize = 0;
-		uint32_t bufferOffset = 0;
-	};
-
 	struct RenderInitInfo
 	{
 		RENDER_API renderAPI = RENDER_API::NONE;
@@ -283,9 +259,9 @@ namespace BB
 		bool validationLayers = false;
 	};
 
-	struct StaticSamplerCreateInfo
+	struct SamplerCreateInfo
 	{
-		RENDER_BINDING_SET bindingSet{};
+		const char* name = nullptr;
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
@@ -297,6 +273,73 @@ namespace BB
 		float maxLod = 0;
 	};
 
+	struct DescriptorAllocation
+	{
+		uint32_t offset = 0;
+		RDescriptor descriptor{};
+		void* bufferStart = nullptr;
+		//can be size in bytes, or the amount of descriptors.
+		uint32_t descriptorCount = 0;
+	};
+
+	struct DescriptorHeapCreateInfo
+	{
+		const char* name;
+		uint32_t descriptorCount;
+		bool isSampler;
+	};
+
+	struct CopyDescriptorsInfo
+	{
+		uint32_t descriptorCount;
+		bool isSamplerHeap;
+		RDescriptorHeap srcHeap;
+		uint32_t srcOffset;
+		RDescriptorHeap dstHeap;
+		uint32_t dstOffset;
+	};
+
+	struct WriteDescriptorBuffer
+	{
+		RBufferHandle buffer;
+		size_t range;
+		size_t offset;
+	};
+
+	struct WriteDescriptorImage
+	{
+		RImageHandle image;
+		RSamplerHandle sampler;
+		RENDER_IMAGE_LAYOUT layout;
+	};
+
+	struct WriteDescriptorData
+	{
+		uint32_t binding = 0;
+		uint32_t descriptorIndex = 0;
+		RENDER_DESCRIPTOR_TYPE type{};
+		union
+		{
+			WriteDescriptorBuffer buffer{};
+			WriteDescriptorImage image;
+		};
+	};
+
+	struct AllocateDescriptorInfo
+	{
+		RDescriptorHeap heap;
+		RDescriptor descriptor;
+		uint32_t heapOffset = 0;
+	};
+
+	struct WriteDescriptorInfos
+	{
+		RDescriptor descriptorHandle{};
+		DescriptorAllocation allocation;
+
+		BB::Slice<WriteDescriptorData> data;
+	};
+
 	struct DescriptorBinding
 	{
 		uint32_t binding = 0;
@@ -304,8 +347,6 @@ namespace BB
 		RENDER_DESCRIPTOR_TYPE type{};
 		RENDER_SHADER_STAGE stage{};
 		RENDER_DESCRIPTOR_FLAG flags{};
-
-		BB::Slice<StaticSamplerCreateInfo> staticSamplers{};
 	};
 
 	struct RenderDescriptorCreateInfo
@@ -361,20 +402,6 @@ namespace BB
 		RENDER_IMAGE_TYPE type{};
 		RENDER_IMAGE_FORMAT format{};
 		RENDER_IMAGE_TILING tiling{};
-	};
-
-	struct SamplerCreateInfo
-	{
-		const char* name = nullptr;
-		SAMPLER_ADDRESS_MODE addressModeU{};
-		SAMPLER_ADDRESS_MODE addressModeV{};
-		SAMPLER_ADDRESS_MODE addressModeW{};
-
-		SAMPLER_FILTER filter{};
-		float maxAnistoropy = 0;
-
-		float minLod = 0;
-		float maxLod = 0;
 	};
 
 	struct FenceCreateInfo
@@ -526,6 +553,8 @@ namespace BB
 		RENDER_LOGIC_OP blendLogicOp;
 		uint32_t renderTargetBlendCount = 0;
 		PipelineRenderTargetBlend* renderTargetBlends = nullptr;
+
+		BB::Slice<SamplerCreateInfo> immutableSamplers{};
 	};
 
 	struct VertexAttributeDesc
@@ -540,6 +569,13 @@ namespace BB
 	{
 		uint32_t stride = 0;
 		BB::Slice<VertexAttributeDesc> attributes{};
+	};
+
+	struct RenderBufferPart
+	{
+		RBufferHandle buffer{};
+		uint32_t size = 0; //the size of the buffer part.
+		uint32_t offset = 0; //offset starting from the bufferhandle
 	};
 
 #ifdef _DEBUG
@@ -559,6 +595,8 @@ namespace BB
 		ShaderInfo* shaderInfo = nullptr;
 		uint32_t attributeCount = 0;
 		VertexAttributeDesc* attributes = nullptr;
+		uint32_t immutableSamplerCount = 0;
+		SamplerCreateInfo* immutableSamplers = nullptr;
 	};
 #endif _DEBUG
 
@@ -590,21 +628,26 @@ namespace BB
 
 	struct Vertex
 	{
-		float3 pos{};
-		float3 normal{};
-		float2 uv{};
-		float3 color{};
+		float3 pos{}; //12
+		float3 normal{}; //24
+		float2 uv{}; //32
+		float3 color{}; //44
 	};
 
 	struct BackendInfo
 	{
 		uint32_t framebufferCount = 0;
 		FrameIndex currentFrame = 0;
+
+		uint32_t minReadonlyConstantOffset;
+		uint32_t minReadonlyBufferOffset;
+		uint32_t minReadWriteBufferOffset;
 	};
 
 	//construction
 	typedef BackendInfo				(*PFN_RenderAPICreateBackend)(const RenderBackendCreateInfo& a_CreateInfo);
-	typedef RDescriptorHandle		(*PFN_RenderAPICreateDescriptor)(const RenderDescriptorCreateInfo& a_Info);
+	typedef RDescriptorHeap			(*PFN_RenderAPICreateDescriptorHeap)(const DescriptorHeapCreateInfo& a_CreateInfo, const bool a_GpuVisible);
+	typedef RDescriptor				(*PFN_RenderAPICreateDescriptor)(const RenderDescriptorCreateInfo& a_Info);
 	typedef CommandQueueHandle		(*PFN_RenderAPICreateCommandQueue)(const RenderCommandQueueCreateInfo& a_Info);
 	typedef CommandAllocatorHandle	(*PFN_RenderAPICreateCommandAllocator)(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 	typedef CommandListHandle		(*PFN_RenderAPICreateCommandList)(const RenderCommandListCreateInfo& a_CreateInfo);
@@ -612,15 +655,15 @@ namespace BB
 	typedef RImageHandle			(*PFN_RenderAPICreateImage)(const RenderImageCreateInfo& a_CreateInfo);
 	typedef RSamplerHandle			(*PFN_RenderAPICreateSampler)(const SamplerCreateInfo& a_Info);
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
-
-	typedef void (*PFN_RenderAPIUpdateDescriptorBuffer)(const UpdateDescriptorBufferInfo& a_Info);
-	typedef void (*PFN_RenderAPIUpdateDescriptorImage)(const UpdateDescriptorImageInfo& a_Info);
-
-	typedef ImageReturnInfo		(*PFN_RenderAPIGetImageInfo)(RImageHandle a_Handle);
+	
+	typedef DescriptorAllocation	(*PFN_RenderAPIAllocateDescriptor)(const AllocateDescriptorInfo& a_AllocateInfo);
+	typedef void					(*PFN_RenderAPICopyDescriptors)(const CopyDescriptorsInfo& a_CopyInfo);
+	typedef void					(*PFN_RenderAPIWriteDescriptors)(const WriteDescriptorInfos& a_WriteInfo);
+	typedef ImageReturnInfo			(*PFN_RenderAPIGetImageInfo)(RImageHandle a_Handle);
 
 	//PipelineBuilder
 	typedef PipelineBuilderHandle	(*PFN_RenderAPIPipelineBuilderInit)(const PipelineInitInfo& a_InitInfo);
-	typedef void					(*PFN_RenderAPIDX12PipelineBuilderBindDescriptor)(const PipelineBuilderHandle a_Handle, const RDescriptorHandle a_Descriptor);
+	typedef void					(*PFN_RenderAPIDX12PipelineBuilderBindDescriptor)(const PipelineBuilderHandle a_Handle, const RDescriptor a_Descriptor);
 	typedef void					(*PFN_RenderAPIPipelineBuilderBindShaders)(const PipelineBuilderHandle a_Handle, const Slice<BB::ShaderCreateInfo> a_ShaderInfo);
 	typedef void					(*PFN_RenderAPIPipelineBuilderBindAttributes)(const PipelineBuilderHandle a_Handle, const PipelineAttributes& a_AttributeInfo);
 	typedef PipelineHandle			(*PFN_RenderAPIBuildPipeline)(const PipelineBuilderHandle a_Handle);
@@ -637,10 +680,11 @@ namespace BB
 	typedef void (*PFN_RenderAPICopyBufferImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
 	typedef void (*PFN_RenderAPITransitionImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
 
+	typedef void (*PFN_RenderAPIBindDescriptorHeaps)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	typedef void (*PFN_RenderAPISetDescriptorHeapOffsets)(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
 	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
 	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	typedef void (*PFN_RenderAPIBindDescriptors)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHandle* a_Sets, const uint32_t a_SetCount, const uint32_t a_DynamicOffsetCount, const uint32_t* a_DynamicOffsets);
 	typedef void (*PFN_REnderAPIBindConstant)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
 	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
@@ -664,7 +708,8 @@ namespace BB
 
 	//Deletion
 	typedef void (*PFN_RenderAPIDestroyBackend)();
-	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptorHandle a_Handle);
+	typedef void (*PFN_RenderAPIDestroyDescriptor)(const RDescriptor a_Handle);
+	typedef void (*PFN_RenderAPIDestroyDescriptorHeap)(const RDescriptorHeap a_Handle);
 	typedef void (*PFN_RenderAPIDestroyPipeline)(const PipelineHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandQueue)(const CommandQueueHandle a_Handle);
 	typedef void (*PFN_RenderAPIDestroyCommandAllocator)(const CommandAllocatorHandle a_Handle);
@@ -677,6 +722,7 @@ namespace BB
 	struct RenderAPIFunctions
 	{
 		PFN_RenderAPICreateBackend createBackend;
+		PFN_RenderAPICreateDescriptorHeap createDescriptorHeap;
 		PFN_RenderAPICreateDescriptor createDescriptor;
 		PFN_RenderAPICreateCommandQueue createCommandQueue;
 		PFN_RenderAPICreateCommandAllocator createCommandAllocator;
@@ -686,8 +732,9 @@ namespace BB
 		PFN_RenderAPICreateSampler createSampler;
 		PFN_RenderAPICreateFence createFence;
 
-		PFN_RenderAPIUpdateDescriptorBuffer updateDescriptorBuffer;
-		PFN_RenderAPIUpdateDescriptorImage updateDescriptorImage;
+		PFN_RenderAPIAllocateDescriptor allocateDescriptor;
+		PFN_RenderAPICopyDescriptors copyDescriptors;
+		PFN_RenderAPIWriteDescriptors writeDescriptors;
 		PFN_RenderAPIGetImageInfo getImageInfo;
 
 		PFN_RenderAPIPipelineBuilderInit pipelineBuilderInit;
@@ -707,10 +754,11 @@ namespace BB
 		PFN_RenderAPICopyBufferImage copyBufferImage;
 		PFN_RenderAPITransitionImage transitionImage;
 
+		PFN_RenderAPIBindDescriptorHeaps bindDescriptorHeaps;
 		PFN_RenderAPIBindPipeline bindPipeline;
+		PFN_RenderAPISetDescriptorHeapOffsets setDescriptorHeapOffsets;
 		PFN_RenderAPIBindVertexBuffers bindVertBuffers;
 		PFN_RenderAPIBindIndexBuffer bindIndexBuffer;
-		PFN_RenderAPIBindDescriptors bindDescriptors;
 		PFN_REnderAPIBindConstant bindConstant;
 
 		PFN_RenderAPIDrawVertex drawVertex;
@@ -734,6 +782,7 @@ namespace BB
 
 		PFN_RenderAPIDestroyBackend destroyBackend;
 		PFN_RenderAPIDestroyDescriptor destroyDescriptor;
+		PFN_RenderAPIDestroyDescriptorHeap destroyDescriptorHeap;
 		PFN_RenderAPIDestroyPipeline destroyPipeline;
 		PFN_RenderAPIDestroyCommandQueue destroyCommandQueue;
 		PFN_RenderAPIDestroyCommandAllocator destroyCommandAllocator;

@@ -12,30 +12,13 @@ endif()
 
 #Add source to this project's executable.
 add_executable (Renderer 
-#Backend .h
-"include/Backend/RenderBackend.h"
-"include/Backend/RenderBackendCommon.h"
-"include/Backend/ShaderCompiler.h"
-"include/Backend/RenderResourceTracker.h"
-#Frontend .h
-"include/Frontend/RenderFrontendCommon.h"
-"include/Frontend/RenderFrontend.h"
-"include/Frontend/RenderBuffers.h"
-"include/Frontend/LightSystem.h"
-"include/Frontend/ModelLoader.h"
-"include/Frontend/Transform.h" 
-"include/Frontend/Materials.h"
-"include/Frontend/Camera.h"
-
-#Backend .cpp
+#Backend
 "src/Backend/RenderBackend.cpp"
 "src/Backend/ShaderCompiler.cpp"
 "src/Backend/RenderResourceTracker.cpp"
-#Frontend .cpp
+#Frontend
 "src/Frontend/RenderFrontend.cpp"
-"src/Frontend/RenderBuffers.cpp"
 "src/Frontend/LightSystem.cpp"
-"src/Frontend/ModelLoader.cpp"
 "src/Frontend/Transform.cpp"
 "src/Frontend/Materials.cpp"
 "src/Frontend/Camera.cpp"
@@ -47,8 +30,6 @@ add_executable (Renderer
 "src/Graph/SceneGraph.cpp"
 
 #Tooling & misc
-"include/imgui_impl_CrossRenderer.h"
-"include/Editor.h"
 "src/imgui_impl_CrossRenderer.cpp"
 "src/Editor.cpp"
 
