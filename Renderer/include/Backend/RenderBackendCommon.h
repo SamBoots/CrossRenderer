@@ -571,6 +571,13 @@ namespace BB
 		BB::Slice<VertexAttributeDesc> attributes{};
 	};
 
+	struct RenderBufferPart
+	{
+		RBufferHandle buffer{};
+		uint32_t size = 0; //the size of the buffer part.
+		uint32_t offset = 0; //offset starting from the bufferhandle
+	};
+
 #ifdef _DEBUG
 	struct PipelineDebugInfo
 	{

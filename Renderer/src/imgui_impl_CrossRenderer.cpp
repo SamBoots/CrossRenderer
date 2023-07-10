@@ -561,7 +561,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
     {
-        bd->descAllocation = g_descriptorManager->Allocate(bd->fontDescriptor);
+        bd->descAllocation = Render::AllocateDescriptor(bd->fontDescriptor);
 
         WriteDescriptorInfos t_ImguiDescData{};
         WriteDescriptorData t_WriteData{};

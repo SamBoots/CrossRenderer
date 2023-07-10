@@ -2,6 +2,7 @@
 #include "RenderResourceTracker.h"
 
 #include "Utils/Slice.h"
+#include "Slotmap.h"
 #include "BBString.h"
 #include <malloc.h>
 
@@ -313,6 +314,102 @@ const uint32_t DescriptorManager::GetHeapSize() const
 	return m_Inst->uploadHeap.GetHeapSize(); 
 }
 
+LinearRenderBuffer::LinearRenderBuffer(const RenderBufferCreateInfo& a_CreateInfo)
+	: m_Size(a_CreateInfo.size), m_MemoryProperties(a_CreateInfo.memProperties), m_Buffer(RenderBackend::CreateBuffer(a_CreateInfo))
+{
+	m_Used = 0;
+}
+LinearRenderBuffer::~LinearRenderBuffer()
+{
+	RenderBackend::DestroyBuffer(m_Buffer);
+}
+
+RenderBufferPart LinearRenderBuffer::SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment)
+{
+	//Align the m_Used variable, as it works as the buffer offset.
+	m_Used += static_cast<uint32_t>(Pointer::AlignForwardAdjustment(a_Size, a_Alignment));
+	BB_ASSERT(m_Size >= static_cast<uint64_t>(m_Used + a_Size), "Not enough memory for a linear render buffer!");
+
+	const RenderBufferPart t_Part{ m_Buffer,
+	static_cast<uint32_t>(a_Size),
+	static_cast<uint32_t>(m_Used) };
+
+	m_Used += a_Size;
+
+	return t_Part;
+}
+
+void LinearRenderBuffer::MapBuffer() const
+{
+	BB_ASSERT(m_MemoryProperties == RENDER_MEMORY_PROPERTIES::HOST_VISIBLE,
+		"Trying to map a GPU device local memory region! Create the buffer with HOST_VISIBLE instead!");
+	RenderBackend::MapMemory(m_Buffer);
+}
+
+void LinearRenderBuffer::UnmapBuffer() const
+{
+	BB_ASSERT(m_MemoryProperties == RENDER_MEMORY_PROPERTIES::HOST_VISIBLE,
+		"Trying to unmap a GPU device local memory region! Create the buffer with HOST_VISIBLE instead!");
+	RenderBackend::UnmapMemory(m_Buffer);
+}
+
+struct ThreadCommandList
+{
+	CommandAllocatorHandle cmdAllocator;
+	CommandListHandle cmdlist;
+};
+
+struct Render_inst
+{
+	Render_inst(Allocator a_SystemAllocator, 
+		const RenderBufferCreateInfo& a_VertexBufferInfo,
+		const RenderBufferCreateInfo& a_IndexBufferInfo,
+		const DescriptorHeapCreateInfo& a_DescriptorManagerInfo,
+		const uint32_t a_BackbufferAmount)
+		:	vertexBuffer(a_VertexBufferInfo),
+			indexBuffer(a_IndexBufferInfo),
+			descriptorManager(a_SystemAllocator, a_DescriptorManagerInfo, a_BackbufferAmount),
+			descriptorAllocations(a_SystemAllocator, 64)
+	{
+		systemAllocator = a_SystemAllocator;
+	}
+	Allocator systemAllocator;
+
+	DescriptorManager descriptorManager;
+	LinearRenderBuffer vertexBuffer;
+	LinearRenderBuffer indexBuffer;
+
+	Slotmap<DescriptorAllocation> descriptorAllocations;
+};
+
+static Render_inst* s_RenderInst;
+
+RDescriptorHeap BB::Render::GetGPUHeap(const uint32_t a_FrameNum)
+{
+	return s_RenderInst->descriptorManager.GetGPUHeap(a_FrameNum);
+}
+
+DescriptorAllocation BB::Render::AllocateDescriptor(const RDescriptor a_Descriptor)
+{
+	return s_RenderInst->descriptorManager.Allocate(a_Descriptor);
+}
+
+void BB::Render::UploadDescriptorsToGPU(const uint32_t a_FrameNum)
+{
+	s_RenderInst->descriptorManager.UploadToGPUHeap(a_FrameNum);
+}
+
+RenderBufferPart BB::Render::AllocateFromVertexBuffer(const size_t a_Size)
+{
+	return s_RenderInst->vertexBuffer.SubAllocate(a_Size, __alignof(Vertex));
+}
+
+RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
+{
+	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
+}
+
+#pragma region API_Backend
 void BB::RenderBackend::DisplayDebugInfo()
 {
 	s_ResourceTracker.Editor();
@@ -329,11 +426,32 @@ const FrameIndex BB::RenderBackend::GetCurrentFrameBufferIndex()
 	return s_BackendInfo.currentFrame;
 }
 
-void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo)
+void BB::RenderBackend::InitBackend(const RenderBackendCreateInfo& a_CreateInfo, Allocator a_SystemAllocator)
 {
 	a_CreateInfo.getApiFuncPtr(s_ApiFunc);
 
 	s_BackendInfo = s_ApiFunc.createBackend(a_CreateInfo);
+
+	//Write some background info.
+	constexpr size_t SUBHEAPSIZE = 64 * 1024;
+	DescriptorHeapCreateInfo t_HeapInfo{};
+	t_HeapInfo.name = "Resource Heap";
+	t_HeapInfo.descriptorCount = SUBHEAPSIZE;
+	t_HeapInfo.isSampler = false;
+
+	RenderBufferCreateInfo t_VertexBufferInfo;
+	t_VertexBufferInfo.name = "Big vertex buffer";
+	t_VertexBufferInfo.size = mbSize * 128;
+	t_VertexBufferInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
+	t_VertexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+
+	RenderBufferCreateInfo t_IndexBufferInfo;
+	t_IndexBufferInfo.name = "Big index buffer";
+	t_IndexBufferInfo.size = mbSize * 32;
+	t_IndexBufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
+	t_IndexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+
+	s_RenderInst = BBnew(a_SystemAllocator, Render_inst)(a_SystemAllocator, t_VertexBufferInfo, t_IndexBufferInfo, t_HeapInfo, s_BackendInfo.framebufferCount);
 }
 
 RDescriptor BB::RenderBackend::CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo)
@@ -655,3 +773,4 @@ void BB::RenderBackend::DestroyBackend()
 {
 	s_ApiFunc.destroyBackend();
 }
+#pragma endregion //API_Backend

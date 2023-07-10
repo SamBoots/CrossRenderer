@@ -53,8 +53,8 @@ struct GlobalInfo
 	void* transferBufferMatrixStart = nullptr;
 };
 
-CommandQueueHandle t_GraphicsQueue;
-CommandQueueHandle t_TransferQueue;
+CommandQueueHandle graphicsQueue;
+CommandQueueHandle transferQueue;
 
 CommandAllocatorHandle t_CommandAllocators[3];
 CommandAllocatorHandle t_TransferAllocator[3];
@@ -71,12 +71,9 @@ RDescriptor t_Descriptor1;
 RDescriptor t_MeshDescriptor;
 PipelineHandle t_Pipeline;
 
-DescriptorManager* g_descriptorManager;
 DescriptorAllocation sceneDescAllocation;
 
 UploadBuffer* t_UploadBuffer;
-LinearRenderBuffer* t_VertexBuffer;
-LinearRenderBuffer* t_IndexBuffer;
 
 RImageHandle t_ExampleImage;
 RImageHandle t_DepthImage;
@@ -167,7 +164,7 @@ void Draw3DFrame()
 	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
 	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
 
-	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, g_descriptorManager->GetGPUHeap(s_CurrentFrame), nullptr);
+	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, GetGPUHeap(s_CurrentFrame), nullptr);
 	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 
 	uint32_t t_IsSamplerHeap = false;
@@ -282,18 +279,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BackendCreateInfo.windowWidth = static_cast<uint32_t>(t_WindowWidth);
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
-	RenderBackend::InitBackend(t_BackendCreateInfo);
+	RenderBackend::InitBackend(t_BackendCreateInfo, m_SystemAllocator);
 	s_RendererInst.frameBufferAmount = RenderBackend::GetFrameBufferAmount();
 	s_RendererInst.renderAPI = a_InitInfo.renderAPI;
-
-	{
-		constexpr size_t SUBHEAPSIZE = 64 * 1024;
-		DescriptorHeapCreateInfo t_HeapInfo{};
-		t_HeapInfo.name = "Resource Heap";
-		t_HeapInfo.descriptorCount = SUBHEAPSIZE;
-		t_HeapInfo.isSampler = false;
-		g_descriptorManager = BBnew(m_SystemAllocator, DescriptorManager)(m_SystemAllocator, t_HeapInfo, s_RendererInst.frameBufferAmount);
-	}
 
 #pragma region LightSystem
 	{
@@ -328,24 +316,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_PerFrameBuffer.usage = RENDER_BUFFER_USAGE::STORAGE;
 		t_PerFrameBuffer.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 		s_GlobalInfo.perFrameBuffer = RenderBackend::CreateBuffer(t_PerFrameBuffer);
-	}
-
-	{//global vertex buffer
-		RenderBufferCreateInfo t_VertexBufferInfo;
-		t_VertexBufferInfo.name = "Big vertex buffer";
-		t_VertexBufferInfo.size = mbSize * 128;
-		t_VertexBufferInfo.usage = RENDER_BUFFER_USAGE::STORAGE;
-		t_VertexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-		t_VertexBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_VertexBufferInfo);
-	}
-
-	{//global index buffer
-		RenderBufferCreateInfo t_IndexBufferInfo;
-		t_IndexBufferInfo.name = "Big index buffer";
-		t_IndexBufferInfo.size = mbSize * 32;
-		t_IndexBufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
-		t_IndexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
-		t_IndexBuffer = BBnew(m_SystemAllocator, LinearRenderBuffer)(t_IndexBufferInfo);
 	}
 
 	int x, y, c;
@@ -461,7 +431,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		}
 
 		t_Descriptor1 = RenderBackend::CreateDescriptor(t_CreateInfo);
-		sceneDescAllocation = g_descriptorManager->Allocate(t_Descriptor1);
+		sceneDescAllocation = Render::AllocateDescriptor(t_Descriptor1);
 	}
 
 	{
@@ -539,10 +509,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_QueueCreateInfo.name = "Graphics queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
 	t_QueueCreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
-	t_GraphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
+	graphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
 	t_QueueCreateInfo.name = "Transfer queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::TRANSFER_COPY;
-	t_TransferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
+	transferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
 
 	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
 	t_AllocatorCreateInfo.name = "Graphics command allocator";
@@ -633,10 +603,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ExecuteInfo[0] = {};
 		t_ExecuteInfo[0].commands = &t_GraphicCommands[s_CurrentFrame];
 		t_ExecuteInfo[0].commandCount = 1;
-		t_ExecuteInfo[0].signalQueues = &t_GraphicsQueue;
+		t_ExecuteInfo[0].signalQueues = &graphicsQueue;
 		t_ExecuteInfo[0].signalQueueCount = 1;
 
-		RenderBackend::ExecuteCommands(t_GraphicsQueue, t_ExecuteInfo, 1);
+		RenderBackend::ExecuteCommands(graphicsQueue, t_ExecuteInfo, 1);
 
 		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
 		{
@@ -649,7 +619,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		Shader::ReleaseShaderCode(t_ShaderHandles[i]);
 	}
 
-	CommandQueueHandle t_Queues[1]{ t_GraphicsQueue };
+	CommandQueueHandle t_Queues[1]{ graphicsQueue };
 	RenderWaitCommandsInfo t_WaitInfo{};
 	t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
 	RenderBackend::WaitCommands(t_WaitInfo);
@@ -658,7 +628,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 void BB::Render::DestroyRenderer()
 {
 	{
-		CommandQueueHandle t_Queues[2]{ t_GraphicsQueue, t_TransferQueue };
+		CommandQueueHandle t_Queues[2]{ graphicsQueue, transferQueue };
 		RenderWaitCommandsInfo t_WaitInfo{};
 		t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
 		RenderBackend::WaitCommands(t_WaitInfo);
@@ -669,9 +639,6 @@ void BB::Render::DestroyRenderer()
 		
 	}
 	BBfree(m_SystemAllocator, t_UploadBuffer);
-
-	//descriptor manager has a leak but I don't care for now just clear the entire system allocator lmao
-	BBfree(m_SystemAllocator, g_descriptorManager);
 
 	RenderBackend::DestroyDescriptor(t_Descriptor1);
 	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
@@ -705,7 +672,6 @@ void BB::Render::Update(const float a_DeltaTime)
 	RenderBackend::DisplayDebugInfo();
 
 	UpdateSceneDescriptors();
-	g_descriptorManager->UploadToGPUHeap(s_CurrentFrame);
 	Draw3DFrame();
 }
 
@@ -723,16 +689,6 @@ void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
 {
 	a_MatrixSpace = s_RendererInst.modelMatrixMax;
 	return s_GlobalInfo.transferBufferMatrixStart;
-}
-
-RenderBufferPart BB::Render::AllocateFromVertexBuffer(const size_t a_Size)
-{
-	return t_VertexBuffer->SubAllocateFromBuffer(a_Size, __alignof(Vertex));
-}
-
-RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
-{
-	return t_IndexBuffer->SubAllocateFromBuffer(a_Size, __alignof(uint32_t));
 }
 
 RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
@@ -841,7 +797,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 
 	{ //descriptor allocation
 		t_Model.meshDescriptor = t_MeshDescriptor;
-		t_Model.descAllocation = g_descriptorManager->Allocate(t_Model.meshDescriptor);
+		t_Model.descAllocation = Render::AllocateDescriptor(t_Model.meshDescriptor);
 
 		WriteDescriptorData t_WriteData{};
 		t_WriteData.binding = 0;
@@ -914,6 +870,12 @@ void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
 	s_RendererInst.drawObjects.erase(a_Handle.handle);
 }
 
+const LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
+{
+	const LightHandle t_Lights = s_GlobalInfo.lightSystem->AddLights(a_Lights, a_LightType, t_RecordingTransfer);
+	return t_Lights;
+}
+
 void BB::Render::StartFrame()
 {
 	StartFrameInfo t_StartInfo{};
@@ -934,6 +896,7 @@ void BB::Render::StartFrame()
 
 void BB::Render::EndFrame()
 {
+	UploadDescriptorsToGPU(s_CurrentFrame);
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
 
@@ -945,12 +908,12 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0] = {};
 	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
 	t_ExecuteInfos[0].commandCount = 1;
-	t_ExecuteInfos[0].signalQueues = &t_TransferQueue;
+	t_ExecuteInfos[0].signalQueues = &transferQueue;
 	t_ExecuteInfos[0].signalQueueCount = 1;
 
-	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
+	RenderBackend::ExecuteCommands(transferQueue, &t_ExecuteInfos[0], 1);
 
-	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_TransferQueue) - 1;
+	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(transferQueue) - 1;
 
 	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
 	RENDER_PIPELINE_STAGE t_WaitStage = RENDER_PIPELINE_STAGE::VERTEX_SHADER;
@@ -958,19 +921,13 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
 	t_ExecuteInfos[1].waitQueueCount = 1;
-	t_ExecuteInfos[1].waitQueues = &t_TransferQueue;
+	t_ExecuteInfos[1].waitQueues = &transferQueue;
 	t_ExecuteInfos[1].waitValues = &t_WaitValue;
 	t_ExecuteInfos[1].waitStages = &t_WaitStage;
 
-	RenderBackend::ExecutePresentCommands(t_GraphicsQueue, t_ExecuteInfos[1]);
+	RenderBackend::ExecutePresentCommands(graphicsQueue, t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
-}
-
-const LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
-{
-	const LightHandle t_Lights = s_GlobalInfo.lightSystem->AddLights(a_Lights, a_LightType, t_RecordingTransfer);
-	return t_Lights;
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
@@ -1278,7 +1235,7 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 
 	{ //descriptor allocation
 		a_Model.meshDescriptor = t_MeshDescriptor;
-		a_Model.descAllocation = g_descriptorManager->Allocate(a_Model.meshDescriptor);
+		a_Model.descAllocation = Render::AllocateDescriptor(a_Model.meshDescriptor);
 
 		WriteDescriptorData t_WriteData{};
 		t_WriteData.binding = 0;

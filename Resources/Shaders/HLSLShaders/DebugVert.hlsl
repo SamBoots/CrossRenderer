@@ -62,17 +62,17 @@ VSOutput main(uint VertexIndex : SV_VertexID)
     ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.model);
     Camera t_Cam = cam.Load<Camera>(0);
     
-    VSOutput output = (VSOutput)0;
     float4x4 t_Model = t_ModelInstance.model;
     float4x4 t_InverseModel = t_ModelInstance.inverse;
     
-    uint t_VertIndex = VertexIndex * sizeof(Vertex);
+    const uint t_VertIndex = VertexIndex * sizeof(Vertex);
     Vertex t_Vertex;// = vertData.Load < Vertex > (t_VertIndex);
     t_Vertex.position = asfloat(vertData.Load3(t_VertIndex));
     t_Vertex.normal = asfloat(vertData.Load3(t_VertIndex + 12));
     t_Vertex.uv = asfloat(vertData.Load2(t_VertIndex + 24));
     t_Vertex.color = asfloat(vertData.Load3(t_VertIndex + 32));
     
+    VSOutput output = (VSOutput) 0;
     output.pos = mul(t_Cam.proj, mul(t_Cam.view, mul(t_Model, float4(t_Vertex.position.xyz, 1.0))));
     output.fragPos = float4(mul(t_Model, float4(t_Vertex.position, 1.0f))).xyz;
     output.uv = t_Vertex.uv;

@@ -48,6 +48,26 @@ namespace BB
 		void* m_Start;
 	};
 
+	class LinearRenderBuffer
+	{
+	public:
+		LinearRenderBuffer(const RenderBufferCreateInfo& a_CreateInfo);
+		~LinearRenderBuffer();
+
+		RenderBufferPart SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment);
+
+		void MapBuffer() const;
+		void UnmapBuffer() const;
+
+		const RBufferHandle GetBuffer() const { return m_Buffer; }
+
+	private:
+		const RENDER_MEMORY_PROPERTIES m_MemoryProperties;
+		const RBufferHandle m_Buffer;
+		const uint64_t m_Size;
+		uint64_t m_Used;
+	};
+
 	//Linear allocator type descriptor manager. Writes to a CPU descriptor heap and can copy to local GPU visible descriptors.
 	class DescriptorManager
 	{
@@ -72,6 +92,20 @@ namespace BB
 		struct DescriptorManager_inst* m_Inst;
 	};
 
+	class Queue;
+
+	namespace Render
+	{
+		RDescriptorHeap GetGPUHeap(const uint32_t a_FrameNum);
+		DescriptorAllocation AllocateDescriptor(const RDescriptor a_Descriptor);
+		void UploadDescriptorsToGPU(const uint32_t a_FrameNum);
+		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
+		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
+		
+		void StartFrame();
+		void EndFrame();
+	}
+
 	namespace RenderBackend
 	{
 		void DisplayDebugInfo();
@@ -79,7 +113,7 @@ namespace BB
 		const uint32_t GetFrameBufferAmount();
 		const FrameIndex GetCurrentFrameBufferIndex();
 
-		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo);
+		void InitBackend(const RenderBackendCreateInfo& a_CreateInfo, Allocator a_SystemAllocator);
 		RDescriptor CreateDescriptor(const RenderDescriptorCreateInfo& a_CreateInfo);
 		CommandQueueHandle CreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
 		CommandAllocatorHandle CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
@@ -143,6 +177,3 @@ namespace BB
 		void DestroyFence(const RFenceHandle a_Handle);
 	};
 }
-
-//I do not like this but whatever, works great for now
-extern BB::DescriptorManager* g_descriptorManager;
