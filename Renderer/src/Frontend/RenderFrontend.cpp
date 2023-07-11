@@ -2,12 +2,12 @@
 #include "ShaderCompiler.h"
 
 #include "Transform.h"
-
-#include "Storage/Slotmap.h"
 #include "OS/Program.h"
 #include "LightSystem.h"
 #include "imgui_impl_CrossRenderer.h"
 #include "Editor.h"
+
+#include "Storage/Slotmap.h"
 
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
@@ -31,8 +31,7 @@ struct Render_inst
 		:	vertexBuffer(a_VertexBufferInfo),
 			indexBuffer(a_IndexBufferInfo),
 			descriptorManager(s_SystemAllocator, a_DescriptorManagerInfo, a_BackbufferAmount),
-			models(s_SystemAllocator, 64),
-			drawObjects(s_SystemAllocator, 256)
+			models(s_SystemAllocator, 64)
 	{
 		frameBufferAmount = a_BackbufferAmount;
 	}
@@ -50,7 +49,6 @@ struct Render_inst
 	LinearRenderBuffer indexBuffer;
 
 	Slotmap<Model> models;
-	Slotmap<DrawObject> drawObjects;
 };
 
 
@@ -174,66 +172,6 @@ void Draw3DFrame()
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
-	
-	RModelHandle t_CurrentModel = s_RenderInst->drawObjects.begin()->modelHandle;
-	Model* t_Model = &s_RenderInst->models.find(t_CurrentModel.handle);
-
-	uint32_t t_BaseFrameInfoOffset = static_cast<uint32_t>(s_GlobalInfo.perFrameBufferSize * s_CurrentFrame);
-	uint32_t t_CamOffset = t_BaseFrameInfoOffset + sizeof(BaseFrameInfo);
-	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
-	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
-
-	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, GetGPUHeap(s_CurrentFrame), nullptr);
-	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
-
-	uint32_t t_IsSamplerHeap = false;
-	size_t t_HeapOffset = sceneDescAllocation.offset;
-	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
-	{
-		uint64_t t_BufferOffsets[1]{ t_Model->descAllocation.offset };
-		RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
-		RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexView.buffer, t_Model->indexView.offset);
-	}
-
-	for (auto t_It = s_RenderInst->drawObjects.begin(); t_It < s_RenderInst->drawObjects.end(); t_It++)
-	{
-		if (t_CurrentModel != t_It->modelHandle)
-		{
-			t_CurrentModel = t_It->modelHandle;
-			Model* t_NewModel = &s_RenderInst->models.find(t_CurrentModel.handle);
-
-			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
-			{
-				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
-			}
-
-			uint64_t t_BufferOffsets[1]{ t_NewModel->descAllocation.offset };
-			RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::PER_FRAME_SET, 1, &t_IsSamplerHeap, t_BufferOffsets);
-			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexView.buffer, t_NewModel->indexView.offset);
-
-			t_Model = t_NewModel;
-		}
-
-		RenderBackend::BindConstant(t_RecordingGraphics, 0, 1, 0, &t_It->transformHandle.index);
-		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
-		{
-			const Model::Node& t_Node = t_Model->linearNodes[i];
-			if (t_Node.meshIndex != MESH_INVALID_INDEX) 
-			{
-				const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
-				for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
-				{
-					const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
-					RenderBackend::DrawIndexed(t_RecordingGraphics,
-						t_Prim.indexCount,
-						1,
-						t_Prim.indexStart,
-						0,
-						0);
-				}
-			}
-		}
-	}
 
 	
 	EndRenderingInfo t_EndRenderingInfo{};
@@ -915,22 +853,6 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 	t_Model.image = t_ExampleImage;
 
 	return RModelHandle(s_RenderInst->models.insert(t_Model).handle);
-}
-
-DrawObjectHandle BB::Render::CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle)
-{
-	DrawObject t_DrawObject{ a_Model, a_TransformHandle };
-	return DrawObjectHandle(s_RenderInst->drawObjects.emplace(t_DrawObject).handle);
-}
-
-BB::Slice<DrawObject> BB::Render::GetDrawObjects()
-{
-	return BB::Slice(s_RenderInst->drawObjects.data(), s_RenderInst->drawObjects.size());
-}
-
-void BB::Render::DestroyDrawObject(const DrawObjectHandle a_Handle)
-{
-	s_RenderInst->drawObjects.erase(a_Handle.handle);
 }
 
 const LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)

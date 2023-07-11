@@ -24,9 +24,7 @@ add_executable (Renderer
 "src/Frontend/Camera.cpp"
 
 #graph
-"include/Graph/FrameGraph.h" 
 "src/Graph/FrameGraph.cpp"
-"include/Graph/SceneGraph.hpp" 
 "src/Graph/SceneGraph.cpp"
 
 #Tooling & misc
