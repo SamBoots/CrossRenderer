@@ -77,21 +77,6 @@ namespace BB
 		MODEL_TYPE modelType{};
 	};
 
-	struct CameraRenderData
-	{
-		glm::mat4 view{};
-		glm::mat4 projection{};
-	};
-
-	struct BaseFrameInfo
-	{
-		float3 ambientLight{};
-		float ambientStrength = 0.f;
-
-		uint32_t lightCount = 0;
-		uint3 padding{};
-	};
-
 	struct DrawObject
 	{
 		RModelHandle modelHandle{};

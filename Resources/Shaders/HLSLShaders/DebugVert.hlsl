@@ -27,16 +27,22 @@ struct VSOutput
     _BBEXT(3) float3 normal     : NORMAL0;
 };
 
+struct BaseFrameInfo
+{
+    float4x4 view;
+    float4x4 proj;
+    
+    float3 ambientLight;
+    float ambientStrength;
+
+    uint lightCount;
+    uint3 padding;
+};
+
 struct ModelInstance
 {
     float4x4 model;
     float4x4 inverse;
-};
-
-struct Camera
-{
-    float4x4 view;
-    float4x4 proj;
 };
 
 struct BindlessIndices
@@ -53,9 +59,9 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-_BBBIND(1, 1) ByteAddressBuffer cam : register(t1, space0);
-_BBBIND(2, 1) ByteAddressBuffer modelInstances : register(t2, space0);
-_BBBIND(0, 2) ByteAddressBuffer vertData : register(t0, space1);
+_BBBIND(1, 2) ByteAddressBuffer cam : register(t1, space0);
+_BBBIND(2, 2) ByteAddressBuffer modelInstances : register(t2, space0);
+_BBBIND(0, 3) ByteAddressBuffer vertData : register(t0, space1);
 
 VSOutput main(uint VertexIndex : SV_VertexID)
 {

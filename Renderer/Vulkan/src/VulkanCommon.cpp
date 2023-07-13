@@ -318,7 +318,8 @@ public:
 	inline DescriptorAllocation Allocate(const RDescriptor a_Layout, const uint32_t a_HeapOffset)
 	{
 		VulkanDescriptor* t_Desc = reinterpret_cast<VulkanDescriptor*>(a_Layout.handle);
-		const VkDeviceSize t_AllocSize = Pointer::AlignPad(s_DescriptorBiggestResourceType * t_Desc->descriptorCount, s_DescriptorBufferAlignment * 4);
+		const VkDeviceSize t_AllocSize = Pointer::AlignPad(static_cast<size_t>(s_DescriptorBiggestResourceType) * t_Desc->descriptorCount,
+			static_cast<size_t>(s_DescriptorBufferAlignment) * 4);
 
 		const uint32_t t_DescriptorCount = static_cast<uint32_t>(t_AllocSize / s_DescriptorBiggestResourceType);
 		
@@ -341,12 +342,12 @@ public:
 
 private:
 	VkBuffer m_Buffer;
-	VmaAllocation m_Allocation;
+	VmaAllocation m_Allocation = VK_NULL_HANDLE;
 	//using uint32_t since descriptor buffers on some drivers
 	//only spend 32-bits virtual address.
 	uint32_t m_BufferSize;
 	void* m_Start;
-	VkDeviceAddress m_StartAddress;
+	VkDeviceAddress m_StartAddress = 0;
 };
 
 PipelineLayoutHash HashPipelineLayoutInfo(const VkPipelineLayoutCreateInfo& t_CreateInfo)
@@ -1071,21 +1072,15 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 			t_LayoutBinds[i].stageFlags = VKConv::ShaderStageBits(t_Binding.stage);
 
 			t_ReturnDesc.descriptorCount += t_Binding.descriptorCount;
-			switch (t_Binding.flags)
+			if (t_Binding.descriptorCount > 1)
 			{
-			case BB::RENDER_DESCRIPTOR_FLAG::NONE:
-				t_BindlessFlags[i] = 0;
-				break;
-			case BB::RENDER_DESCRIPTOR_FLAG::BINDLESS:
 				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
 					VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-				
 				bindlessSet = true;
-				break;
-			default:
-				BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_FLAG not supported!");
-				break;
 			}
+			else
+				t_BindlessFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
 		}
 
 		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };

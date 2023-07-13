@@ -55,14 +55,6 @@ namespace BB
 		STAGING,
 	};
 
-	enum class RENDER_DESCRIPTOR_SET : uint32_t
-	{
-		SCENE_SET = 0,
-		PER_FRAME_SET = 1,
-		PER_MESH_SET = 2,
-		PER_MATERIAL_SET = 3
-	};
-
 	enum class RENDER_DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
@@ -73,11 +65,14 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class RENDER_DESCRIPTOR_FLAG : uint32_t
+	enum class RENDER_DESCRIPTOR_SET : uint32_t
 	{
-		NONE,
-		BINDLESS
-	}; 
+		ENGINE_GLOBAL = 0,
+		//scene, menu, etc. 
+		PER_PASS = 1,
+		PER_MATERIAL = 2,
+		PER_MESH = 3
+	};
 
 	enum class RENDER_MEMORY_PROPERTIES : uint32_t
 	{
@@ -182,14 +177,6 @@ namespace BB
 		CREATE_SIGNALED
 	};
 
-	enum class RENDER_BINDING_SET : uint32_t
-	{
-		PER_FRAME = 0,
-		PER_PASS = 1,
-		PER_MATERIAL = 2,
-		PER_OBJECT = 3
-	};
-
 	enum class RENDER_INPUT_FORMAT : uint32_t
 	{
 		RGBA32,
@@ -284,9 +271,9 @@ namespace BB
 
 	struct DescriptorHeapCreateInfo
 	{
-		const char* name;
-		uint32_t descriptorCount;
-		bool isSampler;
+		const char* name = nullptr;
+		uint32_t descriptorCount = 0;
+		bool isSampler = false;
 	};
 
 	struct CopyDescriptorsInfo
@@ -346,13 +333,12 @@ namespace BB
 		uint32_t descriptorCount = 0;
 		RENDER_DESCRIPTOR_TYPE type{};
 		RENDER_SHADER_STAGE stage{};
-		RENDER_DESCRIPTOR_FLAG flags{};
 	};
 
 	struct RenderDescriptorCreateInfo
 	{
 		const char* name = nullptr;
-		RENDER_BINDING_SET bindingSet{};
+		RENDER_DESCRIPTOR_SET set{};
 		BB::Slice<DescriptorBinding> bindings{};
 	};
 
@@ -639,9 +625,9 @@ namespace BB
 		uint32_t framebufferCount = 0;
 		FrameIndex currentFrame = 0;
 
-		uint32_t minReadonlyConstantOffset;
-		uint32_t minReadonlyBufferOffset;
-		uint32_t minReadWriteBufferOffset;
+		uint32_t minReadonlyConstantOffset = 0;
+		uint32_t minReadonlyBufferOffset = 0;
+		uint32_t minReadWriteBufferOffset = 0;
 	};
 
 	//construction

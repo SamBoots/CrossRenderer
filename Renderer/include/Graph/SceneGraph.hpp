@@ -2,20 +2,35 @@
 #include "RenderFrontendCommon.h"
 #include "BBMemory.h"
 
-class SceneGraph
+namespace BB
 {
-public:
-	SceneGraph(Allocator a_Allocator);
-	~SceneGraph();
+	struct SceneCreateInfo
+	{
+		BB::Slice<Light> lights{};
+		uint32_t sceneWindowWidth = 0;
+		uint32_t sceneWindowHeight = 0;
+	};
 
-	void StartScene();
-	void RenderScene(RecordingCommandListHandle a_GraphicList);
-	void EndScene();
+	class SceneGraph
+	{
+	public:
+		SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo);
+		~SceneGraph();
 
-	DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
-	BB::Slice<DrawObject> GetDrawObjects();
-	void DestroyDrawObject(const DrawObjectHandle a_Handle);
+		void StartScene(RecordingCommandListHandle a_TransferList);
+		void RenderScene(RecordingCommandListHandle a_GraphicList);
+		void EndScene();
 
-private:
-	struct SceneGraph_inst* inst;
-};
+		void SetProjection(const glm::mat4& a_Proj);
+		void SetView(const glm::mat4& a_View);
+
+		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
+		BB::Slice<DrawObject> GetDrawObjects();
+		void DestroyDrawObject(const DrawObjectHandle a_Handle);
+
+		const RDescriptor GetSceneDescriptor() const;
+
+	private:
+		struct SceneGraph_inst* inst;
+	};
+}

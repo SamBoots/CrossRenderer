@@ -11,6 +11,9 @@
 
 struct BaseFrameInfo
 {
+    float4x4 view;
+    float4x4 proj;
+    
     float3 ambientLight;
     float ambientStrength;
 
@@ -27,11 +30,11 @@ struct Light
 };
 
 //Maybe add in common if I find a way to combine them.
-_BBBIND(0, 1) ByteAddressBuffer baseFrameInfo : register(t0, space0);
-_BBBIND(3, 1) ByteAddressBuffer lights : register(t3, space0);
+_BBBIND(0, 2) ByteAddressBuffer baseFrameInfo : register(t0, space0);
+_BBBIND(3, 2) ByteAddressBuffer lights : register(t3, space0);
 
 _BBBIND(0, 0) SamplerState samplerColor : register(s0, space0);
-_BBBIND(4, 1) Texture2D text : register(t4, space0);
+_BBBIND(4, 1) Texture2D text[] : register(t4, space0);
 
 struct VSoutput
 {

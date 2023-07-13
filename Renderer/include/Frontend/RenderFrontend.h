@@ -18,10 +18,9 @@ namespace BB
 		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
 		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
 
-		void SetProjection(const glm::mat4& a_Proj);
-		void SetView(const glm::mat4& a_View);
 		void* GetMatrixBufferSpace(uint32_t& a_MatrixSpace);
 		
+		Model& GetModel(const RModelHandle a_Handle);
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 		RModelHandle LoadModel(const LoadModelInfo& a_LoadInfo);
 

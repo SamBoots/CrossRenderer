@@ -26,7 +26,8 @@ namespace BB
 	struct UploadBufferChunk
 	{
 		void* memory;
-		uint64_t bufferOffset;
+		uint32_t offset;
+		uint32_t size;
 	};
 
 	class UploadBuffer

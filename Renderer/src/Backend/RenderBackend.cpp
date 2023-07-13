@@ -147,7 +147,8 @@ const UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
 	BB_ASSERT(m_Size >= m_Offset + a_Size, "Now enough space to alloc in the uploadbuffer.");
 	UploadBufferChunk t_Chunk{};
 	t_Chunk.memory = Pointer::Add(m_Start, m_Offset);
-	t_Chunk.bufferOffset = m_Offset;
+	t_Chunk.offset = m_Offset;
+	t_Chunk.size = a_Size;
 	m_Offset += a_Size;
 	return t_Chunk;
 }
@@ -551,7 +552,7 @@ void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_Recor
 
 void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
-	BB_WARNING((a_DwordCount + a_DwordOffset) * sizeof(uint32_t) < 128, "Constant size is bigger then 128, this might not work on all hardware for Vulkan!", WarningType::HIGH);
+	BB_WARNING(static_cast<size_t>(a_DwordCount + a_DwordOffset) * sizeof(uint32_t) < 128, "Constant size is bigger then 128, this might not work on all hardware for Vulkan!", WarningType::HIGH);
 	s_ApiFunc.bindConstant(a_RecordingCmdHandle, a_ConstantIndex, a_DwordCount, a_DwordOffset, a_Data);
 }
 
