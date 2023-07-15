@@ -3,13 +3,6 @@
 
 namespace BB
 {
-	struct Light
-	{
-		float3 pos;
-		float radius;
-		float4 color;
-	};
-
 	class LightPool
 	{
 	public:

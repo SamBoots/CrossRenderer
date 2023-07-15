@@ -63,6 +63,7 @@ namespace BB
 		BB::Slice<Vertex> vertices{};
 		BB::Slice<const uint32_t> indices{};
 		PipelineHandle pipeline{};
+		RDescriptor meshDescriptor;
 		const char* imagePath = nullptr;
 	};
 
@@ -75,7 +76,17 @@ namespace BB
 	{
 		const char* path = nullptr;
 		MODEL_TYPE modelType{};
+		RDescriptor meshDescriptor;
+		PipelineHandle pipeline;
 	};
+
+	struct Light
+	{
+		float3 pos;
+		float radius;
+		float4 color;
+	};
+
 
 	struct DrawObject
 	{

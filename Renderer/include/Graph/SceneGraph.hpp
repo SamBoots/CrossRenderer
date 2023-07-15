@@ -17,7 +17,7 @@ namespace BB
 		SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo);
 		~SceneGraph();
 
-		void StartScene(RecordingCommandListHandle a_TransferList);
+		void StartScene(RecordingCommandListHandle a_GraphicList);
 		void RenderScene(RecordingCommandListHandle a_GraphicList);
 		void EndScene();
 

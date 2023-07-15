@@ -1,7 +1,15 @@
 #ifdef _VULKAN
+#define SPACE_GLOBAL = 1
+#define SPACE_PER_SCENE = 2
+#define SPACE_PER_MATERIAL = 3
+#define SPACE_PER_MESH = 4
 #define _BBEXT(num) [[vk::location(num)]]
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #elif _DIRECTX12
+#define SPACE_GLOBAL = 0
+#define SPACE_PER_SCENE = 1
+#define SPACE_PER_MATERIAL = 2
+#define SPACE_PER_MESH = 3
 #define _BBEXT(num)
 #define _BBBIND(bind, set)
 #else
@@ -27,7 +35,7 @@ struct VSOutput
     _BBEXT(3) float3 normal     : NORMAL0;
 };
 
-struct BaseFrameInfo
+struct SceneInfo
 {
     float4x4 view;
     float4x4 proj;
@@ -59,14 +67,14 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-_BBBIND(1, 2) ByteAddressBuffer cam : register(t1, space0);
-_BBBIND(2, 2) ByteAddressBuffer modelInstances : register(t2, space0);
-_BBBIND(0, 3) ByteAddressBuffer vertData : register(t0, space1);
+_BBBIND(0, SPACE_GLOBAL)    ByteAddressBuffer modelInstances : register(t0, SPACE_GLOBAL);
+_BBBIND(0, SPACE_PER_SCENE)   ByteAddressBuffer SceneInfo : register(t1, SPACE_PER_SCENE);
+_BBBIND(0, SPACE_PER_MATERIAL)  ByteAddressBuffer vertData : register(t2, SPACE_PER_MATERIAL);
 
 VSOutput main(uint VertexIndex : SV_VertexID)
 {
     ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.model);
-    Camera t_Cam = cam.Load<Camera>(0);
+    SceneInfo t_SceneInfo = SceneInfo.Load<SceneInfo>(0);
     
     float4x4 t_Model = t_ModelInstance.model;
     float4x4 t_InverseModel = t_ModelInstance.inverse;
@@ -79,7 +87,7 @@ VSOutput main(uint VertexIndex : SV_VertexID)
     t_Vertex.color = asfloat(vertData.Load3(t_VertIndex + 32));
     
     VSOutput output = (VSOutput) 0;
-    output.pos = mul(t_Cam.proj, mul(t_Cam.view, mul(t_Model, float4(t_Vertex.position.xyz, 1.0))));
+    output.pos = mul(t_SceneInfo.proj, mul(t_SceneInfo.view, mul(t_Model, float4(t_Vertex.position.xyz, 1.0))));
     output.fragPos = float4(mul(t_Model, float4(t_Vertex.position, 1.0f))).xyz;
     output.uv = t_Vertex.uv;
     output.color = t_Vertex.color;

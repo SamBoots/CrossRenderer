@@ -32,38 +32,15 @@ struct Render_inst
 			descriptorManager(s_SystemAllocator, a_DescriptorManagerInfo, a_BackbufferAmount),
 			models(s_SystemAllocator, 64)
 	{
-		frameBufferAmount = a_BackbufferAmount;
+		io.frameBufferAmount = a_BackbufferAmount;
 	}
-
-	uint32_t swapchainWidth = 0;
-	uint32_t swapchainHeight = 0;
-
-	uint32_t frameBufferAmount = 0;
-	const uint32_t modelMatrixMax = 1024;
-
-	RENDER_API renderAPI = RENDER_API::NONE;
+	Render_IO io;
 
 	DescriptorManager descriptorManager;
 	LinearRenderBuffer vertexBuffer;
 	LinearRenderBuffer indexBuffer;
 
 	Slotmap<Model> models;
-};
-
-
-
-struct GlobalInfo
-{
-	CameraRenderData* cameraData = nullptr;
-	uint64_t perFrameBufferSize = 0;
-
-	RBufferHandle perFrameBuffer{};
-	RBufferHandle perFrameTransferBuffer{};
-
-	void* transferBufferStart = nullptr;
-	void* transferBufferBaseFrameInfoStart = nullptr;
-	void* transferBufferCameraStart = nullptr;
-	void* transferBufferMatrixStart = nullptr;
 };
 
 CommandQueueHandle graphicsQueue;
@@ -82,7 +59,6 @@ RFenceHandle t_SwapchainFence[3];
 
 RDescriptor t_GlobalDescriptor;
 DescriptorAllocation t_GlobalDescAllocation;
-PipelineHandle t_Pipeline;
 
 
 UploadBuffer* t_UploadBuffer;
@@ -90,24 +66,17 @@ UploadBuffer* t_UploadBuffer;
 RImageHandle t_ExampleImage;
 
 static FrameIndex s_CurrentFrame;
-
 static Render_inst* s_RenderInst;
-static GlobalInfo s_GlobalInfo;
 
 void Draw3DFrame()
 {
-	{
 		StartRenderingInfo t_ImguiStart;
-		t_ImguiStart.viewportWidth = s_RenderInst->swapchainWidth;
-		t_ImguiStart.viewportHeight = s_RenderInst->swapchainHeight;
+		t_ImguiStart.viewportWidth = s_RenderInst->io.swapchainWidth;
+		t_ImguiStart.viewportHeight = s_RenderInst->io.swapchainHeight;
 		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
 		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-		t_ImguiStart.colorInitialLayout = t_EndRenderingInfo.colorFinalLayout;
+		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		t_ImguiStart.clearColor[0] = 1.0f;
-		t_ImguiStart.clearColor[1] = 0.0f;
-		t_ImguiStart.clearColor[2] = 0.0f;
-		t_ImguiStart.clearColor[3] = 1.0f;
 		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
 
 		ImDrawData* t_DrawData = ImGui::GetDrawData();
@@ -117,8 +86,12 @@ void Draw3DFrame()
 		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
 		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
 		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
-	}
 	RenderBackend::EndCommandList(t_RecordingGraphics);
+}
+
+Render_IO& BB::Render::GetIO()
+{
+	return s_RenderInst->io;
 }
 
 void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
@@ -173,9 +146,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_IndexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 
 		s_RenderInst = BBnew(s_SystemAllocator, Render_inst)(t_VertexBufferInfo, t_IndexBufferInfo, t_HeapInfo, RenderBackend::GetFrameBufferAmount());
-		s_RenderInst->renderAPI = a_InitInfo.renderAPI;
-		s_RenderInst->swapchainWidth = t_BackendCreateInfo.windowWidth;
-		s_RenderInst->swapchainHeight = t_BackendCreateInfo.windowHeight;
+		s_RenderInst->io.renderAPI = a_InitInfo.renderAPI;
+		s_RenderInst->io.swapchainWidth = t_BackendCreateInfo.windowWidth;
+		s_RenderInst->io.swapchainHeight = t_BackendCreateInfo.windowHeight;
 	}
 
 	int x, y, c;
@@ -196,54 +169,23 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
 	}
-
-	PipelineRenderTargetBlend t_BlendInfo{};
-	t_BlendInfo.blendEnable = true;
-	t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
-	t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
-	t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
-	t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
-	t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ZERO;
-	t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
-	
-	PipelineInitInfo t_PipeInitInfo{};
-	t_PipeInitInfo.name = "standard 3d pipeline.";
-	t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
-	t_PipeInitInfo.renderTargetBlendCount = 1;
-	t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::COPY;
-	t_PipeInitInfo.blendLogicOpEnable = false;
-	t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::BACK;
-	t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
-	t_PipeInitInfo.enableDepthTest = true;
-
-	//We only have 1 index so far.
-	t_PipeInitInfo.constantData.dwordSize = 1;
-	t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
-
-	SamplerCreateInfo t_ImmutableSampler{};
-	t_ImmutableSampler.name = "standard sampler";
-	t_ImmutableSampler.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
-	t_ImmutableSampler.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
-	t_ImmutableSampler.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
-	t_ImmutableSampler.filter = SAMPLER_FILTER::LINEAR;
-	t_ImmutableSampler.maxAnistoropy = 1.0f;
-	t_ImmutableSampler.maxLod = 100.f;
-	t_ImmutableSampler.minLod = -100.f;
-
-	t_PipeInitInfo.immutableSamplers = BB::Slice(&t_ImmutableSampler, 1);
-
-	PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
 		t_CreateInfo.name = "3d scene descriptor";
-		FixedArray<DescriptorBinding, 1> t_DescBinds;
+		FixedArray<DescriptorBinding, 2> t_DescBinds;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-		{//Image Binds
+		{//Model Bind
 			t_DescBinds[0].binding = 0;
-			t_DescBinds[0].descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+			t_DescBinds[0].descriptorCount = 1;
+			t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		}
+		{//Image Binds
+			t_DescBinds[1].binding = 1;
+			t_DescBinds[1].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 		}
 
 		t_GlobalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
@@ -251,74 +193,31 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "3d mesh descriptor";
-		FixedArray<DescriptorBinding, 1> t_DescBinds;
-		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-
-		t_DescBinds[0].binding = 0;
-		t_DescBinds[0].descriptorCount = 1;
-		t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-		t_MeshDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
-	}
-
-	{
-		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
+		FixedArray<WriteDescriptorData, 2> t_WriteDatas;
 		WriteDescriptorInfos t_BufferUpdate{};
 		t_BufferUpdate.allocation = t_GlobalDescAllocation;
 		t_BufferUpdate.descriptorHandle = t_GlobalDescriptor;
 		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
 
-		//example image
-		t_WriteDatas[0].binding = 1;
+		t_WriteDatas[0].binding = 0;
 		t_WriteDatas[0].descriptorIndex = 0;
 		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 		t_WriteDatas[0].image.image = t_ExampleImage;
 		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
 		t_WriteDatas[0].image.sampler = nullptr;
 
+		//example image
+		t_WriteDatas[1].binding = 1;
+		t_WriteDatas[1].descriptorIndex = 0;
+		t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		t_WriteDatas[1].buffer.buffer;
+		t_WriteDatas[1].buffer.range;
+		t_WriteDatas[1].buffer.range;
+
 		RenderBackend::WriteDescriptors(t_BufferUpdate);
 
 	}
 
-	t_BasicPipe.BindDescriptor(t_Descriptor1);
-	t_BasicPipe.BindDescriptor(t_MeshDescriptor);
-
-	const wchar_t* t_ShaderPath[2]{};
-	t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
-	t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
-
-	ShaderCodeHandle t_ShaderHandles[2];
-	t_ShaderHandles[0] = Shader::CompileShader(
-		t_ShaderPath[0],
-		L"main",
-		RENDER_SHADER_STAGE::VERTEX,
-		s_RenderInst->renderAPI);
-	t_ShaderHandles[1] = Shader::CompileShader(
-		t_ShaderPath[1],
-		L"main",
-		RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
-		s_RenderInst->renderAPI);
-
-	Buffer t_ShaderBuffer;
-	Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
-	ShaderCreateInfo t_ShaderBuffers[2]{};
-	t_ShaderBuffers[0].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugVert.hlsl";
-	t_ShaderBuffers[0].buffer = t_ShaderBuffer;
-	t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
-
-	Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
-	t_ShaderBuffers[1].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
-	t_ShaderBuffers[1].buffer = t_ShaderBuffer;
-	t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-
-	t_BasicPipe.BindShaders(BB::Slice(t_ShaderBuffers, 2));
-
-	t_Pipeline = t_BasicPipe.BuildPipeline();
-
-#pragma endregion //PipelineCreation
 	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
 	t_QueueCreateInfo.name = "Graphics queue";
 	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
@@ -384,12 +283,12 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_ShaderPath[0],
 			L"main",
 			RENDER_SHADER_STAGE::VERTEX,
-			s_RenderInst->renderAPI);
+			s_RenderInst->io.renderAPI);
 		t_ImguiShaders[1] = Shader::CompileShader(
 			t_ShaderPath[1],
 			L"main",
 			RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
-			s_RenderInst->renderAPI);
+			s_RenderInst->io.renderAPI);
 
 		ShaderCreateInfo t_ShaderInfos[2];
 		t_ShaderInfos[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
@@ -399,8 +298,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		Shader::GetShaderCodeBuffer(t_ImguiShaders[1], t_ShaderInfos[1].buffer);
 
 		ImGui_ImplCross_InitInfo t_ImguiInfo{};
-		t_ImguiInfo.imageCount = s_RenderInst->frameBufferAmount;
-		t_ImguiInfo.minImageCount = s_RenderInst->frameBufferAmount;
+		t_ImguiInfo.imageCount = s_RenderInst->io.frameBufferAmount;
+		t_ImguiInfo.minImageCount = s_RenderInst->io.frameBufferAmount;
 		t_ImguiInfo.vertexShader = t_ImguiShaders[0];
 		t_ImguiInfo.fragmentShader = t_ImguiShaders[1];
 
@@ -428,11 +327,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		}
 	}
 
-	for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
-	{
-		Shader::ReleaseShaderCode(t_ShaderHandles[i]);
-	}
-
 	CommandQueueHandle t_Queues[1]{ graphicsQueue };
 	RenderWaitCommandsInfo t_WaitInfo{};
 	t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
@@ -455,11 +349,7 @@ void BB::Render::DestroyRenderer()
 	BBfree(s_SystemAllocator, t_UploadBuffer);
 
 	RenderBackend::DestroyDescriptor(t_GlobalDescriptor);
-	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameBuffer);
-	RenderBackend::UnmapMemory(s_GlobalInfo.perFrameTransferBuffer);
-	RenderBackend::DestroyBuffer(s_GlobalInfo.perFrameTransferBuffer);
 
-	RenderBackend::DestroyPipeline(t_Pipeline);
 	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
 	{
 		RenderBackend::DestroyCommandList(t_GraphicCommands[i]);
@@ -507,17 +397,14 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 
 void BB::Render::Update(const float a_DeltaTime)
 {
-	s_GlobalInfo.lightSystem->Editor();
 	RenderBackend::DisplayDebugInfo();
 
-	UpdateSceneDescriptors();
 	Draw3DFrame();
 }
 
-void* BB::Render::GetMatrixBufferSpace(uint32_t& a_MatrixSpace)
+const RDescriptor BB::Render::GetGlobalDescriptorSet()
 {
-	a_MatrixSpace = s_RenderInst->modelMatrixMax;
-	return s_GlobalInfo.transferBufferMatrixStart;
+	return t_GlobalDescriptor;
 }
 
 Model& BB::Render::GetModel(const RModelHandle a_Handle)
@@ -530,7 +417,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	Model t_Model;
 
 	//t_Model.pipelineHandle = a_CreateInfo.pipeline;
-	t_Model.pipelineHandle = t_Pipeline;
+	t_Model.pipelineHandle = a_CreateInfo.pipeline;
 
 	{
 		RenderTransitionImageInfo t_ImageTransInfo{};
@@ -630,7 +517,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	}
 
 	{ //descriptor allocation
-		t_Model.meshDescriptor = t_MeshDescriptor;
+		t_Model.meshDescriptor = a_CreateInfo.meshDescriptor;
 		t_Model.descAllocation = Render::AllocateDescriptor(t_Model.meshDescriptor);
 
 		WriteDescriptorData t_WriteData{};
@@ -642,7 +529,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		t_WriteData.buffer.range = t_Model.vertexView.size;
 		WriteDescriptorInfos t_WriteInfos{};
 		t_WriteInfos.allocation = t_Model.descAllocation;
-		t_WriteInfos.descriptorHandle = t_MeshDescriptor;
+		t_WriteInfos.descriptorHandle = t_Model.meshDescriptor;
 		t_WriteInfos.data = Slice(&t_WriteData, 1);
 		RenderBackend::WriteDescriptors(t_WriteInfos);
 	}
@@ -669,7 +556,7 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 {
 	Model t_Model;
 
-	t_Model.pipelineHandle = t_Pipeline;
+	t_Model.pipelineHandle = a_LoadInfo.pipeline;
 
 	switch (a_LoadInfo.modelType)
 	{
@@ -684,6 +571,26 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 	}
 	
 	t_Model.image = t_ExampleImage;
+
+
+	//temporary
+	{ //descriptor allocation
+		t_Model.meshDescriptor = a_LoadInfo.meshDescriptor;
+		t_Model.descAllocation = Render::AllocateDescriptor(t_Model.meshDescriptor);
+
+		WriteDescriptorData t_WriteData{};
+		t_WriteData.binding = 0;
+		t_WriteData.descriptorIndex = 0;
+		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_WriteData.buffer.buffer = t_Model.vertexView.buffer;
+		t_WriteData.buffer.offset = t_Model.vertexView.offset;
+		t_WriteData.buffer.range = t_Model.vertexView.size;
+		WriteDescriptorInfos t_WriteInfos{};
+		t_WriteInfos.allocation = t_Model.descAllocation;
+		t_WriteInfos.descriptorHandle = t_Model.meshDescriptor;
+		t_WriteInfos.data = Slice(&t_WriteData, 1);
+		RenderBackend::WriteDescriptors(t_WriteInfos);
+	}
 
 	return RModelHandle(s_RenderInst->models.insert(t_Model).handle);
 }
@@ -744,8 +651,8 @@ void BB::Render::EndFrame()
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 {
-	s_RenderInst->swapchainWidth = a_X;
-	s_RenderInst->swapchainHeight = a_Y;
+	s_RenderInst->io.swapchainWidth = a_X;
+	s_RenderInst->io.swapchainHeight = a_Y;
 	RenderBackend::ResizeWindow(a_X, a_Y);
 }
 
@@ -1004,24 +911,6 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 		t_CopyInfo.size = a_Model.indexView.size;
 
 		RenderBackend::CopyBuffer(a_TransferCmdList, t_CopyInfo);
-	}
-
-	{ //descriptor allocation
-		a_Model.meshDescriptor = t_MeshDescriptor;
-		a_Model.descAllocation = Render::AllocateDescriptor(a_Model.meshDescriptor);
-
-		WriteDescriptorData t_WriteData{};
-		t_WriteData.binding = 0;
-		t_WriteData.descriptorIndex = 0;
-		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteData.buffer.buffer = a_Model.vertexView.buffer;
-		t_WriteData.buffer.offset = a_Model.vertexView.offset;
-		t_WriteData.buffer.range = a_Model.vertexView.size;
-		WriteDescriptorInfos t_WriteInfos{};
-		t_WriteInfos.allocation = a_Model.descAllocation;
-		t_WriteInfos.descriptorHandle = t_MeshDescriptor;
-		t_WriteInfos.data = Slice(&t_WriteData, 1);
-		RenderBackend::WriteDescriptors(t_WriteInfos);
 	}
 
 	cgltf_free(t_Data);

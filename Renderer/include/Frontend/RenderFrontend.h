@@ -7,8 +7,18 @@ namespace BB
 	struct Light;
 	struct DrawObject;
 
+	struct Render_IO
+	{
+		uint32_t swapchainWidth = 0;
+		uint32_t swapchainHeight = 0;
+		uint32_t frameBufferAmount = 0;
+		RENDER_API renderAPI = RENDER_API::NONE;
+	};
+
 	namespace Render
 	{
+		Render_IO& GetIO();
+
 		void InitRenderer(const RenderInitInfo& a_InitInfo);
 		void DestroyRenderer();
 
@@ -18,7 +28,7 @@ namespace BB
 		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
 		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
 
-		void* GetMatrixBufferSpace(uint32_t& a_MatrixSpace);
+		const RDescriptor GetGlobalDescriptorSet();
 		
 		Model& GetModel(const RModelHandle a_Handle);
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);

@@ -1,6 +1,7 @@
 #include "SceneGraph.hpp"
 #include "Storage/Array.h"
 #include "Storage/Slotmap.h"
+#include "ShaderCompiler.h"
 
 #include "RenderFrontend.h"
 
@@ -20,12 +21,10 @@ struct SceneInfo
 	uint3 padding{};
 };
 
-
-struct SceneGraph_inst
+struct BB::SceneGraph_inst
 {
 	SceneGraph_inst(Allocator a_Allocator, const RenderBufferCreateInfo& a_BufferInfo, const size_t a_SceneBufferSizePerFrame, const SceneCreateInfo& a_CreateInfo, const uint32_t a_BackBufferCount)
 		:	systemAllocator(a_Allocator),
-			matrices(a_Allocator, 128),
 			drawObjects(a_Allocator, 256),
 			lights(a_Allocator, a_CreateInfo.lights.size()),
 			GPUbuffer(a_BufferInfo),
@@ -55,7 +54,6 @@ struct SceneGraph_inst
 	uint32_t sceneWindowWidth;
 	uint32_t sceneWindowHeight;
 
-	Array<ModelBufferInfo> matrices;
 	Slotmap<DrawObject> drawObjects;
 
 	Array<Light> lights;
@@ -65,6 +63,9 @@ struct SceneGraph_inst
 	DescriptorAllocation sceneAllocation{};
 	size_t sceneBufferSizePerFrame;
 	RenderBufferPart sceneBuffer;
+
+	RDescriptor meshDescriptor;
+	PipelineHandle meshPipeline;
 
 	//send to GPU
 	SceneInfo sceneInfo{};
@@ -95,7 +96,7 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 	RenderDescriptorCreateInfo t_CreateInfo{};
 	t_CreateInfo.name = "scene descriptor";
 	t_CreateInfo.set = RENDER_DESCRIPTOR_SET::PER_PASS;
-	FixedArray<DescriptorBinding, 3> t_DescBinds;
+	FixedArray<DescriptorBinding, 2> t_DescBinds;
 	t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 	{//Per frame info Bind
 		t_DescBinds[0].binding = 0;
@@ -103,23 +104,17 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 		t_DescBinds[0].stage = RENDER_SHADER_STAGE::ALL;
 		t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 	}
-	{//Model Bind
-		t_DescBinds[1].binding = 2;
-		t_DescBinds[1].descriptorCount = 1;
-		t_DescBinds[1].stage = RENDER_SHADER_STAGE::VERTEX;
-		t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-	}
 	{//Light Binding
-		t_DescBinds[2].binding = 3;
-		t_DescBinds[2].descriptorCount = 1;
-		t_DescBinds[2].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-		t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		t_DescBinds[1].binding = 1;
+		t_DescBinds[1].descriptorCount = 1;
+		t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+		t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 	}
 
 	inst->sceneDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
 	inst->sceneAllocation = Render::AllocateDescriptor(inst->sceneDescriptor);
 
-	size_t t_SceneBufferSize = (inst->matrices.capacity() * sizeof(inst->matrices[0])) + sizeof(SceneInfo);
+	size_t t_SceneBufferSize =sizeof(SceneInfo);
 	t_SceneBufferSize *= t_BackBufferAmount;
 
 	inst->sceneBuffer = inst->GPUbuffer.SubAllocate(t_SceneBufferSize, sizeof(size_t));
@@ -139,6 +134,104 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 
 		inst->depthImage = RenderBackend::CreateImage(t_DepthInfo);
 	}
+
+	{	//PER_MESH descriptor
+		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.name = "3d mesh descriptor";
+		//WRONG PER MATERIAL! But we do not do materials just yet :)
+		t_CreateInfo.set = RENDER_DESCRIPTOR_SET::PER_MATERIAL;
+		FixedArray<DescriptorBinding, 1> t_DescBinds;
+		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
+
+		t_DescBinds[0].binding = 0;
+		t_DescBinds[0].descriptorCount = 1;
+		t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
+		t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+		inst->meshDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
+	}
+
+	{	//pipeline boiler plate, I do not like that I made this.
+		PipelineRenderTargetBlend t_BlendInfo{};
+		t_BlendInfo.blendEnable = true;
+		t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
+		t_BlendInfo.dstBlend = RENDER_BLEND_FACTOR::ONE_MINUS_SRC_ALPHA;
+		t_BlendInfo.blendOp = RENDER_BLEND_OP::ADD;
+		t_BlendInfo.srcBlendAlpha = RENDER_BLEND_FACTOR::ONE;
+		t_BlendInfo.dstBlendAlpha = RENDER_BLEND_FACTOR::ZERO;
+		t_BlendInfo.blendOpAlpha = RENDER_BLEND_OP::ADD;
+
+		PipelineInitInfo t_PipeInitInfo{};
+		t_PipeInitInfo.name = "standard 3d pipeline.";
+		t_PipeInitInfo.renderTargetBlends = &t_BlendInfo;
+		t_PipeInitInfo.renderTargetBlendCount = 1;
+		t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::COPY;
+		t_PipeInitInfo.blendLogicOpEnable = false;
+		t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::BACK;
+		t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
+		t_PipeInitInfo.enableDepthTest = true;
+
+		//We only have 1 index so far.
+		t_PipeInitInfo.constantData.dwordSize = 1;
+		t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
+
+		SamplerCreateInfo t_ImmutableSampler{};
+		t_ImmutableSampler.name = "standard sampler";
+		t_ImmutableSampler.addressModeU = SAMPLER_ADDRESS_MODE::REPEAT;
+		t_ImmutableSampler.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
+		t_ImmutableSampler.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
+		t_ImmutableSampler.filter = SAMPLER_FILTER::LINEAR;
+		t_ImmutableSampler.maxAnistoropy = 1.0f;
+		t_ImmutableSampler.maxLod = 100.f;
+		t_ImmutableSampler.minLod = -100.f;
+
+		t_PipeInitInfo.immutableSamplers = BB::Slice(&t_ImmutableSampler, 1);
+
+		PipelineBuilder t_BasicPipe{ t_PipeInitInfo };
+
+		t_BasicPipe.BindDescriptor(Render::GetGlobalDescriptorSet());
+		t_BasicPipe.BindDescriptor(inst->sceneDescriptor);
+		t_BasicPipe.BindDescriptor(inst->meshDescriptor);
+
+		const wchar_t* t_ShaderPath[2]{};
+		t_ShaderPath[0] = L"Resources/Shaders/HLSLShaders/DebugVert.hlsl";
+		t_ShaderPath[1] = L"Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+
+		const Render_IO t_RenderIO = Render::GetIO();
+
+		ShaderCodeHandle t_ShaderHandles[2];
+		t_ShaderHandles[0] = Shader::CompileShader(
+			t_ShaderPath[0],
+			L"main",
+			RENDER_SHADER_STAGE::VERTEX,
+			t_RenderIO.renderAPI);
+		t_ShaderHandles[1] = Shader::CompileShader(
+			t_ShaderPath[1],
+			L"main",
+			RENDER_SHADER_STAGE::FRAGMENT_PIXEL,
+			t_RenderIO.renderAPI);
+
+		Buffer t_ShaderBuffer;
+		Shader::GetShaderCodeBuffer(t_ShaderHandles[0], t_ShaderBuffer);
+		ShaderCreateInfo t_ShaderBuffers[2]{};
+		t_ShaderBuffers[0].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugVert.hlsl";
+		t_ShaderBuffers[0].buffer = t_ShaderBuffer;
+		t_ShaderBuffers[0].shaderStage = RENDER_SHADER_STAGE::VERTEX;
+
+		Shader::GetShaderCodeBuffer(t_ShaderHandles[1], t_ShaderBuffer);
+		t_ShaderBuffers[1].optionalShaderpath = "Resources/Shaders/HLSLShaders/DebugFrag.hlsl";
+		t_ShaderBuffers[1].buffer = t_ShaderBuffer;
+		t_ShaderBuffers[1].shaderStage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+
+		t_BasicPipe.BindShaders(BB::Slice(t_ShaderBuffers, 2));
+
+		inst->meshPipeline = t_BasicPipe.BuildPipeline();
+
+		for (size_t i = 0; i < _countof(t_ShaderHandles); i++)
+		{
+			Shader::ReleaseShaderCode(t_ShaderHandles[i]);
+		}
+	}
 }
 
 SceneGraph::~SceneGraph()
@@ -148,7 +241,7 @@ SceneGraph::~SceneGraph()
 	BBfree(t_Allocator, inst);
 }
 
-void SceneGraph::StartScene(RecordingCommandListHandle a_TransferList)
+void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 {
 	const uint32_t t_FrameNum = RenderBackend::GetCurrentFrameBufferIndex();
 	const size_t t_SceneBufferOffset = inst->sceneBufferSizePerFrame * t_FrameNum;
@@ -170,7 +263,7 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_TransferList)
 		t_CopyInfo.dstOffset = inst->lightBuffer.offset;
 		BB_ASSERT(t_UploadBuffer.offset + t_CopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many lights!");
 
-		RenderBackend::CopyBuffer(a_TransferList, t_CopyInfo);
+		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
 
 		//temporarily shift the buffer part for the scene upload
 		t_UploadBuffer.offset += t_CopyInfo.size;
@@ -178,20 +271,11 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_TransferList)
 	}
 
 	{
-		const size_t t_SceneUploadBuffer = sizeof(SceneInfo) +
-			inst->matrices.size() * sizeof(inst->matrices[0]);
+		const size_t t_SceneUploadBuffer = sizeof(SceneInfo);
 		//always upload the current scene info.
 		memcpy(Pointer::Add(t_UploadBuffer.memory, t_UploadBuffer.offset),
 			&inst->sceneInfo, 
 			sizeof(inst->sceneInfo));
-
-		//if transform changes then upload that...
-		//for now just always upload.
-		{
-			memcpy(Pointer::Add(t_UploadBuffer.memory, t_UploadBuffer.offset + sizeof(SceneInfo)),
-				inst->matrices.data(),
-				inst->matrices.size() * sizeof(inst->matrices[0]));
-		}
 
 		//Copy the perframe buffer over.
 		RenderCopyBufferInfo t_CopyInfo;
@@ -202,7 +286,7 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_TransferList)
 		t_CopyInfo.dstOffset = inst->sceneBuffer.offset + t_SceneBufferOffset;
 		BB_ASSERT(t_UploadBuffer.offset + t_CopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many lights!");
 
-		RenderBackend::CopyBuffer(a_TransferList, t_CopyInfo);
+		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
 
 		t_UploadBuffer.offset += t_CopyInfo.size;
 		t_UploadBuffer.size -= t_CopyInfo.size;
@@ -323,7 +407,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 void SceneGraph::EndScene()
 {
-
+	//??, maybe to the EndRendering call here. 
 }
 
 void SceneGraph::SetProjection(const glm::mat4& a_Proj)

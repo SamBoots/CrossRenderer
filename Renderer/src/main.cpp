@@ -1,8 +1,9 @@
 #include "BBMain.h"
 #include "OS/Program.h"
 #include "OS/HID.h"
-#include "Frontend/LightSystem.h"
 #include "Frontend/Camera.h"
+#include "RenderFrontend.h"
+#include "Graph/SceneGraph.hpp"
 #include "imgui_impl_CrossRenderer.h"
 #include "Editor.h"
 
@@ -65,10 +66,16 @@ int main(int argc, char** argv)
 	Render::InitRenderer(t_RenderInfo);
 
 	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
-
-	uint32_t t_MatrixSize;
-	void* t_MemRegion = Render::GetMatrixBufferSpace(t_MatrixSize);
-	TransformPool t_TransformPool(m_ScopeAllocator, t_MemRegion, t_MatrixSize);
+	Light t_StandardLight{};
+	t_StandardLight.color = { 255, 255, 255 };
+	t_StandardLight.pos = { 0.f, 0.f, 0.f };
+	t_StandardLight.radius = 10.f;
+	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
+	SceneCreateInfo t_SceneCreateInfo;
+	t_SceneCreateInfo.lights = BB::Slice(&t_StandardLight, 1);
+	t_SceneCreateInfo.sceneWindowWidth = t_WindowWidth;
+	t_SceneCreateInfo.sceneWindowHeight = t_WindowHeight;
+	SceneGraph t_Graph{ t_SceneAllocator, t_SceneCreateInfo };
 
 	const TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f);
 	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
@@ -119,14 +126,6 @@ int main(int argc, char** argv)
 
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
-
-
-	Light t_StandardLight{};
-	t_StandardLight.color = { 255, 255, 255 };
-	t_StandardLight.pos = { 0.f, 0.f, 0.f };
-	t_StandardLight.radius = 10.f;
-
-	Render::AddLights({ &t_StandardLight, 1 }, BB::LIGHT_TYPE::POINT);
 
 	while (!t_Quit)
 	{
