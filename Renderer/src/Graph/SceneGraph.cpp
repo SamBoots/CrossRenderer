@@ -3,6 +3,7 @@
 #include "Storage/Slotmap.h"
 #include "ShaderCompiler.h"
 
+#include "RenderBackend.h"
 #include "RenderFrontend.h"
 
 #include "LightSystem.h"
@@ -26,11 +27,13 @@ struct BB::SceneGraph_inst
 	SceneGraph_inst(Allocator a_Allocator, const RenderBufferCreateInfo& a_BufferInfo, const size_t a_SceneBufferSizePerFrame, const SceneCreateInfo& a_CreateInfo, const uint32_t a_BackBufferCount)
 		:	systemAllocator(a_Allocator),
 			drawObjects(a_Allocator, 256),
+			transformPool(a_Allocator, 256),
 			lights(a_Allocator, a_CreateInfo.lights.size()),
 			GPUbuffer(a_BufferInfo),
 			sceneBufferSizePerFrame(a_SceneBufferSizePerFrame),
 			uploadbuffer(mbSize * 16 * a_BackBufferCount, "Temporary scene upload buffer")
 	{
+		backbufferCount = a_BackBufferCount;
 		sceneWindowWidth = a_CreateInfo.sceneWindowWidth;
 		sceneWindowHeight = a_CreateInfo.sceneWindowHeight;
 
@@ -55,6 +58,9 @@ struct BB::SceneGraph_inst
 	uint32_t sceneWindowHeight;
 
 	Slotmap<DrawObject> drawObjects;
+
+	TransformPool transformPool;
+	RenderBufferPart matrixBuffer;
 
 	Array<Light> lights;
 	RenderBufferPart lightBuffer;
@@ -96,7 +102,7 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 	RenderDescriptorCreateInfo t_CreateInfo{};
 	t_CreateInfo.name = "scene descriptor";
 	t_CreateInfo.set = RENDER_DESCRIPTOR_SET::PER_PASS;
-	FixedArray<DescriptorBinding, 2> t_DescBinds;
+	FixedArray<DescriptorBinding, 3> t_DescBinds;
 	t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
 	{//Per frame info Bind
 		t_DescBinds[0].binding = 0;
@@ -104,20 +110,27 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 		t_DescBinds[0].stage = RENDER_SHADER_STAGE::ALL;
 		t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 	}
-	{//Light Binding
+	{//model matrix Binding
 		t_DescBinds[1].binding = 1;
 		t_DescBinds[1].descriptorCount = 1;
-		t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+		t_DescBinds[1].stage = RENDER_SHADER_STAGE::ALL;
 		t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+	}
+	{//Light Binding
+		t_DescBinds[2].binding = 2;
+		t_DescBinds[2].descriptorCount = 1;
+		t_DescBinds[2].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+		t_DescBinds[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 	}
 
 	inst->sceneDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
 	inst->sceneAllocation = Render::AllocateDescriptor(inst->sceneDescriptor);
 
-	size_t t_SceneBufferSize =sizeof(SceneInfo);
+	size_t t_SceneBufferSize = sizeof(SceneInfo);
 	t_SceneBufferSize *= t_BackBufferAmount;
 
-	inst->sceneBuffer = inst->GPUbuffer.SubAllocate(t_SceneBufferSize, sizeof(size_t));
+	inst->sceneBuffer = inst->GPUbuffer.SubAllocate(t_SceneBufferSize);
+	inst->matrixBuffer = inst->GPUbuffer.SubAllocate(inst->transformPool.PoolSize() * sizeof(ModelBufferInfo));
 	inst->lightBuffer = inst->GPUbuffer.SubAllocate(inst->lights.capacity() * sizeof(inst->lights[0]), sizeof(size_t));
 
 	{ //depth create info
@@ -266,8 +279,8 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
 
 		//temporarily shift the buffer part for the scene upload
-		t_UploadBuffer.offset += t_CopyInfo.size;
-		t_UploadBuffer.size -= t_CopyInfo.size;
+		t_UploadBuffer.offset += static_cast<uint32_t>(t_CopyInfo.size);
+		t_UploadBuffer.size -= static_cast<uint32_t>(t_CopyInfo.size);
 	}
 
 	{
@@ -277,22 +290,33 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 			&inst->sceneInfo, 
 			sizeof(inst->sceneInfo));
 
-		//Copy the perframe buffer over.
-		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.src = inst->uploadbuffer.Buffer();
-		t_CopyInfo.dst = inst->sceneBuffer.buffer;
-		t_CopyInfo.size = inst->sceneBufferSizePerFrame;
-		t_CopyInfo.srcOffset = t_UploadBuffer.offset;
-		t_CopyInfo.dstOffset = inst->sceneBuffer.offset + t_SceneBufferOffset;
-		BB_ASSERT(t_UploadBuffer.offset + t_CopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many lights!");
+		//Copy the perframe buffer and matrices.
+		RenderCopyBufferInfo t_SceneCopyInfo;
+		t_SceneCopyInfo.src = inst->uploadbuffer.Buffer();
+		t_SceneCopyInfo.dst = inst->sceneBuffer.buffer;
+		t_SceneCopyInfo.size = inst->sceneBuffer.size;
+		t_SceneCopyInfo.srcOffset = t_UploadBuffer.offset;
+		t_SceneCopyInfo.dstOffset = inst->sceneBuffer.offset + t_SceneBufferOffset;
+		BB_ASSERT(t_UploadBuffer.offset + t_SceneCopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow");
 
-		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
+		RenderBackend::CopyBuffer(a_GraphicList, t_SceneCopyInfo);
 
-		t_UploadBuffer.offset += t_CopyInfo.size;
-		t_UploadBuffer.size -= t_CopyInfo.size;
+		t_UploadBuffer.offset += static_cast<uint32_t>(t_SceneCopyInfo.size);
+		t_UploadBuffer.size -= static_cast<uint32_t>(t_SceneCopyInfo.size);
+
+		{//upload matrices
+			//Copy the perframe buffer over.
+			RenderCopyBufferInfo t_MatrixCopyInfo;
+			t_MatrixCopyInfo.src = inst->transformPool.PoolGPUUploadBuffer().Buffer();
+			t_MatrixCopyInfo.dst = inst->matrixBuffer.buffer;
+			t_MatrixCopyInfo.size = inst->matrixBuffer.size;
+			t_MatrixCopyInfo.srcOffset = t_UploadBuffer.offset;
+			t_MatrixCopyInfo.dstOffset = inst->matrixBuffer.offset + t_SceneBufferOffset;
+			BB_ASSERT(t_UploadBuffer.offset + t_MatrixCopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many model matrices!");
+
+			RenderBackend::CopyBuffer(a_GraphicList, t_MatrixCopyInfo);
+		}
 	}
-
-
 
 	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
 	WriteDescriptorInfos t_BufferUpdate{};
@@ -312,7 +336,7 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 	t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
 	t_WriteDatas[1].buffer.buffer = inst->sceneBuffer.buffer;
 	t_WriteDatas[1].buffer.offset = sizeof(SceneInfo) + t_SceneBufferOffset;
-	t_WriteDatas[1].buffer.range = sizeof(ModelBufferInfo) * inst->matrices.size();
+	t_WriteDatas[1].buffer.range = inst->transformPool.PoolSize() * sizeof(ModelBufferInfo);
 
 	t_WriteDatas[2].binding = 2;
 	t_WriteDatas[2].descriptorIndex = 0;
@@ -408,6 +432,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 void SceneGraph::EndScene()
 {
 	//??, maybe to the EndRendering call here. 
+	inst->transformPool.UpdateTransforms();
 }
 
 void SceneGraph::SetProjection(const glm::mat4& a_Proj)
@@ -420,9 +445,9 @@ void SceneGraph::SetView(const glm::mat4& a_View)
 	inst->sceneInfo.view = a_View;
 }
 
-DrawObjectHandle SceneGraph::CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle)
+DrawObjectHandle SceneGraph::CreateDrawObject(const RModelHandle a_Model, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
-	DrawObject t_DrawObject{ a_Model, a_TransformHandle };
+	DrawObject t_DrawObject{ a_Model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale)};
 	return DrawObjectHandle(inst->drawObjects.emplace(t_DrawObject).handle);
 }
 
@@ -433,10 +458,16 @@ BB::Slice<DrawObject> SceneGraph::GetDrawObjects()
 
 void SceneGraph::DestroyDrawObject(const DrawObjectHandle a_Handle)
 {
+	inst->transformPool.FreeTransform(inst->drawObjects[a_Handle.handle].transformHandle);
 	inst->drawObjects.erase(a_Handle.handle);
 }
 
 const RDescriptor SceneGraph::GetSceneDescriptor() const
 {
 	return inst->sceneDescriptor;
+}
+
+Transform& SceneGraph::GetTransform(const DrawObjectHandle a_Handle) const
+{
+	return inst->transformPool.GetTransform(inst->drawObjects[a_Handle.handle].transformHandle);
 }

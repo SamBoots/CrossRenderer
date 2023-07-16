@@ -1,5 +1,9 @@
 #include "Transform.h"
 #include "glm/gtc/matrix_transform.hpp"
+#include "RenderFrontend.h"
+
+#include "Storage/Array.h"
+#include "Storage/Slotmap.h"
 
 using namespace BB;
 
@@ -56,61 +60,93 @@ glm::mat4 Transform::CreateModelMatrix()
 	return t_Matrix;
 }
 
-
-
-TransformPool::TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, const uint32_t a_MatrixSize)
-	:	m_Pool(a_SysAllocator, a_MatrixSize), m_MemoryRegionOffsets(a_SysAllocator, a_MatrixSize)
+struct BB::TransformPool_inst
 {
-	//Set all the memory regions.
-	m_MemoryRegion = a_GPUMemoryRegion;
-	for (uint32_t i = 0; i < a_MatrixSize * sizeof(ModelBufferInfo); i+= sizeof(ModelBufferInfo))
-	{
-		m_MemoryRegionOffsets.emplace_back(i);
-	}
+	TransformPool_inst(Allocator a_SysAllocator, const uint32_t a_MatrixSize)
+		:	systemAllocator(a_SysAllocator),
+			poolIndices(a_SysAllocator, a_MatrixSize),
+			pool(a_SysAllocator, a_MatrixSize),
+			uploadMatrixBuffer(a_MatrixSize * sizeof(ModelBufferInfo))
+	{};
+
+	Allocator systemAllocator;
+
+	Array<uint32_t> poolIndices;
+	Slotmap<Transform> pool;
+	UploadBuffer uploadMatrixBuffer;
+};
+
+TransformPool::TransformPool(Allocator a_SysAllocator, const uint32_t a_MatrixSize)
+{
+	inst = BBnew(a_SysAllocator, TransformPool_inst)(a_SysAllocator, a_MatrixSize);
+}
+
+TransformPool::~TransformPool()
+{
+	Allocator t_Allocator = inst->systemAllocator;
+	BBfree(t_Allocator, inst);
 }
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position)
 {
-	m_Pool.emplace_back(a_Position);
-	return TransformHandle(m_Pool.size() - 1);
+	TransformHandle t_Handle(inst->pool.emplace(a_Position).handle);
+	inst->poolIndices.emplace(t_Handle.index);
+	return t_Handle;
 }
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians)
 {
-	m_Pool.emplace_back(a_Position, a_Axis, a_Radians);
-	return TransformHandle(m_Pool.size() - 1);
+	TransformHandle t_Handle(inst->pool.emplace(a_Position, a_Axis, a_Radians).handle);
+	inst->poolIndices.emplace(t_Handle.index);
+	return t_Handle;
 }
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
-	m_Pool.emplace_back(a_Position, a_Axis, a_Radians, a_Scale);
-	return TransformHandle(m_Pool.size() - 1);
+	TransformHandle t_Handle(inst->pool.emplace(a_Position, a_Axis, a_Radians, a_Scale).handle);
+	inst->poolIndices.emplace(t_Handle.index);
+	return t_Handle;
+}
+
+void TransformPool::FreeTransform(const TransformHandle a_Handle)
+{
+	//erase element from array.
+	inst->poolIndices;
+	inst->pool.erase(a_Handle.handle);
 }
 
 Transform& TransformPool::GetTransform(const TransformHandle a_Handle) const
 {
-	return m_Pool[a_Handle.handle];
-}
-
-uint32_t TransformPool::GetMatrixMemOffset(const TransformHandle a_Handle) const
-{
-	return m_MemoryRegionOffsets[a_Handle.handle];
+	return inst->pool[a_Handle.handle];
 }
 
 void TransformPool::UpdateTransforms()
 {
-	for (size_t i = 0; i < m_Pool.size(); i++)
+	void* t_GPUBufferStart = inst->uploadMatrixBuffer.GetStart();
+
+	for (size_t i = 0; i < inst->poolIndices.size(); i++)
 	{
-		//if (m_Pool[i].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
+		const uint32_t t_Index = inst->poolIndices[i];
+		if (inst->pool[t_Index].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			ModelBufferInfo t_Pack{};
-			t_Pack.model = m_Pool[i].CreateModelMatrix();
+			t_Pack.model = inst->pool[t_Index].CreateModelMatrix();
 			t_Pack.inverseModel = glm::inverse(t_Pack.model);
 
 			//Copy the model matrix into the transfer buffer.
-			memcpy(Pointer::Add(m_MemoryRegion, m_MemoryRegionOffsets[i]),
+			memcpy(Pointer::Add(t_GPUBufferStart, t_Index * sizeof(ModelBufferInfo)),
 				&t_Pack,
 				sizeof(ModelBufferInfo));
 		}
 	}
+}
+
+const uint32_t TransformPool::PoolSize() const
+{
+	return inst->pool.size();
+}
+
+const UploadBuffer& TransformPool::PoolGPUUploadBuffer()
+{
+	return inst->uploadMatrixBuffer;
 }

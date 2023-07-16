@@ -32,19 +32,6 @@ namespace BB
 		}
 	}
 
-	static inline const char* DescriptorFlagStr(const RENDER_DESCRIPTOR_FLAG a_Flag)
-	{
-		switch (a_Flag)
-		{
-		case RENDER_DESCRIPTOR_FLAG::NONE:		return "NONE";
-		case RENDER_DESCRIPTOR_FLAG::BINDLESS:	return "BINDLESS";
-		default:
-			BB_ASSERT(false, "RENDER_DESCRIPTOR_FLAG unknown in resource tracker!");
-			return "error";
-			break;
-		}
-	}
-
 	static inline const char* InputFormatStr(const RENDER_INPUT_FORMAT a_Format)
 	{
 		switch (a_Format)

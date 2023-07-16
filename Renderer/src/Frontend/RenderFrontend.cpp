@@ -172,20 +172,14 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "3d scene descriptor";
-		FixedArray<DescriptorBinding, 2> t_DescBinds;
+		t_CreateInfo.name = "global engine descriptor set";
+		FixedArray<DescriptorBinding, 1> t_DescBinds;
 		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-		{//Model Bind
-			t_DescBinds[0].binding = 0;
-			t_DescBinds[0].descriptorCount = 1;
-			t_DescBinds[0].stage = RENDER_SHADER_STAGE::VERTEX;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		}
 		{//Image Binds
-			t_DescBinds[1].binding = 1;
-			t_DescBinds[1].descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBinds[1].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+			t_DescBinds[0].binding = 0;
+			t_DescBinds[0].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 		}
 
 		t_GlobalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
@@ -193,7 +187,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	{
-		FixedArray<WriteDescriptorData, 2> t_WriteDatas;
+		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
 		WriteDescriptorInfos t_BufferUpdate{};
 		t_BufferUpdate.allocation = t_GlobalDescAllocation;
 		t_BufferUpdate.descriptorHandle = t_GlobalDescriptor;
@@ -205,14 +199,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_WriteDatas[0].image.image = t_ExampleImage;
 		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
 		t_WriteDatas[0].image.sampler = nullptr;
-
-		//example image
-		t_WriteDatas[1].binding = 1;
-		t_WriteDatas[1].descriptorIndex = 0;
-		t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-		t_WriteDatas[1].buffer.buffer;
-		t_WriteDatas[1].buffer.range;
-		t_WriteDatas[1].buffer.range;
 
 		RenderBackend::WriteDescriptors(t_BufferUpdate);
 

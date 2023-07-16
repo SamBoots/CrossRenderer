@@ -255,7 +255,7 @@ RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 		D3D12_DESCRIPTOR_RANGE1);
 
 	uint32_t t_DescriptorCount = 0;
-	const UINT t_RegisterSpace = static_cast<const UINT>(a_Info.bindingSet);
+	const UINT t_RegisterSpace = static_cast<const UINT>(a_Info.set);
 
 	for (size_t i = 0; i < a_Info.bindings.size(); i++)
 	{
@@ -266,17 +266,11 @@ RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 		t_TableRanges[i].NumDescriptors = t_Binding.descriptorCount;
 		t_TableRanges[i].BaseShaderRegister = t_Binding.binding;
 		t_TableRanges[i].RegisterSpace = t_RegisterSpace;
-	switch (t_Binding.flags)
-	{
-	case RENDER_DESCRIPTOR_FLAG::BINDLESS:
-		t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
-		break;
-	case RENDER_DESCRIPTOR_FLAG::NONE:
-		t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
-		break;
-	default:
-		break;
-	}
+		if (t_Binding.descriptorCount > 1)
+			t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
+		else
+			t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+
 		t_TableRanges[i].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	}
 

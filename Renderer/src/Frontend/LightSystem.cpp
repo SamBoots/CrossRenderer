@@ -8,7 +8,7 @@ BB::LightPool::LightPool(UploadBuffer& a_UploadBuffer, LinearRenderBuffer& a_GPU
 	:	m_LightMax(a_LightCount), m_UploadBuffer(a_UploadBuffer.Buffer())
 {
 	UploadBufferChunk t_UploadChunk = a_UploadBuffer.Alloc(sizeof(Light) * a_LightCount);
-	m_UploadBufferOffset = static_cast<uint32_t>(t_UploadChunk.bufferOffset);
+	m_UploadBufferOffset = static_cast<uint32_t>(t_UploadChunk.offset);
 
 	m_LightsCPU = reinterpret_cast<Light*>(t_UploadChunk.memory);
 	m_BufferPart = a_GPUBuffer.SubAllocate(static_cast<uint64_t>(a_LightCount * sizeof(Light)), 1);

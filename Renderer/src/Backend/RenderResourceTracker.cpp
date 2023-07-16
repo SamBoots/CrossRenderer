@@ -406,10 +406,9 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 						const DescriptorBinding& t_Bind = t_Desc.bindings[i];
 						if (ImGui::TreeNode((void*)(intptr_t)i, "Binding: %u", t_Bind.binding))
 						{
-							ImGui::Text("DescriptorCount: %u", t_Bind.descriptorCount);
+							ImGui::Text("Descriptor Count: %u", t_Bind.descriptorCount);
 							ImGui::Text("Descriptor Type: %s", DescriptorTypeStr(t_Bind.type));
 							ImGui::Text("Shader Stage: %s", ShaderStageStr(t_Bind.stage));
-							ImGui::Text("Flags: %s", DescriptorFlagStr(t_Bind.flags));
 							ImGui::TreePop();
 						}
 					}

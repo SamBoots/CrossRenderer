@@ -1,22 +1,27 @@
 #ifdef _VULKAN
-#define SPACE_IMMUTABLE_SAMPLER = 0
-#define SPACE_GLOBAL = 1
-#define SPACE_PER_SCENE = 2
-#define SPACE_PER_MATERIAL = 3
-#define SPACE_PER_MESH = 4
 #define _BBEXT(num) [[vk::location(num)]]
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 1
+#define SPACE_PER_SCENE 2
+#define SPACE_PER_MATERIAL 3
+#define SPACE_PER_MESH 4
 #elif _DIRECTX12
-#define SPACE_IMMUTABLE_SAMPLER = 0
-#define SPACE_GLOBAL = 0
-#define SPACE_PER_SCENE = 1
-#define SPACE_PER_MATERIAL = 2
-#define SPACE_PER_MESH = 3
 #define _BBEXT(num)
 #define _BBBIND(bind, set)
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 0
+#define SPACE_PER_SCENE 1
+#define SPACE_PER_MATERIAL 2
+#define SPACE_PER_MESH 3
 #else
 #define _BBEXT(num)
 #define _BBBIND(bind, set)
+#define SPACE_IMMUTABLE_SAMPLER 9
+#define SPACE_GLOBAL 9
+#define SPACE_PER_SCENE 9
+#define SPACE_PER_MATERIAL 9
+#define SPACE_PER_MESH 9
 #endif
 
 struct SceneInfo
@@ -40,11 +45,11 @@ struct Light
 };
 
 //Maybe add in common if I find a way to combine them.
-_BBBIND(0, SPACE_GLOBAL)    ByteAddressBuffer sceneInfo : register(t1, SPACE_GLOBAL);
-_BBBIND(1, SPACE_GLOBAL)    Texture2D text[] : register(t4, SPACE_GLOBAL);
-_BBBIND(3, SPACE_PER_SCENE) ByteAddressBuffer lights : register(t3, space0);
+_BBBIND(0, SPACE_GLOBAL)    Texture2D text[];
+_BBBIND(0, SPACE_PER_SCENE) ByteAddressBuffer sceneBuffer;
+_BBBIND(2, SPACE_PER_SCENE) ByteAddressBuffer lights;
 
-_BBBIND(0, SPACE_IMMUTABLE_SAMPLER)  SamplerState samplerColor : register(s0, space0);
+_BBBIND(0, SPACE_IMMUTABLE_SAMPLER)  SamplerState samplerColor;
 
 struct VSoutput
 {
@@ -58,8 +63,8 @@ struct VSoutput
 float4 main(VSoutput input) : SV_Target
 {
     //not loading the entire buffer here.
-    SceneInfo t_SceneInfo = sceneInfo.Load<SceneInfo>(0);
-    float4 t_TextureColor = text.Sample(samplerColor, input.uv);
+    SceneInfo t_SceneInfo = sceneBuffer.Load < SceneInfo > (0);
+    float4 t_TextureColor = text[0].Sample(samplerColor, input.uv);
     float4 t_Color = t_TextureColor * float4(input.color.xyz, 1.0f);
     
     float4 t_Diffuse = 0;

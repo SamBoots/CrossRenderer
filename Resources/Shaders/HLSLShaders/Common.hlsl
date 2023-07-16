@@ -2,11 +2,24 @@
 #define COMMON_HLSL
 
 #ifdef _VULKAN
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 1
+#define SPACE_PER_SCENE 2
+#define SPACE_PER_MATERIAL 3
+#define SPACE_PER_MESH 4
 #define _BBEXT(num) [[vk::location(num)]]
+#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #elif _DIRECTX12
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 0
+#define SPACE_PER_SCENE 1
+#define SPACE_PER_MATERIAL 2
+#define SPACE_PER_MESH 3
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #else
 #define _BBEXT(num)
+#define _BBBIND(bind, set)
 #endif
 
 struct BaseFrameInfo

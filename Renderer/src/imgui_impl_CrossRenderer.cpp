@@ -3,7 +3,7 @@
 
 #include "imgui_impl_CrossRenderer.h"
 #include "Backend/ShaderCompiler.h"
-#include "Backend/RenderBackend.h"
+#include "Frontend/RenderFrontend.h"
 
 #include "Program.h"
 using namespace BB;
@@ -202,14 +202,14 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         //copy vertex
         RenderCopyBufferInfo t_CopyInfo{};
         t_CopyInfo.src = rb.uploadBuffer.Buffer();
-        t_CopyInfo.srcOffset = t_UpVert.bufferOffset;
+        t_CopyInfo.srcOffset = t_UpVert.offset;
         t_CopyInfo.dst = rb.vertexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = vertex_size;
         RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
 
         //copy index
-        t_CopyInfo.srcOffset = t_UpIndex.bufferOffset;
+        t_CopyInfo.srcOffset = t_UpIndex.offset;
         t_CopyInfo.dst = rb.indexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = index_size;
@@ -269,7 +269,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 }
                 const uint32_t t_IsSampler = false;
                 const size_t t_HeapOffset = bd->descAllocation.offset;
-                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSampler, &t_HeapOffset);
+                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::ENGINE_GLOBAL, 1, &t_IsSampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
@@ -336,7 +336,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
 
         RenderCopyBufferImageInfo t_CopyImage{};
         t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
-        t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.bufferOffset);
+        t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.offset);
         t_CopyImage.dstImage = bd->fontImage;
         t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(width);
         t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(height);

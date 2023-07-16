@@ -37,10 +37,11 @@ namespace BB
 		~UploadBuffer();
 
 		const UploadBufferChunk Alloc(const uint64_t a_Size);
-		const uint64_t GetCurrentOffset() const { return m_Offset; }
 		void Clear();
 
-		const RBufferHandle Buffer() const { return m_Buffer; }
+		inline const uint64_t GetCurrentOffset() const { return m_Offset; }
+		inline const RBufferHandle Buffer() const { return m_Buffer; }
+		inline void* GetStart() const { return m_Start; }
 
 	private:
 		RBufferHandle m_Buffer;
@@ -55,12 +56,14 @@ namespace BB
 		LinearRenderBuffer(const RenderBufferCreateInfo& a_CreateInfo);
 		~LinearRenderBuffer();
 
-		RenderBufferPart SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment);
+		RenderBufferPart SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment = sizeof(size_t));
 
 		void MapBuffer() const;
 		void UnmapBuffer() const;
 
-		const RBufferHandle GetBuffer() const { return m_Buffer; }
+		inline const RBufferHandle GetBuffer() const { return m_Buffer; }
+		inline const uint64_t GetMaxSize() const { return m_Size; }
+		inline const uint64_t GetRemainingSize() const { return m_Size - m_Used; }
 
 	private:
 		const RENDER_MEMORY_PROPERTIES m_MemoryProperties;

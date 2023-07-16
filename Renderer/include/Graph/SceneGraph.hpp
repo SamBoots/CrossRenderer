@@ -24,10 +24,11 @@ namespace BB
 		void SetProjection(const glm::mat4& a_Proj);
 		void SetView(const glm::mat4& a_View);
 
-		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const TransformHandle a_TransformHandle);
+		DrawObjectHandle CreateDrawObject(const RModelHandle a_Model, const glm::vec3 a_Position = glm::vec3(0), const glm::vec3 a_Axis = glm::vec3(0), const float a_Radians = 0, const glm::vec3 a_Scale = glm::vec3(1));
 		BB::Slice<DrawObject> GetDrawObjects();
 		void DestroyDrawObject(const DrawObjectHandle a_Handle);
 
+		Transform& GetTransform(const DrawObjectHandle a_Handle) const;
 		const RDescriptor GetSceneDescriptor() const;
 
 	private:

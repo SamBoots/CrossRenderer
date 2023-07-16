@@ -1,10 +1,8 @@
 #pragma once
+#include "BBMemory.h"
 #include "Common.h"
-
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
-
-#include "Storage/Array.h"
 
 namespace BB
 {
@@ -54,26 +52,23 @@ namespace BB
 	{
 	public:
 		/// <param name="a_SysAllocator">The allocator that will allocate the pool.</param>
-		/// <param name="a_GPUMemoryRegion">This must point to a valid CPU readable GPU buffer, the transforms will directly write to the memory regions.</param>
 		/// <param name="a_MatrixSize">The amount of matrices you want to allocate. The a_GPUMemoryRegion needs to have enough space to hold them all.</param>
-		TransformPool(Allocator a_SysAllocator, void* a_GPUMemoryRegion, const uint32_t a_MatrixSize);
-		
+		TransformPool(Allocator a_SysAllocator, const uint32_t a_MatrixSize);
+		~TransformPool();
+
 		TransformHandle CreateTransform(const glm::vec3 a_Position);
 		TransformHandle CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians);
 		TransformHandle CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale);
+		void FreeTransform(const TransformHandle a_Handle);
 		Transform& GetTransform(const TransformHandle a_Handle) const;
-		//Get the offset in the transferbuffer where the 
-		uint32_t GetMatrixMemOffset(const TransformHandle a_Handle) const;
 
 		void UpdateTransforms();
+
+		const uint32_t PoolSize() const;
+		const class UploadBuffer& PoolGPUUploadBuffer();
 			
 	private:
-		Array<Transform> m_Pool;
-		//This points to a CPU readable GPU buffer used for copying 
-		//the model matrices to a GPU only readable buffer.
-		Array<uint32_t> m_MemoryRegionOffsets;
-
-		void* m_MemoryRegion;
+		struct TransformPool_inst* inst;
 	};
 
 }

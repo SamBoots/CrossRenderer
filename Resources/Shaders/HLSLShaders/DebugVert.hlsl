@@ -1,20 +1,27 @@
 #ifdef _VULKAN
-#define SPACE_GLOBAL = 1
-#define SPACE_PER_SCENE = 2
-#define SPACE_PER_MATERIAL = 3
-#define SPACE_PER_MESH = 4
 #define _BBEXT(num) [[vk::location(num)]]
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 1
+#define SPACE_PER_SCENE 2
+#define SPACE_PER_MATERIAL 3
+#define SPACE_PER_MESH 4
 #elif _DIRECTX12
-#define SPACE_GLOBAL = 0
-#define SPACE_PER_SCENE = 1
-#define SPACE_PER_MATERIAL = 2
-#define SPACE_PER_MESH = 3
 #define _BBEXT(num)
 #define _BBBIND(bind, set)
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 0
+#define SPACE_PER_SCENE 1
+#define SPACE_PER_MATERIAL 2
+#define SPACE_PER_MESH 3
 #else
 #define _BBEXT(num)
 #define _BBBIND(bind, set)
+#define SPACE_IMMUTABLE_SAMPLER 9
+#define SPACE_GLOBAL 9
+#define SPACE_PER_SCENE 9
+#define SPACE_PER_MATERIAL 9
+#define SPACE_PER_MESH 9
 #endif
 
 struct Vertex
@@ -67,14 +74,14 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-_BBBIND(0, SPACE_GLOBAL)    ByteAddressBuffer modelInstances : register(t0, SPACE_GLOBAL);
-_BBBIND(0, SPACE_PER_SCENE)   ByteAddressBuffer SceneInfo : register(t1, SPACE_PER_SCENE);
-_BBBIND(0, SPACE_PER_MATERIAL)  ByteAddressBuffer vertData : register(t2, SPACE_PER_MATERIAL);
+_BBBIND(0, SPACE_PER_SCENE)     ByteAddressBuffer sceneBuffer;
+_BBBIND(1, SPACE_PER_SCENE)     ByteAddressBuffer modelInstances;
+ _BBBIND(0, SPACE_PER_MATERIAL) ByteAddressBuffer vertData;
 
 VSOutput main(uint VertexIndex : SV_VertexID)
 {
     ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.model);
-    SceneInfo t_SceneInfo = SceneInfo.Load<SceneInfo>(0);
+    SceneInfo t_SceneInfo = sceneBuffer.Load < SceneInfo > (0);
     
     float4x4 t_Model = t_ModelInstance.model;
     float4x4 t_InverseModel = t_ModelInstance.inverse;

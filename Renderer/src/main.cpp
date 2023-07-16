@@ -75,20 +75,14 @@ int main(int argc, char** argv)
 	t_SceneCreateInfo.lights = BB::Slice(&t_StandardLight, 1);
 	t_SceneCreateInfo.sceneWindowWidth = t_WindowWidth;
 	t_SceneCreateInfo.sceneWindowHeight = t_WindowHeight;
-	SceneGraph t_Graph{ t_SceneAllocator, t_SceneCreateInfo };
-
-	const TransformHandle t_TransHandle1 = t_TransformPool.CreateTransform(glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f);
-	Transform& t_Transform1 = t_TransformPool.GetTransform(t_TransHandle1);
-
-	const TransformHandle t_TransHandle2 = t_TransformPool.CreateTransform(glm::vec3(0, 1, 0));
-	Transform& t_Transform2 = t_TransformPool.GetTransform(t_TransHandle2);
+	SceneGraph t_Scene{ t_SceneAllocator, t_SceneCreateInfo };
 
 	glm::mat4 t_Proj = glm::perspective(glm::radians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
 		0.001f, 10000.0f);
 
-	Render::SetProjection(t_Proj);
-	Render::SetView(t_Cam.CalculateView());
+	t_Scene.SetProjection(t_Proj);
+	t_Scene.SetView(t_Cam.CalculateView());
 
 	Vertex t_Vertex[4];
 	t_Vertex[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
@@ -115,11 +109,13 @@ int main(int argc, char** argv)
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
-	DrawObjectHandle t_DrawObj1 = Render::CreateDrawObject(t_gltfCube,
-		t_TransHandle1);
-	t_Transform1.SetScale(glm::vec3(0.01f, 0.01f, 0.01f));
-	DrawObjectHandle t_DrawObj2 = Render::CreateDrawObject(t_Model,
-		t_TransHandle2);
+	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject(t_gltfCube,
+		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f, 0.01f, 0.01f));
+	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
+
+	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
+		glm::vec3(0, 1, 0));
+	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
@@ -132,7 +128,7 @@ int main(int argc, char** argv)
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
-		Editor::DisplayDrawObjects(Render::GetDrawObjects(), t_TransformPool);
+		//Editor::DisplayDrawObjects(t_Scene.GetDrawObjects(), t_TransformPool);
 		//Editor::DisplayLightPool()
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
@@ -187,13 +183,12 @@ int main(int argc, char** argv)
 			}
 		}
 
-		Render::SetView(t_Cam.CalculateView());
+		t_Scene.SetView(t_Cam.CalculateView());
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
 		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
-		t_TransformPool.UpdateTransforms();
 
 		Render::Update(t_DeltaTime);
 		Render::EndFrame();
