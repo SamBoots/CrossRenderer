@@ -383,9 +383,9 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 
 void BB::Render::Update(const float a_DeltaTime)
 {
-	RenderBackend::DisplayDebugInfo();
+	//RenderBackend::DisplayDebugInfo();
 
-	Draw3DFrame();
+	//Draw3DFrame();
 }
 
 const RDescriptor BB::Render::GetGlobalDescriptorSet()
@@ -599,9 +599,15 @@ void BB::Render::StartFrame()
 	ImGui::NewFrame();
 }
 
+RecordingCommandListHandle BB::Render::GetRecordingGraphics()
+{
+	return t_RecordingGraphics;
+}
+
 void BB::Render::EndFrame()
 {
 	UploadDescriptorsToGPU(s_CurrentFrame);
+	RenderBackend::EndCommandList(t_RecordingGraphics);
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 	ImGui::EndFrame();
 

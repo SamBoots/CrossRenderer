@@ -490,6 +490,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         t_Builder.BindAttributes(t_Attribs);
     }
 
+    t_Builder.BindDescriptor(Render::GetGlobalDescriptorSet());
     t_Builder.BindDescriptor(bd->fontDescriptor);
     bd->Pipeline = t_Builder.BuildPipeline();
 

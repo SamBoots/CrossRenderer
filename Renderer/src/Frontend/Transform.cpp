@@ -143,7 +143,7 @@ void TransformPool::UpdateTransforms()
 
 const uint32_t TransformPool::PoolSize() const
 {
-	return inst->pool.size();
+	return inst->pool.capacity();
 }
 
 const UploadBuffer& TransformPool::PoolGPUUploadBuffer()

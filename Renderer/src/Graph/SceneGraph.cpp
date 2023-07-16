@@ -274,7 +274,7 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 		t_CopyInfo.size = inst->lights.size() * sizeof(inst->lights[0]);
 		t_CopyInfo.srcOffset = t_UploadBuffer.offset;
 		t_CopyInfo.dstOffset = inst->lightBuffer.offset;
-		BB_ASSERT(t_UploadBuffer.offset + t_CopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many lights!");
+		BB_ASSERT(t_UploadBuffer.offset + t_CopyInfo.size < t_UploadBuffer.size, "Upload buffer overflow, uploading too many lights!");
 
 		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
 
@@ -297,7 +297,7 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 		t_SceneCopyInfo.size = inst->sceneBuffer.size;
 		t_SceneCopyInfo.srcOffset = t_UploadBuffer.offset;
 		t_SceneCopyInfo.dstOffset = inst->sceneBuffer.offset + t_SceneBufferOffset;
-		BB_ASSERT(t_UploadBuffer.offset + t_SceneCopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow");
+		BB_ASSERT(t_UploadBuffer.offset + t_SceneCopyInfo.size < t_UploadBuffer.size, "Upload buffer overflow");
 
 		RenderBackend::CopyBuffer(a_GraphicList, t_SceneCopyInfo);
 
@@ -310,9 +310,9 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 			t_MatrixCopyInfo.src = inst->transformPool.PoolGPUUploadBuffer().Buffer();
 			t_MatrixCopyInfo.dst = inst->matrixBuffer.buffer;
 			t_MatrixCopyInfo.size = inst->matrixBuffer.size;
-			t_MatrixCopyInfo.srcOffset = t_UploadBuffer.offset;
+			t_MatrixCopyInfo.srcOffset = 0;
 			t_MatrixCopyInfo.dstOffset = inst->matrixBuffer.offset + t_SceneBufferOffset;
-			BB_ASSERT(t_UploadBuffer.offset + t_MatrixCopyInfo.size > t_UploadBuffer.size, "Upload buffer overflow, uploading too many model matrices!");
+			BB_ASSERT(t_UploadBuffer.offset + t_MatrixCopyInfo.size < t_UploadBuffer.size, "Upload buffer overflow, uploading too many model matrices!");
 
 			RenderBackend::CopyBuffer(a_GraphicList, t_MatrixCopyInfo);
 		}
@@ -396,7 +396,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 			const uint32_t t_IsSamplerHeap[1]{ false };
 			const size_t t_BufferOffsets[1]{ t_NewModel.descAllocation.offset };
-			RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::PER_MESH, 1, t_IsSamplerHeap, t_BufferOffsets);
+			RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::PER_MATERIAL, 1, t_IsSamplerHeap, t_BufferOffsets);
 			RenderBackend::BindIndexBuffer(a_GraphicList, t_NewModel.indexView.buffer, t_NewModel.indexView.offset);
 
 			t_Model = t_NewModel;
@@ -425,7 +425,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
 	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
 }
 
@@ -462,12 +462,22 @@ void SceneGraph::DestroyDrawObject(const DrawObjectHandle a_Handle)
 	inst->drawObjects.erase(a_Handle.handle);
 }
 
+Transform& SceneGraph::GetTransform(const DrawObjectHandle a_Handle) const
+{
+	return inst->transformPool.GetTransform(inst->drawObjects[a_Handle.handle].transformHandle);
+}
+
 const RDescriptor SceneGraph::GetSceneDescriptor() const
 {
 	return inst->sceneDescriptor;
 }
 
-Transform& SceneGraph::GetTransform(const DrawObjectHandle a_Handle) const
+const RDescriptor SceneGraph::GetMeshDescriptor() const
 {
-	return inst->transformPool.GetTransform(inst->drawObjects[a_Handle.handle].transformHandle);
+	return inst->meshDescriptor;
+}
+
+const PipelineHandle SceneGraph::GetPipelineHandle() const
+{
+	return inst->meshPipeline;
 }

@@ -97,15 +97,18 @@ int main(int argc, char** argv)
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
 	t_ModelInfo.imagePath = "Resources/Textures/DuckCM.png";
-
+	t_ModelInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
+	t_ModelInfo.pipeline = t_Scene.GetPipelineHandle();
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
 	t_LoadInfo.path = "Resources/Models/Duck.gltf";
-	
+	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
+	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
 
 	//Start frame before we upload.
 	Render::StartFrame();
+	t_Scene.StartScene(Render::GetRecordingGraphics());
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
@@ -191,6 +194,8 @@ int main(int argc, char** argv)
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
 		Render::Update(t_DeltaTime);
+		t_Scene.RenderScene(Render::GetRecordingGraphics());
+		t_Scene.EndScene();
 		Render::EndFrame();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();

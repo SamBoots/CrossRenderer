@@ -35,6 +35,7 @@ namespace BB
 		RModelHandle LoadModel(const LoadModelInfo& a_LoadInfo);
 
 		void StartFrame();
+		RecordingCommandListHandle GetRecordingGraphics();
 		void Update(const float a_DeltaTime);
 		void EndFrame();
 

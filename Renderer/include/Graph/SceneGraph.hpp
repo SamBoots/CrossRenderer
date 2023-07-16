@@ -31,6 +31,11 @@ namespace BB
 		Transform& GetTransform(const DrawObjectHandle a_Handle) const;
 		const RDescriptor GetSceneDescriptor() const;
 
+		//scuffed, temporarily.
+		const RDescriptor GetMeshDescriptor() const;
+		//scuffed, temporarily.
+		const PipelineHandle GetPipelineHandle() const;
+
 	private:
 		struct SceneGraph_inst* inst;
 	};
