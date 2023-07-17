@@ -57,9 +57,6 @@ RecordingCommandListHandle t_RecordingTransfer;
 
 RFenceHandle t_SwapchainFence[3];
 
-RDescriptor t_GlobalDescriptor;
-DescriptorAllocation t_GlobalDescAllocation;
-
 
 UploadBuffer* t_UploadBuffer;
 
@@ -161,15 +158,15 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
 		}
 
-		t_GlobalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
-		t_GlobalDescAllocation = Render::AllocateDescriptor(t_GlobalDescriptor);
+		s_RenderInst->io.globalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
+		s_RenderInst->io.globalDescAllocation = Render::AllocateDescriptor(s_RenderInst->io.globalDescriptor);
 	}
 
 	{
 		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
 		WriteDescriptorInfos t_BufferUpdate{};
-		t_BufferUpdate.allocation = t_GlobalDescAllocation;
-		t_BufferUpdate.descriptorHandle = t_GlobalDescriptor;
+		t_BufferUpdate.allocation = s_RenderInst->io.globalDescAllocation;
+		t_BufferUpdate.descriptorHandle = s_RenderInst->io.globalDescriptor;
 		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
 
 		t_WriteDatas[0].binding = 0;
@@ -313,7 +310,7 @@ void BB::Render::DestroyRenderer()
 	}
 	BBfree(s_SystemAllocator, t_UploadBuffer);
 
-	RenderBackend::DestroyDescriptor(t_GlobalDescriptor);
+	RenderBackend::DestroyDescriptor(s_RenderInst->io.globalDescriptor);
 
 	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
 	{
@@ -362,7 +359,7 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 
 const RDescriptor BB::Render::GetGlobalDescriptorSet()
 {
-	return t_GlobalDescriptor;
+	return s_RenderInst->io.globalDescriptor;
 }
 
 Model& BB::Render::GetModel(const RModelHandle a_Handle)
@@ -569,6 +566,8 @@ void BB::Render::StartFrame()
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
 	ImGui_ImplCross_NewFrame();
 	ImGui::NewFrame();
+
+	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, Render::GetGPUHeap(s_CurrentFrame), nullptr);
 }
 
 RecordingCommandListHandle BB::Render::GetRecordingTransfer()

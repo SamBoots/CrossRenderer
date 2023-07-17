@@ -13,6 +13,9 @@ namespace BB
 		uint32_t swapchainHeight = 0;
 		uint32_t frameBufferAmount = 0;
 		RENDER_API renderAPI = RENDER_API::NONE;
+
+		RDescriptor globalDescriptor;
+		DescriptorAllocation globalDescAllocation;
 	};
 
 	namespace Render

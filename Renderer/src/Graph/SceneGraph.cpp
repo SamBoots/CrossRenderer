@@ -378,14 +378,14 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 	const uint32_t t_FrameNum = RenderBackend::GetCurrentFrameBufferIndex();
 
-	RenderBackend::BindDescriptorHeaps(a_GraphicList, Render::GetGPUHeap(t_FrameNum), nullptr);
 	RenderBackend::BindPipeline(a_GraphicList, t_Model.pipelineHandle);
 
 	{
-		const uint32_t t_IsSamplerHeap[2]{ false, false };
-		const size_t t_BufferOffsets[2]{ inst->sceneAllocation.offset, t_Model.descAllocation.offset };
+
+		const uint32_t t_IsSamplerHeap[3]{ false, false, false };
+		const size_t t_BufferOffsets[3]{ Render::GetIO().globalDescAllocation.offset, inst->sceneAllocation.offset, t_Model.descAllocation.offset };
 		//PER_PASS and mesh at the same time.
-		RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::PER_PASS, 2, t_IsSamplerHeap, t_BufferOffsets);
+		RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::ENGINE_GLOBAL, 3, t_IsSamplerHeap, t_BufferOffsets);
 		RenderBackend::BindIndexBuffer(a_GraphicList, t_Model.indexView.buffer, t_Model.indexView.offset);
 	}
 
