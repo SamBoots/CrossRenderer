@@ -185,7 +185,7 @@ int main(int argc, char** argv)
 			}
 		}
 		t_Scene.SetView(t_Cam.CalculateView());
-		t_Scene.StartScene(Render::GetRecordingGraphics());
+		t_Scene.StartScene(Render::GetRecordingTransfer());
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 

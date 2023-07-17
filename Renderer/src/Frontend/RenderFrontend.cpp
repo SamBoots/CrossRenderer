@@ -68,27 +68,6 @@ RImageHandle t_ExampleImage;
 static FrameIndex s_CurrentFrame;
 static Render_inst* s_RenderInst;
 
-void Draw3DFrame()
-{
-		StartRenderingInfo t_ImguiStart;
-		t_ImguiStart.viewportWidth = s_RenderInst->io.swapchainWidth;
-		t_ImguiStart.viewportHeight = s_RenderInst->io.swapchainHeight;
-		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
-		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
-
-		ImDrawData* t_DrawData = ImGui::GetDrawData();
-		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
-
-		EndRenderingInfo t_ImguiEnd{};
-		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
-		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
-	RenderBackend::EndCommandList(t_RecordingGraphics);
-}
-
 Render_IO& BB::Render::GetIO()
 {
 	return s_RenderInst->io;
@@ -381,13 +360,6 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
-void BB::Render::Update(const float a_DeltaTime)
-{
-	//RenderBackend::DisplayDebugInfo();
-
-	//Draw3DFrame();
-}
-
 const RDescriptor BB::Render::GetGlobalDescriptorSet()
 {
 	return t_GlobalDescriptor;
@@ -599,17 +571,51 @@ void BB::Render::StartFrame()
 	ImGui::NewFrame();
 }
 
+RecordingCommandListHandle BB::Render::GetRecordingTransfer()
+{
+	return t_RecordingTransfer;
+}
+
 RecordingCommandListHandle BB::Render::GetRecordingGraphics()
 {
 	return t_RecordingGraphics;
 }
 
+
+void BB::Render::Update(const float a_DeltaTime)
+{
+	RenderBackend::DisplayDebugInfo();
+
+	ImGui::Render();
+	//Draw3DFrame();
+}
+
 void BB::Render::EndFrame()
 {
+	{
+		StartRenderingInfo t_ImguiStart;
+		t_ImguiStart.viewportWidth = s_RenderInst->io.swapchainWidth;
+		t_ImguiStart.viewportHeight = s_RenderInst->io.swapchainHeight;
+		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
+		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+
+		ImDrawData* t_DrawData = ImGui::GetDrawData();
+		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
+
+		EndRenderingInfo t_ImguiEnd;
+		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
+		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
+	}
+
 	UploadDescriptorsToGPU(s_CurrentFrame);
+
+	ImGui::EndFrame();
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 	RenderBackend::EndCommandList(t_RecordingTransfer);
-	ImGui::EndFrame();
 
 	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
 		s_TempAllocator,

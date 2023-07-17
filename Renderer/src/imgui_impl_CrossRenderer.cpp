@@ -269,7 +269,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 }
                 const uint32_t t_IsSampler = false;
                 const size_t t_HeapOffset = bd->descAllocation.offset;
-                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::ENGINE_GLOBAL, 1, &t_IsSampler, &t_HeapOffset);
+                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::PER_PASS, 1, &t_IsSampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);

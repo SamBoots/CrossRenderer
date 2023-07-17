@@ -432,7 +432,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 	EndRenderingInfo t_EndRenderingInfo{};
 	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
 }
 
