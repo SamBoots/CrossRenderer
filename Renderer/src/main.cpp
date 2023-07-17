@@ -67,7 +67,7 @@ int main(int argc, char** argv)
 
 	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
 	Light t_StandardLight{};
-	t_StandardLight.color = { 255, 255, 255 };
+	t_StandardLight.color = { 255, 255, 255, 0.f };
 	t_StandardLight.pos = { 0.f, 0.f, 0.f };
 	t_StandardLight.radius = 10.f;
 	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
@@ -112,18 +112,19 @@ int main(int argc, char** argv)
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject(t_gltfCube,
-		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f, 0.01f, 0.01f));
+		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
-	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
-		glm::vec3(0, 1, 0));
-	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
+	//DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
+	//	glm::vec3(0, 1, 0));
+	//Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
 
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
+	bool t_FreezeCam = false;
 
 	while (!t_Quit)
 	{
@@ -145,38 +146,37 @@ int main(int argc, char** argv)
 				if (t_Event.keyInfo.keyPressed)
 					switch (t_Event.keyInfo.scancode)
 					{
+					case KEYBOARD_KEY::_F:
+						t_FreezeCam = !t_FreezeCam;
+						break;
 					case KEYBOARD_KEY::_W:
 						t_CamMove.y = 1;
-						t_Cam.Move(t_CamMove);
 						break;
 					case KEYBOARD_KEY::_S:
 						t_CamMove.y = -1;
-						t_Cam.Move(t_CamMove);
 						break;
 					case KEYBOARD_KEY::_A:
 						t_CamMove.x = 1;
-						t_Cam.Move(t_CamMove);
 						break;
 					case KEYBOARD_KEY::_D:
 						t_CamMove.x = -1;
-						t_Cam.Move(t_CamMove);
 						break;
 					case KEYBOARD_KEY::_X:
 						t_CamMove.z = 1;
-						t_Cam.Move(t_CamMove);
 						break;
 					case KEYBOARD_KEY::_Z:
 						t_CamMove.z = -1;
-						t_Cam.Move(t_CamMove);
 						break;
 					default:
 						break;
 					}
+				t_Cam.Move(t_CamMove);
 			}
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& t_Mouse = t_Event.mouseInfo;
-				t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
+				if (!t_FreezeCam)
+					t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
 
 				if (t_Mouse.right_released)
 					FreezeMouseOnWindow(t_Window);
@@ -190,7 +190,7 @@ int main(int argc, char** argv)
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
 		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
-		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
+		//t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
 		Render::Update(t_DeltaTime);
 		t_Scene.RenderScene(Render::GetRecordingGraphics());

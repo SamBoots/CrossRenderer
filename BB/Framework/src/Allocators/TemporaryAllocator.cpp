@@ -27,6 +27,7 @@ namespace BB
 
 	BB::TemporaryAllocator::TemporaryAllocator(Allocator a_BackingAllocator)
 	{
+		memset(this, 0, sizeof(*this));
 		m_BackingAllocator = a_BackingAllocator;
 		m_FreeBlock = reinterpret_cast<TemporaryFreeBlock*>(m_Buffer);
 		m_FreeBlock->size = sizeof(m_Buffer);

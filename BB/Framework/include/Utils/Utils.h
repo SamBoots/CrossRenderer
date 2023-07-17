@@ -44,6 +44,24 @@ namespace BB
 		}
 
 		/// <summary>
+		/// Memcpy abstraction that will call the constructor if needed.
+		/// </summary>
+		template<typename T>
+		inline static void Copy(void* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
+		{
+			Memory::Copy(reinterpret_cast<T* __restrict>(a_Destination), a_Source, a_ElementCount);
+		}
+
+		/// <summary>
+		/// Memcpy abstraction that will call the constructor if needed.
+		/// </summary>
+		template<typename T>
+		inline static void Copy(T* __restrict a_Destination, const void* __restrict a_Source, const size_t a_ElementCount)
+		{
+			Memory::Copy(a_Destination, reinterpret_cast<T * __restrict>(a_Source), a_ElementCount);
+		}
+
+		/// <summary>
 		/// Memcpy abstraction that will call the constructor and/or deconstructor if needed.
 		/// Unsafe version: It will call memcpy instead of memmove
 		/// </summary>
