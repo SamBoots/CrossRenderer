@@ -108,7 +108,6 @@ int main(int argc, char** argv)
 
 	//Start frame before we upload.
 	Render::StartFrame();
-	t_Scene.StartScene(Render::GetRecordingGraphics());
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
@@ -185,8 +184,8 @@ int main(int argc, char** argv)
 					UnfreezeMouseOnWindow();
 			}
 		}
-
 		t_Scene.SetView(t_Cam.CalculateView());
+		t_Scene.StartScene(Render::GetRecordingGraphics());
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 

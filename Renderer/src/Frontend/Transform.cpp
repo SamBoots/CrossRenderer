@@ -104,7 +104,7 @@ TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
 	TransformHandle t_Handle(inst->pool.emplace(a_Position, a_Axis, a_Radians, a_Scale).handle);
-	inst->poolIndices.emplace(t_Handle.index);
+	inst->poolIndices.emplace_back(t_Handle.index);
 	return t_Handle;
 }
 
@@ -127,7 +127,7 @@ void TransformPool::UpdateTransforms()
 	for (size_t i = 0; i < inst->poolIndices.size(); i++)
 	{
 		const uint32_t t_Index = inst->poolIndices[i];
-		if (inst->pool[t_Index].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
+		//if (inst->pool[t_Index].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			ModelBufferInfo t_Pack{};
 			t_Pack.model = inst->pool[t_Index].CreateModelMatrix();
