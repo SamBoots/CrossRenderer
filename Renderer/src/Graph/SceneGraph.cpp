@@ -368,19 +368,18 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 	RenderBackend::StartRendering(a_GraphicList, t_StartRenderInfo);
 
 	RModelHandle t_CurrentModel = inst->drawObjects.begin()->modelHandle;
-	Model& t_Model = Render::GetModel(t_CurrentModel.handle);
+	Model* t_Model = &Render::GetModel(t_CurrentModel.handle);
 
 	const uint32_t t_FrameNum = RenderBackend::GetCurrentFrameBufferIndex();
 
-	RenderBackend::BindPipeline(a_GraphicList, t_Model.pipelineHandle);
+	RenderBackend::BindPipeline(a_GraphicList, t_Model->pipelineHandle);
 
 	{
-
 		const uint32_t t_IsSamplerHeap[3]{ false, false, false };
-		const size_t t_BufferOffsets[3]{ Render::GetIO().globalDescAllocation.offset, inst->sceneAllocation.offset, t_Model.descAllocation.offset };
+		const size_t t_BufferOffsets[3]{ Render::GetIO().globalDescAllocation.offset, inst->sceneAllocation.offset, t_Model->descAllocation.offset };
 		//PER_PASS and mesh at the same time.
 		RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::ENGINE_GLOBAL, 3, t_IsSamplerHeap, t_BufferOffsets);
-		RenderBackend::BindIndexBuffer(a_GraphicList, t_Model.indexView.buffer, t_Model.indexView.offset);
+		RenderBackend::BindIndexBuffer(a_GraphicList, t_Model->indexView.buffer, t_Model->indexView.offset);
 	}
 
 	for (auto t_It = inst->drawObjects.begin(); t_It < inst->drawObjects.end(); t_It++)
@@ -388,31 +387,31 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 		if (t_CurrentModel != t_It->modelHandle)
 		{
 			t_CurrentModel = t_It->modelHandle;
-			Model& t_NewModel = Render::GetModel(t_CurrentModel.handle);
+			Model* t_NewModel = &Render::GetModel(t_CurrentModel.handle);
 
-			if (t_NewModel.pipelineHandle != t_Model.pipelineHandle)
+			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
 			{
-				RenderBackend::BindPipeline(a_GraphicList, t_NewModel.pipelineHandle);
+				RenderBackend::BindPipeline(a_GraphicList, t_NewModel->pipelineHandle);
 			}
 
 			const uint32_t t_IsSamplerHeap[1]{ false };
-			const size_t t_BufferOffsets[1]{ t_NewModel.descAllocation.offset };
+			const size_t t_BufferOffsets[1]{ t_NewModel->descAllocation.offset };
 			RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::PER_MATERIAL, 1, t_IsSamplerHeap, t_BufferOffsets);
-			RenderBackend::BindIndexBuffer(a_GraphicList, t_NewModel.indexView.buffer, t_NewModel.indexView.offset);
+			RenderBackend::BindIndexBuffer(a_GraphicList, t_NewModel->indexView.buffer, t_NewModel->indexView.offset);
 
 			t_Model = t_NewModel;
 		}
 
 		RenderBackend::BindConstant(a_GraphicList, 0, 1, 0, &t_It->transformHandle.index);
-		for (uint32_t i = 0; i < t_Model.linearNodeCount; i++)
+		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
-			const Model::Node& t_Node = t_Model.linearNodes[i];
+			const Model::Node& t_Node = t_Model->linearNodes[i];
 			if (t_Node.meshIndex != MESH_INVALID_INDEX)
 			{
-				const Model::Mesh& t_Mesh = t_Model.meshes[t_Node.meshIndex];
+				const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
 				for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
 				{
-					const Model::Primitive& t_Prim = t_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+					const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
 					RenderBackend::DrawIndexed(a_GraphicList,
 						t_Prim.indexCount,
 						1,

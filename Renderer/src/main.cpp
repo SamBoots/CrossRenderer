@@ -112,12 +112,12 @@ int main(int argc, char** argv)
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject(t_gltfCube,
-		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(.01f));
+		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
-	//DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
-	//	glm::vec3(0, 1, 0));
-	//Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
+	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
+		glm::vec3(0, 1, 0));
+	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
@@ -190,7 +190,7 @@ int main(int argc, char** argv)
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
 		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
-		//t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
+		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
 		Render::Update(t_DeltaTime);
 		t_Scene.RenderScene(Render::GetRecordingGraphics());
