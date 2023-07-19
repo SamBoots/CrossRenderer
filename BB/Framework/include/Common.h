@@ -24,7 +24,7 @@ namespace BB
 		{
 			//The handle's main index. Always used and is the main handle.
 			uint32_t index;
-			//A extra handle index, can be used to track something else. Usually this value is 0.
+			//A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
 			uint32_t extraIndex;
 		};
 		//Some handles work with pointers.

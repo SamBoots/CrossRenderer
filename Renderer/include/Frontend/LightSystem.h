@@ -31,7 +31,6 @@ namespace BB
 		const uint32_t m_LightMax;
 	};
 
-
 	class LightSystem
 	{
 	public:
@@ -42,8 +41,6 @@ namespace BB
 		void UploadLights();
 
 		void UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation);
-
-		void Editor();
 
 		const LightPool& GetLightPool() const { return m_Lights; }
 

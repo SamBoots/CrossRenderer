@@ -13,6 +13,34 @@ namespace BB
 		IMAGE
 	};
 
+	struct GraphPreRenderInfo
+	{
+
+	};
+
+	struct GraphRenderInfo
+	{
+
+	};
+
+	struct GraphPostRenderInfo
+	{
+
+	};
+
+	typedef void (*PFN_GraphPreRender)(const GraphPreRenderInfo&);
+	typedef void (*PFN_GraphRender)(const GraphRenderInfo&);
+	typedef void (*PFN_GraphPostRender)(const GraphPostRenderInfo&);
+
+	struct FrameGraphRenderPass
+	{
+		PFN_GraphPreRender preRenderFunc;
+		PFN_GraphRender renderFunc;
+		PFN_GraphPostRender postRenderFunc;
+
+		RENDER_IMAGE_LAYOUT layoutTransition;
+	};
+
 	struct FrameGraphResource
 	{
 		FrameGraphNodeHandle producer;

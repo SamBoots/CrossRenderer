@@ -1209,7 +1209,7 @@ CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo&
 	VulkanCommandList t_List = reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList();
 
 	SetDebugName(a_CreateInfo.name, t_List.Buffer(), VK_OBJECT_TYPE_COMMAND_BUFFER);
-	return CommandListHandle(s_VKB.commandLists.insert(t_List).ptrHandle);
+	return CommandListHandle(s_VKB.commandLists.insert(t_List).handle);
 }
 
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
@@ -1887,7 +1887,7 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	t_Barriers[0].subresourceRange.baseMipLevel = 0;
 	t_Barriers[0].subresourceRange.levelCount = 1;
 
-	VkRenderingInfo t_RenderInfo{};
+	VkRenderingInfo t_RenderInfo{ VK_STRUCTURE_TYPE_RENDERING_INFO };
 	VkRenderingAttachmentInfo t_RenderDepthAttach{};
 
 	//If we handle the depth stencil we do that here. 
@@ -1942,12 +1942,11 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	t_Scissor.extent.width = a_RenderInfo.viewportWidth;
 	t_Scissor.extent.height = a_RenderInfo.viewportHeight;
 
-	t_RenderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	t_RenderInfo.pNext = nullptr;
 	t_RenderInfo.renderArea = t_Scissor;
 	t_RenderInfo.layerCount = 1;
 	t_RenderInfo.pColorAttachments = &t_RenderColorAttach;
 	t_RenderInfo.colorAttachmentCount = 1;
-	t_RenderInfo.pNext = nullptr;
 
 	vkCmdBeginRendering(t_Cmdlist->Buffer(), &t_RenderInfo);
 

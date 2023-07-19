@@ -1,4 +1,4 @@
-#include "FrameGraph.h"
+#include "FrameGraph.hpp"
 
 #include "Slotmap.h"
 
@@ -7,8 +7,7 @@ using namespace BB;
 struct FrameGraphNode
 {
 	const char* name = nullptr;
-
-
+	FrameGraphRenderPass renderPass;
 };
 
 struct BB::FrameGraph_inst

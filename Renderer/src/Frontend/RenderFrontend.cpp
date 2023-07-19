@@ -4,7 +4,6 @@
 #include "Transform.h"
 #include "OS/Program.h"
 #include "imgui_impl_CrossRenderer.h"
-#include "Editor.h"
 
 #include "Storage/Slotmap.h"
 
@@ -651,15 +650,6 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 	s_RenderInst->io.swapchainWidth = a_X;
 	s_RenderInst->io.swapchainHeight = a_Y;
 	RenderBackend::ResizeWindow(a_X, a_Y);
-}
-
-
-//We handle the light system externally since we might want to access the system differently later.
-void BB::Editor::DisplayLightSystem(const BB::LightSystem& a_System)
-{
-	ImGui::Begin("Light Pool");
-
-	ImGui::End();
 }
 
 #pragma warning(push, 0)

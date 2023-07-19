@@ -5,28 +5,73 @@
 #include "LightSystem.h"
 #include "RenderResourceTracker.h"
 
-#include <glm/gtc/type_ptr.hpp>
+#include "SceneGraph.hpp"
 
+#include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
 using namespace BB;
 
-void BB::Editor::DisplayDrawObjects(const BB::Slice<DrawObject> a_DrawObjects, const TransformPool& a_Pool)
+void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 {
-	if (ImGui::Begin("Draw Objects"))
+	if (ImGui::Begin(t_Scene.GetSceneName()))
 	{
-		for (size_t i = 0; i < a_DrawObjects.size(); i++)
+		if (ImGui::CollapsingHeader("Scene Objects"))
 		{
-			Transform& t_Trans = a_Pool.GetTransform(a_DrawObjects[i].transformHandle);
-
-			ImGui::PushID(static_cast<int>(i));
-			if (ImGui::CollapsingHeader("DrawObject"))
+			BB::Slice<DrawObject> t_DrawObjects = t_Scene.GetDrawObjects();
+			ImGui::Indent();
+			for (size_t i = 0; i < t_DrawObjects.size(); i++)
 			{
-				ImGui::SliderFloat3("Position", glm::value_ptr(t_Trans.m_Pos), -100, 100);
-				ImGui::SliderFloat4("Rotation quat", glm::value_ptr(t_Trans.m_Rot), -100, 100);
-				ImGui::SliderFloat3("Scale", glm::value_ptr(t_Trans.m_Scale), -100, 100);
+				const DrawObject& t_Obj = t_DrawObjects[i];
+				Transform& t_Trans = t_Scene.GetTransform(t_Obj.transformHandle);
+
+				if (ImGui::CollapsingHeader(t_Obj.name))
+				{
+					ImGui::PushID(static_cast<int>(i));
+					ImGui::Indent();
+					if (ImGui::CollapsingHeader("Transform"))
+					{
+						ImGui::Indent();
+						ImGui::InputFloat3("Position", glm::value_ptr(t_Trans.m_Pos));
+						ImGui::InputFloat3("Rotation quat", glm::value_ptr(t_Trans.m_Rot));
+						ImGui::InputFloat3("Scale", glm::value_ptr(t_Trans.m_Scale));
+						ImGui::Unindent();
+					}
+					if (ImGui::CollapsingHeader("ModelInfo"))
+					{
+						ImGui::Indent();
+						ImGui::Text("Do some model meta info here....");
+						ImGui::Unindent();
+					}
+
+					ImGui::Unindent();
+					ImGui::PopID();
+				}
 			}
-			ImGui::PopID();
+			ImGui::Unindent();
 		}
+
+		if (ImGui::CollapsingHeader("Lights"))
+		{
+			ImGui::Indent();
+			Slice<Light> t_Lights = t_Scene.GetLights();
+			for (size_t i = 0; i < t_Lights.size(); i++)
+			{
+				Light& t_Light = t_Lights[i];
+
+				ImGui::PushID(static_cast<int>(i));
+				if (ImGui::CollapsingHeader("Light"))
+				{
+					ImGui::Indent();
+					ImGui::InputFloat3("Position", &t_Light.pos.x);
+					ImGui::InputFloat4("Color", &t_Light.color.x);
+					ImGui::InputFloat("Scale", &t_Light.radius);
+					ImGui::Unindent();
+				}
+				ImGui::PopID();
+			}
+			ImGui::Unindent();
+		}
+
+		ImGui::End();
 	}
-	ImGui::End();
 }

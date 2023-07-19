@@ -72,6 +72,7 @@ int main(int argc, char** argv)
 	t_StandardLight.radius = 10.f;
 	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
 	SceneCreateInfo t_SceneCreateInfo;
+	t_SceneCreateInfo.sceneName = "test 3d scene";
 	t_SceneCreateInfo.lights = BB::Slice(&t_StandardLight, 1);
 	t_SceneCreateInfo.sceneWindowWidth = t_WindowWidth;
 	t_SceneCreateInfo.sceneWindowHeight = t_WindowHeight;
@@ -111,12 +112,11 @@ int main(int argc, char** argv)
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
-	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject(t_gltfCube,
-		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
+	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject("Duck",
+		t_gltfCube, glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
-	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject(t_Model,
-		glm::vec3(0, 1, 0));
+	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject("Quad", t_Model, glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
@@ -133,7 +133,7 @@ int main(int argc, char** argv)
 
 		//Editor::DisplayDrawObjects(t_Scene.GetDrawObjects(), t_TransformPool);
 		//Editor::DisplayLightPool()
-
+		Editor::DisplaySceneInfo(t_Scene);
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
 			const InputEvent& t_Event = t_InputEvents[i];

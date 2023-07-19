@@ -135,8 +135,3 @@ void LightSystem::UpdateDescriptor(const RDescriptor a_Descriptor, const Descrip
 
 	RenderBackend::WriteDescriptors(t_WriteInfo);
 }
-
-void LightSystem::Editor()
-{
-	Editor::DisplayLightSystem(*this);
-}

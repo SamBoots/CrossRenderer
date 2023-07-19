@@ -25,7 +25,8 @@ struct SceneInfo
 struct BB::SceneGraph_inst
 {
 	SceneGraph_inst(Allocator a_Allocator, const RenderBufferCreateInfo& a_BufferInfo, const size_t a_SceneBufferSizePerFrame, const SceneCreateInfo& a_CreateInfo, const uint32_t a_BackBufferCount)
-		:	systemAllocator(a_Allocator),
+		:	sceneName(a_CreateInfo.sceneName),
+			systemAllocator(a_Allocator),
 			drawObjects(a_Allocator, 256),
 			transformPool(a_Allocator, 256),
 			lights(a_Allocator, a_CreateInfo.lights.size()),
@@ -50,6 +51,8 @@ struct BB::SceneGraph_inst
 	{
 		BBfree(systemAllocator, uploadBufferChunk);
 	};
+
+	const char* sceneName = nullptr;
 
 	Allocator systemAllocator;
 
@@ -251,6 +254,7 @@ SceneGraph::~SceneGraph()
 	BBfree(t_Allocator, inst);
 }
 
+
 void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 {
 	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
@@ -444,15 +448,10 @@ void SceneGraph::SetView(const glm::mat4& a_View)
 	inst->sceneInfo.view = a_View;
 }
 
-DrawObjectHandle SceneGraph::CreateDrawObject(const RModelHandle a_Model, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
+DrawObjectHandle SceneGraph::CreateDrawObject(const char* a_Name, const RModelHandle a_Model, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
-	DrawObject t_DrawObject{ a_Model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale)};
+	DrawObject t_DrawObject{ a_Name, a_Model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale)};
 	return DrawObjectHandle(inst->drawObjects.emplace(t_DrawObject).handle);
-}
-
-BB::Slice<DrawObject> SceneGraph::GetDrawObjects()
-{
-	return BB::Slice(inst->drawObjects.data(), inst->drawObjects.size());
 }
 
 void SceneGraph::DestroyDrawObject(const DrawObjectHandle a_Handle)
@@ -466,9 +465,29 @@ Transform& SceneGraph::GetTransform(const DrawObjectHandle a_Handle) const
 	return inst->transformPool.GetTransform(inst->drawObjects[a_Handle.handle].transformHandle);
 }
 
+Transform& SceneGraph::GetTransform(const TransformHandle a_Handle) const
+{
+	return inst->transformPool.GetTransform(a_Handle);
+}
+
+BB::Slice<DrawObject> SceneGraph::GetDrawObjects()
+{
+	return BB::Slice(inst->drawObjects.data(), inst->drawObjects.size());
+}
+
+BB::Slice<Light> SceneGraph::GetLights()
+{
+	return inst->lights;
+}
+
 const RDescriptor SceneGraph::GetSceneDescriptor() const
 {
 	return inst->sceneDescriptor;
+}
+
+const char* SceneGraph::GetSceneName() const
+{
+	return inst->sceneName;
 }
 
 const RDescriptor SceneGraph::GetMeshDescriptor() const

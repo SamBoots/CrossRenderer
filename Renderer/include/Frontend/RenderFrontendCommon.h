@@ -90,6 +90,7 @@ namespace BB
 
 	struct DrawObject
 	{
+		const char* name;
 		RModelHandle modelHandle{};
 		TransformHandle transformHandle{};
 	};
