@@ -7,11 +7,6 @@
 
 #include "Storage/Slotmap.h"
 
-#pragma warning(push, 0)
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb/stb_image.h"
-#pragma warning (pop)
-
 using namespace BB;
 using namespace BB::Render;
 

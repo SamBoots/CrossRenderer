@@ -23,7 +23,8 @@ namespace BB
 		bool IsFinished();
 
 	private:
-		LinearAllocator_t m_Allocator{ mbSize * 4; };
+		void LoadTexture(const AssetLoaderInfo& a_Info);
+		LinearAllocator_t m_Allocator{ mbSize * 4 };
 		struct AssetLoader_inst* inst;
 	}
 }
