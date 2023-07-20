@@ -17,6 +17,7 @@ add_executable (Renderer
 "src/Backend/ShaderCompiler.cpp"
 "src/Backend/RenderResourceTracker.cpp"
 #Frontend
+"src/Frontend/AssetLoader.cpp"
 "src/Frontend/RenderFrontend.cpp"
 "src/Frontend/LightSystem.cpp"
 "src/Frontend/Transform.cpp"

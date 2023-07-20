@@ -131,9 +131,8 @@ int main(int argc, char** argv)
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
-		//Editor::DisplayDrawObjects(t_Scene.GetDrawObjects(), t_TransformPool);
-		//Editor::DisplayLightPool()
 		Editor::DisplaySceneInfo(t_Scene);
+
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
 			const InputEvent& t_Event = t_InputEvents[i];
