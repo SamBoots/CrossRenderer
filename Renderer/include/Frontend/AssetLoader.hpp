@@ -1,4 +1,5 @@
 #include "BBMemory.h"
+#include "RenderBackendCommon.h"
 
 namespace BB
 {
@@ -20,11 +21,17 @@ namespace BB
 		AssetLoader(const AssetLoaderInfo& a_Info);
 		~AssetLoader();
 
-		bool IsFinished();
+		bool IsFinished() const { return m_IsFinished; };
 
 	private:
-		void LoadTexture(const AssetLoaderInfo& a_Info);
+		void LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List);
+		void ExecuteCommands(RecordingCommandListHandle a_List);
+		
 		LinearAllocator_t m_Allocator{ mbSize * 4 };
-		struct AssetLoader_inst* inst;
+
+		CommandAllocatorHandle m_CmdAllocator;
+		CommandListHandle m_CommandList;
+		uint64_t m_WaitValue = UINT64_MAX;
+		bool m_IsFinished = false;
 	}
 }

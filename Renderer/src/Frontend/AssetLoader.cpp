@@ -9,31 +9,23 @@
 
 using namespace BB;
 
-struct BB::AssetLoader_inst
-{
-	CommandAllocatorHandle cmdAllocator;
-	CommandListHandle commandList;
-	uint64_t waitValue = UINT64_MAX;
-};
-
 AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 {
-	inst = BBnew(m_Allocator, AssetLoader_inst){};
 	{
 		RenderCommandAllocatorCreateInfo t_CreateInfo;
 		t_CreateInfo.name = "Async loading command allocator";
-		t_CreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
+		t_CreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
 		t_CreateInfo.commandListCount = 1;
-		inst->cmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
+		m_CmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
 	}
 	{
 		RenderCommandListCreateInfo t_CreateInfo;
 		t_CreateInfo.name = "Async loading command list";
-		t_CreateInfo.commandAllocator = inst->cmdAllocator;
-		inst->commandList = RenderBackend::CreateCommandList(t_CreateInfo);
+		t_CreateInfo.commandAllocator = m_CmdAllocator;
+		m_CommandList = RenderBackend::CreateCommandList(t_CreateInfo);
 	}
 
-	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(inst->commandList);
+	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(m_CommandList);
 
 	switch (switch_on)
 	{
@@ -44,14 +36,14 @@ AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 
 AssetLoader::~AssetLoader()
 {
-	RenderBackend::DestroyCommandAllocator(inst->cmdAllocator);
-	RenderBackend::DestroyCommandList(inst->commandList);
+	RenderBackend::DestroyCommandAllocator(m_CmdAllocator);
+	RenderBackend::DestroyCommandList(m_CommandList);
 	m_Allocator.Clear();
 }
 
 bool AssetLoader::IsFinished()
 {
-
+	RenderWaitCommandsInfo t_WaitInfo;
 }
 
 void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List)
@@ -128,9 +120,29 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 
 		RenderBackend::CopyBufferImage(a_List, t_CopyImageInfo);
 	}
-	inst->waitValue = RenderBackend::NextQueueFenceValue();
 	RenderBackend::EndCommandList(a_List);
+}
+
+void AssetLoader::ExecuteCommands(RecordingCommandListHandle a_List)
+{
+	RenderQueue& t_TransferQueue = Render::GetTransferQueue();
+	m_WaitValue = t_TransferQueue.GetNextFenceValue();
+
 	ExecuteCommandsInfo a_ExecuteInfo{};
-	a_ExecuteInfo.commands = &inst->commandList;
+	a_ExecuteInfo.commands = &m_CommandList;
 	a_ExecuteInfo.commandCount = 1;
+
+	a_ExecuteInfo.signalFences = &t_TransferQueue.GetFence();
+	a_ExecuteInfo.signalValues = &m_WaitValue;
+	a_ExecuteInfo.signalCount = 1;
+
+	t_TransferQueue.ExecuteCommands(&a_ExecuteInfo, 1);
+
+	RenderWaitCommandsInfo t_WaitInfo;
+	t_WaitInfo.waitFences = &t_TransferQueue.GetFence();
+	t_WaitInfo.waitValues = &m_WaitValue;
+	t_WaitInfo.waitCount = 1;
+	RenderBackend::WaitCommands(t_WaitInfo);
+
+	m_IsFinished = true;
 }

@@ -136,6 +136,14 @@ namespace BB
 		FRAGMENT_PIXEL
 	};
 
+	enum class RENDER_QUEUE_TRANSITION : uint32_t
+	{
+		NO_TRANSITION,
+		GRAPHICS,
+		TRANSFER,
+		COMPUTE
+	};
+
 	enum class RENDER_LOAD_OP : uint32_t
 	{
 		LOAD,
@@ -167,7 +175,7 @@ namespace BB
 	enum class RENDER_QUEUE_TYPE : uint32_t
 	{
 		GRAPHICS,
-		TRANSFER_COPY,
+		TRANSFER,
 		COMPUTE
 	};
 
@@ -187,7 +195,7 @@ namespace BB
 		RG8
 	};
 
-	enum class RENDER_BLEND_FACTOR
+	enum class RENDER_BLEND_FACTOR : uint32_t
 	{
 		ZERO,
 		ONE,
@@ -195,20 +203,20 @@ namespace BB
 		ONE_MINUS_SRC_ALPHA
 	};
 
-	enum class RENDER_BLEND_OP
+	enum class RENDER_BLEND_OP : uint32_t
 	{
 		ADD,
 		SUBTRACT
 	};
 
-	enum class RENDER_CULL_MODE
+	enum class RENDER_CULL_MODE : uint32_t
 	{
 		NONE,
 		FRONT,
 		BACK
 	};
 
-	enum class SAMPLER_ADDRESS_MODE
+	enum class SAMPLER_ADDRESS_MODE : uint32_t
 	{
 		REPEAT,
 		MIRROR,
@@ -216,7 +224,7 @@ namespace BB
 		CLAMP
 	};
 
-	enum class SAMPLER_FILTER
+	enum class SAMPLER_FILTER : uint32_t
 	{
 		NEAREST,
 		LINEAR
@@ -346,7 +354,6 @@ namespace BB
 	{
 		const char* name = nullptr;
 		RENDER_QUEUE_TYPE queue{};
-		RENDER_FENCE_FLAGS flags{};
 	};
 
 	struct RenderCommandAllocatorCreateInfo
@@ -364,8 +371,9 @@ namespace BB
 
 	struct RenderWaitCommandsInfo
 	{
-		BB::Slice<CommandQueueHandle> queues{};
-		BB::Slice<RFenceHandle> fences{};
+		RFenceHandle* waitFences = nullptr;
+		uint64_t* waitValues = nullptr;
+		uint32_t waitCount = 0;
 	};
 
 	struct RenderBufferCreateInfo
@@ -393,6 +401,7 @@ namespace BB
 	struct FenceCreateInfo
 	{
 		const char* name = nullptr;
+		uint64_t initialValue = 0;
 		RENDER_FENCE_FLAGS flags{};
 	};
 
@@ -405,6 +414,9 @@ namespace BB
 		RENDER_PIPELINE_STAGE dstStage{};
 		RENDER_ACCESS_MASK srcMask{};
 		RENDER_ACCESS_MASK dstMask{};
+
+		RENDER_QUEUE_TRANSITION srcQueue = RENDER_QUEUE_TRANSITION::NO_TRANSITION;
+		RENDER_QUEUE_TRANSITION dstQueue = RENDER_QUEUE_TRANSITION::NO_TRANSITION;
 
 		uint32_t baseMipLevel = 0;
 		uint32_t levelCount = 0;
@@ -598,12 +610,13 @@ namespace BB
 	{
 		CommandListHandle* commands = nullptr;
 		uint32_t commandCount = 0;
-		CommandQueueHandle* waitQueues = nullptr;
-		uint64_t* waitValues = 0;
-		uint32_t waitQueueCount = 0;
+		RFenceHandle* waitFences = nullptr;
+		uint64_t* waitValues = nullptr;
+		uint32_t waitCount = 0;
 		RENDER_PIPELINE_STAGE* waitStages = nullptr;
-		CommandQueueHandle* signalQueues = nullptr;
-		uint32_t signalQueueCount = 0;
+		RFenceHandle* signalFences = nullptr;
+		uint64_t* signalValues = nullptr;
+		uint32_t signalCount = 0;
 	};
 
 	//This struct gets returned and has the signal values of the send queue's fences.
@@ -687,9 +700,6 @@ namespace BB
 	typedef void (*PFN_RenderAPIExecutePresentCommands)(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	typedef FrameIndex(*PFN_RenderAPIPresentFrame)(const PresentFrameInfo& a_PresentInfo);
 
-	typedef uint64_t (*PFN_RenderAPINextQueueFenceValue)(const CommandQueueHandle a_Handle);
-	typedef uint64_t (*PFN_RenderAPINextFenceValue)(const RFenceHandle a_Handle);
-
 	typedef void (*PFN_RenderAPIWaitCommands)(const RenderWaitCommandsInfo& a_WaitInfo);
 
 	//Deletion
@@ -760,9 +770,6 @@ namespace BB
 		PFN_RenderAPIExecuteCommands executeCommands;
 		PFN_RenderAPIExecutePresentCommands executePresentCommands;
 		PFN_RenderAPIPresentFrame presentFrame;
-
-		PFN_RenderAPINextQueueFenceValue nextQueueFenceValue;
-		PFN_RenderAPINextFenceValue nextFenceValue;
 
 		PFN_RenderAPIWaitCommands waitCommands;
 

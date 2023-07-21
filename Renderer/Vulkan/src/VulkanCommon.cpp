@@ -155,12 +155,10 @@ struct VulkanBackend_inst
 	VmaAllocator vma{};
 	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
 
-	Pool<VulkanCommandQueue> cmdQueues;
 	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
 	Pool<VulkanImage> imagePool;
-	Pool<VulkanFence> vulkanFencePool;
 
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
@@ -169,22 +167,18 @@ struct VulkanBackend_inst
 
 	void CreatePools()
 	{
-		cmdQueues.CreatePool(s_VulkanAllocator, 8);
 		cmdAllocators.CreatePool(s_VulkanAllocator, 8);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
-		vulkanFencePool.CreatePool(s_VulkanAllocator, 16);
 	}
 
 	void DestroyPools()
 	{
-		cmdQueues.DestroyPool(s_VulkanAllocator);
 		cmdAllocators.DestroyPool(s_VulkanAllocator);
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
-		vulkanFencePool.DestroyPool(s_VulkanAllocator);
 	}
 };
 static VulkanBackend_inst s_VKB;
@@ -1115,7 +1109,6 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 
 CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
 {
-	VulkanCommandQueue* t_Queue = s_VKB.cmdQueues.Get();
 	uint32_t t_QueueIndex;
 
 	switch (a_CreateInfo.queue)
@@ -1123,7 +1116,7 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		t_QueueIndex = s_VKB.queueIndices.graphics;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+	case RENDER_QUEUE_TYPE::TRANSFER:
 		t_QueueIndex = s_VKB.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
@@ -1133,29 +1126,13 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 		BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
 		break;
 	}
-
+	VkQueue t_Queue;
 	vkGetDeviceQueue(s_VKB.device,
 		t_QueueIndex,
 		0,
-		&t_Queue->queue);
+		&t_Queue);
 
-	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
-	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-	t_TimelineSemInfo.initialValue = 0;
-
-	VkSemaphoreCreateInfo t_SemCreateInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
-
-	vkCreateSemaphore(s_VKB.device,
-		&t_SemCreateInfo,
-		nullptr,
-		&t_Queue->timelineSemaphore);
-
-
-	t_Queue->lastCompleteValue = 0;
-	t_Queue->nextSemValue = 1;
-
-	SetDebugName(a_CreateInfo.name, t_Queue->queue, VK_OBJECT_TYPE_QUEUE);
+	SetDebugName(a_CreateInfo.name, t_Queue, VK_OBJECT_TYPE_QUEUE);
 
 	return CommandQueueHandle(t_Queue);
 }
@@ -1170,7 +1147,7 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		t_CreateInfo.queueFamilyIndex = s_VKB.queueIndices.graphics;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+	case RENDER_QUEUE_TYPE::TRANSFER:
 		t_CreateInfo.queueFamilyIndex = s_VKB.queueIndices.transfer;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:
@@ -1345,25 +1322,22 @@ RSamplerHandle BB::VulkanCreateSampler(const SamplerCreateInfo& a_CreateInfo)
 
 RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 {
-	VulkanFence* t_Fence = s_VKB.vulkanFencePool.Get();
-	t_Fence->lastCompleteValue = 0;
-	t_Fence->nextFenceValue = 1;
-
 	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
 	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-	t_TimelineSemInfo.initialValue = 0;
+	t_TimelineSemInfo.initialValue = a_CreateInfo.initialValue;
 
 	VkSemaphoreCreateInfo t_SemCreateInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 	t_SemCreateInfo.pNext = &t_TimelineSemInfo;
 
+	VkSemaphore t_TimelineSemaphore;
 	vkCreateSemaphore(s_VKB.device,
 		&t_SemCreateInfo,
 		nullptr,
-		&t_Fence->timelineSem);
+		&t_TimelineSemaphore);
 
-	SetDebugName(a_CreateInfo.name, t_Fence->timelineSem, VK_OBJECT_TYPE_SEMAPHORE);
+	SetDebugName(a_CreateInfo.name, t_TimelineSemaphore, VK_OBJECT_TYPE_SEMAPHORE);
 
-	return RFenceHandle(t_Fence);
+	return RFenceHandle(t_TimelineSemaphore);
 }
 
 DescriptorAllocation BB::VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
@@ -2057,20 +2031,48 @@ void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHa
 		&t_CopyRegion);
 }
 
+static uint32_t queueTransitionIndex(const RENDER_QUEUE_TRANSITION a_Transition)
+{
+	switch (a_Transition)
+	{
+	case RENDER_QUEUE_TRANSITION::GRAPHICS:
+		return s_VKB.queueIndices.graphics;
+		break;
+	case RENDER_QUEUE_TRANSITION::TRANSFER:
+		return s_VKB.queueIndices.transfer;
+		break;
+	case RENDER_QUEUE_TRANSITION::COMPUTE:
+		return s_VKB.queueIndices.compute;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Queue transition not supported!");
+		return VK_QUEUE_FAMILY_IGNORED;
+		break;
+	}
+}
+
 void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
 {
-	VkImageMemoryBarrier2 t_Barrier{};
-	t_Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	VkImageMemoryBarrier2 t_Barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
 	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
 	t_Barrier.srcStageMask = VKConv::PipelineStage(a_TransitionInfo.srcStage);
 	t_Barrier.dstStageMask = VKConv::PipelineStage(a_TransitionInfo.dstStage);
 	t_Barrier.oldLayout = VKConv::ImageLayout(a_TransitionInfo.oldLayout);
 	t_Barrier.newLayout = VKConv::ImageLayout(a_TransitionInfo.newLayout);
-	t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
 
+	//if we do no transition on the source queue. Then set it all to false.
+	if (a_TransitionInfo.srcQueue == RENDER_QUEUE_TRANSITION::NO_TRANSITION)
+	{
+		t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	}
+	else
+	{
+		t_Barrier.srcQueueFamilyIndex = queueTransitionIndex(a_TransitionInfo.srcQueue);
+		t_Barrier.dstQueueFamilyIndex = queueTransitionIndex(a_TransitionInfo.dstQueue);
+	}
+	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
 	if (a_TransitionInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT || 
 		a_TransitionInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
 		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -2278,8 +2280,8 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 			t_CmdBuffers[j] = s_VKB.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
 		}
 
-		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitQueueCount;
-		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalQueueCount;
+		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitCount;
+		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalCount;
 		VkPipelineStageFlags* t_WaitStagesMask = nullptr;
 		if (t_WaitSemCount != 0)
 			t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
@@ -2296,8 +2298,7 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		//SETTING THE WAIT
 		for (uint32_t j = 0; j < t_WaitSemCount; j++)
 		{
-			t_Semaphores[j] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].waitQueues[j].ptrHandle)->timelineSemaphore;
+			t_Semaphores[j] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].waitFences[j].ptrHandle);
 			t_SemValues[j] = a_ExecuteInfos[i].waitValues[j];
 
 			t_WaitStagesMask[j] = VKConv::PipelineStage(a_ExecuteInfos[i].waitStages[j]);
@@ -2306,11 +2307,9 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		//SETTING THE SIGNAL
 		for (uint32_t j = 0; j < t_SignalSemCount; j++)
 		{
-			t_Semaphores[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->timelineSemaphore;
+			t_Semaphores[j + t_WaitSemCount] = reinterpret_cast<VkSemaphore>(a_ExecuteInfos[i].signalFences[j].ptrHandle);
 			//Increment the next sem value for signal
-			t_SemValues[j + t_WaitSemCount] = reinterpret_cast<VulkanCommandQueue*>(
-				a_ExecuteInfos[i].signalQueues[j].ptrHandle)->nextSemValue++;
+			t_SemValues[j + t_WaitSemCount] = a_ExecuteInfos[i].signalValues[j];
 		}
 
 		t_TimelineInfos[i].sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
@@ -2332,8 +2331,8 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		t_SubmitInfos[i].pNext = &t_TimelineInfos[i];
 	}
 
-	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
-	VKASSERT(vkQueueSubmit(t_Queue.queue,
+	VkQueue t_Queue = reinterpret_cast<VkQueue>(a_ExecuteQueue.ptrHandle);
+	VKASSERT(vkQueueSubmit(t_Queue,
 		a_ExecuteInfoCount,
 		t_SubmitInfos,
 		VK_NULL_HANDLE),
@@ -2351,10 +2350,10 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	}
 
 	//add 1 more to wait the binary semaphore for image presenting
-	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitQueueCount + 1;
+	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitCount + 1;
 	//add 1 more to signal the binary semaphore for image presenting
 	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
-	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalQueueCount + 2;
+	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalCount + 2;
 
 	VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
 		t_WaitSemCount,
@@ -2377,8 +2376,7 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	//Get the semaphore from the queues.
 	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
 	{
-		t_Semaphores[i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.waitQueues[i].ptrHandle)->timelineSemaphore;
+		t_Semaphores[i + 1] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.waitFences[i].ptrHandle);
 		t_SemValues[i + 1] = a_ExecuteInfo.waitValues[i];
 		t_WaitStagesMask[i + 1] = VKConv::PipelineStage(a_ExecuteInfo.waitStages[i]);
 	}
@@ -2393,11 +2391,9 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	t_SemValues[t_WaitSemCount + 1] = ++s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
 	for (uint32_t i = 0; i < t_SignalSemCount - 2; i++)
 	{
-		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.signalQueues[i].ptrHandle)->timelineSemaphore;
+		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.signalFences[i].ptrHandle);
 		//Increment the next sem value for signal
-		t_SemValues[t_WaitSemCount + i + 1] = reinterpret_cast<VulkanCommandQueue*>(
-			a_ExecuteInfo.signalQueues[i].ptrHandle)->nextSemValue++;
+		t_SemValues[t_WaitSemCount + i + 1] = a_ExecuteInfo.signalValues[i];
 	}
 
 	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{};
@@ -2419,8 +2415,8 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	t_SubmitInfo.pCommandBuffers = t_CmdBuffers;
 	t_SubmitInfo.pNext = &t_TimelineInfo;
 
-	VulkanCommandQueue t_Queue = *reinterpret_cast<VulkanCommandQueue*>(a_ExecuteQueue.ptrHandle);
-	VKASSERT(vkQueueSubmit(t_Queue.queue,
+	VkQueue t_Queue = reinterpret_cast<VkQueue>(a_ExecuteQueue.ptrHandle);
+	VKASSERT(vkQueueSubmit(t_Queue,
 		1,
 		&t_SubmitInfo,
 		VK_NULL_HANDLE),
@@ -2446,59 +2442,23 @@ FrameIndex BB::VulkanPresentFrame(const PresentFrameInfo& a_PresentInfo)
 	return s_VKB.currentFrame = (s_VKB.currentFrame + 1) % s_VKB.frameCount;
 }
 
-uint64_t BB::VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle)
-{
-	return reinterpret_cast<VulkanCommandQueue*>(a_Handle.ptrHandle)->nextSemValue;
-}
-
-//NOT IMPLEMENTED YET.
-uint64_t BB::VulkanNextFenceValue(const RFenceHandle a_Handle)
-{
-	return 0; //return reinterpret_cast<VkSemaphore*>(a_Handle.ptrHandle)->nextSemValue;
-}
-
 void BB::VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	uint32_t t_SemaCount = static_cast<uint32_t>(a_WaitInfo.fences.size() + a_WaitInfo.queues.size());
-	VkSemaphore* t_Semas = reinterpret_cast<VkSemaphore*>(_malloca(sizeof(VkSemaphore) * t_SemaCount));
-	uint64_t* t_SemValues = reinterpret_cast<uint64_t*>(_malloca(sizeof(uint64_t) * t_SemaCount));
-
-	for (size_t i = 0; i < a_WaitInfo.fences.size(); i++)
-	{
-		BB_ASSERT(false, "Vulkan: Fences are not correctly implemented yet!");
-	}
-
-	size_t t_Offset = a_WaitInfo.fences.size();
-
-	for (size_t i = 0; i < a_WaitInfo.queues.size(); i++)
-	{
-		VulkanCommandQueue* t_CmdQueue = reinterpret_cast<VulkanCommandQueue*>(a_WaitInfo.queues[i].ptrHandle);
-		//For now not wait for semaphores, may be required later.
-		
-		t_Semas[i + t_Offset] = t_CmdQueue->timelineSemaphore;
-		t_SemValues[i + t_Offset] = t_CmdQueue->nextSemValue - 1;
-	}
-
-	VkSemaphoreWaitInfo t_WaitInfo{};
-	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-	t_WaitInfo.semaphoreCount = t_SemaCount;
-	t_WaitInfo.pSemaphores = t_Semas;
-	t_WaitInfo.pValues = t_SemValues;
+	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+	t_WaitInfo.semaphoreCount = a_WaitInfo.waitCount;
+	t_WaitInfo.pSemaphores = reinterpret_cast<VkSemaphore*>(a_WaitInfo.waitFences);
+	t_WaitInfo.pValues = a_WaitInfo.waitValues;
 
 	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);
-
-	_freea(t_Semas);
-	_freea(t_SemValues);
 }
 
 void BB::VulkanDestroyFence(const RFenceHandle a_Handle)
 {
-	VulkanFence* t_Fence = reinterpret_cast<VulkanFence*>(a_Handle.ptrHandle);
+	VkSemaphore t_Semaphore = reinterpret_cast<VkSemaphore>(a_Handle.ptrHandle);
 	vkDestroySemaphore(s_VKB.device,
-		t_Fence->timelineSem,
+		t_Semaphore,
 		nullptr);
-	memset(t_Fence, 0, sizeof(VulkanFence));
-	s_VKB.vulkanFencePool.Free(t_Fence);
+	memset(t_Semaphore, 0, sizeof(t_Semaphore));
 }
 
 void BB::VulkanDestroySampler(const RSamplerHandle a_Handle)
@@ -2527,13 +2487,7 @@ void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)
 
 void BB::VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle)
 {
-	VulkanCommandQueue* t_CmdQueue = reinterpret_cast<VulkanCommandQueue*>(a_Handle.ptrHandle);
-	vkDestroySemaphore(s_VKB.device,
-		t_CmdQueue->timelineSemaphore,
-		nullptr);
-
-	memset(t_CmdQueue, 0, sizeof(VulkanCommandQueue));
-	s_VKB.cmdQueues.Free(t_CmdQueue);
+	//nothing to delete here.
 }
 
 void BB::VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle)

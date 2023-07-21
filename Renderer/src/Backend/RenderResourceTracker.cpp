@@ -423,7 +423,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 					case RENDER_QUEUE_TYPE::GRAPHICS:
 						ImGui::Text("Queue type: GRAPHICS");
 						break;
-					case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+					case RENDER_QUEUE_TYPE::TRANSFER:
 						ImGui::Text("Queue type: TRANSFER_COPY");
 						break;
 					case RENDER_QUEUE_TYPE::COMPUTE:
@@ -445,7 +445,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 					case RENDER_QUEUE_TYPE::GRAPHICS:
 						ImGui::Text("Queue type: GRAPHICS");
 						break;
-					case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+					case RENDER_QUEUE_TYPE::TRANSFER:
 						ImGui::Text("Queue type: TRANSFER_COPY");
 						break;
 					case RENDER_QUEUE_TYPE::COMPUTE:

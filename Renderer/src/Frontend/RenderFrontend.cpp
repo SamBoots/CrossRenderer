@@ -7,6 +7,11 @@
 
 #include "Storage/Slotmap.h"
 
+#pragma warning(push, 0)
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+#pragma warning (pop)
+
 using namespace BB;
 using namespace BB::Render;
 
@@ -34,11 +39,12 @@ struct Render_inst
 	LinearRenderBuffer vertexBuffer;
 	LinearRenderBuffer indexBuffer;
 
+	RenderQueue graphicsQueue{ RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue" };
+	RenderQueue computeQueue{ RENDER_QUEUE_TYPE::COMPUTE, "compute queue" };
+	RenderQueue transferQueue{ RENDER_QUEUE_TYPE::TRANSFER, "transfer queue" };
+
 	Slotmap<Model> models;
 };
-
-CommandQueueHandle graphicsQueue;
-CommandQueueHandle transferQueue;
 
 CommandAllocatorHandle t_CommandAllocators[3];
 CommandAllocatorHandle t_TransferAllocator[3];
@@ -174,15 +180,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	}
 
-	RenderCommandQueueCreateInfo t_QueueCreateInfo{};
-	t_QueueCreateInfo.name = "Graphics queue";
-	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::GRAPHICS;
-	t_QueueCreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
-	graphicsQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
-	t_QueueCreateInfo.name = "Transfer queue";
-	t_QueueCreateInfo.queue = RENDER_QUEUE_TYPE::TRANSFER_COPY;
-	transferQueue = RenderBackend::CreateCommandQueue(t_QueueCreateInfo);
-
 	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
 	t_AllocatorCreateInfo.name = "Graphics command allocator";
 	t_AllocatorCreateInfo.commandListCount = 10;
@@ -192,7 +189,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 
 	t_AllocatorCreateInfo.name = "Transfer command allocator";
-	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER_COPY;
+	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
 	t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 	t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
@@ -269,33 +266,37 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 			ExecuteCommandsInfo);
 		RenderBackend::EndCommandList(t_RecordingGraphics);
 
+		uint64_t t_SignalValue = s_RenderInst->graphicsQueue.GetNextFenceValue();
 		t_ExecuteInfo[0] = {};
 		t_ExecuteInfo[0].commands = &t_GraphicCommands[s_CurrentFrame];
 		t_ExecuteInfo[0].commandCount = 1;
-		t_ExecuteInfo[0].signalQueues = &graphicsQueue;
-		t_ExecuteInfo[0].signalQueueCount = 1;
+		t_ExecuteInfo[0].signalFences = &s_RenderInst->graphicsQueue.GetFence();
+		t_ExecuteInfo[0].signalValues = &t_SignalValue;
+		t_ExecuteInfo[0].signalCount = 1;
 
-		RenderBackend::ExecuteCommands(graphicsQueue, t_ExecuteInfo, 1);
+		s_RenderInst->graphicsQueue.ExecuteCommands(t_ExecuteInfo, 1);
+
+		RenderWaitCommandsInfo t_WaitInfo;
+		t_WaitInfo.waitCount = 1;
+		t_WaitInfo.waitFences = &s_RenderInst->graphicsQueue.GetFence();
+		t_WaitInfo.waitValues = &t_SignalValue;
+		RenderBackend::WaitCommands(t_WaitInfo);
 
 		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
 		{
 			Shader::ReleaseShaderCode(t_ImguiShaders[i]);
 		}
 	}
-
-	CommandQueueHandle t_Queues[1]{ graphicsQueue };
-	RenderWaitCommandsInfo t_WaitInfo{};
-	t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
-	RenderBackend::WaitCommands(t_WaitInfo);
 }
 
 void BB::Render::DestroyRenderer()
 {
-	{
-		CommandQueueHandle t_Queues[2]{ graphicsQueue, transferQueue };
-		RenderWaitCommandsInfo t_WaitInfo{};
-		t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
-		RenderBackend::WaitCommands(t_WaitInfo);
+	{//Don't know what to do here yet.
+		
+		//CommandQueueHandle t_Queues[2]{ graphicsQueue, transferQueue };
+		//RenderWaitCommandsInfo t_WaitInfo{};
+		//t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
+		//RenderBackend::WaitCommands(t_WaitInfo);
 	}
 
 	for (auto it = s_RenderInst->models.begin(); it < s_RenderInst->models.end(); it++)
@@ -354,6 +355,21 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 const RDescriptor BB::Render::GetGlobalDescriptorSet()
 {
 	return s_RenderInst->io.globalDescriptor;
+}
+
+RenderQueue& Render::GetGraphicsQueue()
+{
+	return s_RenderInst->graphicsQueue;
+}
+
+RenderQueue& Render::GetComputeQueue()
+{
+	return s_RenderInst->computeQueue;
+}
+
+RenderQueue& Render::GetTransferQueue()
+{
+	return s_RenderInst->transferQueue;
 }
 
 Model& BB::Render::GetModel(const RModelHandle a_Handle)
@@ -615,24 +631,24 @@ void BB::Render::EndFrame()
 		2,
 		ExecuteCommandsInfo);
 
+	uint64_t t_SignalValue = s_RenderInst->transferQueue.GetNextFenceValue();
 	t_ExecuteInfos[0] = {};
 	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
 	t_ExecuteInfos[0].commandCount = 1;
-	t_ExecuteInfos[0].signalQueues = &transferQueue;
-	t_ExecuteInfos[0].signalQueueCount = 1;
+	t_ExecuteInfos[0].signalFences = &s_RenderInst->transferQueue.GetFence();
+	t_ExecuteInfos[0].signalValues = &t_SignalValue;
+	t_ExecuteInfos[0].signalCount = 1;
 
-	RenderBackend::ExecuteCommands(transferQueue, &t_ExecuteInfos[0], 1);
-
-	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(transferQueue) - 1;
+	s_RenderInst->transferQueue.ExecuteCommands(&t_ExecuteInfos[0], 1);
 
 	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
 	RENDER_PIPELINE_STAGE t_WaitStage = RENDER_PIPELINE_STAGE::VERTEX_SHADER;
 	t_ExecuteInfos[1] = {};
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
-	t_ExecuteInfos[1].waitQueueCount = 1;
-	t_ExecuteInfos[1].waitQueues = &transferQueue;
-	t_ExecuteInfos[1].waitValues = &t_WaitValue;
+	t_ExecuteInfos[1].waitCount = 1;
+	t_ExecuteInfos[1].waitFences = &s_RenderInst->graphicsQueue.GetFence();
+	t_ExecuteInfos[1].waitValues = &t_SignalValue;
 	t_ExecuteInfos[1].waitStages = &t_WaitStage;
 
 	RenderBackend::ExecutePresentCommands(graphicsQueue, t_ExecuteInfos[1]);

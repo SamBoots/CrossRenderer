@@ -53,7 +53,7 @@ const D3D12_COMMAND_LIST_TYPE BB::DXConv::CommandListType(const RENDER_QUEUE_TYP
 	switch (a_RenderQueueType)
 	{
 	case RENDER_QUEUE_TYPE::GRAPHICS:				return D3D12_COMMAND_LIST_TYPE_DIRECT;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:			return D3D12_COMMAND_LIST_TYPE_COPY;
+	case RENDER_QUEUE_TYPE::TRANSFER:			return D3D12_COMMAND_LIST_TYPE_COPY;
 	default:
 		BB_ASSERT(false, "DX12: Tried to make a commandlist with a queue type that does not exist.");
 		return D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -366,7 +366,7 @@ DXCommandQueue::DXCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
 	case RENDER_QUEUE_TYPE::GRAPHICS:
 		t_Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER_COPY:
+	case RENDER_QUEUE_TYPE::TRANSFER:
 		t_Type = D3D12_COMMAND_LIST_TYPE_COPY;
 		break;
 	case RENDER_QUEUE_TYPE::COMPUTE:

@@ -354,6 +354,33 @@ void LinearRenderBuffer::UnmapBuffer() const
 	RenderBackend::UnmapMemory(m_Buffer);
 }
 
+RenderQueue::RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name)
+{
+	RenderCommandQueueCreateInfo t_CreateInfo;
+	t_CreateInfo.name = a_Name;
+	t_CreateInfo.queue = a_QueueType;
+	m_Queue = RenderBackend::CreateCommandQueue(t_CreateInfo);
+
+	FenceCreateInfo t_FenceInfo{};
+	t_FenceInfo.name = a_Name;
+	t_FenceInfo.initialValue = 0;
+	m_Fence.fence = RenderBackend::CreateFence(t_FenceInfo);
+	m_Fence.lastCompleteValue = 0;
+	m_Fence.nextFenceValue = 1;
+}
+
+RenderQueue::~RenderQueue()
+{
+	RenderBackend::DestroyCommandQueue(m_Queue);
+	RenderBackend::DestroyFence(m_Fence.fence);
+}
+
+void RenderQueue::ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteCount)
+{
+	RenderBackend::ExecuteCommands(m_Queue, a_ExecuteInfos, a_ExecuteCount);
+	m_Fence.nextFenceValue++;
+}
+
 #pragma region API_Backend
 void BB::RenderBackend::DisplayDebugInfo()
 {
@@ -609,16 +636,6 @@ void BB::RenderBackend::WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 void BB::RenderBackend::ResizeWindow(uint32_t a_X, uint32_t a_Y)
 {
 	s_ApiFunc.resizeWindow(a_X, a_Y);
-}
-
-uint64_t BB::RenderBackend::NextQueueFenceValue(const CommandQueueHandle a_Handle)
-{
-	return s_ApiFunc.nextQueueFenceValue(a_Handle);
-}
-
-uint64_t BB::RenderBackend::NextFenceValue(const RFenceHandle a_Handle)
-{
-	return s_ApiFunc.nextFenceValue(a_Handle);
 }
 
 void BB::RenderBackend::DestroyFence(const RFenceHandle a_Handle)

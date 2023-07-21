@@ -57,9 +57,6 @@ namespace BB
 	void VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	FrameIndex VulkanPresentFrame(const PresentFrameInfo& a_PresentInfo);
 
-	uint64_t VulkanNextQueueFenceValue(const CommandQueueHandle a_Handle);
-	uint64_t VulkanNextFenceValue(const RFenceHandle a_Handle);
-
 	void VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
 	void VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);

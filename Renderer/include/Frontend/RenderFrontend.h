@@ -32,7 +32,11 @@ namespace BB
 		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
 
 		const RDescriptor GetGlobalDescriptorSet();
-		
+
+		RenderQueue& GetGraphicsQueue();
+		RenderQueue& GetComputeQueue();
+		RenderQueue& GetTransferQueue();
+
 		Model& GetModel(const RModelHandle a_Handle);
 		RModelHandle CreateRawModel(const CreateRawModelInfo& a_CreateInfo);
 		RModelHandle LoadModel(const LoadModelInfo& a_LoadInfo);

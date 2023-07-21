@@ -96,6 +96,31 @@ namespace BB
 		struct DescriptorManager_inst* m_Inst;
 	};
 
+	struct RenderFence
+	{
+		RFenceHandle fence;
+		uint64_t nextFenceValue;
+		uint64_t lastCompleteValue;
+	};
+
+	class RenderQueue
+	{
+	public:
+		RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name);
+		~RenderQueue();
+
+		//Also handles incrementing the 
+		void ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteCount);
+
+		RFenceHandle GetFence() const { return m_Fence.fence; }
+		uint64_t GetNextFenceValue() const { return m_Fence.nextFenceValue; }
+		uint64_t GetLastCompletedValue() const { return m_Fence.lastCompleteValue; }
+
+	private:
+		CommandQueueHandle m_Queue;
+		RenderFence m_Fence;
+	};
+
 	namespace RenderBackend
 	{
 		void DisplayDebugInfo();
@@ -147,9 +172,6 @@ namespace BB
 		void ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount);
 		void ExecutePresentCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 		FrameIndex PresentFrame(const PresentFrameInfo& a_PresentInfo);
-
-		uint64_t NextQueueFenceValue(const CommandQueueHandle a_Handle);
-		uint64_t NextFenceValue(const RFenceHandle a_Handle);
 
 		void ResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
