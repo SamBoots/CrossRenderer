@@ -26,12 +26,6 @@ AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 	}
 
 	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(m_CommandList);
-
-	switch (switch_on)
-	{
-	default:
-		break;
-	}
 }
 
 AssetLoader::~AssetLoader()
@@ -39,11 +33,6 @@ AssetLoader::~AssetLoader()
 	RenderBackend::DestroyCommandAllocator(m_CmdAllocator);
 	RenderBackend::DestroyCommandList(m_CommandList);
 	m_Allocator.Clear();
-}
-
-bool AssetLoader::IsFinished()
-{
-	RenderWaitCommandsInfo t_WaitInfo;
 }
 
 void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List)

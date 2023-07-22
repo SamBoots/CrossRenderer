@@ -647,11 +647,11 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
 	t_ExecuteInfos[1].commandCount = 1;
 	t_ExecuteInfos[1].waitCount = 1;
-	t_ExecuteInfos[1].waitFences = &s_RenderInst->graphicsQueue.GetFence();
+	t_ExecuteInfos[1].waitFences = &s_RenderInst->transferQueue.GetFence();
 	t_ExecuteInfos[1].waitValues = &t_SignalValue;
 	t_ExecuteInfos[1].waitStages = &t_WaitStage;
 
-	RenderBackend::ExecutePresentCommands(graphicsQueue, t_ExecuteInfos[1]);
+	RenderBackend::ExecutePresentCommands(s_RenderInst->graphicsQueue.GetQueue(), t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 }

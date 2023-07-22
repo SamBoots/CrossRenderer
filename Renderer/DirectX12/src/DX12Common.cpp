@@ -4,6 +4,7 @@
 #include "Slotmap.h"
 #include "Pool.h"
 #include "BBString.h"
+#include <malloc.h>
 
 #include "TemporaryAllocator.h"
 
@@ -31,6 +32,44 @@ enum class ShaderType
 	VERTEX,
 	PIXEL
 };
+
+static void WaitFenceIdle(ID3D12Fence* a_Fence, const uint64_t a_FenceValue)
+{
+	HANDLE t_WaitHandle = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
+	a_Fence->SetEventOnCompletion(a_FenceValue, t_WaitHandle);
+	WaitForSingleObjectEx(t_WaitHandle, INFINITE, false);
+	CloseHandle(t_WaitHandle);
+}
+
+static void WaitFencesIdle(ID3D12Fence** a_Fences, const uint64_t* a_FenceValues, const uint32_t a_FenceCount)
+{
+	HANDLE* t_WaitHandles = reinterpret_cast<HANDLE*>(_malloca(a_FenceCount * sizeof(HANDLE)));
+
+	for (size_t i = 0; i < a_FenceCount; i++)
+	{
+		t_WaitHandles[i] = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
+		BB_ASSERT(t_WaitHandles[i] != NULL, "WIN, failed to create event.");
+		a_Fences[i]->SetEventOnCompletion(a_FenceValues[i], t_WaitHandles[i]);
+	}
+
+	WaitForMultipleObjects(a_FenceCount, t_WaitHandles, true, INFINITE);
+
+	for (size_t i = 0; i < a_FenceCount; i++)
+	{
+		CloseHandle(t_WaitHandles[i]);
+	}
+	_freea(t_WaitHandles);
+}
+
+static void WaitFenceCPU(ID3D12Fence* a_Fence, const uint64_t a_FenceValue)
+{
+	if (a_Fence->GetCompletedValue() > a_FenceValue)
+	{
+		return;
+	}
+
+	WaitFenceIdle(a_Fence, a_FenceValue);
+}
 
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
 {
@@ -79,7 +118,7 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 
 	s_DX12B.currentFrame = s_DX12B.swapchain->GetCurrentBackBufferIndex();
 
-	{ //crea
+	{ //create RTV heap
 		const UINT t_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 		D3D12_DESCRIPTOR_HEAP_DESC t_RtvHeapDesc = {};
@@ -210,11 +249,21 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 
 	s_DX12B.frameFences = BBnewArr(s_DX12Allocator,
 		s_DX12B.backBufferCount,
-		DXFence);
+		DX12Backend_inst::DXFence);
 
 	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
 	{
-		new (&s_DX12B.frameFences[i]) DXFence("DLL INTERNAL BACKBUFFER FENCES");
+		DXASSERT(s_DX12B.device->CreateFence(0,
+			D3D12_FENCE_FLAG_NONE,
+			IID_PPV_ARGS(&s_DX12B.frameFences[i].fence)),
+			"DX12: Failed to create fence.");
+
+		s_DX12B.frameFences[i].lastCompleteValue = 0;
+		s_DX12B.frameFences[i].nextFenceValue = 1;
+
+#ifdef _DEBUG
+		s_DX12B.frameFences[i].fence->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, "DLL INTERNAL BACKBUFFER FENCES"));
+#endif
 	}
 
 	{//get heap increment sizes;
@@ -284,10 +333,36 @@ RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	if (a_Info.queue == RENDER_QUEUE_TYPE::GRAPHICS)
-		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())
-			DXCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, s_DX12B.directpresentqueue));
-	else
-		return CommandQueueHandle(new (s_DX12B.cmdQueues.Get())DXCommandQueue(a_Info));
+		return CommandQueueHandle(s_DX12B.directpresentqueue);
+
+	D3D12_COMMAND_LIST_TYPE t_Type{};
+	switch (a_Info.queue)
+	{
+	case RENDER_QUEUE_TYPE::TRANSFER:
+		t_Type = D3D12_COMMAND_LIST_TYPE_COPY;
+		break;
+	case RENDER_QUEUE_TYPE::COMPUTE:
+		t_Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
+		break;
+	default:
+		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
+		t_Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		break;
+	}
+
+	ID3D12CommandQueue* t_Queue;
+	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
+	t_QueueDesc.Type = t_Type;
+	t_QueueDesc.NodeMask = 0;
+
+	DXASSERT(s_DX12B.device->CreateCommandQueue(&t_QueueDesc,
+		IID_PPV_ARGS(&t_Queue)),
+		"DX12: Failed to create queue.");
+
+	if (a_Info.name)
+		t_Queue->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Info.name));
+
+	return CommandQueueHandle(t_Queue);
 }
 
 CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
@@ -328,7 +403,18 @@ RSamplerHandle BB::DX12CreateSampler(const SamplerCreateInfo& a_Info)
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 {
-	return RFenceHandle(new (s_DX12B.fencePool.Get()) DXFence(a_Info.name));
+	ID3D12Fence* t_Fence;
+	DXASSERT(s_DX12B.device->CreateFence(0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&t_Fence)),
+		"DX12: Failed to create fence.");
+
+#ifdef _DEBUG
+	if (a_Info.name)
+		t_Fence->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Info.name));
+#endif
+
+	return RFenceHandle(t_Fence);
 }
 
 DescriptorAllocation BB::DX12AllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
@@ -1059,24 +1145,25 @@ void BB::DX12UnMemory(const RBufferHandle a_Handle)
 
 void BB::DX12StartFrame(const StartFrameInfo& a_StartInfo)
 {
-	s_DX12B.frameFences[s_DX12B.currentFrame].WaitIdle();
+	WaitFenceCPU(s_DX12B.frameFences[s_DX12B.currentFrame].fence, 
+		s_DX12B.frameFences[s_DX12B.currentFrame].nextFenceValue - 1);
 }
 
 void BB::DX12ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
+	ID3D12CommandQueue* t_Queue = reinterpret_cast<ID3D12CommandQueue*>(a_ExecuteQueue.ptrHandle);
+
 	for (size_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
 		ID3D12CommandList** t_CommandLists = BBnewArr(
 			s_DX12TempAllocator,
 			a_ExecuteInfos[i].commandCount,
-			ID3D12CommandList*
-		);
+			ID3D12CommandList*);
 
-		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].waitQueueCount; queueIndex++)
+		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].waitCount; queueIndex++)
 		{
-			DXCommandQueue* t_WaitQueue = reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].waitQueues[queueIndex].ptrHandle);
-			reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->InsertWaitQueueFence(
-				*t_WaitQueue, a_ExecuteInfos[i].waitValues[queueIndex]);
+			ID3D12Fence* t_WaitFence = reinterpret_cast<ID3D12Fence*>(a_ExecuteInfos[i].waitFences[queueIndex].ptrHandle);
+			t_Queue->Wait(t_WaitFence, a_ExecuteInfos[i].waitValues[queueIndex]);
 		}
 
 		for (size_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
@@ -1085,13 +1172,11 @@ void BB::DX12ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCom
 				a_ExecuteInfos[i].commands[j].ptrHandle)->List();
 		}
 
-		reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->ExecuteCommandlist(
-			t_CommandLists,
-			a_ExecuteInfos[i].commandCount);
-
-		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].signalQueueCount; queueIndex++)
+		t_Queue->ExecuteCommandLists(a_ExecuteInfos[i].commandCount, t_CommandLists);
+		for (size_t queueIndex = 0; queueIndex < a_ExecuteInfos[i].signalCount; queueIndex++)
 		{
-			reinterpret_cast<DXCommandQueue*>(a_ExecuteInfos[i].signalQueues[queueIndex].ptrHandle)->SignalQueue();
+			ID3D12Fence* t_SignalFence = reinterpret_cast<ID3D12Fence*>(a_ExecuteInfos[i].signalFences[queueIndex].ptrHandle);
+			t_Queue->Signal(t_SignalFence, a_ExecuteInfos[i].signalValues[queueIndex]);
 		}
 	}
 }
@@ -1099,17 +1184,17 @@ void BB::DX12ExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCom
 //Special execute commands, not sure if DX12 needs anything special yet.
 void BB::DX12ExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
+	ID3D12CommandQueue* t_Queue = reinterpret_cast<ID3D12CommandQueue*>(a_ExecuteQueue.ptrHandle);
+
 	ID3D12CommandList** t_CommandLists = BBnewArr(
 		s_DX12TempAllocator,
 		a_ExecuteInfo.commandCount,
-		ID3D12CommandList*
-	);
+		ID3D12CommandList*);
 
-	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.waitQueueCount; queueIndex++)
+	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.waitCount; queueIndex++)
 	{
-		DXCommandQueue* t_WaitQueue = reinterpret_cast<DXCommandQueue*>(a_ExecuteInfo.waitQueues[queueIndex].ptrHandle);
-		reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->InsertWaitQueueFence(
-			*t_WaitQueue, a_ExecuteInfo.waitValues[queueIndex]);
+		ID3D12Fence* t_WaitFence = reinterpret_cast<ID3D12Fence*>(a_ExecuteInfo.waitFences[queueIndex].ptrHandle);
+		t_Queue->Wait(t_WaitFence, a_ExecuteInfo.waitValues[queueIndex]);
 	}
 
 	for (size_t j = 0; j < a_ExecuteInfo.commandCount; j++)
@@ -1118,16 +1203,14 @@ void BB::DX12ExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Exec
 			a_ExecuteInfo.commands[j].ptrHandle)->List();
 	}
 
-	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->ExecuteCommandlist(
-		t_CommandLists,
-		a_ExecuteInfo.commandCount);
+	t_Queue->ExecuteCommandLists(a_ExecuteInfo.commandCount, t_CommandLists);
 
-	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.signalQueueCount; queueIndex++)
+	for (size_t queueIndex = 0; queueIndex < a_ExecuteInfo.signalCount; queueIndex++)
 	{
-		reinterpret_cast<DXCommandQueue*>(a_ExecuteInfo.signalQueues[queueIndex].ptrHandle)->SignalQueue();
+		ID3D12Fence* t_SignalFence = reinterpret_cast<ID3D12Fence*>(a_ExecuteInfo.signalFences[queueIndex].ptrHandle);
+		t_Queue->Signal(t_SignalFence, a_ExecuteInfo.signalValues[queueIndex]);
 	}
-	reinterpret_cast<DXCommandQueue*>(a_ExecuteQueue.ptrHandle)->SignalQueue(
-		s_DX12B.frameFences[s_DX12B.currentFrame]);
+	t_Queue->Signal(s_DX12B.frameFences[s_DX12B.currentFrame].fence, s_DX12B.frameFences[s_DX12B.currentFrame].nextFenceValue++);
 }
 
 FrameIndex BB::DX12PresentFrame(const PresentFrameInfo& a_PresentInfo)
@@ -1138,35 +1221,14 @@ FrameIndex BB::DX12PresentFrame(const PresentFrameInfo& a_PresentInfo)
 	return s_DX12B.currentFrame;
 }
 
-uint64_t BB::DX12NextQueueFenceValue(const CommandQueueHandle a_Handle)
-{
-	return reinterpret_cast<DXCommandQueue*>(a_Handle.ptrHandle)->GetNextFenceValue();
-}
-
-//TO BE IMPLEMENTED.
-uint64_t BB::DX12NextFenceValue(const RFenceHandle a_Handle)
-{
-	return reinterpret_cast<DXFence*>(a_Handle.ptrHandle)->GetNextFenceValue();
-}
-
 void BB::DX12WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	for (size_t i = 0; i < a_WaitInfo.fences.size(); i++)
-	{
-		reinterpret_cast<DXFence*>(a_WaitInfo.fences[i].ptrHandle)->WaitIdle();
-	}
-
-	for (size_t i = 0; i < a_WaitInfo.queues.size(); i++)
-	{
-		reinterpret_cast<DXCommandQueue*>(a_WaitInfo.queues[i].ptrHandle)->WaitIdle();
-	}
+	WaitFencesIdle(reinterpret_cast<ID3D12Fence**>(a_WaitInfo.waitFences), a_WaitInfo.waitValues, a_WaitInfo.waitCount);
 }
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
 {
-	DXFence* t_Fence = reinterpret_cast<DXFence*>(a_Handle.ptrHandle);
-	t_Fence->~DXFence();
-	s_DX12B.fencePool.Free(t_Fence);
+	reinterpret_cast<ID3D12Fence*>(a_Handle.ptrHandle)->Release();
 }
 
 void BB::DX12DestroySampler(const RSamplerHandle a_Handle)
@@ -1193,7 +1255,7 @@ void BB::DX12DestroyBuffer(const RBufferHandle a_Handle)
 
 void BB::DX12DestroyCommandQueue(const CommandQueueHandle a_Handle)
 {
-	reinterpret_cast<DXCommandQueue*>(a_Handle.ptrHandle)->~DXCommandQueue();
+	reinterpret_cast<ID3D12CommandQueue*>(a_Handle.ptrHandle)->Release();
 }
 
 void BB::DX12DestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
@@ -1236,6 +1298,10 @@ void BB::DX12DestroyBackend()
 	s_DX12B.swapchain->SetFullscreenState(false, NULL);
 	s_DX12B.swapchain->Release();
 	s_DX12B.swapchain = nullptr;
+	for (size_t i = 0; i < s_DX12B.backBufferCount; i++)
+	{
+		DXRelease(s_DX12B.frameFences[i].fence);
+	}
 
 	s_DX12B.DXMA->Release();
 	if (s_DX12B.debugDevice)

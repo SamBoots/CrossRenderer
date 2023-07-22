@@ -1,6 +1,5 @@
 #include "DX12HelperTypes.h"
 #include "Utils.h"
-#include "Math.inl"
 
 using namespace BB;
 
@@ -100,60 +99,6 @@ const D3D12_LOGIC_OP BB::DXConv::LogicOp(const RENDER_LOGIC_OP a_LogicOp)
 		return D3D12_LOGIC_OP_CLEAR;
 		break;
 	}
-}
-
-DXFence::DXFence(const char* a_Name)
-{
-	DXASSERT(s_DX12B.device->CreateFence(0,
-		D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&m_Fence)),
-		"DX12: Failed to create fence.");
-
-	m_FenceEvent = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
-	BB_ASSERT(m_FenceEvent != NULL, "WIN, failed to create event.");
-
-	m_LastCompleteValue = 0;
-	m_NextFenceValue = 1;
-
-#ifdef _DEBUG
-	if (a_Name)
-		m_Fence->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Name));
-#endif
-}
-
-DXFence::~DXFence()
-{
-	CloseHandle(m_FenceEvent);
-	DXRelease(m_Fence);
-	memset(this, 0, sizeof(*this));
-}
-
-uint64_t DXFence::PollFenceValue()
-{
-	m_LastCompleteValue = Max(m_LastCompleteValue, m_Fence->GetCompletedValue());
-	return m_LastCompleteValue;
-}
-
-bool DXFence::IsFenceComplete(const uint64_t a_FenceValue)
-{
-	if (a_FenceValue > m_LastCompleteValue)
-	{
-		PollFenceValue();
-	}
-
-	return a_FenceValue <= m_LastCompleteValue;
-}
-
-void DXFence::WaitFenceCPU(const uint64_t a_FenceValue)
-{
-	if (IsFenceComplete(a_FenceValue))
-	{
-		return;
-	}
-
-	m_Fence->SetEventOnCompletion(a_FenceValue, m_FenceEvent);
-	WaitForSingleObjectEx(m_FenceEvent, INFINITE, false);
-	m_LastCompleteValue = a_FenceValue;
 }
 
 DXResource::DXResource(const RenderBufferCreateInfo& a_CreateInfo)
@@ -355,86 +300,6 @@ void DXSampler::UpdateSamplerInfo(const SamplerCreateInfo& a_Info)
 	m_Desc.MinLOD = a_Info.minLod;
 	m_Desc.MaxLOD = a_Info.maxLod;
 	m_Desc.MaxAnisotropy = static_cast<UINT>(a_Info.maxAnistoropy);
-}
-
-DXCommandQueue::DXCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo)
-	: m_Fence(a_CreateInfo.name)
-{
-	D3D12_COMMAND_LIST_TYPE t_Type{};
-	switch (a_CreateInfo.queue)
-	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:
-		t_Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		break;
-	case RENDER_QUEUE_TYPE::TRANSFER:
-		t_Type = D3D12_COMMAND_LIST_TYPE_COPY;
-		break;
-	case RENDER_QUEUE_TYPE::COMPUTE:
-		t_Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
-		break;
-	default:
-		BB_ASSERT(false, "DX12: Tried to make a command queue with a queue type that does not exist.");
-		t_Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		break;
-	}
-
-	D3D12_COMMAND_QUEUE_DESC t_QueueDesc{};
-	t_QueueDesc.Type = t_Type;
-	t_QueueDesc.NodeMask = 0;
-	m_QueueType = t_Type;
-	DXASSERT(s_DX12B.device->CreateCommandQueue(&t_QueueDesc,
-		IID_PPV_ARGS(&m_Queue)),
-		"DX12: Failed to create queue.");
-
-#ifdef _DEBUG
-	if (a_CreateInfo.name)
-		m_Queue->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
-#endif
-}
-
-DXCommandQueue::DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue)
-	: m_Fence("MAYBE PRESENT QUEUE FENCE")
-{
-	m_Queue = a_CommandQueue;
-	m_QueueType = a_CommandType;
-}
-
-DXCommandQueue::~DXCommandQueue()
-{
-	DXRelease(m_Queue);
-	memset(this, 0, sizeof(*this));
-}
-
-void DXCommandQueue::InsertWait(const uint64_t a_FenceValue)
-{
-	m_Queue->Wait(m_Fence.m_Fence, a_FenceValue);
-}
-
-void DXCommandQueue::InsertWaitQueue(const DXCommandQueue& a_WaitQueue)
-{
-	m_Queue->Wait(a_WaitQueue.GetFence(), a_WaitQueue.GetNextFenceValue() - 1);
-}
-
-void DXCommandQueue::InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue)
-{
-	m_Queue->Wait(a_WaitQueue.GetFence(), a_FenceValue);
-}
-
-void DXCommandQueue::ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount)
-{
-	m_Queue->ExecuteCommandLists(a_CommandListCount, a_CommandLists);
-}
-
-void DXCommandQueue::SignalQueue()
-{
-	m_Queue->Signal(m_Fence.m_Fence, m_Fence.m_NextFenceValue);
-	++m_Fence.m_NextFenceValue;
-}
-
-void DXCommandQueue::SignalQueue(DXFence& a_Fence)
-{
-	m_Queue->Signal(a_Fence.m_Fence, a_Fence.m_NextFenceValue);
-	++a_Fence.m_NextFenceValue;
 }
 
 DXCommandAllocator::DXCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)

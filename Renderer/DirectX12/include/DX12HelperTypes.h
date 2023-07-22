@@ -3,6 +3,7 @@
 #include "D3D12MemAlloc.h"
 #include "Allocators/RingAllocator.h"
 #include "FixedArray.h"
+#include "Math.inl"
 
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
@@ -135,31 +136,6 @@ namespace BB
 		const UINT m_IncrementSize = 0;
 	};
 
-	class DXFence
-	{
-	public:
-		DXFence(const char* a_Name);
-		~DXFence();
-
-		uint64_t PollFenceValue();
-		bool IsFenceComplete(const uint64_t a_FenceValue);
-
-		void WaitFenceCPU(const uint64_t a_FenceValue);
-		void WaitIdle() { WaitFenceCPU(m_NextFenceValue - 1); }
-
-		ID3D12Fence* GetFence() const { return m_Fence; }
-		uint64_t GetNextFenceValue() const { return m_NextFenceValue; }
-
-	private:
-		ID3D12Fence* m_Fence;
-		uint64_t m_NextFenceValue;
-		uint64_t m_LastCompleteValue;
-		HANDLE m_FenceEvent;
-
-		//Commandqueue handles the Fence in a special way.
-		friend class DXCommandQueue; 
-	};
-
 	class DXResource
 	{
 	public:
@@ -220,52 +196,6 @@ namespace BB
 
 	private:
 		D3D12_SAMPLER_DESC m_Desc{};
-	};
-
-	class DXCommandQueue
-	{
-	public:
-		DXCommandQueue(const RenderCommandQueueCreateInfo& a_CreateInfo);
-		DXCommandQueue(const D3D12_COMMAND_LIST_TYPE a_CommandType, ID3D12CommandQueue* a_CommandQueue);
-		~DXCommandQueue();
-
-		uint64_t PollFenceValue()
-		{
-			return m_Fence.PollFenceValue();
-		}
-		bool IsFenceComplete(const uint64_t a_FenceValue)
-		{
-			IsFenceComplete(a_FenceValue);
-		}
-
-		void WaitFenceCPU(const uint64_t a_FenceValue)
-		{
-			m_Fence.WaitFenceCPU(a_FenceValue);
-		};
-		void WaitIdle() 
-		{ 
-			m_Fence.WaitIdle(); 
-		}
-
-		void InsertWait(const uint64_t a_FenceValue);
-		void InsertWaitQueue(const DXCommandQueue& a_WaitQueue);
-		void InsertWaitQueueFence(const DXCommandQueue& a_WaitQueue, const uint64_t a_FenceValue);
-
-		void ExecuteCommandlist(ID3D12CommandList** a_CommandLists, const uint32_t a_CommandListCount);
-		void SignalQueue();
-		//Signal another fence with a queue.
-		void SignalQueue(DXFence& a_Fence);
-
-		ID3D12CommandQueue* GetQueue() const { return m_Queue; }
-		ID3D12Fence* GetFence() const { return m_Fence.m_Fence; }
-		uint64_t GetNextFenceValue() const { return m_Fence.m_NextFenceValue; }
-
-	private:
-		ID3D12CommandQueue* m_Queue;
-		D3D12_COMMAND_LIST_TYPE m_QueueType;
-		DXFence m_Fence;
-
-		friend class DXCommandAllocator; //Allocator should have access to the QueueType.
 	};
 
 	class DXCommandAllocator;
@@ -365,6 +295,12 @@ namespace BB
 	{
 		FrameIndex currentFrame = 0;
 		UINT backBufferCount = 3; //for now hardcode 3 backbuffers.
+		struct DXFence
+		{
+			ID3D12Fence* fence;
+			uint64_t nextFenceValue;
+			uint64_t lastCompleteValue;
+		};
 		DXFence* frameFences; //Equal amount of fences to backBufferCount.
 
 		UINT heap_cbv_srv_uav_increment_size;
@@ -391,22 +327,18 @@ namespace BB
 
 		Pool<DXDescriptor> descriptorPool;
 		Pool<DXPipeline> pipelinePool;
-		Pool<DXCommandQueue> cmdQueues;
 		Pool<DXCommandAllocator> cmdAllocators;
 		Pool<DXResource> renderResources;
 		Pool<DXImage> renderImages;
-		Pool<DXFence> fencePool;
 		Pool<DXSampler> samplerPool;
 
 		void CreatePools()
 		{
 			pipelinePool.CreatePool(s_DX12Allocator, 4);
 			descriptorPool.CreatePool(s_DX12Allocator, 16);
-			cmdQueues.CreatePool(s_DX12Allocator, 4);
 			cmdAllocators.CreatePool(s_DX12Allocator, 16);
 			renderResources.CreatePool(s_DX12Allocator, 32);
 			renderImages.CreatePool(s_DX12Allocator, 8);
-			fencePool.CreatePool(s_DX12Allocator, 16);
 			samplerPool.CreatePool(s_DX12Allocator, 16);
 		}
 
@@ -414,11 +346,9 @@ namespace BB
 		{
 			pipelinePool.DestroyPool(s_DX12Allocator);
 			descriptorPool.DestroyPool(s_DX12Allocator);
-			cmdQueues.DestroyPool(s_DX12Allocator);
 			cmdAllocators.DestroyPool(s_DX12Allocator);
 			renderResources.DestroyPool(s_DX12Allocator);
 			renderImages.DestroyPool(s_DX12Allocator);
-			fencePool.DestroyPool(s_DX12Allocator);
 			samplerPool.DestroyPool(s_DX12Allocator);
 		}
 	};

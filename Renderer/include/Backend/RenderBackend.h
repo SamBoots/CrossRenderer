@@ -112,6 +112,7 @@ namespace BB
 		//Also handles incrementing the 
 		void ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteCount);
 
+		const CommandQueueHandle GetQueue() const { return m_Queue; }
 		RFenceHandle GetFence() const { return m_Fence.fence; }
 		uint64_t GetNextFenceValue() const { return m_Fence.nextFenceValue; }
 		uint64_t GetLastCompletedValue() const { return m_Fence.lastCompleteValue; }

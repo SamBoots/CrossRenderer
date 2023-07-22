@@ -26,12 +26,12 @@ namespace BB
 	private:
 		void LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List);
 		void ExecuteCommands(RecordingCommandListHandle a_List);
-		
+
 		LinearAllocator_t m_Allocator{ mbSize * 4 };
 
 		CommandAllocatorHandle m_CmdAllocator;
 		CommandListHandle m_CommandList;
 		uint64_t m_WaitValue = UINT64_MAX;
 		bool m_IsFinished = false;
-	}
+	};
 }
