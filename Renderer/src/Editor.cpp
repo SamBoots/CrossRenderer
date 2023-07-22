@@ -21,6 +21,7 @@ void BB::Editor::StartEditorFrame(const char* a_Name)
 void BB::Editor::EndEditorFrame()
 {
 	ImGui::End();
+	ImGui::Render();
 }
 
 void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)

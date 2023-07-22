@@ -575,10 +575,11 @@ void BB::Render::StartFrame()
 
 	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
 	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
-	ImGui_ImplCross_NewFrame();
-	ImGui::NewFrame();
 
 	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, Render::GetGPUHeap(s_CurrentFrame), nullptr);
+
+	ImGui_ImplCross_NewFrame();
+	ImGui::NewFrame();
 }
 
 RecordingCommandListHandle BB::Render::GetRecordingTransfer()
@@ -596,13 +597,33 @@ void BB::Render::Update(const float a_DeltaTime)
 {
 	RenderBackend::DisplayDebugInfo();
 	Editor::DisplayAllocator(s_SystemAllocator);
-	ImGui::Render();
 	//Draw3DFrame();
 	s_TempAllocator.Clear();
 }
 
 void BB::Render::EndFrame()
 {
+	{
+		StartRenderingInfo t_ImguiStart;
+		t_ImguiStart.viewportWidth = s_RenderInst->io.swapchainWidth;
+		t_ImguiStart.viewportHeight = s_RenderInst->io.swapchainHeight;
+		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
+		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
+
+		ImDrawData* t_DrawData = ImGui::GetDrawData();
+		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
+
+		EndRenderingInfo t_ImguiEnd;
+		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
+		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
+	}
+
+	UploadDescriptorsToGPU(s_CurrentFrame);
+
 	ImGui::EndFrame();
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 	RenderBackend::EndCommandList(t_RecordingTransfer);

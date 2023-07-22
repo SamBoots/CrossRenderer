@@ -197,9 +197,9 @@ int main(int argc, char** argv)
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
 		Render::Update(t_DeltaTime);
+		Editor::EndEditorFrame();
 		t_Scene.RenderScene(Render::GetRecordingGraphics());
 		t_Scene.EndScene();
-		Editor::EndEditorFrame();
 		Render::EndFrame();
 
 
