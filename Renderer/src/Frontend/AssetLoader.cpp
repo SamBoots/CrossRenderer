@@ -12,22 +12,27 @@ using namespace BB;
 
 AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 {
-	size_t t_PathStrLength = strlen(a_Info.path);
-
-	Memory::Copy(t_DebugNames, a_Info.path, t_PathStrLength);
-
 	{
-		RenderCommandAllocatorCreateInfo t_CreateInfo;
-		t_CreateInfo.name = "Async loading command allocator";
-		t_CreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
-		t_CreateInfo.commandListCount = 1;
-		m_CmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
-	}
-	{
-		RenderCommandListCreateInfo t_CreateInfo;
-		t_CreateInfo.name = "Async loading command list";
-		t_CreateInfo.commandAllocator = m_CmdAllocator;
-		m_CommandList = RenderBackend::CreateCommandList(t_CreateInfo);
+		StackString<256> t_DebugNames{};
+		t_DebugNames.append(a_Info.path);
+		constexpr const char* COMMAND_ALLOC_NAME = " : command allocator";
+		constexpr const char* COMMAND_LIST_NAME = " : command list";
+
+		{
+			t_DebugNames.append(COMMAND_ALLOC_NAME);
+			RenderCommandAllocatorCreateInfo t_CreateInfo;
+			t_CreateInfo.name = t_DebugNames.c_str();
+			t_CreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
+			t_CreateInfo.commandListCount = 1;
+			m_CmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
+		}
+		{
+			t_DebugNames.pop_back(strlen(COMMAND_LIST_NAME));
+			RenderCommandListCreateInfo t_CreateInfo;
+			t_CreateInfo.name = t_DebugNames.c_str();
+			t_CreateInfo.commandAllocator = m_CmdAllocator;
+			m_CommandList = RenderBackend::CreateCommandList(t_CreateInfo);
+		}
 	}
 
 	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(m_CommandList);
@@ -61,7 +66,6 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 	int x, y, c;
 	//hacky way, whatever we do it for now.
 	stbi_uc* t_Pixels = stbi_load(a_Info.path, &x, &y, &c, 4);
-	RImageHandle t_NewImage;
 	{
 		RenderImageCreateInfo t_ImageInfo;
 		t_ImageInfo.name = a_Info.path;
@@ -73,13 +77,13 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
 		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
 		t_ImageInfo.format = RENDER_IMAGE_FORMAT::RGBA8_SRGB;
-		t_NewImage = RenderBackend::CreateImage(t_ImageInfo);
+		m_Data.image = RenderBackend::CreateImage(t_ImageInfo);
 
 		//Transfer image to prepare for transfer
 		RenderTransitionImageInfo t_ImageTransInfo{};
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-		t_ImageTransInfo.image = t_NewImage;
+		t_ImageTransInfo.image = m_Data.image;
 		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
 		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
 		t_ImageTransInfo.layerCount = 1;
@@ -92,7 +96,7 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 	}
 
 
-	const ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_NewImage);
+	const ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(m_Data.image);
 	constexpr size_t TEXTURE_BYTE_ALIGNMENT = 512;
 	//NEED TO DO ALIGNMENT ON THE IMAGE IF 
 	UploadBuffer t_ImageUpload(t_ImageInfo.allocInfo.imageAllocByteSize);
@@ -116,7 +120,7 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		RenderCopyBufferImageInfo t_CopyImageInfo{};
 		t_CopyImageInfo.srcBuffer = t_ImageUpload.Buffer();
 		t_CopyImageInfo.srcBufferOffset = 0;
-		t_CopyImageInfo.dstImage = t_NewImage;
+		t_CopyImageInfo.dstImage = m_Data.image;
 		t_CopyImageInfo.dstImageInfo.sizeX = static_cast<uint32_t>(x);
 		t_CopyImageInfo.dstImageInfo.sizeY = static_cast<uint32_t>(y);
 		t_CopyImageInfo.dstImageInfo.sizeZ = 1;

@@ -33,20 +33,20 @@ namespace BB
 	class UploadBuffer
 	{
 	public:
-		UploadBuffer(const uint64_t a_Size, const char* a_Name = nullptr);
+		UploadBuffer(const size_t a_Size, const char* a_Name = nullptr);
 		~UploadBuffer();
 
-		const UploadBufferChunk Alloc(const uint64_t a_Size);
+		const UploadBufferChunk Alloc(const size_t a_Size);
 		void Clear();
 
-		inline const uint64_t GetCurrentOffset() const { return m_Offset; }
+		inline const uint32_t GetCurrentOffset() const { return m_Offset; }
 		inline const RBufferHandle Buffer() const { return m_Buffer; }
 		inline void* GetStart() const { return m_Start; }
 
 	private:
 		RBufferHandle m_Buffer;
-		const uint64_t m_Size;
-		uint64_t m_Offset;
+		const uint32_t m_Size;
+		uint32_t m_Offset;
 		void* m_Start;
 	};
 
@@ -98,9 +98,9 @@ namespace BB
 
 	struct RenderFence
 	{
-		RFenceHandle fence;
-		uint64_t nextFenceValue;
-		uint64_t lastCompleteValue;
+		RFenceHandle fence{};
+		uint64_t nextFenceValue = 0;
+		uint64_t lastCompleteValue = 0;
 	};
 
 	class RenderQueue

@@ -378,7 +378,7 @@ namespace BB
 		Stack_String(const CharT* a_String) : Stack_String(a_String, Memory::StrLength(a_String)) {};
 		Stack_String(const CharT* a_String, size_t a_Size)
 		{
-			BB_ASSERT(t_StrSize < sizeof(m_String));
+			BB_ASSERT(t_StrSize < sizeof(m_String), "Stack string overflow");
 			Memory::Set(m_String, 0, sizeof(m_String));
 			Memory::Copy(m_String, a_String, a_Size);
 		};
@@ -438,7 +438,7 @@ namespace BB
 		};
 		void append(const CharT* a_String, size_t a_Size)
 		{
-			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string overflow");
 			BB::Memory::Copy(m_String + m_Size, a_String, a_Size);
 			m_Size += a_Size;
 		};
@@ -457,7 +457,7 @@ namespace BB
 		void insert(size_t a_Pos, const CharT* a_String, size_t a_Size)
 		{
 			BB_ASSERT(m_Size >= a_Pos, "Trying to insert a string in a invalid position.");
-			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string overflow");
 
 			Memory::sMove(m_String + (a_Pos + a_Size), m_String + a_Pos, m_Size - a_Pos);
 
@@ -467,12 +467,15 @@ namespace BB
 		void push_back(const CharT a_Char)
 		{
 			m_String[m_Size++] = a_Char;
-			BB_ASSERT(m_Size < sizeof(m_String), "Stack string buffer overflow");
+			BB_ASSERT(m_Size < sizeof(m_String), "Stack string overflow");
 		};
 
-		void pop_back()
+		void pop_back(uint32_t a_Count)
 		{
-			m_String[m_Size--] = NULL;
+			for (size_t i = 0; i < a_Count; i++)
+			{
+				m_String[m_Size--] = NULL;
+			}
 		};
 
 		void clear()

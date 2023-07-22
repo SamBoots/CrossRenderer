@@ -20,14 +20,103 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 FreelistAllocator_t s_SystemAllocator{ mbSize * 4 , "Render Frontend freelist allocator" };
 static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
+struct TextureManager
+{
+	TextureManager(UploadBuffer& a_UploadBuffer, RecordingCommandListHandle t_CommandList)
+	{
+		RenderImageCreateInfo t_ImageInfo{};
+		t_ImageInfo.name = "debug texture";
+		t_ImageInfo.width = 1;
+		t_ImageInfo.height = 1;
+		t_ImageInfo.depth = 1;
+		t_ImageInfo.arrayLayers = 1;
+		t_ImageInfo.mipLevels = 1;
+		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
+		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
+		t_ImageInfo.format = RENDER_IMAGE_FORMAT::RGBA8_SRGB;
+
+		debugTexture = RenderBackend::CreateImage(t_ImageInfo);
+
+		RenderTransitionImageInfo t_ImageTransInfo{};
+		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
+		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+		t_ImageTransInfo.image = debugTexture;
+		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		t_ImageTransInfo.layerCount = 1;
+		t_ImageTransInfo.levelCount = 1;
+		t_ImageTransInfo.baseArrayLayer = 0;
+		t_ImageTransInfo.baseMipLevel = 0;
+		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
+		RenderBackend::TransitionImage(t_CommandList, t_ImageTransInfo);
+
+		UploadBufferChunk t_DebugImage = a_UploadBuffer.Alloc(sizeof(uint32_t));
+		uint8_t r = 209;
+		uint8_t g = 106;
+		uint8_t b = 255;
+		uint8_t a = 255;
+		uint32_t t_Purple = (a << 24) | (b << 16) | (g << 8) | (r << 0);
+		memcpy(t_DebugImage.memory, &t_Purple, sizeof(uint32_t));
+
+		RenderCopyBufferImageInfo t_CopyImage{};
+		t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
+		t_CopyImage.srcBufferOffset = t_DebugImage.offset;
+		t_CopyImage.dstImage = debugTexture;
+		t_CopyImage.dstImageInfo.sizeX = t_ImageInfo.width;
+		t_CopyImage.dstImageInfo.sizeY = t_ImageInfo.height;
+		t_CopyImage.dstImageInfo.sizeZ = t_ImageInfo.depth;
+		t_CopyImage.dstImageInfo.offsetX = 0;
+		t_CopyImage.dstImageInfo.offsetY = 0;
+		t_CopyImage.dstImageInfo.offsetZ = 0;
+		t_CopyImage.dstImageInfo.layerCount = 1;
+		t_CopyImage.dstImageInfo.mipLevel = 0;
+		t_CopyImage.dstImageInfo.baseArrayLayer = 0;
+		t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+
+		RenderBackend::CopyBufferImage(t_CommandList, t_CopyImage);
+
+		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+		RenderBackend::TransitionImage(t_CommandList, t_ImageTransInfo);
+
+		for (uint32_t i = 0; i < MAX_TEXTURES - 1; i++)
+		{
+			textures[i].image = debugTexture;
+			textures[i].nextFree = i + 1;
+		}
+	}
+
+	struct TextureSlot
+	{
+		RImageHandle image;
+		//when loading in the texture.
+		uint32_t nextFree;
+	};
+
+	uint32_t nextFree = 0;
+	TextureSlot textures[MAX_TEXTURES]{};
+
+	//purple color
+	RImageHandle debugTexture;
+};
+
 struct Render_inst
 {
 	Render_inst(
+		const RecordingCommandListHandle a_SetupCommandList,
 		const RenderBufferCreateInfo& a_VertexBufferInfo,
 		const RenderBufferCreateInfo& a_IndexBufferInfo,
 		const DescriptorHeapCreateInfo& a_DescriptorManagerInfo,
+		const size_t a_UploadBufferSize,
 		const uint32_t a_BackbufferAmount)
-		:	vertexBuffer(a_VertexBufferInfo),
+		:	uploadBuffer(a_UploadBufferSize, "Render instance upload buffer"),
+			textureManager(uploadBuffer, a_SetupCommandList),
+			vertexBuffer(a_VertexBufferInfo),
 			indexBuffer(a_IndexBufferInfo),
 			descriptorManager(s_SystemAllocator, a_DescriptorManagerInfo, a_BackbufferAmount),
 			models(s_SystemAllocator, 64)
@@ -36,6 +125,8 @@ struct Render_inst
 	}
 	Render_IO io;
 
+	UploadBuffer uploadBuffer;
+	TextureManager textureManager;
 	DescriptorManager descriptorManager;
 	LinearRenderBuffer vertexBuffer;
 	LinearRenderBuffer indexBuffer;
@@ -55,11 +146,6 @@ CommandListHandle t_TransferCommands[3];
 
 RecordingCommandListHandle t_RecordingGraphics;
 RecordingCommandListHandle t_RecordingTransfer;
-
-RFenceHandle t_SwapchainFence[3];
-
-
-UploadBuffer* t_UploadBuffer;
 
 RImageHandle t_ExampleImage;
 
@@ -102,6 +188,43 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	t_BackendCreateInfo.windowHeight = static_cast<uint32_t>(t_WindowHeight);
 
 	RenderBackend::InitBackend(t_BackendCreateInfo, s_SystemAllocator);
+
+	{//init main command lists and allocators
+		RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
+		t_AllocatorCreateInfo.name = "Graphics command allocator";
+		t_AllocatorCreateInfo.commandListCount = 10;
+		t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
+		t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+		t_CommandAllocators[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+		t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+
+		t_AllocatorCreateInfo.name = "Transfer command allocator";
+		t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
+		t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+		t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+		t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
+
+		RenderCommandListCreateInfo t_CmdCreateInfo{};
+		t_CmdCreateInfo.name = "Graphic Commandlist";
+		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
+		t_GraphicCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
+		t_GraphicCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[2];
+		t_GraphicCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+
+		//just reuse the struct above.
+		t_CmdCreateInfo.name = "Transfer Commandlist";
+		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[0];
+		t_TransferCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[1];
+		t_TransferCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[2];
+		t_TransferCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+	}
+
+	RecordingCommandListHandle t_SetupCmdList = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
+
 	{
 		//Write some background info.
 		constexpr size_t SUBHEAPSIZE = 64 * 1024;
@@ -122,7 +245,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_IndexBufferInfo.usage = RENDER_BUFFER_USAGE::INDEX;
 		t_IndexBufferInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
 
-		s_RenderInst = BBnew(s_SystemAllocator, Render_inst)(t_VertexBufferInfo, t_IndexBufferInfo, t_HeapInfo, RenderBackend::GetFrameBufferAmount());
+		constexpr const uint64_t UPLOAD_BUFFER_SIZE = static_cast<uint64_t>(mbSize * 32);
+		s_RenderInst = BBnew(s_SystemAllocator, Render_inst)(t_SetupCmdList, t_VertexBufferInfo, t_IndexBufferInfo, t_HeapInfo, UPLOAD_BUFFER_SIZE, RenderBackend::GetFrameBufferAmount());
 		s_RenderInst->io.renderAPI = a_InitInfo.renderAPI;
 		s_RenderInst->io.swapchainWidth = t_BackendCreateInfo.windowWidth;
 		s_RenderInst->io.swapchainHeight = t_BackendCreateInfo.windowHeight;
@@ -181,48 +305,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	}
 
-	RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
-	t_AllocatorCreateInfo.name = "Graphics command allocator";
-	t_AllocatorCreateInfo.commandListCount = 10;
-	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
-	t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-	t_CommandAllocators[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-	t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-
-	t_AllocatorCreateInfo.name = "Transfer command allocator";
-	t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
-	t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-	t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-	t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-
-	RenderCommandListCreateInfo t_CmdCreateInfo{};
-	t_CmdCreateInfo.name = "Graphic Commandlist";
-	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
-	t_GraphicCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
-	t_GraphicCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.commandAllocator = t_CommandAllocators[2];
-	t_GraphicCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-
-	//just reuse the struct above.
-	t_CmdCreateInfo.name = "Transfer Commandlist";
-	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[0];
-	t_TransferCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[1];
-	t_TransferCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	t_CmdCreateInfo.commandAllocator = t_TransferAllocator[2];
-	t_TransferCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-
-	FenceCreateInfo t_CreateInfo{};
-	t_CreateInfo.flags = RENDER_FENCE_FLAGS::CREATE_SIGNALED;
-
-	for (size_t i = 0; i < _countof(t_SwapchainFence); i++)
-		t_SwapchainFence[i] = RenderBackend::CreateFence(t_CreateInfo);
-
-	//Create upload buffer.
-	constexpr const uint64_t UPLOAD_BUFFER_SIZE = static_cast<uint64_t>(mbSize * 32);
-	t_UploadBuffer = BBnew(s_SystemAllocator, UploadBuffer)(UPLOAD_BUFFER_SIZE, "upload buffer");
-
 	{//implement imgui here.
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -260,12 +342,12 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImguiInfo.window = a_InitInfo.windowHandle;
 		ImGui_ImplCross_Init(t_ImguiInfo);
 
-		t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
-		ImGui_ImplCross_CreateFontsTexture(t_RecordingGraphics, *t_UploadBuffer);
+		
+		ImGui_ImplCross_CreateFontsTexture(t_SetupCmdList, s_RenderInst->uploadBuffer);
 		ExecuteCommandsInfo* t_ExecuteInfo = BBnew(
 			s_TempAllocator,
 			ExecuteCommandsInfo);
-		RenderBackend::EndCommandList(t_RecordingGraphics);
+		RenderBackend::EndCommandList(t_SetupCmdList);
 
 		uint64_t t_SignalValue = s_RenderInst->graphicsQueue.GetNextFenceValue();
 		t_ExecuteInfo[0] = {};
@@ -304,7 +386,6 @@ void BB::Render::DestroyRenderer()
 	{
 		
 	}
-	BBfree(s_SystemAllocator, t_UploadBuffer);
 
 	RenderBackend::DestroyDescriptor(s_RenderInst->io.globalDescriptor);
 
@@ -407,9 +488,9 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
 
 		//Add some extra for alignment.
-		size_t t_AlignedOffset = Pointer::AlignPad(t_UploadBuffer->GetCurrentOffset(), TEXTURE_BYTE_ALIGNMENT);
-		size_t t_AllocAddition = t_AlignedOffset - t_UploadBuffer->GetCurrentOffset();
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(t_ImageInfo.allocInfo.imageAllocByteSize + t_AllocAddition);
+		size_t t_AlignedOffset = Pointer::AlignPad(s_RenderInst->uploadBuffer.GetCurrentOffset(), TEXTURE_BYTE_ALIGNMENT);
+		size_t t_AllocAddition = t_AlignedOffset - s_RenderInst->uploadBuffer.GetCurrentOffset();
+		UploadBufferChunk t_StageBuffer = s_RenderInst->uploadBuffer.Alloc(t_ImageInfo.allocInfo.imageAllocByteSize + t_AllocAddition);
 		const UINT64 t_SourcePitch = static_cast<UINT64>(t_ImageInfo.width) * sizeof(uint32_t);
 
 		void* t_ImageSrc = t_Pixels;
@@ -424,7 +505,7 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 		}
 
 		RenderCopyBufferImageInfo t_CopyImage{};
-		t_CopyImage.srcBuffer = t_UploadBuffer->Buffer();
+		t_CopyImage.srcBuffer = s_RenderInst->uploadBuffer.Buffer();
 		t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_AlignedOffset);
 		t_CopyImage.dstImage = t_ExampleImage;
 		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
@@ -451,13 +532,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	}
 
 	{
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.vertices.sizeInBytes());
+		UploadBufferChunk t_StageBuffer = s_RenderInst->uploadBuffer.Alloc(a_CreateInfo.vertices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
 
 		t_Model.vertexView = AllocateFromVertexBuffer(a_CreateInfo.vertices.sizeInBytes());
 
 		RenderCopyBufferInfo t_CopyInfo{};
-		t_CopyInfo.src = t_UploadBuffer->Buffer();
+		t_CopyInfo.src = s_RenderInst->uploadBuffer.Buffer();
 		t_CopyInfo.dst = t_Model.vertexView.buffer;
 		t_CopyInfo.srcOffset = t_StageBuffer.offset;
 		t_CopyInfo.dstOffset = t_Model.vertexView.offset;
@@ -467,13 +548,13 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	}
 
 	{
-		UploadBufferChunk t_StageBuffer = t_UploadBuffer->Alloc(a_CreateInfo.indices.sizeInBytes());
+		UploadBufferChunk t_StageBuffer = s_RenderInst->uploadBuffer.Alloc(a_CreateInfo.indices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.indices.data(), a_CreateInfo.indices.sizeInBytes());
 
 		t_Model.indexView = AllocateFromIndexBuffer(a_CreateInfo.indices.sizeInBytes());
 
 		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.src = t_UploadBuffer->Buffer();
+		t_CopyInfo.src = s_RenderInst->uploadBuffer.Buffer();
 		t_CopyInfo.dst = t_Model.indexView.buffer;
 		t_CopyInfo.srcOffset = t_StageBuffer.offset;
 		t_CopyInfo.dstOffset = t_Model.indexView.offset;
@@ -530,7 +611,7 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 		LoadglTFModel(s_TempAllocator,
 			s_SystemAllocator,
 			t_Model,
-			*t_UploadBuffer,
+			s_RenderInst->uploadBuffer,
 			t_RecordingTransfer,
 			a_LoadInfo.path);
 		break;
@@ -878,7 +959,7 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 
 	//get it all in GPU buffers now.
 	{
-		const size_t t_VertexBufferSize = t_VertexCount * sizeof(Vertex);
+		const uint32_t t_VertexBufferSize = t_VertexCount * sizeof(Vertex);
 
 		const UploadBufferChunk t_VertChunk = a_UploadBuffer.Alloc(t_VertexBufferSize);
 		memcpy(t_VertChunk.memory, t_Vertices, t_VertexBufferSize);
@@ -896,7 +977,7 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 	}
 
 	{
-		const size_t t_IndexBufferSize = t_IndexCount * sizeof(uint32_t);
+		const uint32_t t_IndexBufferSize = t_IndexCount * sizeof(uint32_t);
 
 		const UploadBufferChunk t_IndexChunk = a_UploadBuffer.Alloc(t_IndexBufferSize);
 		memcpy(t_IndexChunk.memory, t_Indices, t_IndexBufferSize);

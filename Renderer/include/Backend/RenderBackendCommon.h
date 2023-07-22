@@ -286,12 +286,12 @@ namespace BB
 
 	struct CopyDescriptorsInfo
 	{
-		uint32_t descriptorCount;
-		bool isSamplerHeap;
-		RDescriptorHeap srcHeap;
-		uint32_t srcOffset;
-		RDescriptorHeap dstHeap;
-		uint32_t dstOffset;
+		uint32_t descriptorCount = 0;
+		bool isSamplerHeap = false;
+		RDescriptorHeap srcHeap{};
+		uint32_t srcOffset = 0;
+		RDescriptorHeap dstHeap{};
+		uint32_t dstOffset = 0;
 	};
 
 	struct WriteDescriptorBuffer

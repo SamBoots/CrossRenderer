@@ -123,9 +123,10 @@ PipelineHandle PipelineBuilder::BuildPipeline()
 	return t_ReturnHandle;
 }
 
-UploadBuffer::UploadBuffer(const uint64_t a_Size, const char* a_Name)
-	: m_Size(a_Size)
+UploadBuffer::UploadBuffer(const size_t a_Size, const char* a_Name)
+	: m_Size(static_cast<uint32_t>(a_Size))
 {
+	BB_ASSERT(a_Size < UINT32_MAX, "upload buffer size is larger then UINT32_MAX, this is not supported");
 	RenderBufferCreateInfo t_UploadBufferInfo{};
 	t_UploadBufferInfo.name = a_Name;
 	t_UploadBufferInfo.size = m_Size;
@@ -143,14 +144,15 @@ UploadBuffer::~UploadBuffer()
 	RenderBackend::DestroyBuffer(m_Buffer);
 }
 
-const UploadBufferChunk UploadBuffer::Alloc(const uint64_t a_Size)
+const UploadBufferChunk UploadBuffer::Alloc(const size_t a_Size)
 {
+	BB_ASSERT(a_Size < UINT32_MAX, "upload buffer alloc size is larger then UINT32_MAX, this is not supported");
 	BB_ASSERT(m_Size >= m_Offset + a_Size, "Now enough space to alloc in the uploadbuffer.");
 	UploadBufferChunk t_Chunk{};
 	t_Chunk.memory = Pointer::Add(m_Start, m_Offset);
 	t_Chunk.offset = m_Offset;
-	t_Chunk.size = a_Size;
-	m_Offset += a_Size;
+	t_Chunk.size = static_cast<uint32_t>(a_Size);
+	m_Offset += static_cast<uint32_t>(a_Size);
 	return t_Chunk;
 }
 

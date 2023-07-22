@@ -33,5 +33,10 @@ namespace BB
 		CommandListHandle m_CommandList;
 		uint64_t m_WaitValue = UINT64_MAX;
 		bool m_IsFinished = false;
+		
+		union CreatedData
+		{
+			RImageHandle image;
+		} m_Data{};
 	};
 }

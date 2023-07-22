@@ -4,6 +4,8 @@
 
 namespace BB
 {
+	constexpr const size_t MAX_TEXTURES = 1024;
+
 	struct Light;
 	struct DrawObject;
 
