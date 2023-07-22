@@ -434,6 +434,36 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
+void BB::Render::FreeTextures(const uint32_t* a_TextureIndices, const uint32_t a_Count)
+{
+	WriteDescriptorData* t_WriteDatas = reinterpret_cast<WriteDescriptorData*>(_alloca(a_Count * sizeof(WriteDescriptorData)));
+	t_WriteDatas[0].binding = 0;
+	t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+	t_WriteDatas[0].image.image = s_RenderInst->textureManager.debugTexture;
+	t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+	t_WriteDatas[0].image.sampler = nullptr;
+
+	for (uint32_t i = 0; i < a_Count; i++)
+	{
+		const uint32_t t_TextureIndex = a_TextureIndices[i];
+		TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_TextureIndex];
+		RenderBackend::DestroyImage(t_FreeSlot.image);
+		t_FreeSlot.image = s_RenderInst->textureManager.debugTexture;
+		t_FreeSlot.nextFree = s_RenderInst->textureManager.nextFree;
+		s_RenderInst->textureManager.nextFree = t_TextureIndex;
+
+		t_WriteDatas[i] = t_WriteDatas[0];
+		t_WriteDatas[i].descriptorIndex = t_TextureIndex;
+	}
+
+	//Write image back to pink
+	WriteDescriptorInfos t_WriteInfos{};
+	t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
+	t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
+	t_WriteInfos.data = Slice(t_WriteDatas, a_Count);
+	RenderBackend::WriteDescriptors(t_WriteInfos);
+}
+
 const RDescriptor BB::Render::GetGlobalDescriptorSet()
 {
 	return s_RenderInst->io.globalDescriptor;
