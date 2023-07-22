@@ -365,4 +365,134 @@ namespace BB
 		m_String = t_NewString;
 		m_Capacity = a_NewCapacity;
 	}
+
+
+	template<typename CharT, size_t stringSize>
+	class Stack_String
+	{
+	public:
+		Stack_String()
+		{
+			Memory::Set(m_String, 0, stringSize);
+		};
+		Stack_String(const CharT* a_String) : Stack_String(a_String, Memory::StrLength(a_String)) {};
+		Stack_String(const CharT* a_String, size_t a_Size)
+		{
+			BB_ASSERT(t_StrSize < sizeof(m_String));
+			Memory::Set(m_String, 0, sizeof(m_String));
+			Memory::Copy(m_String, a_String, a_Size);
+		};
+		Stack_String(const Stack_String<CharT, stringSize>& a_String)
+		{
+			Memory::Copy(m_String, a_String, sizeof(m_String));
+			m_Size = a_String.size;
+		};
+		Stack_String(Stack_String<CharT, stringSize>&& a_String) noexcept
+		{
+			Memory::Copy(m_String, a_String, sizeof(m_String));
+			m_Size = a_String.size();
+
+			Memory::Set(a_String.m_String, 0, stringSize);
+			a_String.m_Size = 0
+		};
+		~Stack_String()
+		{
+			clear();
+		};
+
+		Stack_String& operator=(const Stack_String<CharT, stringSize>& a_Rhs)
+		{
+			this->~Stack_String();
+
+			Memory::Copy(m_String, a_String, sizeof(m_String));
+			m_Size = a_String.size();
+		};
+		Stack_String& operator=(Stack_String<CharT, stringSize>&& a_Rhs) noexcept
+		{
+			this->~Stack_String();
+
+			Memory::Copy(m_String, a_String, sizeof(m_String));
+			m_Size = a_String.size();
+
+			Memory::Set(a_Rhs.m_String, 0, stringSize);
+			a_Rhs.m_Size = 0
+		};
+		bool operator==(const Stack_String<CharT, stringSize>& a_Rhs) const
+		{
+			if (Memory::Compare(m_String, a_Rhs.data(), sizeof(m_String)) == 0)
+				return true;
+			return false;
+		};
+
+		void append(const Stack_String<CharT, stringSize>& a_String)
+		{
+			append(a_String.c_str(), a_String.size());
+		};
+		void append(const Stack_String<CharT, stringSize>& a_String, size_t a_SubPos, size_t a_SubLength)
+		{
+			append(a_String.c_str() + a_SubPos, a_SubLength);
+		};
+		void append(const CharT* a_String)
+		{
+			append(a_String, Memory::StrLength(a_String));
+		};
+		void append(const CharT* a_String, size_t a_Size)
+		{
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
+			BB::Memory::Copy(m_String + m_Size, a_String, a_Size);
+			m_Size += a_Size;
+		};
+		void insert(size_t a_Pos, const Stack_String<CharT, stringSize>& a_String)
+		{
+			insert(a_Pos, a_String.c_str(), a_String.size());
+		};
+		void insert(size_t a_Pos, const Stack_String<CharT, stringSize>& a_String, size_t a_SubPos, size_t a_SubLength)
+		{
+			insert(a_Pos, a_String.c_str() + a_SubPos, a_SubLength);
+		}
+		void insert(size_t a_Pos, const CharT* a_String)
+		{
+			insert(a_Pos, a_String, Memory::StrLength(a_String));
+		};
+		void insert(size_t a_Pos, const CharT* a_String, size_t a_Size)
+		{
+			BB_ASSERT(m_Size >= a_Pos, "Trying to insert a string in a invalid position.");
+			BB_ASSERT(m_Size + a_Size < sizeof(m_String), "Stack string buffer overflow");
+
+			Memory::sMove(m_String + (a_Pos + a_Size), m_String + a_Pos, m_Size - a_Pos);
+
+			Memory::Copy(m_String + a_Pos, a_String, a_Size);
+			m_Size += a_Size;
+		};
+		void push_back(const CharT a_Char)
+		{
+			m_String[m_Size++] = a_Char;
+			BB_ASSERT(m_Size < sizeof(m_String), "Stack string buffer overflow");
+		};
+
+		void pop_back()
+		{
+			m_String[m_Size--] = NULL;
+		};
+
+		void clear()
+		{
+			Memory::Set(m_String, 0, stringSize);
+			m_Size = 0;
+		}
+
+		size_t size() const { return m_Size; }
+		size_t capacity() const { return stringSize; }
+		CharT* data() { return m_String; }
+		const CharT* c_str() const { return m_String; }
+
+	private:
+		CharT m_String[stringSize + 1];
+		size_t m_Size = 0;
+	};
+
+	template<size_t stringSize>
+	using StackString = Stack_String<char, stringSize>;
+	template<size_t stringSize>
+	using StackWString = Stack_String<wchar_t, stringSize>;
 }

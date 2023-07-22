@@ -33,6 +33,7 @@ int main(int argc, char** argv)
 	t_BBInitInfo.programName = L"Crossrenderer";
 	InitBB(t_BBInitInfo);
 	BB_LOG(argv[0]);
+	BB_LOG(L"Lol, lmao wide char printing works said the scorpion.");
 
 	int t_WindowWidth = 1280;
 	int t_WindowHeight = 720;
@@ -131,6 +132,7 @@ int main(int argc, char** argv)
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
 
+		Editor::StartEditorFrame();
 		Editor::DisplaySceneInfo(t_Scene);
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
@@ -145,6 +147,9 @@ int main(int argc, char** argv)
 				if (t_Event.keyInfo.keyPressed)
 					switch (t_Event.keyInfo.scancode)
 					{
+					case KEYBOARD_KEY::_ESCAPE:
+						g_ShowEditor = !g_ShowEditor;
+						break;
 					case KEYBOARD_KEY::_F:
 						t_FreezeCam = !t_FreezeCam;
 						break;
@@ -194,7 +199,9 @@ int main(int argc, char** argv)
 		Render::Update(t_DeltaTime);
 		t_Scene.RenderScene(Render::GetRecordingGraphics());
 		t_Scene.EndScene();
+		Editor::EndEditorFrame();
 		Render::EndFrame();
+
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
 		Render::StartFrame();

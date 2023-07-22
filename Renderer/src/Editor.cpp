@@ -4,21 +4,37 @@
 #include "Transform.h"
 #include "LightSystem.h"
 #include "RenderResourceTracker.h"
+#include "BBMemory.h"
 
 #include "SceneGraph.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
 using namespace BB;
+bool BB::g_ShowEditor;
+
+void BB::Editor::StartEditorFrame(const char* a_Name)
+{
+	g_ShowEditor = ImGui::Begin(a_Name);
+}
+
+void BB::Editor::EndEditorFrame()
+{
+	ImGui::End();
+}
 
 void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 {
-	if (ImGui::Begin(t_Scene.GetSceneName()))
+	if (!g_ShowEditor)
+		return;
+
+	if (ImGui::CollapsingHeader(t_Scene.GetSceneName()))
 	{
+		ImGui::Indent();
 		if (ImGui::CollapsingHeader("Scene Objects"))
 		{
-			BB::Slice<DrawObject> t_DrawObjects = t_Scene.GetDrawObjects();
 			ImGui::Indent();
+			BB::Slice<DrawObject> t_DrawObjects = t_Scene.GetDrawObjects();
 			for (size_t i = 0; i < t_DrawObjects.size(); i++)
 			{
 				const DrawObject& t_Obj = t_DrawObjects[i];
@@ -49,29 +65,30 @@ void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 			}
 			ImGui::Unindent();
 		}
+		ImGui::Unindent();
+	}
+}
 
-		if (ImGui::CollapsingHeader("Lights"))
+void BB::Editor::DisplayAllocator(BB::allocators::BaseAllocator& a_Allocator)
+{
+	if (!g_ShowEditor)
+		return;
+
+	if (ImGui::CollapsingHeader(a_Allocator.name))
+	{
+		ImGui::Text("Allocation Logs");
+		allocators::BaseAllocator::AllocationLog* t_Log = a_Allocator.frontLog;
+		int i = 0;
+		while (t_Log != nullptr)
 		{
-			ImGui::Indent();
-			Slice<Light> t_Lights = t_Scene.GetLights();
-			for (size_t i = 0; i < t_Lights.size(); i++)
+			if (ImGui::TreeNode((void*)(intptr_t)i++, t_Log->file))
 			{
-				Light& t_Light = t_Lights[i];
-
-				ImGui::PushID(static_cast<int>(i));
-				if (ImGui::CollapsingHeader("Light"))
-				{
-					ImGui::Indent();
-					ImGui::InputFloat3("Position", &t_Light.pos.x);
-					ImGui::InputFloat4("Color", &t_Light.color.x);
-					ImGui::InputFloat("Scale", &t_Light.radius);
-					ImGui::Unindent();
-				}
-				ImGui::PopID();
+				ImGui::Text("Size: %u", t_Log->allocSize);
+				ImGui::Text("File: %s", t_Log->file);
+				ImGui::Text("Line: %u", t_Log->line);
+				ImGui::TreePop();
 			}
-			ImGui::Unindent();
+			t_Log = t_Log->prev;
 		}
-
-		ImGui::End();
 	}
 }

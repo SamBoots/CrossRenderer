@@ -1,6 +1,7 @@
 #include "RenderBackend.h"
 #include "RenderResourceTracker.h"
 
+#include "Editor.h"
 #include "Utils/Slice.h"
 #include "Slotmap.h"
 #include "BBString.h"
@@ -384,7 +385,7 @@ void RenderQueue::ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, con
 #pragma region API_Backend
 void BB::RenderBackend::DisplayDebugInfo()
 {
-	s_ResourceTracker.Editor();
+	s_ResourceTracker.Editor();	
 }
 
 const uint32_t BB::RenderBackend::GetFrameBufferAmount()

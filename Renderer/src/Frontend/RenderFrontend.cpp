@@ -6,6 +6,7 @@
 #include "imgui_impl_CrossRenderer.h"
 
 #include "Storage/Slotmap.h"
+#include "Editor.h"
 
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
@@ -16,7 +17,7 @@ using namespace BB;
 using namespace BB::Render;
 
 void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path);
-FreelistAllocator_t s_SystemAllocator{ mbSize * 4 };
+FreelistAllocator_t s_SystemAllocator{ mbSize * 4 , "Render Frontend freelist allocator" };
 static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
 struct Render_inst
@@ -594,34 +595,14 @@ RecordingCommandListHandle BB::Render::GetRecordingGraphics()
 void BB::Render::Update(const float a_DeltaTime)
 {
 	RenderBackend::DisplayDebugInfo();
-
+	Editor::DisplayAllocator(s_SystemAllocator);
 	ImGui::Render();
 	//Draw3DFrame();
+	s_TempAllocator.Clear();
 }
 
 void BB::Render::EndFrame()
 {
-	{
-		StartRenderingInfo t_ImguiStart;
-		t_ImguiStart.viewportWidth = s_RenderInst->io.swapchainWidth;
-		t_ImguiStart.viewportHeight = s_RenderInst->io.swapchainHeight;
-		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
-		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
-
-		ImDrawData* t_DrawData = ImGui::GetDrawData();
-		ImGui_ImplCross_RenderDrawData(*t_DrawData, t_RecordingGraphics, t_RecordingTransfer);
-
-		EndRenderingInfo t_ImguiEnd;
-		t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
-		t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-		RenderBackend::EndRendering(t_RecordingGraphics, t_ImguiEnd);
-	}
-
-	UploadDescriptorsToGPU(s_CurrentFrame);
-
 	ImGui::EndFrame();
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 	RenderBackend::EndCommandList(t_RecordingTransfer);

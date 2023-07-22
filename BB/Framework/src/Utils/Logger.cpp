@@ -2,185 +2,162 @@
 #include "Logger.h"
 #include "Program.h"
 
+#include "BBString.h"
+
 using namespace BB;
 
 static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_Message, const char* a_WarningLevel)
 {
-	constexpr const char LOG_MESSAGE_FILE_0[]{ "File: " };
-	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\r\nLine Number: " };
-	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\r\nThe Message: " };
+	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Error Level: " };
+	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
+	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
+	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
 
 	//Format the message
-	char t_String[1024]{};
-	size_t t_StringSize = 0;
-	{ 	//Start with the warning level
-		size_t t_WarnMesgSize = strnlen_s(a_WarningLevel, 64);
-		Memory::Copy(t_String, a_WarningLevel, t_WarnMesgSize);
-		t_StringSize += t_WarnMesgSize;
+	StackString<1024> t_String{};
+	{	//Start with the warning level
+		t_String.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+		t_String.append(a_WarningLevel);
 	}
-
 	{ //Get the file.
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_FILE_0, _countof(LOG_MESSAGE_FILE_0));
-		t_StringSize += _countof(LOG_MESSAGE_FILE_0);
-		
-		size_t t_FilePathSize = strnlen_s(a_FileName, 256);
-		Memory::Copy(t_String + t_StringSize, a_FileName, t_FilePathSize);
-		t_StringSize += t_FilePathSize;
+		t_String.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
+		t_String.append(a_FileName);
 	}
 	{ //Get the line number into the buffer
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_LINE_NUMBER_1, _countof(LOG_MESSAGE_LINE_NUMBER_1));
-		t_StringSize += _countof(LOG_MESSAGE_LINE_NUMBER_1);
+		char lineNumString[8]{};
+		sprintf_s(lineNumString, 8, "%u", a_Line);
 
-		char lineNumString[12]{};
-		sprintf_s(lineNumString, 12, "%d", a_Line);
-		size_t t_LineNumSize = strnlen_s(lineNumString, 256);
-		Memory::Copy(t_String + t_StringSize, lineNumString, t_LineNumSize);
-		t_StringSize += t_LineNumSize;
+		t_String.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+		t_String.append(lineNumString);
 	}
 	{ //Get the file.
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_MESSAGE_TXT_2, _countof(LOG_MESSAGE_MESSAGE_TXT_2));
-		t_StringSize += _countof(LOG_MESSAGE_MESSAGE_TXT_2);
-
-		size_t t_MessageSize = strnlen_s(a_Message, 256);
-		Memory::Copy(t_String + t_StringSize, a_Message, t_MessageSize);
-		t_StringSize += t_MessageSize;
+		t_String.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+		t_String.append(a_Message);
+		//double line ending for better reading.
+		t_String.append("\n\n", 2);
 	}
-	//Double skip for the end
-	t_String[t_StringSize++] = '\r';
-	t_String[t_StringSize++] = '\n';
-	t_String[t_StringSize++] = '\r';
-	t_String[t_StringSize++] = '\n';
 
 	Buffer t_LogBuffer{};
-	t_LogBuffer.data = t_String;
-	t_LogBuffer.size = t_StringSize;
+	t_LogBuffer.data = t_String.data();
+	t_LogBuffer.size = t_String.size();
 
 	WriteToFile(g_LogFile, t_LogBuffer);
-	WriteToConsole(t_String, static_cast<uint32_t>(t_StringSize));
+	WriteToConsole(t_String.c_str(), static_cast<uint32_t>(t_String.size()));
 }
 
 static void Log_to_Console(const char* a_FileName, int a_Line, const wchar_t* a_Message, const char* a_WarningLevel)
 {
-	constexpr const wchar_t LOG_MESSAGE_FILE_0[]{ L"File: " };
-	constexpr const wchar_t LOG_MESSAGE_LINE_NUMBER_1[]{ L"\r\nLine Number: " };
-	constexpr const wchar_t LOG_MESSAGE_MESSAGE_TXT_2[]{ L"\r\nThe Message: " };
-
+	constexpr const wchar_t LOG_MESSAGE_ERROR_LEVEL_0[]{ L"Error Level: " };
+	constexpr const wchar_t LOG_MESSAGE_FILE_0[]{ L"\nFile: " };
+	constexpr const wchar_t LOG_MESSAGE_LINE_NUMBER_1[]{ L"\nLine Number: " };
+	constexpr const wchar_t LOG_MESSAGE_MESSAGE_TXT_2[]{ L"\nThe Message: " };
 
 	//Format the message
-	wchar_t t_String[2048]{};
-	size_t t_StringSize = 0;
-	{ 	//Start with the warning level
+	StackWString<1024> t_String{};
+	{	//Start with the warning level
+		t_String.append(LOG_MESSAGE_ERROR_LEVEL_0, _countof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+
+		wchar t_WarnMessage[64]{};
 		size_t t_WarnMesgSize = strnlen_s(a_WarningLevel, 64);
-		mbstowcs(t_String, a_WarningLevel, t_WarnMesgSize);
-		t_StringSize += t_WarnMesgSize;
+		mbstowcs(t_WarnMessage, a_WarningLevel, t_WarnMesgSize);
+		t_String.append(t_WarnMessage, t_WarnMesgSize);
 	}
-
 	{ //Get the file.
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_FILE_0, _countof(LOG_MESSAGE_FILE_0));
-		t_StringSize += _countof(LOG_MESSAGE_FILE_0);
+		t_String.append(LOG_MESSAGE_FILE_0, _countof(LOG_MESSAGE_FILE_0) - 1);
 
-		size_t t_FilePathSize = strnlen_s(a_FileName, 256);
-		mbstowcs(t_String + t_StringSize, a_FileName, t_FilePathSize);
-		t_StringSize += t_FilePathSize;
+		wchar t_Message[256]{};
+		size_t t_MessageSize = strnlen_s(a_FileName, 255);
+		mbstowcs(t_Message, a_FileName, t_MessageSize);
+		t_String.append(t_Message, t_MessageSize);
 	}
 	{ //Get the line number into the buffer
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_LINE_NUMBER_1, _countof(LOG_MESSAGE_LINE_NUMBER_1));
-		t_StringSize += _countof(LOG_MESSAGE_LINE_NUMBER_1);
+		wchar lineNumString[8]{};
+		swprintf_s(lineNumString, 8, L"%u", a_Line);
 
-		wchar_t lineNumString[12]{};
-		swprintf_s(lineNumString, 12, L"%d", a_Line);
-		size_t t_LineNumSize = wcsnlen_s(lineNumString, 256);
-		Memory::Copy(t_String + t_StringSize, lineNumString, t_LineNumSize);
-		t_StringSize += t_LineNumSize;
+		t_String.append(LOG_MESSAGE_LINE_NUMBER_1, _countof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+		t_String.append(lineNumString);
 	}
 	{ //Get the file.
-		Memory::Copy(t_String + t_StringSize, LOG_MESSAGE_MESSAGE_TXT_2, _countof(LOG_MESSAGE_MESSAGE_TXT_2));
-		t_StringSize += _countof(LOG_MESSAGE_MESSAGE_TXT_2);
-
-		size_t t_MessageSize = wcsnlen_s(a_Message, 256);
-		Memory::Copy(t_String + t_StringSize, a_Message, t_MessageSize);
-		t_StringSize += t_MessageSize;
+		t_String.append(LOG_MESSAGE_MESSAGE_TXT_2, _countof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+		t_String.append(a_Message);
+		//double line ending for better reading.
+		t_String.append(L"\n\n", 2);
 	}
-	//Double skip for the end
-	t_String[t_StringSize++] = L'\r';
-	t_String[t_StringSize++] = L'\n';
-	t_String[t_StringSize++] = L'\r';
-	t_String[t_StringSize++] = L'\n';
 
 	Buffer t_LogBuffer{};
-	t_LogBuffer.data = t_String;
-	t_LogBuffer.size = t_StringSize;
+	t_LogBuffer.data = t_String.data();
+	t_LogBuffer.size = t_String.size();
 
 	WriteToFile(g_LogFile, t_LogBuffer);
-	WriteToConsole(t_String, static_cast<uint32_t>(t_StringSize));
+	WriteToConsole(t_String.c_str(), static_cast<uint32_t>(t_String.size()));
 }
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Info: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Info");
 }
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Info: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Info");
 }
 
 void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Optimalization Warning: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Optimalization Warning");
 }
 
 void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Optimalization Warning: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Optimalization Warning");
 }
 
 void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (LOW): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (LOW)");
 }
 
 void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (LOW): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (LOW)");
 }
 
 void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (MEDIUM): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (MEDIUM)");
 }
 
 void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (MEDIUM): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (MEDIUM)");
 }
 
 void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (HIGH): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (HIGH)");
 }
 
 void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (HIGH): ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Warning (HIGH)");
 }
 
 void Logger::Log_Exception(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Exception: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Exception");
 }
 
 void Logger::Log_Exception(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Exception: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Exception");
 }
 
 void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Critical Error: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Critical");
 }
 
 void Logger::Log_Error(const char* a_FileName, int a_Line, const wchar_t* a_Message)
 {
-	Log_to_Console(a_FileName, a_Line, a_Message, "Critical Error: ");
+	Log_to_Console(a_FileName, a_Line, a_Message, "Critical");
 }

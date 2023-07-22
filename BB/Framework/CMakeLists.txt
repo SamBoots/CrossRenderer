@@ -46,7 +46,7 @@ set (BB_Source
 "src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
-"src/BBMemory.cpp"
+
 "src/BBMain.cpp")
 
 
