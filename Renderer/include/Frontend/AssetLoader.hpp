@@ -25,7 +25,7 @@ namespace BB
 
 	private:
 		void LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List);
-		void ExecuteCommands(RecordingCommandListHandle a_List);
+		void ExecuteCommands();
 
 		LinearAllocator_t m_Allocator{ mbSize * 4 };
 

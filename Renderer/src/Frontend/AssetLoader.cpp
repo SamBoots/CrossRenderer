@@ -1,5 +1,6 @@
 #include "AssetLoader.hpp"
 #include "RenderFrontend.h"
+#include "Storage/BBString.h"
 
 
 #pragma warning(push, 0)
@@ -11,6 +12,10 @@ using namespace BB;
 
 AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 {
+	size_t t_PathStrLength = strlen(a_Info.path);
+
+	Memory::Copy(t_DebugNames, a_Info.path, t_PathStrLength);
+
 	{
 		RenderCommandAllocatorCreateInfo t_CreateInfo;
 		t_CreateInfo.name = "Async loading command allocator";
@@ -26,6 +31,22 @@ AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
 	}
 
 	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(m_CommandList);
+
+	switch (a_Info.assetType)
+	{
+	case ASSET_TYPE::GLTF:
+		//lol, lmao
+		break;
+	case ASSET_TYPE::TEXTURE:
+		LoadTexture(a_Info, t_List);
+		break;
+	default:
+		BB_ASSERT(false, "Asset loading trying to load unknown ASSET_TYPE");
+		break;
+	}
+	RenderBackend::EndCommandList(t_List);
+
+	ExecuteCommands();
 }
 
 AssetLoader::~AssetLoader()
@@ -109,10 +130,9 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 
 		RenderBackend::CopyBufferImage(a_List, t_CopyImageInfo);
 	}
-	RenderBackend::EndCommandList(a_List);
 }
 
-void AssetLoader::ExecuteCommands(RecordingCommandListHandle a_List)
+void AssetLoader::ExecuteCommands()
 {
 	RenderQueue& t_TransferQueue = Render::GetTransferQueue();
 	m_WaitValue = t_TransferQueue.GetNextFenceValue();
@@ -127,6 +147,7 @@ void AssetLoader::ExecuteCommands(RecordingCommandListHandle a_List)
 
 	t_TransferQueue.ExecuteCommands(&a_ExecuteInfo, 1);
 
+	//for now just stall the thread.
 	RenderWaitCommandsInfo t_WaitInfo;
 	t_WaitInfo.waitFences = &t_TransferQueue.GetFence();
 	t_WaitInfo.waitValues = &m_WaitValue;
