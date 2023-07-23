@@ -6,8 +6,9 @@ namespace BB
 {
 	using RMaterialHandle = FrameworkHandle<struct RMaterialHandleTag>;
 	using RModelHandle = FrameworkHandle<struct RModelHandleTag>;
-	using DrawObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
 	using LightHandle = FrameworkHandle<struct LightHandleTag>;
+
+	using RTexture = FrameworkHandle<struct RTexturetag>;
 
 
 	enum class LIGHT_TYPE
@@ -64,7 +65,6 @@ namespace BB
 		BB::Slice<const uint32_t> indices{};
 		PipelineHandle pipeline{};
 		RDescriptor meshDescriptor;
-		const char* imagePath = nullptr;
 	};
 
 	enum class MODEL_TYPE
@@ -85,13 +85,5 @@ namespace BB
 		float3 pos;
 		float radius;
 		float4 color;
-	};
-
-	struct DrawObject
-	{
-		const char* name;
-		RModelHandle modelHandle{};
-		TransformHandle transformHandle{};
-		uint32_t textureIndex1;
 	};
 }

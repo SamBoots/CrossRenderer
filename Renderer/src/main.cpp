@@ -98,7 +98,6 @@ int main(int argc, char** argv)
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
-	t_ModelInfo.imagePath = "Resources/Textures/DuckCM.png";
 	t_ModelInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_ModelInfo.pipeline = t_Scene.GetPipelineHandle();
 
@@ -107,17 +106,23 @@ int main(int argc, char** argv)
 	t_LoadInfo.path = "Resources/Models/Duck.gltf";
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
+	//t_LoadInfo.imagePath = "Resources/Textures/DuckCM.png";
 
 	//Start frame before we upload.
 	Render::StartFrame();
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
-	DrawObjectHandle t_DrawObj1 = t_Scene.CreateDrawObject("Duck",
-		t_gltfCube, glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
+	SceneObjectCreateInfo t_SceneObjectCreateInfo;
+	t_SceneObjectCreateInfo.name = "Duck";
+	t_SceneObjectCreateInfo.model = t_gltfCube;
+	SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
+		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
-	DrawObjectHandle t_DrawObj2 = t_Scene.CreateDrawObject("Quad", t_Model, glm::vec3(0, 1, 0));
+	t_SceneObjectCreateInfo.name = "Quad";
+	t_SceneObjectCreateInfo.model = t_Model;
+	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();

@@ -147,8 +147,6 @@ CommandListHandle t_TransferCommands[3];
 RecordingCommandListHandle t_RecordingGraphics;
 RecordingCommandListHandle t_RecordingTransfer;
 
-RImageHandle t_ExampleImage;
-
 static FrameIndex s_CurrentFrame;
 static Render_inst* s_RenderInst;
 
@@ -288,43 +286,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
 		t_WriteInfos.data = Slice(t_WriteDatas, MAX_TEXTURES);
 		RenderBackend::WriteDescriptors(t_WriteInfos);
-	}
-
-	int x, y, c;
-	stbi_uc* t_Pixels = stbi_load("Resources/Textures/DuckCM.png", &x, &y, &c, 4);
-	BB_ASSERT(t_Pixels, "Failed to load test image!");
-	STBI_FREE(t_Pixels); //HACK, will fix later.
-	{
-		RenderImageCreateInfo t_ImageInfo{};
-		t_ImageInfo.name = "example texture";
-		t_ImageInfo.width = static_cast<uint32_t>(x);
-		t_ImageInfo.height = static_cast<uint32_t>(y);
-		t_ImageInfo.depth = 1;
-		t_ImageInfo.arrayLayers = 1;
-		t_ImageInfo.mipLevels = 1;
-		t_ImageInfo.tiling = RENDER_IMAGE_TILING::OPTIMAL;
-		t_ImageInfo.type = RENDER_IMAGE_TYPE::TYPE_2D;
-		t_ImageInfo.format = RENDER_IMAGE_FORMAT::RGBA8_SRGB;
-
-		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
-	}
-
-	{
-		FixedArray<WriteDescriptorData, 1> t_WriteDatas;
-		WriteDescriptorInfos t_BufferUpdate{};
-		t_BufferUpdate.allocation = s_RenderInst->io.globalDescAllocation;
-		t_BufferUpdate.descriptorHandle = s_RenderInst->io.globalDescriptor;
-		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
-
-		t_WriteDatas[0].binding = 0;
-		t_WriteDatas[0].descriptorIndex = 0;
-		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-		t_WriteDatas[0].image.image = t_ExampleImage;
-		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_WriteDatas[0].image.sampler = nullptr;
-
-		RenderBackend::WriteDescriptors(t_BufferUpdate);
-
 	}
 
 	{//implement imgui here.
@@ -544,71 +505,6 @@ RModelHandle BB::Render::CreateRawModel(const CreateRawModelInfo& a_CreateInfo)
 	t_Model.pipelineHandle = a_CreateInfo.pipeline;
 
 	{
-		RenderTransitionImageInfo t_ImageTransInfo{};
-		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
-		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-		t_ImageTransInfo.image = t_ExampleImage;
-		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-		t_ImageTransInfo.layerCount = 1;
-		t_ImageTransInfo.levelCount = 1;
-		t_ImageTransInfo.baseArrayLayer = 0;
-		t_ImageTransInfo.baseMipLevel = 0;
-		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
-		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
-
-		constexpr size_t TEXTURE_BYTE_ALIGNMENT = 512;
-		int x, y, c;
-		//hacky way, whatever we do it for now.
-		stbi_uc* t_Pixels = stbi_load(a_CreateInfo.imagePath, &x, &y, &c, 4);
-		ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_ExampleImage);
-
-		//Add some extra for alignment.
-		size_t t_AlignedOffset = Pointer::AlignPad(s_RenderInst->uploadBuffer.GetCurrentOffset(), TEXTURE_BYTE_ALIGNMENT);
-		size_t t_AllocAddition = t_AlignedOffset - s_RenderInst->uploadBuffer.GetCurrentOffset();
-		UploadBufferChunk t_StageBuffer = s_RenderInst->uploadBuffer.Alloc(t_ImageInfo.allocInfo.imageAllocByteSize + t_AllocAddition);
-		const UINT64 t_SourcePitch = static_cast<UINT64>(t_ImageInfo.width) * sizeof(uint32_t);
-
-		void* t_ImageSrc = t_Pixels;
-		void* t_ImageDst = Pointer::Add(t_StageBuffer.memory, t_AllocAddition);
-		//Layouts should be only 1 right now due to mips.
-		for (uint32_t i = 0; i < t_ImageInfo.allocInfo.footHeight; i++)
-		{
-			memcpy(t_ImageDst, t_ImageSrc, t_SourcePitch);
-
-			t_ImageSrc = Pointer::Add(t_ImageSrc, t_SourcePitch);
-			t_ImageDst = Pointer::Add(t_ImageDst, t_ImageInfo.allocInfo.footRowPitch);
-		}
-
-		RenderCopyBufferImageInfo t_CopyImage{};
-		t_CopyImage.srcBuffer = s_RenderInst->uploadBuffer.Buffer();
-		t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_AlignedOffset);
-		t_CopyImage.dstImage = t_ExampleImage;
-		t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(x);
-		t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(y);
-		t_CopyImage.dstImageInfo.sizeZ = 1;
-		t_CopyImage.dstImageInfo.offsetX = 0;
-		t_CopyImage.dstImageInfo.offsetY = 0;
-		t_CopyImage.dstImageInfo.offsetZ = 0;
-		t_CopyImage.dstImageInfo.layerCount = 1;
-		t_CopyImage.dstImageInfo.mipLevel = 0;
-		t_CopyImage.dstImageInfo.baseArrayLayer = 0;
-		t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-
-		RenderBackend::CopyBufferImage(t_RecordingGraphics, t_CopyImage);
-
-
-		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
-		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
-		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
-		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
-	}
-
-	{
 		UploadBufferChunk t_StageBuffer = s_RenderInst->uploadBuffer.Alloc(a_CreateInfo.vertices.sizeInBytes());
 		memcpy(t_StageBuffer.memory, a_CreateInfo.vertices.data(), a_CreateInfo.vertices.sizeInBytes());
 
@@ -693,9 +589,6 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 			a_LoadInfo.path);
 		break;
 	}
-	
-	t_Model.image = t_ExampleImage;
-
 
 	//temporary
 	{ //descriptor allocation

@@ -35,10 +35,10 @@ void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 		if (ImGui::CollapsingHeader("Scene Objects"))
 		{
 			ImGui::Indent();
-			BB::Slice<DrawObject> t_DrawObjects = t_Scene.GetDrawObjects();
-			for (size_t i = 0; i < t_DrawObjects.size(); i++)
+			BB::Slice<SceneObject> t_SceneObjects = t_Scene.GetSceneObjects();
+			for (size_t i = 0; i < t_SceneObjects.size(); i++)
 			{
-				const DrawObject& t_Obj = t_DrawObjects[i];
+				const SceneObject& t_Obj = t_SceneObjects[i];
 				Transform& t_Trans = t_Scene.GetTransform(t_Obj.transformHandle);
 
 				if (ImGui::CollapsingHeader(t_Obj.name))

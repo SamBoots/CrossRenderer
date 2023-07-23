@@ -12,6 +12,23 @@ namespace BB
 		uint32_t sceneWindowHeight = 0;
 	};
 
+	struct SceneObjectCreateInfo
+	{
+		char* name; 
+		RModelHandle model;
+		RTexture texture;
+	};
+
+	struct SceneObject
+	{
+		const char* name;
+		RModelHandle modelHandle{};
+		TransformHandle transformHandle{};
+		RTexture texture1;
+	};
+
+	using SceneObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
+
 	class SceneGraph
 	{
 	public:
@@ -25,13 +42,15 @@ namespace BB
 		void SetProjection(const glm::mat4& a_Proj);
 		void SetView(const glm::mat4& a_View);
 
-		DrawObjectHandle CreateDrawObject(const char* a_Name, const RModelHandle a_Model, const glm::vec3 a_Position = glm::vec3(0), const glm::vec3 a_Axis = glm::vec3(0), const float a_Radians = 0, const glm::vec3 a_Scale = glm::vec3(1));
-		void DestroyDrawObject(const DrawObjectHandle a_Handle);
+		SceneObjectHandle CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const glm::vec3 a_Position = glm::vec3(0), const glm::vec3 a_Axis = glm::vec3(0), const float a_Radians = 0, const glm::vec3 a_Scale = glm::vec3(1));
+		void DestroySceneObject(const SceneObjectHandle a_Handle);
 
-		Transform& GetTransform(const DrawObjectHandle a_Handle) const;
+		Transform& GetTransform(const SceneObjectHandle a_Handle) const;
 		Transform& GetTransform(const TransformHandle a_Handle) const;
 		
-		BB::Slice<DrawObject> GetDrawObjects();
+		//TEMP, should be local to the scenegraph.cpp
+		BB::Slice<SceneObject> GetSceneObjects();
+		//TEMP, should be local to the scenegraph.cpp
 		BB::Slice<Light> GetLights();
 		const RDescriptor GetSceneDescriptor() const;
 		const char* GetSceneName() const;

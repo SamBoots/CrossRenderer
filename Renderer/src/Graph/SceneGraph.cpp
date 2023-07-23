@@ -22,12 +22,19 @@ struct SceneInfo
 	uint3 padding{};
 };
 
+constexpr uint32_t SCENE_PUSH_CONSTANT_DWORD_COUNT = 2;
+struct ScenePushConstantInfo
+{
+	uint32_t modelMatrixIndex;
+	uint32_t textureIndex1;
+};
+
 struct BB::SceneGraph_inst
 {
 	SceneGraph_inst(Allocator a_Allocator, const RenderBufferCreateInfo& a_BufferInfo, const size_t a_SceneBufferSizePerFrame, const SceneCreateInfo& a_CreateInfo, const uint32_t a_BackBufferCount)
 		:	sceneName(a_CreateInfo.sceneName),
 			systemAllocator(a_Allocator),
-			drawObjects(a_Allocator, 256),
+			sceneObjects(a_Allocator, 256),
 			transformPool(a_Allocator, 256),
 			lights(a_Allocator, a_CreateInfo.lights.size()),
 			GPUbuffer(a_BufferInfo),
@@ -60,7 +67,7 @@ struct BB::SceneGraph_inst
 	uint32_t sceneWindowWidth;
 	uint32_t sceneWindowHeight;
 
-	Slotmap<DrawObject> drawObjects;
+	Slotmap<SceneObject> sceneObjects;
 
 	TransformPool transformPool;
 	RenderBufferPart matrixBuffer;
@@ -185,7 +192,7 @@ SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInf
 		t_PipeInitInfo.enableDepthTest = true;
 
 		//We only have 1 index so far.
-		t_PipeInitInfo.constantData.dwordSize = 1;
+		t_PipeInitInfo.constantData.dwordSize = SCENE_PUSH_CONSTANT_DWORD_COUNT;
 		t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
 
 		SamplerCreateInfo t_ImmutableSampler{};
@@ -371,7 +378,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 	//Record rendering commands.
 	RenderBackend::StartRendering(a_GraphicList, t_StartRenderInfo);
 
-	RModelHandle t_CurrentModel = inst->drawObjects.begin()->modelHandle;
+	RModelHandle t_CurrentModel = inst->sceneObjects.begin()->modelHandle;
 	Model* t_Model = &Render::GetModel(t_CurrentModel.handle);
 
 	const uint32_t t_FrameNum = RenderBackend::GetCurrentFrameBufferIndex();
@@ -386,7 +393,7 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 		RenderBackend::BindIndexBuffer(a_GraphicList, t_Model->indexView.buffer, t_Model->indexView.offset);
 	}
 
-	for (auto t_It = inst->drawObjects.begin(); t_It < inst->drawObjects.end(); t_It++)
+	for (auto t_It = inst->sceneObjects.begin(); t_It < inst->sceneObjects.end(); t_It++)
 	{
 		if (t_CurrentModel != t_It->modelHandle)
 		{
@@ -406,7 +413,13 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 			t_Model = t_NewModel;
 		}
 
-		RenderBackend::BindConstant(a_GraphicList, 0, 1, 0, &t_It->transformHandle.index);
+		ScenePushConstantInfo t_PushInfo
+		{
+			t_It->transformHandle.index,
+			t_It->texture1.index
+		};
+
+		RenderBackend::BindConstant(a_GraphicList, 0, SCENE_PUSH_CONSTANT_DWORD_COUNT, 0, &t_PushInfo);
 		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
 		{
 			const Model::Node& t_Node = t_Model->linearNodes[i];
@@ -448,21 +461,21 @@ void SceneGraph::SetView(const glm::mat4& a_View)
 	inst->sceneInfo.view = a_View;
 }
 
-DrawObjectHandle SceneGraph::CreateDrawObject(const char* a_Name, const RModelHandle a_Model, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
+SceneObjectHandle SceneGraph::CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
-	DrawObject t_DrawObject{ a_Name, a_Model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale)};
-	return DrawObjectHandle(inst->drawObjects.emplace(t_DrawObject).handle);
+	SceneObject t_DrawObject{ a_CreateInfo.name, a_CreateInfo.model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale), a_CreateInfo.texture };
+	return SceneObjectHandle(inst->sceneObjects.emplace(t_DrawObject).handle);
 }
 
-void SceneGraph::DestroyDrawObject(const DrawObjectHandle a_Handle)
+void SceneGraph::DestroySceneObject(const SceneObjectHandle a_Handle)
 {
-	inst->transformPool.FreeTransform(inst->drawObjects[a_Handle.handle].transformHandle);
-	inst->drawObjects.erase(a_Handle.handle);
+	inst->transformPool.FreeTransform(inst->sceneObjects[a_Handle.handle].transformHandle);
+	inst->sceneObjects.erase(a_Handle.handle);
 }
 
-Transform& SceneGraph::GetTransform(const DrawObjectHandle a_Handle) const
+Transform& SceneGraph::GetTransform(const SceneObjectHandle a_Handle) const
 {
-	return inst->transformPool.GetTransform(inst->drawObjects[a_Handle.handle].transformHandle);
+	return inst->transformPool.GetTransform(inst->sceneObjects[a_Handle.handle].transformHandle);
 }
 
 Transform& SceneGraph::GetTransform(const TransformHandle a_Handle) const
@@ -470,9 +483,9 @@ Transform& SceneGraph::GetTransform(const TransformHandle a_Handle) const
 	return inst->transformPool.GetTransform(a_Handle);
 }
 
-BB::Slice<DrawObject> SceneGraph::GetDrawObjects()
+BB::Slice<SceneObject> SceneGraph::GetSceneObjects()
 {
-	return BB::Slice(inst->drawObjects.data(), inst->drawObjects.size());
+	return BB::Slice(inst->sceneObjects.data(), inst->sceneObjects.size());
 }
 
 BB::Slice<Light> SceneGraph::GetLights()
