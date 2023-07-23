@@ -33,7 +33,7 @@ namespace BB
 		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
 		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
 
-
+		const uint32_t GetAndWriteTexture(const RImageHandle a_Handle);
 		void FreeTextures(const uint32_t* a_TextureIndices, const uint32_t a_Count);
 		
 		const RDescriptor GetGlobalDescriptorSet();

@@ -63,8 +63,9 @@ struct ModelInstance
 struct BindlessIndices
 {
     uint model;
+    uint texture1;
 #ifdef _VULKAN
-    uint paddingTo64Bytes[15];
+    uint paddingTo64Bytes[14];
 #endif
 };
 

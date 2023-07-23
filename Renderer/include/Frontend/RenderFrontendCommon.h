@@ -87,11 +87,11 @@ namespace BB
 		float4 color;
 	};
 
-
 	struct DrawObject
 	{
 		const char* name;
 		RModelHandle modelHandle{};
 		TransformHandle transformHandle{};
+		uint32_t textureIndex1;
 	};
 }

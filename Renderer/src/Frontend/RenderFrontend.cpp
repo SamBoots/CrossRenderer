@@ -56,7 +56,7 @@ struct TextureManager
 		uint8_t g = 106;
 		uint8_t b = 255;
 		uint8_t a = 255;
-		uint32_t t_Purple = (a << 24) | (b << 16) | (g << 8) | (r << 0);
+		uint32_t t_Purple = (a << 24) | (r << 16) | (g << 8) | (b << 0);
 		memcpy(t_DebugImage.memory, &t_Purple, sizeof(uint32_t));
 
 		RenderCopyBufferImageInfo t_CopyImage{};
@@ -252,6 +252,44 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		s_RenderInst->io.swapchainHeight = t_BackendCreateInfo.windowHeight;
 	}
 
+	{
+		RenderDescriptorCreateInfo t_CreateInfo{};
+		t_CreateInfo.name = "global engine descriptor set";
+		FixedArray<DescriptorBinding, 1> t_DescBinds;
+		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
+		{	//Image Binds
+			t_DescBinds[0].binding = 0;
+			t_DescBinds[0].descriptorCount = DESCRIPTOR_IMAGE_MAX;
+			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
+			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		}
+
+		s_RenderInst->io.globalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
+		s_RenderInst->io.globalDescAllocation = Render::AllocateDescriptor(s_RenderInst->io.globalDescriptor);
+	}
+
+	{	//Set all descriptors to debug purple.
+		WriteDescriptorData t_WriteDatas[MAX_TEXTURES]{};
+		t_WriteDatas[0].binding = 0;
+		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		t_WriteDatas[0].image.image = s_RenderInst->textureManager.debugTexture;
+		t_WriteDatas[0].image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_WriteDatas[0].image.sampler = nullptr;
+
+		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
+		{
+			t_WriteDatas[i] = t_WriteDatas[0];
+			t_WriteDatas[i].descriptorIndex = i;
+		}
+
+		//Write image back to pink
+		WriteDescriptorInfos t_WriteInfos{};
+		t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
+		t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
+		t_WriteInfos.data = Slice(t_WriteDatas, MAX_TEXTURES);
+		RenderBackend::WriteDescriptors(t_WriteInfos);
+	}
+
 	int x, y, c;
 	stbi_uc* t_Pixels = stbi_load("Resources/Textures/DuckCM.png", &x, &y, &c, 4);
 	BB_ASSERT(t_Pixels, "Failed to load test image!");
@@ -269,22 +307,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImageInfo.format = RENDER_IMAGE_FORMAT::RGBA8_SRGB;
 
 		t_ExampleImage = RenderBackend::CreateImage(t_ImageInfo);
-	}
-	
-	{
-		RenderDescriptorCreateInfo t_CreateInfo{};
-		t_CreateInfo.name = "global engine descriptor set";
-		FixedArray<DescriptorBinding, 1> t_DescBinds;
-		t_CreateInfo.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-		{//Image Binds
-			t_DescBinds[0].binding = 0;
-			t_DescBinds[0].descriptorCount = DESCRIPTOR_IMAGE_MAX;
-			t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-			t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-		}
-
-		s_RenderInst->io.globalDescriptor = RenderBackend::CreateDescriptor(t_CreateInfo);
-		s_RenderInst->io.globalDescAllocation = Render::AllocateDescriptor(s_RenderInst->io.globalDescriptor);
 	}
 
 	{
@@ -432,6 +454,31 @@ RenderBufferPart BB::Render::AllocateFromVertexBuffer(const size_t a_Size)
 RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 {
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
+}
+
+const uint32_t BB::Render::GetAndWriteTexture(const RImageHandle a_Handle)
+{
+	const uint32_t t_DescriptorIndex = s_RenderInst->textureManager.nextFree;
+	TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_DescriptorIndex];
+	s_RenderInst->textureManager.nextFree = t_FreeSlot.nextFree;
+	t_FreeSlot.image = a_Handle;
+	t_FreeSlot.nextFree = UINT32_MAX; //will go and error if we for some reason access this nextFree variable.
+	
+	WriteDescriptorData t_WriteData{};
+	t_WriteData.binding = 0;
+	t_WriteData.descriptorIndex = t_DescriptorIndex;
+	t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+	t_WriteData.image.image = a_Handle;
+	t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+	t_WriteData.image.sampler = nullptr;
+
+	WriteDescriptorInfos t_WriteInfos{};
+	t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
+	t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
+	t_WriteInfos.data = Slice(&t_WriteData, 1);
+	RenderBackend::WriteDescriptors(t_WriteInfos);
+
+	return t_DescriptorIndex;
 }
 
 void BB::Render::FreeTextures(const uint32_t* a_TextureIndices, const uint32_t a_Count)
