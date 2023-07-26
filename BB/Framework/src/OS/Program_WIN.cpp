@@ -423,6 +423,16 @@ void BB::CloseOSFile(const OSFileHandle a_FileHandle)
 	CloseHandle(reinterpret_cast<HANDLE>(a_FileHandle.ptrHandle));
 }
 
+OSThreadHandle BB::OSCreateThread(void(*a_Func)(void*), const unsigned int a_StackSize, void* a_ArgList)
+{
+	return OSThreadHandle(_beginthread(a_Func, a_StackSize, a_ArgList));
+}
+
+void BB::OSWaitThreadfinish(const OSThreadHandle a_Thread)
+{
+	WaitForSingleObject((HANDLE)a_Thread.handle, INFINITE);
+}
+
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
 	HWND t_Window;

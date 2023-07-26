@@ -32,13 +32,13 @@ set (BB_Public
 "include/Utils/Logger.h"
 "include/OS/Program.h" 
 "include/OS/HID.h"
+"include/OS/HID.inl"
+"include/BBThreadScheduler.hpp"
 "include/Common.h"
 "include/BBMemory.h" 
 "include/BBMain.h")
 
 set (BB_Source
-"include/OS/HID.inl"
-"include/BBGlobal.h" 
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/BackingAllocator.cpp" 
 "src/Allocators/TemporaryAllocator.cpp"
@@ -46,7 +46,7 @@ set (BB_Source
 "src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
-
+"src/BBThreadScheduler.cpp"
 "src/BBMain.cpp")
 
 

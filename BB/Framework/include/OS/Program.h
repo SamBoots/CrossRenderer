@@ -19,6 +19,8 @@ namespace BB
 	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_WindowHandle, const uint32_t a_X, const uint32_t a_Y);
 	typedef void (*PFN_WindowCloseEvent)(const WindowHandle a_WindowHandle);
 
+	using OSThreadHandle = FrameworkHandle<struct ThreadHandletag>;
+
 	enum class OS_WINDOW_STYLE
 	{
 		MAIN, //This window has a menu bar.
@@ -87,6 +89,9 @@ namespace BB
 	void SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint);
 
 	void CloseOSFile(const OSFileHandle a_FileHandle);
+
+	OSThreadHandle OSCreateThread(void(*a_Func)(void*), const unsigned int a_StackSize, void* a_ArgList);
+	void OSWaitThreadfinish(const OSThreadHandle a_Thread);
 
 	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
