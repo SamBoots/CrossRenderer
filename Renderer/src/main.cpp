@@ -5,6 +5,7 @@
 #include "RenderFrontend.h"
 #include "Graph/SceneGraph.hpp"
 #include "imgui_impl_CrossRenderer.h"
+#include "BBThreadScheduler.hpp"
 #include "Editor.h"
 
 #include <chrono>
@@ -34,6 +35,7 @@ int main(int argc, char** argv)
 	InitBB(t_BBInitInfo);
 	BB_LOG(argv[0]);
 	BB_LOG(L"Lol, lmao wide char printing works said the scorpion.");
+	Threads::InitThreads(4);
 
 	int t_WindowWidth = 1280;
 	int t_WindowHeight = 720;
@@ -210,13 +212,13 @@ int main(int argc, char** argv)
 		t_Scene.EndScene();
 		Render::EndFrame();
 
-
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
 		Render::StartFrame();
 	}
 
 	//Move this to the renderer?
 	BB::UnloadLib(t_RenderInfo.renderDll);
+	Threads::DestroyThreads();
 
 	return 0;
 }

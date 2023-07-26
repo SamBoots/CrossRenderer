@@ -3,12 +3,11 @@
 
 using namespace BB;
 
-constexpr uintptr_t DESTROY_THREAD_CODE = 0xDEADBEEFDEADBEEF;
-
-enum class THREAD_STATUS
+enum class THREAD_STATUS : uint32_t
 {
 	IDLE,
-	BUSY
+	BUSY,
+	DESTROY
 };
 
 struct ThreadInfo
@@ -23,13 +22,12 @@ struct ThreadInfo
 static void ThreadStartFunc(void* a_Args)
 {
 	ThreadInfo* t_ThreadInfo = reinterpret_cast<ThreadInfo*>(a_Args);
-	while (a_Args != (void*)DESTROY_THREAD_CODE)
+	while (t_ThreadInfo->threadStatus != THREAD_STATUS::DESTROY)
 	{
 		if (t_ThreadInfo->function != nullptr)
 		{
 			t_ThreadInfo->threadStatus = THREAD_STATUS::BUSY;
 			t_ThreadInfo->function(t_ThreadInfo->functionParameter);
-			//increment the generation
 			++t_ThreadInfo->generation;
 			t_ThreadInfo->function = nullptr;
 			t_ThreadInfo->functionParameter = nullptr;
@@ -54,7 +52,7 @@ static ThreadScheduler s_ThreadScheduler;
 
 void BB::Threads::InitThreads(const uint32_t a_ThreadCount)
 {
-	BB_ASSERT(a_ThreadCount > _countof(s_ThreadScheduler.threads), "Trying to create too many threads!");
+	BB_ASSERT(a_ThreadCount < _countof(s_ThreadScheduler.threads), "Trying to create too many threads!");
 	s_ThreadScheduler.threadCount = a_ThreadCount;
 
 	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
@@ -66,6 +64,14 @@ void BB::Threads::InitThreads(const uint32_t a_ThreadCount)
 		s_ThreadScheduler.threads[i].osThreadHandle = OSCreateThread(ThreadStartFunc,
 			0,
 			&s_ThreadScheduler.threads[i].threadInfo);
+	}
+}
+
+void BB::Threads::DestroyThreads()
+{
+	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
+	{
+		s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::DESTROY;
 	}
 }
 
@@ -89,5 +95,6 @@ void BB::Threads::WaitForThread(const ThreadHandle a_Handle)
 	//Avoiding a potentional kernel call.
 	if (s_ThreadScheduler.threads->threadInfo.generation > a_Handle.extraIndex)
 		return;
-	OSWaitThreadfinish(s_ThreadScheduler.threads->osThreadHandle);
+
+	while (s_ThreadScheduler.threads->threadInfo.threadStatus != THREAD_STATUS::IDLE) {};
 }

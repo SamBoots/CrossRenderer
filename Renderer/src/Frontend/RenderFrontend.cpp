@@ -426,15 +426,23 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
-const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
+struct UploadTextureParameter
 {
+	const char* texturePath;
+	RTexture returnValue;
+};
+
+static void UploadTexture_s(void* a_Param)
+{
+	UploadTextureParameter* t_Parameters = reinterpret_cast<UploadTextureParameter*>(a_Param);
+
 	const uint32_t t_DescriptorIndex = s_RenderInst->textureManager.nextFree;
 	TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_DescriptorIndex];
 	s_RenderInst->textureManager.nextFree = t_FreeSlot.nextFree;
 
 	AssetLoaderInfo t_LoadInfo{};
 	t_LoadInfo.assetType = ASSET_TYPE::TEXTURE;
-	t_LoadInfo.path = a_TexturePath;
+	t_LoadInfo.path = t_Parameters->texturePath;
 	t_LoadInfo.imageData.image = &t_FreeSlot.image;
 	AssetLoader* t_Loader = BBnew(s_SystemAllocator, AssetLoader)(t_LoadInfo);
 
@@ -460,25 +468,36 @@ const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
 
 	}
 	{
-	//Transfer image to prepare for transfer
-	RenderTransitionImageInfo t_ImageTransInfo{};
-	t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-	t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
-	t_ImageTransInfo.image = t_FreeSlot.image;
-	t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-	t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-	t_ImageTransInfo.srcQueue = RENDER_QUEUE_TRANSITION::TRANSFER;
-	t_ImageTransInfo.dstQueue = RENDER_QUEUE_TRANSITION::GRAPHICS;
-	t_ImageTransInfo.layerCount = 1;
-	t_ImageTransInfo.levelCount = 1;
-	t_ImageTransInfo.baseArrayLayer = 0;
-	t_ImageTransInfo.baseMipLevel = 0;
-	t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
-	t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+		//Transfer image to prepare for transfer
+		RenderTransitionImageInfo t_ImageTransInfo{};
+		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+		t_ImageTransInfo.image = t_FreeSlot.image;
+		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_ImageTransInfo.srcQueue = RENDER_QUEUE_TRANSITION::TRANSFER;
+		t_ImageTransInfo.dstQueue = RENDER_QUEUE_TRANSITION::GRAPHICS;
+		t_ImageTransInfo.layerCount = 1;
+		t_ImageTransInfo.levelCount = 1;
+		t_ImageTransInfo.baseArrayLayer = 0;
+		t_ImageTransInfo.baseMipLevel = 0;
+		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+		RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+	}
+
+	t_Parameters->returnValue = t_DescriptorIndex;
 }
 
-	return t_DescriptorIndex;
+#include "BBThreadScheduler.hpp"
+
+const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
+{
+	UploadTextureParameter t_TextureParam;
+	t_TextureParam.texturePath = a_TexturePath;
+	ThreadHandle t_Handle = Threads::StartThread(UploadTexture_s, &t_TextureParam);
+	Threads::WaitForThread(t_Handle);
+	return t_TextureParam.returnValue;
 }
 
 void BB::Render::FreeTextures(const RTexture* a_Texture, const uint32_t a_Count)
