@@ -472,10 +472,8 @@ namespace BB
 
 		void pop_back(uint32_t a_Count)
 		{
-			for (size_t i = 0; i < a_Count; i++)
-			{
-				m_String[m_Size--] = NULL;
-			}
+			m_Size -= a_Count;
+			memset(Pointer::Add(m_String, m_Size), NULL, a_Count);
 		};
 
 		void clear()

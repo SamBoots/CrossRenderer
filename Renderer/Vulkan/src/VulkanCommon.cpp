@@ -2254,8 +2254,7 @@ void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 		"Vulkan: failed to get next image.");
 
 	//For now not wait for semaphores, may be required later.
-	VkSemaphoreWaitInfo t_WaitInfo{};
-	t_WaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
 	t_WaitInfo.semaphoreCount = 1;
 	t_WaitInfo.pSemaphores = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameTimelineSemaphore;
 	t_WaitInfo.pValues = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
@@ -2397,16 +2396,14 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 		t_SemValues[t_WaitSemCount + i + 1] = a_ExecuteInfo.signalValues[i];
 	}
 
-	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{};
-	t_TimelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
 	t_TimelineInfo.waitSemaphoreValueCount = t_WaitSemCount;
 	t_TimelineInfo.pWaitSemaphoreValues = t_SemValues;
 	t_TimelineInfo.signalSemaphoreValueCount = t_SignalSemCount;
 	t_TimelineInfo.pSignalSemaphoreValues = &t_SemValues[t_WaitSemCount];
 	t_TimelineInfo.pNext = nullptr;
 
-	VkSubmitInfo t_SubmitInfo{};
-	t_SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	VkSubmitInfo t_SubmitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 	t_SubmitInfo.waitSemaphoreCount = t_WaitSemCount;
 	t_SubmitInfo.pWaitSemaphores = t_Semaphores;
 	t_SubmitInfo.pWaitDstStageMask = t_WaitStagesMask;

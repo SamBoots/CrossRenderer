@@ -9,11 +9,22 @@ namespace BB
 		TEXTURE
 	};
 
+	struct ImageLoadData
+	{
+		RImageHandle* image;
+	};
+
 	struct AssetLoaderInfo
 	{
 		ASSET_TYPE assetType;
 		const char* path;
+
+		union
+		{
+			ImageLoadData imageData;
+		};
 	};
+
 
 	class AssetLoader
 	{
@@ -25,7 +36,6 @@ namespace BB
 
 	private:
 		void LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List);
-		void ExecuteCommands();
 
 		LinearAllocator_t m_Allocator{ mbSize * 4 };
 
@@ -34,9 +44,6 @@ namespace BB
 		uint64_t m_WaitValue = UINT64_MAX;
 		bool m_IsFinished = false;
 		
-		union CreatedData
-		{
-			RImageHandle image;
-		} m_Data{};
+		AssetLoaderInfo m_LoadInfo;
 	};
 }

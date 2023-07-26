@@ -8,16 +8,13 @@
 #include "Storage/Slotmap.h"
 #include "Editor.h"
 
-#pragma warning(push, 0)
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb/stb_image.h"
-#pragma warning (pop)
+#include "AssetLoader.hpp"
 
 using namespace BB;
 using namespace BB::Render;
 
 void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path);
-FreelistAllocator_t s_SystemAllocator{ mbSize * 4 , "Render Frontend freelist allocator" };
+FreelistAllocator_t s_SystemAllocator{ mbSize * 4, "Render Frontend freelist allocator" };
 static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
 struct TextureManager
@@ -95,7 +92,15 @@ struct TextureManager
 	{
 		RImageHandle image;
 		//when loading in the texture.
-		uint32_t nextFree;
+		union 
+		{
+			//fence value reached until it's loaded.
+			//Also used as generation value
+			uint64_t fenceValue;
+			uint32_t nextFree;
+		
+		
+		};
 	};
 
 	uint32_t nextFree = 0;
@@ -136,6 +141,10 @@ struct Render_inst
 	RenderQueue transferQueue{ RENDER_QUEUE_TYPE::TRANSFER, "transfer queue" };
 
 	Slotmap<Model> models;
+
+	uint32_t t_workingAssetLoaderCount = 0;
+	//max of 8 asset loaders working together
+	AssetLoader* workingAssetLoaders[8];
 };
 
 CommandAllocatorHandle t_CommandAllocators[3];
@@ -417,32 +426,62 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
-const uint32_t BB::Render::GetAndWriteTexture(const RImageHandle a_Handle)
+const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
 {
 	const uint32_t t_DescriptorIndex = s_RenderInst->textureManager.nextFree;
 	TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_DescriptorIndex];
 	s_RenderInst->textureManager.nextFree = t_FreeSlot.nextFree;
-	t_FreeSlot.image = a_Handle;
-	t_FreeSlot.nextFree = UINT32_MAX; //will go and error if we for some reason access this nextFree variable.
-	
-	WriteDescriptorData t_WriteData{};
-	t_WriteData.binding = 0;
-	t_WriteData.descriptorIndex = t_DescriptorIndex;
-	t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-	t_WriteData.image.image = a_Handle;
-	t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-	t_WriteData.image.sampler = nullptr;
 
-	WriteDescriptorInfos t_WriteInfos{};
-	t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
-	t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
-	t_WriteInfos.data = Slice(&t_WriteData, 1);
-	RenderBackend::WriteDescriptors(t_WriteInfos);
+	AssetLoaderInfo t_LoadInfo{};
+	t_LoadInfo.assetType = ASSET_TYPE::TEXTURE;
+	t_LoadInfo.path = a_TexturePath;
+	t_LoadInfo.imageData.image = &t_FreeSlot.image;
+	AssetLoader* t_Loader = BBnew(s_SystemAllocator, AssetLoader)(t_LoadInfo);
+
+	RTexture t_Texture;
+	t_Texture.index = t_DescriptorIndex;
+	//will overflow, does not matter. This is only for debug checking.
+	t_Texture.extraIndex = static_cast<uint32_t>(t_FreeSlot.fenceValue);
+
+	{
+		WriteDescriptorData t_WriteData{};
+		t_WriteData.binding = 0;
+		t_WriteData.descriptorIndex = t_DescriptorIndex;
+		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
+		t_WriteData.image.image = t_FreeSlot.image;
+		t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+		t_WriteData.image.sampler = nullptr;
+
+		WriteDescriptorInfos t_WriteInfos;
+		t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
+		t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
+		t_WriteInfos.data = Slice(&t_WriteData, 1);
+		RenderBackend::WriteDescriptors(t_WriteInfos);
+
+	}
+	{
+	//Transfer image to prepare for transfer
+	RenderTransitionImageInfo t_ImageTransInfo{};
+	t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+	t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+	t_ImageTransInfo.image = t_FreeSlot.image;
+	t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+	t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+	t_ImageTransInfo.srcQueue = RENDER_QUEUE_TRANSITION::TRANSFER;
+	t_ImageTransInfo.dstQueue = RENDER_QUEUE_TRANSITION::GRAPHICS;
+	t_ImageTransInfo.layerCount = 1;
+	t_ImageTransInfo.levelCount = 1;
+	t_ImageTransInfo.baseArrayLayer = 0;
+	t_ImageTransInfo.baseMipLevel = 0;
+	t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+	t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	RenderBackend::TransitionImage(t_RecordingGraphics, t_ImageTransInfo);
+}
 
 	return t_DescriptorIndex;
 }
 
-void BB::Render::FreeTextures(const uint32_t* a_TextureIndices, const uint32_t a_Count)
+void BB::Render::FreeTextures(const RTexture* a_Texture, const uint32_t a_Count)
 {
 	WriteDescriptorData* t_WriteDatas = reinterpret_cast<WriteDescriptorData*>(_alloca(a_Count * sizeof(WriteDescriptorData)));
 	t_WriteDatas[0].binding = 0;
@@ -453,15 +492,17 @@ void BB::Render::FreeTextures(const uint32_t* a_TextureIndices, const uint32_t a
 
 	for (uint32_t i = 0; i < a_Count; i++)
 	{
-		const uint32_t t_TextureIndex = a_TextureIndices[i];
-		TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_TextureIndex];
+		const RTexture t_Texture = a_Texture[i];
+		TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_Texture.index];
+		//extra index is the fence value as a 4 byte value. So overflow is expected and will work as expected.
+		BB_ASSERT(static_cast<uint32_t>(t_FreeSlot.fenceValue) == t_Texture.extraIndex, "Trying to free a texture that is likely already freed!");
 		RenderBackend::DestroyImage(t_FreeSlot.image);
 		t_FreeSlot.image = s_RenderInst->textureManager.debugTexture;
 		t_FreeSlot.nextFree = s_RenderInst->textureManager.nextFree;
-		s_RenderInst->textureManager.nextFree = t_TextureIndex;
+		s_RenderInst->textureManager.nextFree = t_Texture.index;
 
 		t_WriteDatas[i] = t_WriteDatas[0];
-		t_WriteDatas[i].descriptorIndex = t_TextureIndex;
+		t_WriteDatas[i].descriptorIndex = t_Texture.index;
 	}
 
 	//Write image back to pink

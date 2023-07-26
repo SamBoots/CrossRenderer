@@ -106,22 +106,25 @@ int main(int argc, char** argv)
 	t_LoadInfo.path = "Resources/Models/Duck.gltf";
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
-	//t_LoadInfo.imagePath = "Resources/Textures/DuckCM.png";
 
 	//Start frame before we upload.
 	Render::StartFrame();
+
+	RTexture t_Texture = Render::UploadTexture("Resources/Textures/DuckCM.png");
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	SceneObjectCreateInfo t_SceneObjectCreateInfo;
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
+	t_SceneObjectCreateInfo.texture = t_Texture;
 	SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
 		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
 	t_SceneObjectCreateInfo.model = t_Model;
+	t_SceneObjectCreateInfo.texture = t_Texture;
 	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
