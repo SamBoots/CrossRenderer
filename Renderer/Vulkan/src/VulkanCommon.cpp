@@ -2497,7 +2497,7 @@ void BB::VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
 	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
 	t_WaitInfo.semaphoreCount = a_WaitInfo.waitCount;
-	t_WaitInfo.pSemaphores = reinterpret_cast<VkSemaphore*>(a_WaitInfo.waitFences);
+	t_WaitInfo.pSemaphores = reinterpret_cast<const VkSemaphore*>(a_WaitInfo.waitFences);
 	t_WaitInfo.pValues = a_WaitInfo.waitValues;
 
 	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);

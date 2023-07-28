@@ -8,6 +8,8 @@
 #include "BBThreadScheduler.hpp"
 #include "Editor.h"
 
+#include "AssetLoader.hpp"
+
 #include <chrono>
 
 using namespace BB;
@@ -26,6 +28,28 @@ void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 }
 
 LinearAllocator_t m_ScopeAllocator{2 * kbSize};
+
+struct UploadTexture_Thread_Parameters
+{
+	const char* path;
+	
+	struct ReturnValues
+	{
+		RTexture texture;
+	} returnValues;
+};
+
+void UploadTexture_Thread(void* a_Parameters)
+{
+	UploadTexture_Thread_Parameters* t_Parameters = reinterpret_cast<UploadTexture_Thread_Parameters*>(a_Parameters);
+
+	AssetLoaderInfo t_LoadInfo{};
+	t_LoadInfo.assetType = ASSET_TYPE::TEXTURE;
+	t_LoadInfo.path = t_Parameters->path;
+	AssetLoader t_Loader{ t_LoadInfo };
+
+	t_Parameters->returnValues.texture = Render::UploadTexture(t_Parameters->path);
+}
 
 int main(int argc, char** argv)
 {
@@ -112,21 +136,25 @@ int main(int argc, char** argv)
 	//Start frame before we upload.
 	Render::StartFrame();
 
-	RTexture t_Texture = Render::UploadTexture("Resources/Textures/DuckCM.png");
+	UploadTexture_Thread_Parameters t_DuckTextureUploadParam;
+	t_DuckTextureUploadParam.path = "Resources/Textures/DuckCM.png";
+	ThreadTask t_DuckTexture = Threads::StartTaskThread(UploadTexture_Thread, &t_DuckTextureUploadParam);
+
+	Threads::WaitForTask(t_DuckTexture);
 
 	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
 	SceneObjectCreateInfo t_SceneObjectCreateInfo;
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
-	t_SceneObjectCreateInfo.texture = t_Texture;
+	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
 	SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
 		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
 	t_SceneObjectCreateInfo.model = t_Model;
-	t_SceneObjectCreateInfo.texture = t_Texture;
+	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
 	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, glm::vec3(0, 1, 0));
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 

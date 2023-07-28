@@ -75,7 +75,7 @@ void BB::Threads::DestroyThreads()
 	}
 }
 
-ThreadHandle BB::Threads::StartThread(void(*a_Function)(void*), void* a_FuncParameter)
+ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter)
 {
 	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
 	{
@@ -83,18 +83,21 @@ ThreadHandle BB::Threads::StartThread(void(*a_Function)(void*), void* a_FuncPara
 		{
 			s_ThreadScheduler.threads[i].threadInfo.function = a_Function;
 			s_ThreadScheduler.threads[i].threadInfo.functionParameter = a_FuncParameter;
-			return ThreadHandle(i, s_ThreadScheduler.threads[i].threadInfo.generation);
+			return ThreadTask(i, s_ThreadScheduler.threads[i].threadInfo.generation + 1);
 		}
 	}
 	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
 }
 
-void BB::Threads::WaitForThread(const ThreadHandle a_Handle)
+void BB::Threads::WaitForTask(const ThreadTask a_Handle)
 {
-	//If the generation is higher then the thread extra index it means that we finished the job.
-	//Avoiding a potentional kernel call.
-	if (s_ThreadScheduler.threads->threadInfo.generation > a_Handle.extraIndex)
-		return;
+	while (s_ThreadScheduler.threads->threadInfo.generation > a_Handle.extraIndex) {};
+}
 
-	while (s_ThreadScheduler.threads->threadInfo.threadStatus != THREAD_STATUS::IDLE) {};
+bool BB::Threads::TaskFinished(const ThreadTask a_Handle)
+{
+	if (s_ThreadScheduler.threads->threadInfo.generation >= a_Handle.extraIndex)
+		return true;
+
+	return false;
 }

@@ -3,6 +3,10 @@
 
 namespace BB
 {
+	//Thank you Descent Raytracer teammates great code that I can steal
+#define BB_SLL_PUSH(head, node) ((node)->next = (head), (head) = (node))
+#define BB_SLL_POP(head) head; do { (head) = (head)->next; } while(0)
+
 	template<typename Tag>
 	union FrameworkHandle
 	{

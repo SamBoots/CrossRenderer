@@ -103,14 +103,28 @@ namespace BB
 		uint64_t lastCompleteValue = 0;
 	};
 
+	struct CommandList
+	{
+		CommandAllocatorHandle cmdAllocator;
+		CommandListHandle cmdList;
+		uint64_t queueFenceValue;
+		CommandList* next = nullptr;
+		operator CommandListHandle() { return cmdList; }
+	};
+
+
+	//THREAD SAFE: TRUE
 	class RenderQueue
 	{
 	public:
 		RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name);
 		~RenderQueue();
 
+		CommandList* GetCommandList();
+
 		//Also handles incrementing the 
-		void ExecuteCommands(const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteCount);
+		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const uint32_t a_FenceCount);
+		void WaitFenceValue(const uint64_t a_FenceValue);
 
 		const CommandQueueHandle GetQueue() const { return m_Queue; }
 		RFenceHandle GetFence() const { return m_Fence.fence; }
@@ -118,6 +132,11 @@ namespace BB
 		uint64_t GetLastCompletedValue() const { return m_Fence.lastCompleteValue; }
 
 	private:
+		BBMutex m_Mutex;
+		CommandList m_Lists[12]{};
+		CommandList* m_FreeCommandList;
+		CommandList* m_InFlightLists = nullptr;
+
 		CommandQueueHandle m_Queue;
 		RenderFence m_Fence;
 	};

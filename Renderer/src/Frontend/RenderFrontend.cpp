@@ -9,8 +9,6 @@
 #include "Storage/Array.h"
 #include "Editor.h"
 
-#include "AssetLoader.hpp"
-
 using namespace BB;
 using namespace BB::Render;
 
@@ -23,7 +21,7 @@ struct TextureManager
 	TextureManager(UploadBuffer& a_UploadBuffer, RecordingCommandListHandle t_CommandList)
 	{
 		RenderImageCreateInfo t_ImageInfo{};
-		t_ImageInfo.name = "debug texture";
+		t_ImageInfo.name = "debug purple texture";
 		t_ImageInfo.width = 1;
 		t_ImageInfo.height = 1;
 		t_ImageInfo.depth = 1;
@@ -96,7 +94,12 @@ struct TextureManager
 		t_PipelineInfos.imageInfos = t_ImageTransitionInfos;
 		RenderBackend::SetPipelineBarriers(t_CommandList, t_PipelineInfos);
 
-		for (uint32_t i = 0; i < MAX_TEXTURES - 1; i++)
+		//texture 0 is always the debug texture.
+		textures[0].mutex;
+		textures[0].image = debugTexture;
+		textures[0].nextFree = UINT32_MAX;
+
+		for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
 		{
 			textures[i].mutex = OSCreateMutex();
 			textures[i].image = debugTexture;
@@ -106,17 +109,7 @@ struct TextureManager
 		textures[MAX_TEXTURES - 1].mutex = OSCreateMutex();
 		textures[MAX_TEXTURES - 1].image = debugTexture;
 		textures[MAX_TEXTURES - 1].nextFree = UINT32_MAX;
-		
-		graphicsQueueMutex = OSCreateMutex();
 	}
-
-	void AddGraphicsImageTransiton(const PipelineBarrierImageInfo& a_ImageBarrier, const WriteDescriptorData& a_WriteData)
-	{
-		OSWaitAndLockMutex(graphicsQueueMutex);
-		graphicsQueueTransitions.emplace_back(a_ImageBarrier);
-		imageWriteData.emplace_back(a_WriteData);
-		OSUnlockMutex(graphicsQueueMutex);
-	};
 
 	struct TextureSlot
 	{
@@ -131,11 +124,6 @@ struct TextureManager
 
 	//purple color
 	RImageHandle debugTexture;
-
-	//Both arrays work the same.
-	Array<WriteDescriptorData> imageWriteData{ s_SystemAllocator, 16 };
-	Array<PipelineBarrierImageInfo> graphicsQueueTransitions{ s_SystemAllocator, 16 };
-	BBMutex graphicsQueueMutex;
 };
 
 struct Render_inst
@@ -155,6 +143,7 @@ struct Render_inst
 			models(s_SystemAllocator, 64)
 	{
 		io.frameBufferAmount = a_BackbufferAmount;
+		startFrameCommands.mutex = OSCreateMutex();
 	}
 	Render_IO io;
 
@@ -170,9 +159,13 @@ struct Render_inst
 
 	Slotmap<Model> models;
 
-	uint32_t t_workingAssetLoaderCount = 0;
-	//max of 8 asset loaders working together
-	AssetLoader* workingAssetLoaders[8];
+	//Both arrays work the same.
+	struct StartFrameCommands
+	{
+		Array<PipelineBarrierImageInfo> barriers{ s_SystemAllocator, 16 };
+		Array<WriteDescriptorData> descriptorWrites{ s_SystemAllocator, 16 };
+		BBMutex mutex;
+	} startFrameCommands;
 };
 
 CommandAllocatorHandle t_CommandAllocators[3];
@@ -325,7 +318,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		RenderBackend::WriteDescriptors(t_WriteInfos);
 	}
 
-	{//implement imgui here.
+	{	//implement imgui here.
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
@@ -362,7 +355,6 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImguiInfo.window = a_InitInfo.windowHandle;
 		ImGui_ImplCross_Init(t_ImguiInfo);
 
-		
 		ImGui_ImplCross_CreateFontsTexture(t_SetupCmdList, s_RenderInst->uploadBuffer);
 		ExecuteCommandsInfo* t_ExecuteInfo = BBnew(
 			s_TempAllocator,
@@ -454,21 +446,14 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
-struct UploadTextureInfo
-	{};
-
-const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
+const RTexture BB::Render::UploadTexture(const RImageHandle a_Image)
 {
 	const uint32_t t_DescriptorIndex = s_RenderInst->textureManager.nextFree;
 
 	TextureManager::TextureSlot& t_FreeSlot = s_RenderInst->textureManager.textures[t_DescriptorIndex];
+	t_FreeSlot.image = a_Image;
 	s_RenderInst->textureManager.nextFree = t_FreeSlot.nextFree;
-
-	AssetLoaderInfo t_LoadInfo{};
-	t_LoadInfo.assetType = ASSET_TYPE::TEXTURE;
-	t_LoadInfo.path = a_TexturePath;
-	t_LoadInfo.imageData.image = &t_FreeSlot.image;
-	AssetLoader* t_Loader = BBnew(s_SystemAllocator, AssetLoader)(t_LoadInfo);
+	s_RenderInst->textureManager.nextFree = UINT32_MAX;
 
 	RTexture t_Texture;
 	t_Texture.index = t_DescriptorIndex;
@@ -478,7 +463,7 @@ const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
 		t_WriteData.binding = 0;
 		t_WriteData.descriptorIndex = t_DescriptorIndex;
 		t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-		t_WriteData.image.image = t_FreeSlot.image;
+		t_WriteData.image.image = a_Image;
 		t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
 		t_WriteData.image.sampler = nullptr;
 
@@ -489,8 +474,8 @@ const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
 		t_ImageTransInfo.image = t_FreeSlot.image;
 		t_ImageTransInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
 		t_ImageTransInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-		t_ImageTransInfo.srcQueue = RENDER_QUEUE_TRANSITION::TRANSFER;
-		t_ImageTransInfo.dstQueue = RENDER_QUEUE_TRANSITION::GRAPHICS;
+		//t_ImageTransInfo.srcQueue = RENDER_QUEUE_TRANSITION::TRANSFER;
+		//t_ImageTransInfo.dstQueue = RENDER_QUEUE_TRANSITION::GRAPHICS;
 		t_ImageTransInfo.layerCount = 1;
 		t_ImageTransInfo.levelCount = 1;
 		t_ImageTransInfo.baseArrayLayer = 0;
@@ -498,7 +483,10 @@ const RTexture BB::Render::UploadTexture(const char* a_TexturePath)
 		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
 		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
 
-		s_RenderInst->textureManager.AddGraphicsImageTransiton(t_ImageTransInfo, t_WriteData);
+		OSWaitAndLockMutex(s_RenderInst->startFrameCommands.mutex);
+		s_RenderInst->startFrameCommands.barriers.emplace_back(t_ImageTransInfo);
+		s_RenderInst->startFrameCommands.descriptorWrites.emplace_back(t_WriteData);
+		OSUnlockMutex(s_RenderInst->startFrameCommands.mutex);
 	}
 
 	return t_DescriptorIndex;
@@ -695,23 +683,22 @@ void BB::Render::StartFrame()
 	ImGui::NewFrame();
 
 	{
-		OSWaitAndLockMutex(s_RenderInst->textureManager.graphicsQueueMutex);
+		OSWaitAndLockMutex(s_RenderInst->startFrameCommands.mutex);
+
+		PipelineBarrierInfo t_Barrier{};
+		t_Barrier.imageInfoCount = s_RenderInst->startFrameCommands.barriers.size();
+		t_Barrier.imageInfos = s_RenderInst->startFrameCommands.barriers.data();
+		RenderBackend::SetPipelineBarriers(t_RecordingGraphics, t_Barrier);
+		s_RenderInst->startFrameCommands.barriers.clear();
 
 		WriteDescriptorInfos t_WriteInfos;
 		t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
 		t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
-		t_WriteInfos.data = s_RenderInst->textureManager.imageWriteData;
+		t_WriteInfos.data = s_RenderInst->startFrameCommands.descriptorWrites;
 		RenderBackend::WriteDescriptors(t_WriteInfos);
+		s_RenderInst->startFrameCommands.descriptorWrites.clear();
 
-		PipelineBarrierInfo t_Barrier{};
-		t_Barrier.imageInfoCount = s_RenderInst->textureManager.graphicsQueueTransitions.size();
-		t_Barrier.imageInfos = s_RenderInst->textureManager.graphicsQueueTransitions.data();
-		RenderBackend::SetPipelineBarriers(t_RecordingGraphics, t_Barrier);
-
-		s_RenderInst->textureManager.imageWriteData.clear();
-		s_RenderInst->textureManager.graphicsQueueTransitions.clear();
-
-		OSUnlockMutex(s_RenderInst->textureManager.graphicsQueueMutex);
+		OSUnlockMutex(s_RenderInst->startFrameCommands.mutex);
 	}
 }
 
