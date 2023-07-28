@@ -39,6 +39,7 @@ namespace BB
 	//A handle to a loaded lib/dll from OS::LoadLib and can be destroyed using OS::UnloadLib
 	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
+	using BBMutex = FrameworkHandle<struct BBMutexTag>;
 
 	using wchar = wchar_t;
 

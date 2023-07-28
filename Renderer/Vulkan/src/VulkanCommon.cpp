@@ -2052,44 +2052,97 @@ static uint32_t queueTransitionIndex(const RENDER_QUEUE_TRANSITION a_Transition)
 	}
 }
 
-void BB::VulkanTransitionImage(RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
+void BB::VulkanPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
 {
-	VkImageMemoryBarrier2 t_Barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-	t_Barrier.srcAccessMask = VKConv::AccessMask(a_TransitionInfo.srcMask);
-	t_Barrier.dstAccessMask = VKConv::AccessMask(a_TransitionInfo.dstMask);
-	t_Barrier.srcStageMask = VKConv::PipelineStage(a_TransitionInfo.srcStage);
-	t_Barrier.dstStageMask = VKConv::PipelineStage(a_TransitionInfo.dstStage);
-	t_Barrier.oldLayout = VKConv::ImageLayout(a_TransitionInfo.oldLayout);
-	t_Barrier.newLayout = VKConv::ImageLayout(a_TransitionInfo.newLayout);
+	VkMemoryBarrier2* t_GlobalBarriers = reinterpret_cast<VkMemoryBarrier2*>(
+		_alloca(a_BarrierInfo.globalInfoCount * sizeof(VkMemoryBarrier2)));
+	VkBufferMemoryBarrier2* t_BufferBarriers = reinterpret_cast<VkBufferMemoryBarrier2*>(
+		_alloca(a_BarrierInfo.bufferInfoCount * sizeof(VkBufferMemoryBarrier2)));
+	VkImageMemoryBarrier2* t_ImageBarriers = reinterpret_cast<VkImageMemoryBarrier2*>(
+		_alloca(a_BarrierInfo.imageInfoCount * sizeof(VkImageMemoryBarrier2)));
 
-	//if we do no transition on the source queue. Then set it all to false.
-	if (a_TransitionInfo.srcQueue == RENDER_QUEUE_TRANSITION::NO_TRANSITION)
+	for (size_t i = 0; i < a_BarrierInfo.globalInfoCount; i++)
 	{
-		t_Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		t_Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	}
-	else
-	{
-		t_Barrier.srcQueueFamilyIndex = queueTransitionIndex(a_TransitionInfo.srcQueue);
-		t_Barrier.dstQueueFamilyIndex = queueTransitionIndex(a_TransitionInfo.dstQueue);
-	}
-	t_Barrier.image = reinterpret_cast<VulkanImage*>(a_TransitionInfo.image.ptrHandle)->image;
-	if (a_TransitionInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT || 
-		a_TransitionInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
-		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-	else
-		t_Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_Barrier.subresourceRange.baseMipLevel = a_TransitionInfo.baseMipLevel;
-	t_Barrier.subresourceRange.levelCount = a_TransitionInfo.levelCount;
-	t_Barrier.subresourceRange.baseArrayLayer = a_TransitionInfo.baseArrayLayer;
-	t_Barrier.subresourceRange.layerCount = a_TransitionInfo.layerCount;
+		const PipelineBarrierGlobalInfo& t_BarrierInfo = a_BarrierInfo.globalInfos[i];
 
-	//Color and possibly a depth stencil barrier.
+		t_GlobalBarriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+		t_GlobalBarriers[i].pNext = nullptr;
+		t_GlobalBarriers[i].srcAccessMask = VKConv::AccessMask(t_BarrierInfo.srcMask);
+		t_GlobalBarriers[i].dstAccessMask = VKConv::AccessMask(t_BarrierInfo.dstMask);
+		t_GlobalBarriers[i].srcStageMask = VKConv::PipelineStage(t_BarrierInfo.srcStage);
+		t_GlobalBarriers[i].dstStageMask = VKConv::PipelineStage(t_BarrierInfo.dstStage);
+	}
+
+	for (size_t i = 0; i < a_BarrierInfo.bufferInfoCount; i++)
+	{
+		const PipelineBarrierBufferInfo& t_BarrierInfo = a_BarrierInfo.bufferInfos[i];
+
+		t_BufferBarriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+		t_BufferBarriers[i].pNext = nullptr;
+		t_BufferBarriers[i].srcAccessMask = VKConv::AccessMask(t_BarrierInfo.srcMask);
+		t_BufferBarriers[i].dstAccessMask = VKConv::AccessMask(t_BarrierInfo.dstMask);
+		t_BufferBarriers[i].srcStageMask = VKConv::PipelineStage(t_BarrierInfo.srcStage);
+		t_BufferBarriers[i].dstStageMask = VKConv::PipelineStage(t_BarrierInfo.dstStage);
+		//if we do no transition on the source queue. Then set it all to false.
+		if (t_BarrierInfo.srcQueue == RENDER_QUEUE_TRANSITION::NO_TRANSITION)
+		{
+			t_BufferBarriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			t_BufferBarriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		}
+		else
+		{
+			t_BufferBarriers[i].srcQueueFamilyIndex = queueTransitionIndex(t_BarrierInfo.srcQueue);
+			t_BufferBarriers[i].dstQueueFamilyIndex = queueTransitionIndex(t_BarrierInfo.dstQueue);
+		}
+		t_BufferBarriers[i].buffer = reinterpret_cast<VulkanBuffer*>(t_BarrierInfo.buffer.ptrHandle)->buffer;
+		t_BufferBarriers[i].offset = t_BarrierInfo.offset;
+		t_BufferBarriers[i].size = t_BarrierInfo.size;
+	}
+
+	for (size_t i = 0; i < a_BarrierInfo.imageInfoCount; i++)
+	{
+		const PipelineBarrierImageInfo& t_BarrierInfo = a_BarrierInfo.imageInfos[i];
+
+		t_ImageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		t_ImageBarriers[i].pNext = nullptr;
+		t_ImageBarriers[i].srcAccessMask = VKConv::AccessMask(t_BarrierInfo.srcMask);
+		t_ImageBarriers[i].dstAccessMask = VKConv::AccessMask(t_BarrierInfo.dstMask);
+		t_ImageBarriers[i].srcStageMask = VKConv::PipelineStage(t_BarrierInfo.srcStage);
+		t_ImageBarriers[i].dstStageMask = VKConv::PipelineStage(t_BarrierInfo.dstStage);
+		//if we do no transition on the source queue. Then set it all to false.
+		if (t_BarrierInfo.srcQueue == RENDER_QUEUE_TRANSITION::NO_TRANSITION)
+		{
+			t_ImageBarriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			t_ImageBarriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		}
+		else
+		{
+			t_ImageBarriers[i].srcQueueFamilyIndex = queueTransitionIndex(t_BarrierInfo.srcQueue);
+			t_ImageBarriers[i].dstQueueFamilyIndex = queueTransitionIndex(t_BarrierInfo.dstQueue);
+		}
+		t_ImageBarriers[i].oldLayout = VKConv::ImageLayout(t_BarrierInfo.oldLayout);
+		t_ImageBarriers[i].newLayout = VKConv::ImageLayout(t_BarrierInfo.newLayout);
+		t_ImageBarriers[i].image = reinterpret_cast<VulkanImage*>(t_BarrierInfo.image.ptrHandle)->image;
+		if (t_BarrierInfo.newLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT ||
+			t_BarrierInfo.oldLayout == RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
+			t_ImageBarriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		else
+			t_ImageBarriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		t_ImageBarriers[i].subresourceRange.baseMipLevel = t_BarrierInfo.baseMipLevel;
+		t_ImageBarriers[i].subresourceRange.levelCount = t_BarrierInfo.levelCount;
+		t_ImageBarriers[i].subresourceRange.baseArrayLayer = t_BarrierInfo.baseArrayLayer;
+		t_ImageBarriers[i].subresourceRange.layerCount = t_BarrierInfo.layerCount;
+	}
+
 	VkDependencyInfo t_BarrierInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	t_BarrierInfo.imageMemoryBarrierCount = 1;
-	t_BarrierInfo.pImageMemoryBarriers = &t_Barrier;
+	t_BarrierInfo.memoryBarrierCount = a_BarrierInfo.globalInfoCount;
+	t_BarrierInfo.pMemoryBarriers = t_GlobalBarriers;
+	t_BarrierInfo.bufferMemoryBarrierCount = a_BarrierInfo.bufferInfoCount;
+	t_BarrierInfo.pBufferMemoryBarriers = t_BufferBarriers;
+	t_BarrierInfo.imageMemoryBarrierCount = a_BarrierInfo.imageInfoCount;
+	t_BarrierInfo.pImageMemoryBarriers = t_ImageBarriers;
 
-	vkCmdPipelineBarrier2(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(), 
+	vkCmdPipelineBarrier2(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(),
 		&t_BarrierInfo);
 }
 

@@ -80,7 +80,7 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		t_Image = RenderBackend::CreateImage(t_ImageInfo);
 
 		//Transfer image to prepare for transfer
-		RenderTransitionImageInfo t_ImageTransInfo{};
+		PipelineBarrierImageInfo t_ImageTransInfo{};
 		t_ImageTransInfo.srcMask = RENDER_ACCESS_MASK::NONE;
 		t_ImageTransInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
 		t_ImageTransInfo.image = t_Image;
@@ -92,7 +92,11 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		t_ImageTransInfo.baseMipLevel = 0;
 		t_ImageTransInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 		t_ImageTransInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
-		RenderBackend::TransitionImage(a_List, t_ImageTransInfo);
+
+		PipelineBarrierInfo t_Barrier{};
+		t_Barrier.imageInfoCount = 1;
+		t_Barrier.imageInfos = &t_ImageTransInfo;
+		RenderBackend::SetPipelineBarriers(a_List, t_Barrier);
 	}
 
 

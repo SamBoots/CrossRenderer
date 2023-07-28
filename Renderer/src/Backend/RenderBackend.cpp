@@ -544,15 +544,19 @@ void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_Recor
 	s_ApiFunc.copyBufferImage(a_RecordingCmdHandle, a_CopyInfo);
 }
 
-void BB::RenderBackend::TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo a_TransitionInfo)
+void BB::RenderBackend::SetPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
 {
 #ifdef _DEBUG
-	TrackerImageInfo* t_EditorData = reinterpret_cast<TrackerImageInfo*>(s_ResourceTracker.GetData(a_TransitionInfo.image.handle, RESOURCE_TYPE::IMAGE));
-	BB_ASSERT(t_EditorData->currentLayout == a_TransitionInfo.oldLayout, "Old image layout not the same in the tracked info!");
-	t_EditorData->oldLayout = t_EditorData->currentLayout;
-	t_EditorData->currentLayout = a_TransitionInfo.newLayout;
+	for (size_t i = 0; i < a_BarrierInfo.imageInfoCount; i++)
+	{
+		const PipelineBarrierImageInfo& t_ImageInfo = a_BarrierInfo.imageInfos[i];
+		TrackerImageInfo* t_EditorData = reinterpret_cast<TrackerImageInfo*>(s_ResourceTracker.GetData(t_ImageInfo.image.handle, RESOURCE_TYPE::IMAGE));
+		BB_ASSERT(t_EditorData->currentLayout == t_ImageInfo.oldLayout, "Old image layout not the same in the tracked info!");
+		t_EditorData->oldLayout = t_EditorData->currentLayout;
+		t_EditorData->currentLayout = t_ImageInfo.newLayout;
+	}
 #endif //_DEBUG
-	s_ApiFunc.transitionImage(a_RecordingCmdHandle, a_TransitionInfo);
+	s_ApiFunc.setPipelineBarriers(a_RecordingCmdHandle, a_BarrierInfo);
 }
 
 void BB::RenderBackend::BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)

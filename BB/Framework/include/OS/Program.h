@@ -93,6 +93,11 @@ namespace BB
 	OSThreadHandle OSCreateThread(void(*a_Func)(void*), const unsigned int a_StackSize, void* a_ArgList);
 	void OSWaitThreadfinish(const OSThreadHandle a_Thread);
 
+	BBMutex OSCreateMutex();
+	void OSWaitAndLockMutex(const BBMutex a_Mutex);
+	void OSUnlockMutex(const BBMutex a_Mutex);
+	void DestroyMutex(const BBMutex a_Mutex);
+
 	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
 	void* GetOSWindowHandle(const WindowHandle a_Handle);

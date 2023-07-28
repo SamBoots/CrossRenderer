@@ -405,7 +405,29 @@ namespace BB
 		RENDER_FENCE_FLAGS flags{};
 	};
 
-	struct RenderTransitionImageInfo
+	struct PipelineBarrierGlobalInfo
+	{
+		RENDER_PIPELINE_STAGE srcStage{};
+		RENDER_PIPELINE_STAGE dstStage{};
+		RENDER_ACCESS_MASK srcMask{};
+		RENDER_ACCESS_MASK dstMask{};
+	};
+
+	struct PipelineBarrierBufferInfo
+	{
+		RBufferHandle buffer{};
+		uint32_t size = 0;
+		uint32_t offset = 0;
+		RENDER_PIPELINE_STAGE srcStage{};
+		RENDER_PIPELINE_STAGE dstStage{};
+		RENDER_ACCESS_MASK srcMask{};
+		RENDER_ACCESS_MASK dstMask{};
+
+		RENDER_QUEUE_TRANSITION srcQueue = RENDER_QUEUE_TRANSITION::NO_TRANSITION;
+		RENDER_QUEUE_TRANSITION dstQueue = RENDER_QUEUE_TRANSITION::NO_TRANSITION;
+	};
+
+	struct PipelineBarrierImageInfo
 	{
 		RImageHandle image{};
 		RENDER_IMAGE_LAYOUT oldLayout{};
@@ -422,6 +444,16 @@ namespace BB
 		uint32_t levelCount = 0;
 		uint32_t baseArrayLayer = 0;
 		uint32_t layerCount = 0;
+	};
+
+	struct PipelineBarrierInfo
+	{
+		uint32_t globalInfoCount = 0;
+		const PipelineBarrierGlobalInfo* globalInfos = nullptr;
+		uint32_t bufferInfoCount = 0;
+		const PipelineBarrierBufferInfo* bufferInfos = nullptr;
+		uint32_t imageInfoCount = 0;
+		const PipelineBarrierImageInfo* imageInfos = nullptr;
 	};
 
 	struct StartFrameInfo
@@ -677,7 +709,7 @@ namespace BB
 	
 	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
 	typedef void (*PFN_RenderAPICopyBufferImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
-	typedef void (*PFN_RenderAPITransitionImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
+	typedef void (*PFN_RenderAPIPipelineBarriers)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
 	typedef void (*PFN_RenderAPIBindDescriptorHeaps)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
 	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
@@ -748,7 +780,7 @@ namespace BB
 
 		PFN_RenderAPICopyBuffer copyBuffer;
 		PFN_RenderAPICopyBufferImage copyBufferImage;
-		PFN_RenderAPITransitionImage transitionImage;
+		PFN_RenderAPIPipelineBarriers setPipelineBarriers;
 
 		PFN_RenderAPIBindDescriptorHeaps bindDescriptorHeaps;
 		PFN_RenderAPIBindPipeline bindPipeline;

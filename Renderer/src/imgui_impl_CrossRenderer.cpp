@@ -319,20 +319,41 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
         UploadBufferChunk t_Chunk = a_UploadBuffer.Alloc(upload_size);
         memcpy(t_Chunk.memory, pixels, upload_size);
 
-        RenderTransitionImageInfo t_TransitionInfo{};
-        t_TransitionInfo.srcMask = RENDER_ACCESS_MASK::NONE;
-        t_TransitionInfo.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-        t_TransitionInfo.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-        t_TransitionInfo.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-        t_TransitionInfo.image = bd->fontImage;
-        t_TransitionInfo.layerCount = 1;
-        t_TransitionInfo.levelCount = 1;
-        t_TransitionInfo.baseArrayLayer = 0;
-        t_TransitionInfo.baseMipLevel = 0;
-        t_TransitionInfo.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-        t_TransitionInfo.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
+        PipelineBarrierImageInfo t_ImageBarriers[2];
+        {
+            PipelineBarrierImageInfo& t_WriteTransition = t_ImageBarriers[0];
+            t_WriteTransition.srcMask = RENDER_ACCESS_MASK::NONE;
+            t_WriteTransition.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+            t_WriteTransition.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+            t_WriteTransition.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+            t_WriteTransition.image = bd->fontImage;
+            t_WriteTransition.layerCount = 1;
+            t_WriteTransition.levelCount = 1;
+            t_WriteTransition.baseArrayLayer = 0;
+            t_WriteTransition.baseMipLevel = 0;
+            t_WriteTransition.srcStage = RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+            t_WriteTransition.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
+        }
 
-        RenderBackend::TransitionImage(a_CmdList, t_TransitionInfo);
+        {
+            PipelineBarrierImageInfo& t_ReadonlyTransition = t_ImageBarriers[1];
+            t_ReadonlyTransition.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
+            t_ReadonlyTransition.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
+            t_ReadonlyTransition.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
+            t_ReadonlyTransition.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
+            t_ReadonlyTransition.image = bd->fontImage;
+            t_ReadonlyTransition.layerCount = 1;
+            t_ReadonlyTransition.levelCount = 1;
+            t_ReadonlyTransition.baseArrayLayer = 0;
+            t_ReadonlyTransition.baseMipLevel = 0;
+            t_ReadonlyTransition.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
+            t_ReadonlyTransition.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
+        }
+
+        PipelineBarrierInfo t_PipelineInfos{};
+        t_PipelineInfos.imageInfoCount = _countof(t_ImageBarriers);
+        t_PipelineInfos.imageInfos = t_ImageBarriers;
+        RenderBackend::SetPipelineBarriers(a_CmdList, t_PipelineInfos);
 
         RenderCopyBufferImageInfo t_CopyImage{};
         t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
@@ -349,22 +370,6 @@ bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdLi
         t_CopyImage.dstImageInfo.baseArrayLayer = 0;
         t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
         RenderBackend::CopyBufferImage(a_CmdList, t_CopyImage);
-
-        //reset to 0 again.
-        t_TransitionInfo = {};
-        t_TransitionInfo.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-        t_TransitionInfo.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
-        t_TransitionInfo.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-        t_TransitionInfo.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-        t_TransitionInfo.image = bd->fontImage;
-        t_TransitionInfo.layerCount = 1;
-        t_TransitionInfo.levelCount = 1;
-        t_TransitionInfo.baseArrayLayer = 0;
-        t_TransitionInfo.baseMipLevel = 0;
-        t_TransitionInfo.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
-        t_TransitionInfo.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-        RenderBackend::TransitionImage(a_CmdList, t_TransitionInfo);
     }
 
     // Store our identifier

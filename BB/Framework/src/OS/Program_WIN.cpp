@@ -433,6 +433,26 @@ void BB::OSWaitThreadfinish(const OSThreadHandle a_Thread)
 	WaitForSingleObject((HANDLE)a_Thread.handle, INFINITE);
 }
 
+BBMutex BB::OSCreateMutex()
+{
+	return BBMutex(CreateMutex(NULL, false, NULL));
+}
+
+void BB::OSWaitAndLockMutex(const BBMutex a_Mutex)
+{
+	WaitForSingleObject((HANDLE)a_Mutex.handle, INFINITE);
+}
+
+void BB::OSUnlockMutex(const BBMutex a_Mutex)
+{
+	ReleaseMutex((HANDLE)a_Mutex.handle);
+}
+
+void BB::DestroyMutex(const BBMutex a_Mutex)
+{
+	CloseHandle((HANDLE)a_Mutex.handle);
+}
+
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
 	HWND t_Window;
