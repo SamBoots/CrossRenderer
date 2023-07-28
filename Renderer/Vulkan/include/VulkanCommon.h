@@ -27,25 +27,25 @@ namespace BB
 	
 	void VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
-	RecordingCommandListHandle VulkanStartCommandList(const CommandListHandle a_CmdHandle);
-	void VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
-	void VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
-	void VulkanSetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
-	void VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+	void VulkanStartCommandList(const CommandListHandle a_CmdHandle);
+	void VulkanEndCommandList(const CommandListHandle a_RecordingCmdHandle);
+	void VulkanStartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
+	void VulkanSetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
+	void VulkanEndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 
-	void VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
-	void VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
-	void VulkanPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
+	void VulkanCopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+	void VulkanCopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+	void VulkanPipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
-	void VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
-	void VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-	void VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
-	void VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
-	void VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	void VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
+	void VulkanBindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
+	void VulkanBindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	void VulkanSetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
+	void VulkanBindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
+	void VulkanBindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
+	void VulkanBindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
-	void VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
-	void VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
+	void VulkanDrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
+	void VulkanDrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 	void VulkanBufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 	void* VulkanMapMemory(const RBufferHandle a_Handle);

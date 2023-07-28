@@ -12,13 +12,13 @@
 using namespace BB;
 using namespace BB::Render;
 
-void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path);
+void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_TransferCmdList, const char* a_Path);
 FreelistAllocator_t s_SystemAllocator{ mbSize * 4, "Render Frontend freelist allocator" };
 static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
 struct TextureManager
 {
-	TextureManager(UploadBuffer& a_UploadBuffer, RecordingCommandListHandle t_CommandList)
+	TextureManager(UploadBuffer& a_UploadBuffer, CommandListHandle t_CommandList)
 	{
 		RenderImageCreateInfo t_ImageInfo{};
 		t_ImageInfo.name = "debug purple texture";
@@ -126,10 +126,16 @@ struct TextureManager
 	RImageHandle debugTexture;
 };
 
+struct FrameData
+{
+	uint64_t graphicsFenceValue = 0;
+	uint64_t transferFenceValue = 0;
+};
+
 struct Render_inst
 {
 	Render_inst(
-		const RecordingCommandListHandle a_SetupCommandList,
+		const CommandListHandle a_SetupCommandList,
 		const RenderBufferCreateInfo& a_VertexBufferInfo,
 		const RenderBufferCreateInfo& a_IndexBufferInfo,
 		const DescriptorHeapCreateInfo& a_DescriptorManagerInfo,
@@ -168,16 +174,11 @@ struct Render_inst
 	} startFrameCommands;
 };
 
-CommandAllocatorHandle t_CommandAllocators[3];
-CommandAllocatorHandle t_TransferAllocator[3];
-
-CommandListHandle t_GraphicCommands[3];
-CommandListHandle t_TransferCommands[3];
-
-RecordingCommandListHandle t_RecordingGraphics;
-RecordingCommandListHandle t_RecordingTransfer;
+CommandList* t_RecordingGraphics;
+CommandList* t_RecordingTransfer;
 
 static FrameIndex s_CurrentFrame;
+static FrameData s_FrameData[3]{};
 static Render_inst* s_RenderInst;
 
 Render_IO& BB::Render::GetIO()
@@ -217,41 +218,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	RenderBackend::InitBackend(t_BackendCreateInfo, s_SystemAllocator);
 
-	{//init main command lists and allocators
-		RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
-		t_AllocatorCreateInfo.name = "Graphics command allocator";
-		t_AllocatorCreateInfo.commandListCount = 10;
-		t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::GRAPHICS;
-		t_CommandAllocators[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-		t_CommandAllocators[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-		t_CommandAllocators[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-
-		t_AllocatorCreateInfo.name = "Transfer command allocator";
-		t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
-		t_TransferAllocator[0] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-		t_TransferAllocator[1] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-		t_TransferAllocator[2] = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
-
-		RenderCommandListCreateInfo t_CmdCreateInfo{};
-		t_CmdCreateInfo.name = "Graphic Commandlist";
-		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[0];
-		t_GraphicCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[1];
-		t_GraphicCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-		t_CmdCreateInfo.commandAllocator = t_CommandAllocators[2];
-		t_GraphicCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-
-		//just reuse the struct above.
-		t_CmdCreateInfo.name = "Transfer Commandlist";
-		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[0];
-		t_TransferCommands[0] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[1];
-		t_TransferCommands[1] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-		t_CmdCreateInfo.commandAllocator = t_TransferAllocator[2];
-		t_TransferCommands[2] = RenderBackend::CreateCommandList(t_CmdCreateInfo);
-	}
-
-	RecordingCommandListHandle t_SetupCmdList = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
+	CommandList* t_SetupCmdList = s_RenderInst->graphicsQueue.GetCommandList();
 
 	{
 		//Write some background info.
@@ -356,26 +323,10 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		ImGui_ImplCross_Init(t_ImguiInfo);
 
 		ImGui_ImplCross_CreateFontsTexture(t_SetupCmdList, s_RenderInst->uploadBuffer);
-		ExecuteCommandsInfo* t_ExecuteInfo = BBnew(
-			s_TempAllocator,
-			ExecuteCommandsInfo);
 		RenderBackend::EndCommandList(t_SetupCmdList);
 
-		uint64_t t_SignalValue = s_RenderInst->graphicsQueue.GetNextFenceValue();
-		t_ExecuteInfo[0] = {};
-		t_ExecuteInfo[0].commands = &t_GraphicCommands[s_CurrentFrame];
-		t_ExecuteInfo[0].commandCount = 1;
-		t_ExecuteInfo[0].signalFences = &s_RenderInst->graphicsQueue.GetFence();
-		t_ExecuteInfo[0].signalValues = &t_SignalValue;
-		t_ExecuteInfo[0].signalCount = 1;
-
-		s_RenderInst->graphicsQueue.ExecuteCommands(t_ExecuteInfo, 1);
-
-		RenderWaitCommandsInfo t_WaitInfo;
-		t_WaitInfo.waitCount = 1;
-		t_WaitInfo.waitFences = &s_RenderInst->graphicsQueue.GetFence();
-		t_WaitInfo.waitValues = &t_SignalValue;
-		RenderBackend::WaitCommands(t_WaitInfo);
+		s_RenderInst->graphicsQueue.ExecuteCommands(&t_SetupCmdList, 1, nullptr, nullptr, 0);
+		s_RenderInst->graphicsQueue.WaitIdle();
 
 		for (size_t i = 0; i < _countof(t_ImguiShaders); i++)
 		{
@@ -386,38 +337,16 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 void BB::Render::DestroyRenderer()
 {
-	{//Don't know what to do here yet.
-		
-		//CommandQueueHandle t_Queues[2]{ graphicsQueue, transferQueue };
-		//RenderWaitCommandsInfo t_WaitInfo{};
-		//t_WaitInfo.queues = Slice(t_Queues, _countof(t_Queues));
-		//RenderBackend::WaitCommands(t_WaitInfo);
-	}
+	s_RenderInst->graphicsQueue.WaitIdle();
+	s_RenderInst->transferQueue.WaitIdle();
+	s_RenderInst->computeQueue.WaitIdle();
 
 	for (auto it = s_RenderInst->models.begin(); it < s_RenderInst->models.end(); it++)
 	{
-		
+
 	}
 
 	RenderBackend::DestroyDescriptor(s_RenderInst->io.globalDescriptor);
-
-	for (size_t i = 0; i < _countof(t_GraphicCommands); i++)
-	{
-		RenderBackend::DestroyCommandList(t_GraphicCommands[i]);
-	}
-	for (size_t i = 0; i < _countof(t_TransferCommands); i++)
-	{
-		RenderBackend::DestroyCommandList(t_TransferCommands[i]);
-	}
-	for (size_t i = 0; i < _countof(t_CommandAllocators); i++)
-	{
-		RenderBackend::DestroyCommandAllocator(t_CommandAllocators[i]);
-	}
-	for (size_t i = 0; i < _countof(t_TransferAllocator); i++)
-	{
-		RenderBackend::DestroyCommandAllocator(t_TransferAllocator[i]);
-	}
-
 	RenderBackend::DestroyBackend();
 }
 
@@ -665,17 +594,13 @@ RModelHandle BB::Render::LoadModel(const LoadModelInfo& a_LoadInfo)
 void BB::Render::StartFrame()
 {
 	StartFrameInfo t_StartInfo{};
-	//We do not use these currently.
-	//t_StartInfo.fences = &t_SwapchainFence[s_CurrentFrame];
-	//t_StartInfo.fenceCount = 1;
 	RenderBackend::StartFrame(t_StartInfo);
-	//Prepare the commandallocator for a new frame
-	//TODO, send a fence that waits until the image was presented.
-	RenderBackend::ResetCommandAllocator(t_CommandAllocators[s_CurrentFrame]);
-	RenderBackend::ResetCommandAllocator(t_TransferAllocator[s_CurrentFrame]);
 
-	t_RecordingGraphics = RenderBackend::StartCommandList(t_GraphicCommands[s_CurrentFrame]);
-	t_RecordingTransfer = RenderBackend::StartCommandList(t_TransferCommands[s_CurrentFrame]);
+	s_RenderInst->graphicsQueue.WaitFenceValue(s_FrameData[s_CurrentFrame].graphicsFenceValue);
+	s_RenderInst->transferQueue.WaitFenceValue(s_FrameData[s_CurrentFrame].transferFenceValue);
+
+	t_RecordingGraphics = s_RenderInst->graphicsQueue.GetCommandList();
+	t_RecordingTransfer = s_RenderInst->transferQueue.GetCommandList();
 
 	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, Render::GetGPUHeap(s_CurrentFrame), nullptr);
 
@@ -701,17 +626,6 @@ void BB::Render::StartFrame()
 		OSUnlockMutex(s_RenderInst->startFrameCommands.mutex);
 	}
 }
-
-RecordingCommandListHandle BB::Render::GetRecordingTransfer()
-{
-	return t_RecordingTransfer;
-}
-
-RecordingCommandListHandle BB::Render::GetRecordingGraphics()
-{
-	return t_RecordingGraphics;
-}
-
 
 void BB::Render::Update(const float a_DeltaTime)
 {
@@ -748,32 +662,22 @@ void BB::Render::EndFrame()
 	RenderBackend::EndCommandList(t_RecordingGraphics);
 	RenderBackend::EndCommandList(t_RecordingTransfer);
 
-	ExecuteCommandsInfo* t_ExecuteInfos = BBnewArr(
-		s_TempAllocator,
-		2,
-		ExecuteCommandsInfo);
+	s_RenderInst->transferQueue.ExecuteCommands(&t_RecordingTransfer, 1, nullptr, nullptr, 0);
 
-	uint64_t t_SignalValue = s_RenderInst->transferQueue.GetNextFenceValue();
-	t_ExecuteInfos[0] = {};
-	t_ExecuteInfos[0].commands = &t_TransferCommands[s_CurrentFrame];
-	t_ExecuteInfos[0].commandCount = 1;
-	t_ExecuteInfos[0].signalFences = &s_RenderInst->transferQueue.GetFence();
-	t_ExecuteInfos[0].signalValues = &t_SignalValue;
-	t_ExecuteInfos[0].signalCount = 1;
 
-	s_RenderInst->transferQueue.ExecuteCommands(&t_ExecuteInfos[0], 1);
+	//Jank, but presenting commands must be different to how Vulkan's window API works.
+	const RENDER_PIPELINE_STAGE t_WaitStage = RENDER_PIPELINE_STAGE::VERTEX_SHADER;
+	const uint64_t t_WaitValue = s_RenderInst->transferQueue.GetNextFenceValue() - 1;
+	s_RenderInst->graphicsQueue.ExecutePresentCommands(
+		&t_RecordingGraphics, 
+		1, 
+		&s_RenderInst->transferQueue.GetFence(), 
+		&t_WaitStage,
+		1);
 
-	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
-	RENDER_PIPELINE_STAGE t_WaitStage = RENDER_PIPELINE_STAGE::VERTEX_SHADER;
-	t_ExecuteInfos[1] = {};
-	t_ExecuteInfos[1].commands = &t_GraphicCommands[s_CurrentFrame];
-	t_ExecuteInfos[1].commandCount = 1;
-	t_ExecuteInfos[1].waitCount = 1;
-	t_ExecuteInfos[1].waitFences = &s_RenderInst->transferQueue.GetFence();
-	t_ExecuteInfos[1].waitValues = &t_SignalValue;
-	t_ExecuteInfos[1].waitStages = &t_WaitStage;
+	s_FrameData[s_CurrentFrame].graphicsFenceValue = s_RenderInst->graphicsQueue.GetNextFenceValue() - 1;
+	s_FrameData[s_CurrentFrame].transferFenceValue = s_RenderInst->transferQueue.GetNextFenceValue() - 1;
 
-	RenderBackend::ExecutePresentCommands(s_RenderInst->graphicsQueue.GetQueue(), t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 }
@@ -809,7 +713,7 @@ static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 }
 
 //Maybe use own allocators for this?
-void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const RecordingCommandListHandle a_TransferCmdList, const char* a_Path)
+void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_TransferCmdList, const char* a_Path)
 {
 	cgltf_options t_Options = {};
 	cgltf_data* t_Data = { 0 };

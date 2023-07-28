@@ -359,10 +359,12 @@ void LinearRenderBuffer::UnmapBuffer() const
 }
 
 RenderQueue::RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name)
+	: m_Type(a_QueueType)
 {
+	
 	RenderCommandQueueCreateInfo t_CreateInfo;
 	t_CreateInfo.name = a_Name;
-	t_CreateInfo.queue = a_QueueType;
+	t_CreateInfo.queue = m_Type;
 	m_Queue = RenderBackend::CreateCommandQueue(t_CreateInfo);
 
 	FenceCreateInfo t_FenceInfo{};
@@ -408,20 +410,75 @@ RenderQueue::~RenderQueue()
 	t_WaitInfo.waitValues = &t_LastFenceValue;
 	RenderBackend::WaitCommands(t_WaitInfo);
 
+	for (size_t i = 0; i < _countof(m_Lists); i++)
+	{
+		RenderBackend::DestroyCommandList(m_Lists[i].cmdList);
+		RenderBackend::DestroyCommandAllocator(m_Lists[i].cmdAllocator);
+	}
+
 	RenderBackend::DestroyCommandQueue(m_Queue);
 	RenderBackend::DestroyFence(m_Fence.fence);
+	DestroyMutex(m_Mutex);
 }
 
 CommandList* RenderQueue::GetCommandList()
 {
 	OSWaitAndLockMutex(m_Mutex);
-	CommandList* t_ReturnList = m_FreeCommandList;
-	m_FreeCommandList = t_ReturnList->next;
+	CommandList* t_List = BB_SLL_POP(m_FreeCommandList);
+	OSUnlockMutex(m_Mutex);
+	RenderBackend::StartCommandList(t_List->cmdList);
+	return t_List;
+}
+
+void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount)
+{
+	CommandListHandle* t_CmdListHandles = reinterpret_cast<CommandListHandle*>(
+		_alloca(a_CommandListCount * sizeof(CommandListHandle)));
+	for (uint32_t i = 0; i < a_CommandListCount; i++)
+	{
+		t_CmdListHandles[i] = a_CommandLists[i]->cmdList;
+		a_CommandLists[i]->queueFenceValue = m_Fence.nextFenceValue;
+
+		if (m_InFlightLists)
+		{
+			m_InFlightLists->next = a_CommandLists[i];
+		}
+		else
+		{
+			m_InFlightLists = a_CommandLists[i];
+		}
+	}
+
+	uint64_t* t_WaitValues = reinterpret_cast<uint64_t*>(
+		_alloca(a_FenceCount * sizeof(uint64_t)));
+	RFenceHandle* t_Fences = reinterpret_cast<RFenceHandle*>(
+		_alloca(a_FenceCount * sizeof(RFenceHandle)));
+	for (uint32_t i = 0; i < a_CommandListCount; i++)
+	{
+		t_WaitValues[i] = a_WaitFences[i].nextFenceValue;
+		t_Fences[i] = a_WaitFences[i].fence;
+	}
+
+	ExecuteCommandsInfo t_ExecuteInfo;
+	t_ExecuteInfo.commandCount = a_CommandListCount;
+	t_ExecuteInfo.commands = t_CmdListHandles;
+	t_ExecuteInfo.waitCount = a_FenceCount;
+	t_ExecuteInfo.waitFences = t_Fences;
+	t_ExecuteInfo.waitValues = t_WaitValues;
+	t_ExecuteInfo.waitStages = a_WaitStages;
+	t_ExecuteInfo.signalCount = 1;
+	t_ExecuteInfo.signalFences = &m_Fence.fence;
+	t_ExecuteInfo.signalValues = &m_Fence.nextFenceValue;
+
+	OSWaitAndLockMutex(m_Mutex);
+	RenderBackend::ExecuteCommands(m_Queue, &t_ExecuteInfo, 1);
+	++m_Fence.nextFenceValue;
 	OSUnlockMutex(m_Mutex);
 }
 
-void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const uint32_t a_FenceCount)
+void RenderQueue::ExecutePresentCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount)
 {
+	BB_ASSERT(m_Type == RENDER_QUEUE_TYPE::GRAPHICS, "Trying to present commands via a non graphics queue, This is not possible!");
 	CommandListHandle* t_CmdListHandles = reinterpret_cast<CommandListHandle*>(
 		_alloca(a_CommandListCount * sizeof(CommandListHandle)));
 	for (uint32_t i = 0; i < a_CommandListCount; i++)
@@ -460,7 +517,7 @@ void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a
 	t_ExecuteInfo.signalValues = &m_Fence.nextFenceValue;
 
 	OSWaitAndLockMutex(m_Mutex);
-	RenderBackend::ExecuteCommands(m_Queue, &t_ExecuteInfo, 1);
+	RenderBackend::ExecutePresentCommands(m_Queue, t_ExecuteInfo);
 	++m_Fence.nextFenceValue;
 	OSUnlockMutex(m_Mutex);
 }
@@ -500,6 +557,11 @@ void RenderQueue::WaitFenceValue(const uint64_t a_FenceValue)
 		}
 	}
 	OSUnlockMutex(m_Mutex);
+}
+
+void RenderQueue::WaitIdle()
+{
+	WaitFenceValue(m_Fence.nextFenceValue - 1);
 }
 
 #pragma region API_Backend
@@ -622,27 +684,27 @@ void BB::RenderBackend::ResetCommandAllocator(const CommandAllocatorHandle a_Cmd
 	s_ApiFunc.resetCommandAllocator(a_CmdAllocatorHandle);
 }
 
-RecordingCommandListHandle BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle)
+void BB::RenderBackend::StartCommandList(const CommandListHandle a_CmdHandle)
 {
-	return s_ApiFunc.startCommandList(a_CmdHandle);
+	s_ApiFunc.startCommandList(a_CmdHandle);
 }
 
-void BB::RenderBackend::EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::RenderBackend::EndCommandList(const CommandListHandle a_RecordingCmdHandle)
 {
 	s_ApiFunc.endCommandList(a_RecordingCmdHandle);
 }
 
-void BB::RenderBackend::StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo)
+void BB::RenderBackend::StartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo)
 {
 	s_ApiFunc.startRendering(a_RecordingCmdHandle, a_StartInfo);
 }
 
-void BB::RenderBackend::SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+void BB::RenderBackend::SetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
 {
 	s_ApiFunc.setScissor(a_RecordingCmdHandle, a_ScissorInfo);
 }
 
-void BB::RenderBackend::EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
+void BB::RenderBackend::EndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	s_ApiFunc.endRendering(a_RecordingCmdHandle, a_EndInfo);
 }
@@ -652,17 +714,17 @@ ImageReturnInfo BB::RenderBackend::GetImageInfo(const RImageHandle a_Handle)
 	return s_ApiFunc.getImageInfo(a_Handle);
 }
 
-void BB::RenderBackend::CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
+void BB::RenderBackend::CopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	s_ApiFunc.copyBuffer(a_RecordingCmdHandle, a_CopyInfo);
 }
 
-void BB::RenderBackend::CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+void BB::RenderBackend::CopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
 	s_ApiFunc.copyBufferImage(a_RecordingCmdHandle, a_CopyInfo);
 }
 
-void BB::RenderBackend::SetPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
+void BB::RenderBackend::SetPipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
 {
 #ifdef _DEBUG
 	for (size_t i = 0; i < a_BarrierInfo.imageInfoCount; i++)
@@ -677,43 +739,43 @@ void BB::RenderBackend::SetPipelineBarriers(const RecordingCommandListHandle a_R
 	s_ApiFunc.setPipelineBarriers(a_RecordingCmdHandle, a_BarrierInfo);
 }
 
-void BB::RenderBackend::BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
+void BB::RenderBackend::BindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
 {
 	s_ApiFunc.bindDescriptorHeaps(a_RecordingCmdHandle, a_ResourceHeap, a_SamplerHeap);
 }
 
-void BB::RenderBackend::BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::RenderBackend::BindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	s_ApiFunc.bindPipeline(a_RecordingCmdHandle, a_Pipeline);
 }
 
-void BB::RenderBackend::SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
+void BB::RenderBackend::SetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
 	s_ApiFunc.setDescriptorHeapOffsets(a_RecordingCmdHandle, a_FirstSet, a_SetCount, a_HeapIndex, a_Offsets);
 }
 
-void BB::RenderBackend::BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
+void BB::RenderBackend::BindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
 	s_ApiFunc.bindVertBuffers(a_RecordingCmdHandle, a_Buffers, a_BufferOffsets, a_BufferCount);
 }
 
-void BB::RenderBackend::BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
+void BB::RenderBackend::BindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	s_ApiFunc.bindIndexBuffer(a_RecordingCmdHandle, a_Buffer, a_Offset);
 }
 
-void BB::RenderBackend::BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
+void BB::RenderBackend::BindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
 	BB_WARNING(static_cast<size_t>(a_DwordCount + a_DwordOffset) * sizeof(uint32_t) < 128, "Constant size is bigger then 128, this might not work on all hardware for Vulkan!", WarningType::HIGH);
 	s_ApiFunc.bindConstant(a_RecordingCmdHandle, a_ConstantIndex, a_DwordCount, a_DwordOffset, a_Data);
 }
 
-void BB::RenderBackend::DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
+void BB::RenderBackend::DrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
 	s_ApiFunc.drawVertex(a_RecordingCmdHandle, a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);
 }
 
-void BB::RenderBackend::DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
+void BB::RenderBackend::DrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
 	s_ApiFunc.drawIndex(a_RecordingCmdHandle, a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }

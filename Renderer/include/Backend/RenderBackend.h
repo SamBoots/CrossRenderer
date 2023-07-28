@@ -123,15 +123,18 @@ namespace BB
 		CommandList* GetCommandList();
 
 		//Also handles incrementing the 
-		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const uint32_t a_FenceCount);
+		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
+		void ExecutePresentCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 		void WaitFenceValue(const uint64_t a_FenceValue);
+		void WaitIdle();
 
 		const CommandQueueHandle GetQueue() const { return m_Queue; }
-		RFenceHandle GetFence() const { return m_Fence.fence; }
+		RenderFence GetFence() const { return m_Fence; }
 		uint64_t GetNextFenceValue() const { return m_Fence.nextFenceValue; }
 		uint64_t GetLastCompletedValue() const { return m_Fence.lastCompleteValue; }
 
 	private:
+		const RENDER_QUEUE_TYPE m_Type;
 		BBMutex m_Mutex;
 		CommandList m_Lists[12]{};
 		CommandList* m_FreeCommandList;
@@ -164,25 +167,25 @@ namespace BB
 
 		void ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
-		RecordingCommandListHandle StartCommandList(const CommandListHandle a_CmdHandle);
-		void EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
-		void StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
-		void SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
-		void EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+		void StartCommandList(const CommandListHandle a_CmdHandle);
+		void EndCommandList(const CommandListHandle a_RecordingCmdHandle);
+		void StartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+		void SetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
+		void EndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 		
-		void CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
-		void CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
-		void SetPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
+		void CopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+		void CopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+		void SetPipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
-		void BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
-		void BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-		void SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
-		void BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
-		void BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-		void BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
+		void BindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
+		void BindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+		void SetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
+		void BindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
+		void BindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
+		void BindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
-		void DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
-		void DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
+		void DrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
+		void DrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 		void BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 		void* MapMemory(const RBufferHandle a_Handle);

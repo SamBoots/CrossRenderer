@@ -1820,7 +1820,7 @@ void BB::VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocator
 		0);
 }
 
-RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
+void BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
 {
 	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_CmdHandle.handle];
 
@@ -1829,11 +1829,9 @@ RecordingCommandListHandle BB::VulkanStartCommandList(const CommandListHandle a_
 	VKASSERT(vkBeginCommandBuffer(t_Cmdlist.Buffer(),
 		&t_CmdBeginInfo),
 		"Vulkan: Failed to begin commandbuffer");
-
-	return RecordingCommandListHandle(&t_Cmdlist);
 }
 
-void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::VulkanEndCommandList(const CommandListHandle a_RecordingCmdHandle)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1843,7 +1841,7 @@ void BB::VulkanEndCommandList(const RecordingCommandListHandle a_RecordingCmdHan
 		"Vulkan: Error when trying to end commandbuffer!");
 }
 
-void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
+void BB::VulkanStartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1938,7 +1936,7 @@ void BB::VulkanStartRendering(const RecordingCommandListHandle a_RecordingCmdHan
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
-void BB::VulkanSetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+void BB::VulkanSetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1951,7 +1949,7 @@ void BB::VulkanSetScissor(const RecordingCommandListHandle a_RecordingCmdHandle,
 	vkCmdSetScissor(t_Cmdlist->Buffer(), 0, 1, &t_Scissor);
 }
 
-void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
+void BB::VulkanEndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	vkCmdEndRendering(t_Cmdlist->Buffer());
@@ -1982,7 +1980,7 @@ void BB::VulkanEndRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_Cmdlist->depthImage = VK_NULL_HANDLE;
 }
 
-void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
+void BB::VulkanCopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.src.handle);
@@ -2000,7 +1998,7 @@ void BB::VulkanCopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle,
 		&t_CopyRegion);
 }
 
-void BB::VulkanCopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+void BB::VulkanCopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.srcBuffer.handle);
@@ -2052,7 +2050,7 @@ static uint32_t queueTransitionIndex(const RENDER_QUEUE_TRANSITION a_Transition)
 	}
 }
 
-void BB::VulkanPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
+void BB::VulkanPipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
 {
 	VkMemoryBarrier2* t_GlobalBarriers = reinterpret_cast<VkMemoryBarrier2*>(
 		_alloca(a_BarrierInfo.globalInfoCount * sizeof(VkMemoryBarrier2)));
@@ -2146,7 +2144,7 @@ void BB::VulkanPipelineBarriers(const RecordingCommandListHandle a_RecordingCmdH
 		&t_BarrierInfo);
 }
 
-void BB::VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
+void BB::VulkanBindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
 {
 	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	const VulkanDescriptorBuffer* t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_ResourceHeap.handle);
@@ -2171,7 +2169,7 @@ void BB::VulkanBindDescriptorHeaps(const RecordingCommandListHandle a_RecordingC
 	CmdBindDescriptorBuffersEXT(t_Cmdlist->Buffer(), t_HeapCount, t_BindingInfos);
 }
 
-void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::VulkanBindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -2189,7 +2187,7 @@ void BB::VulkanBindPipeline(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_Cmdlist->currentPipelineLayout = t_Pipeline->layout;
 }
 
-void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
+void BB::VulkanSetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
 	const VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist->Buffer(),
@@ -2201,7 +2199,7 @@ void BB::VulkanSetDescriptorHeapOffsets(const RecordingCommandListHandle a_Recor
 		a_Offsets);
 }
 
-void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
+void BB::VulkanBindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -2219,7 +2217,7 @@ void BB::VulkanBindVertexBuffers(const RecordingCommandListHandle a_RecordingCmd
 		a_BufferOffsets);
 }
 
-void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
+void BB::VulkanBindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -2229,7 +2227,7 @@ void BB::VulkanBindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHa
 		VK_INDEX_TYPE_UINT32);
 }
 
-void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
+void BB::VulkanBindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	
@@ -2241,14 +2239,14 @@ void BB::VulkanBindConstant(const RecordingCommandListHandle a_RecordingCmdHandl
 		a_Data);
 }
 
-void BB::VulkanDrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
+void BB::VulkanDrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdDraw(t_Cmdlist->Buffer(), a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);
 }
 
-void BB::VulkanDrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
+void BB::VulkanDrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
 	VulkanCommandList* t_Cmdlist = reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 

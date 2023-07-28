@@ -26,7 +26,6 @@ namespace BB
 	using CommandQueueHandle = FrameworkHandle<struct CommandQueueHandleTag>;
 	using CommandAllocatorHandle = FrameworkHandle<struct CommandAllocatorHandleTag>;
 	using CommandListHandle = FrameworkHandle<struct CommandListHandleTag>;
-	using RecordingCommandListHandle = FrameworkHandle<struct RecordingCommandListHandleTag>;
 
 	using RDescriptorHeap = FrameworkHandle<struct RDescriptorHeapTag>;
 	using RDescriptorAllocation = FrameworkHandle<struct RDescriptorAllocationTag>;
@@ -640,14 +639,14 @@ namespace BB
 
 	struct ExecuteCommandsInfo
 	{
-		CommandListHandle* commands = nullptr;
+		const CommandListHandle* commands = nullptr;
 		uint32_t commandCount = 0;
-		RFenceHandle* waitFences = nullptr;
-		uint64_t* waitValues = nullptr;
+		const RFenceHandle* waitFences = nullptr;
+		const uint64_t* waitValues = nullptr;
 		uint32_t waitCount = 0;
-		RENDER_PIPELINE_STAGE* waitStages = nullptr;
-		RFenceHandle* signalFences = nullptr;
-		uint64_t* signalValues = nullptr;
+		const RENDER_PIPELINE_STAGE* waitStages = nullptr;
+		const RFenceHandle* signalFences = nullptr;
+		const uint64_t* signalValues = nullptr;
 		uint32_t signalCount = 0;
 	};
 
@@ -701,25 +700,25 @@ namespace BB
 
 	//Commandlist handling
 	typedef void (*PFN_RenderAPIResetCommandAllocator)(const CommandAllocatorHandle a_CmdAllocatorHandle);
-	typedef RecordingCommandListHandle(*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
-	typedef void (*PFN_RenderAPIEndCommandList)(const RecordingCommandListHandle a_CmdHandle);
-	typedef void (*PFN_RenderAPIStartRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
-	typedef void (*PFN_RenderAPISetScissor)(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
-	typedef void (*PFN_RenderAPIEndRendering)(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+	typedef void (*PFN_RenderAPIStartCommandList)(const CommandListHandle a_CmdHandle);
+	typedef void (*PFN_RenderAPIEndCommandList)(const CommandListHandle a_CmdHandle);
+	typedef void (*PFN_RenderAPIStartRendering)(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_StartInfo);
+	typedef void (*PFN_RenderAPISetScissor)(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
+	typedef void (*PFN_RenderAPIEndRendering)(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	
-	typedef void (*PFN_RenderAPICopyBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
-	typedef void (*PFN_RenderAPICopyBufferImage)(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
-	typedef void (*PFN_RenderAPIPipelineBarriers)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
+	typedef void (*PFN_RenderAPICopyBuffer)(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo);
+	typedef void (*PFN_RenderAPICopyBufferImage)(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+	typedef void (*PFN_RenderAPIPipelineBarriers)(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
-	typedef void (*PFN_RenderAPIBindDescriptorHeaps)(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
-	typedef void (*PFN_RenderAPIBindPipeline)(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-	typedef void (*PFN_RenderAPISetDescriptorHeapOffsets)(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
-	typedef void (*PFN_RenderAPIBindVertexBuffers)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
-	typedef void (*PFN_RenderAPIBindIndexBuffer)(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	typedef void (*PFN_REnderAPIBindConstant)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
+	typedef void (*PFN_RenderAPIBindDescriptorHeaps)(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
+	typedef void (*PFN_RenderAPIBindPipeline)(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	typedef void (*PFN_RenderAPISetDescriptorHeapOffsets)(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
+	typedef void (*PFN_RenderAPIBindVertexBuffers)(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
+	typedef void (*PFN_RenderAPIBindIndexBuffer)(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
+	typedef void (*PFN_REnderAPIBindConstant)(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
-	typedef void (*PFN_RenderAPIDrawVertex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
-	typedef void (*PFN_RenderAPIDrawIndex)(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
+	typedef void (*PFN_RenderAPIDrawVertex)(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
+	typedef void (*PFN_RenderAPIDrawIndex)(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 
 	typedef void (*PFN_RenderAPIBuffer_CopyData)(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_View, const uint64_t a_Offset);
 	typedef void* (*PFN_RenderAPIMapMemory)(const RBufferHandle a_Handle);
