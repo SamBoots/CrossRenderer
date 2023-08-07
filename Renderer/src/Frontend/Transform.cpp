@@ -2,9 +2,6 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "RenderFrontend.h"
 
-#include "Storage/Array.h"
-#include "Storage/Slotmap.h"
-
 using namespace BB;
 
 Transform::Transform(const glm::vec3 a_Position)
@@ -60,20 +57,44 @@ glm::mat4 Transform::CreateModelMatrix()
 	return t_Matrix;
 }
 
+//slotmap type of data structure.
+struct TransformNode
+{
+	union //44 bytes
+	{
+		Transform transform; 
+		uint32_t next;
+	};
+	
+	uint32_t generation; //48 bytes
+};
+
 struct BB::TransformPool_inst
 {
-	TransformPool_inst(Allocator a_SysAllocator, const uint32_t a_MatrixSize)
+	TransformPool_inst(Allocator a_SysAllocator, const uint32_t a_TransformCount)
 		:	systemAllocator(a_SysAllocator),
-			poolIndices(a_SysAllocator, a_MatrixSize),
-			pool(a_SysAllocator, a_MatrixSize),
-			uploadMatrixBuffer(a_MatrixSize * sizeof(ModelBufferInfo))
-	{};
+			uploadMatrixBuffer(a_TransformCount * sizeof(ModelBufferInfo))
+	{
+		transformCount = a_TransformCount;
+		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_SysAllocator, sizeof(TransformNode) * a_TransformCount));
+
+		for (size_t i = 0; i < static_cast<size_t>(transformCount - 1); i++)
+		{
+			transforms[i].next = i + 1;
+			transforms[i].generation = 1;
+		}
+
+		transforms[transformCount - 1].next = UINT32_MAX;
+		transforms[transformCount - 1].generation = 1;
+	};
 
 	Allocator systemAllocator;
-
-	Array<uint32_t> poolIndices;
-	Slotmap<Transform> pool;
 	UploadBuffer uploadMatrixBuffer;
+
+	uint32_t transformCount;
+	uint32_t nextFreeTransform;
+
+	TransformNode* transforms;
 };
 
 TransformPool::TransformPool(Allocator a_SysAllocator, const uint32_t a_MatrixSize)
@@ -89,52 +110,70 @@ TransformPool::~TransformPool()
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position)
 {
-	TransformHandle t_Handle(inst->pool.emplace(a_Position).handle);
-	inst->poolIndices.emplace(t_Handle.index);
-	return t_Handle;
+	const uint32_t t_TransformIndex = inst->nextFreeTransform;
+	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = t_Node->next;
+
+	//WILL OVERWRITE t_Node->next due to it being a union.
+	new (&t_Node->transform) Transform(a_Position);
+
+	return TransformHandle(t_TransformIndex, t_Node->generation);
 }
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians)
 {
-	TransformHandle t_Handle(inst->pool.emplace(a_Position, a_Axis, a_Radians).handle);
-	inst->poolIndices.emplace(t_Handle.index);
-	return t_Handle;
+	const uint32_t t_TransformIndex = inst->nextFreeTransform;
+	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = t_Node->next;
+
+	//WILL OVERWRITE t_Node->next due to it being a union.
+	new (&t_Node->transform) Transform(a_Position, a_Axis, a_Radians);
+
+	return TransformHandle(t_TransformIndex, t_Node->generation);
 }
 
 TransformHandle TransformPool::CreateTransform(const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
 {
-	TransformHandle t_Handle(inst->pool.emplace(a_Position, a_Axis, a_Radians, a_Scale).handle);
-	inst->poolIndices.emplace_back(t_Handle.index);
-	return t_Handle;
+	const uint32_t t_TransformIndex = inst->nextFreeTransform;
+	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = t_Node->next;
+
+	//WILL OVERWRITE t_Node->next due to it being a union.
+	new (&t_Node->transform) Transform(a_Position, a_Axis, a_Radians, a_Scale);
+
+	return TransformHandle(t_TransformIndex, t_Node->generation);
 }
 
 void TransformPool::FreeTransform(const TransformHandle a_Handle)
 {
-	//erase element from array.
-	inst->poolIndices;
-	inst->pool.erase(a_Handle.handle);
+	BB_ASSERT(a_Handle.extraIndex == inst->transforms[a_Handle.index].generation, "Transform likely freed twice.")
+
+	//mark transform as free.
+	inst->transforms[a_Handle.index].next = inst->transforms->next;
+	++inst->transforms[a_Handle.index].generation;
+	inst->transforms->next = a_Handle.index;
 }
 
 Transform& TransformPool::GetTransform(const TransformHandle a_Handle) const
 {
-	return inst->pool[a_Handle.handle];
+	BB_ASSERT(a_Handle.extraIndex == inst->transforms[a_Handle.index].generation, "Transform likely freed twice.")
+	return inst->transforms[a_Handle.index].transform;
 }
 
 void TransformPool::UpdateTransforms()
 {
 	void* t_GPUBufferStart = inst->uploadMatrixBuffer.GetStart();
 
-	for (size_t i = 0; i < inst->poolIndices.size(); i++)
+	for (size_t i = 0; i < static_cast<size_t>(inst->transformCount); i++)
 	{
-		const uint32_t t_Index = inst->poolIndices[i];
 		//if (inst->pool[t_Index].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
 		{
 			ModelBufferInfo t_Pack{};
-			t_Pack.model = inst->pool[t_Index].CreateModelMatrix();
+			t_Pack.model = inst->transforms[i].transform.CreateModelMatrix();
 			t_Pack.inverseModel = glm::inverse(t_Pack.model);
 
 			//Copy the model matrix into the transfer buffer.
-			memcpy(Pointer::Add(t_GPUBufferStart, t_Index * sizeof(ModelBufferInfo)),
+			memcpy(Pointer::Add(t_GPUBufferStart, i * sizeof(ModelBufferInfo)),
 				&t_Pack,
 				sizeof(ModelBufferInfo));
 		}
@@ -143,7 +182,7 @@ void TransformPool::UpdateTransforms()
 
 const uint32_t TransformPool::PoolSize() const
 {
-	return inst->pool.capacity();
+	return inst->transformCount;
 }
 
 const UploadBuffer& TransformPool::PoolGPUUploadBuffer()
