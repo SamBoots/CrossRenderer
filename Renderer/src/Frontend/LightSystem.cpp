@@ -48,7 +48,7 @@ const LightHandle BB::LightPool::AddLights(const BB::Slice<Light> a_Lights)
 	return t_Handle;
 }
 
-void BB::LightPool::SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, const BB::Slice<LightHandle> a_LightHandles) const
+void BB::LightPool::SubmitLightsToGPU(const CommandListHandle t_RecordingCmdList, const BB::Slice<LightHandle> a_LightHandles) const
 {
 	BB_ASSERT(m_LightCount > 0, "Light pool is empty!");
 	uint32_t t_FirstIndex = 0;
@@ -103,7 +103,7 @@ LightSystem::LightSystem(const uint32_t a_LightAmount)
 LightSystem::~LightSystem()
 {}
 
-LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList)
+LightHandle LightSystem::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const CommandListHandle a_CmdList)
 {
 	LightHandle t_Handle{};
 	switch (a_LightType)

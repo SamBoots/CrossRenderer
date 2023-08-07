@@ -58,12 +58,11 @@ struct ImGui_ImplCrossRenderer_Data
 
 struct ImGui_ImplBB_Data
 {
-    HWND                        hWnd;
-    HWND                        MouseHwnd;
+    BB::WindowHandle            window;
     int                         MouseTrackedArea;   // 0: not tracked, 1: client are, 2: non-client area
     int                         MouseButtonsDown;
-    INT64                       Time;
-    INT64                       TicksPerSecond;
+    int64_t                       Time;
+    int64_t                       TicksPerSecond;
     ImGuiMouseCursor            LastMouseCursor;
 
     ImGui_ImplBB_Data() { memset((void*)this, 0, sizeof(*this)); }
@@ -112,7 +111,7 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
 
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
     const PipelineHandle a_Pipeline, 
-    const RecordingCommandListHandle a_CmdList, 
+    const CommandListHandle a_CmdList,
     const ImGui_ImplCross_FrameRenderBuffers& a_RenderBuffers, 
     const int a_FbWidth, 
     const int a_FbHeight)
@@ -150,7 +149,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
 }
 
 // Render function
-void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::RecordingCommandListHandle a_CmdList, const RecordingCommandListHandle a_Transfer, const BB::PipelineHandle a_Pipeline)
+void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::CommandListHandle a_CmdList, const BB::PipelineHandle a_Pipeline)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
@@ -206,15 +205,24 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         t_CopyInfo.dst = rb.vertexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = vertex_size;
-        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
+        RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
 
         //copy index
         t_CopyInfo.srcOffset = t_UpIndex.offset;
         t_CopyInfo.dst = rb.indexBuffer;
         t_CopyInfo.dstOffset = 0;
         t_CopyInfo.size = index_size;
-        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
+        RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
     }
+
+    StartRenderingInfo t_ImguiStart;
+    t_ImguiStart.viewportWidth = a_DrawData.FramebufferScale.x;
+    t_ImguiStart.viewportHeight = a_DrawData.FramebufferScale.y;
+    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+    t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
+    t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+    t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+    RenderBackend::StartRendering(a_CmdList, t_ImguiStart);
 
     // Setup desired CrossRenderer state
     ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
@@ -260,12 +268,12 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
                 t_SciInfo.extent.y = (uint32_t)(clip_max.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
 
-                RDescriptor t_Set[1] = {(RDescriptor)pcmd->TextureId};
+                RDescriptor t_Set[1] = { (uintptr_t)pcmd->TextureId };
                 if (sizeof(ImTextureID) < sizeof(ImU64))
                 {
                     // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
                     IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
-                    t_Set[0] = (RDescriptor)bd->fontDescriptor.ptrHandle;
+                    t_Set[0] = bd->fontDescriptor;
                 }
                 const uint32_t t_IsSampler = false;
                 const size_t t_HeapOffset = bd->descAllocation.offset;
@@ -285,9 +293,14 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
     t_SciInfo.offset = { 0, 0 };
     t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
     RenderBackend::SetScissor(a_CmdList, t_SciInfo);
+
+    EndRenderingInfo t_ImguiEnd;
+    t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
+    t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
+    RenderBackend::EndRendering(a_CmdList, t_ImguiEnd);
 }
 
-bool ImGui_ImplCross_CreateFontsTexture(const RecordingCommandListHandle a_CmdList, UploadBuffer& a_UploadBuffer)
+bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, UploadBuffer& a_UploadBuffer)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
@@ -391,7 +404,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
         io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
 
-        bdWin->hWnd = (HWND)a_Info.window.handle;
+        bdWin->window = a_Info.window;
         //bd->TicksPerSecond = perf_frequency;
         //bd->Time = perf_counter;
         bdWin->LastMouseCursor = ImGuiMouseCursor_COUNT;
@@ -540,7 +553,7 @@ void ImGui_ImplCross_NewFrame()
     ImGuiIO& io = ImGui::GetIO();
 
     int x, y;
-    GetWindowSize(bd->hWnd, x, y);
+    GetWindowSize(bd->window, x, y);
     io.DisplaySize = ImVec2((float)(x), (float)(y));
 
     IM_UNUSED(bd);
@@ -577,7 +590,7 @@ void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
 
         t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
         t_WriteData.image.image = a_Image;
-        t_WriteData.image.sampler = nullptr;
+        t_WriteData.image.sampler = BB_INVALID_HANDLE;
 
         t_ImguiDescData.data = Slice(&t_WriteData, 1);
         t_ImguiDescData.descriptorHandle = bd->fontDescriptor;

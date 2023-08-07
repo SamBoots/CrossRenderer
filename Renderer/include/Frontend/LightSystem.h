@@ -12,7 +12,7 @@ namespace BB
 		const LightHandle AddLight(const Light& a_Light);
 		const LightHandle AddLights(const BB::Slice<Light> a_Lights);
 		//If the slice is null then it uploads the entire CPU buffer to the GPU.
-		void SubmitLightsToGPU(const RecordingCommandListHandle t_RecordingCmdList, const BB::Slice<LightHandle> a_LightHandles = BB::Slice<LightHandle>()) const;
+		void SubmitLightsToGPU(const CommandListHandle t_RecordingCmdList, const BB::Slice<LightHandle> a_LightHandles = BB::Slice<LightHandle>()) const;
 		void ResetLights();
 
 		const Slice<Light> GetLights() const { return Slice(m_LightsCPU, m_LightCount); };
@@ -37,7 +37,7 @@ namespace BB
 		LightSystem(const uint32_t a_LightAmount);
 		~LightSystem();
 
-		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const RecordingCommandListHandle a_CmdList);
+		LightHandle AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType, const CommandListHandle a_CmdList);
 		void UploadLights();
 
 		void UpdateDescriptor(const RDescriptor a_Descriptor, const DescriptorAllocation& a_Allocation);

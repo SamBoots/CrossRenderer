@@ -108,7 +108,7 @@ const ShaderCodeHandle BB::Shader::CompileShader(const wchar_t* a_FullPath, cons
 	t_SourceBlob->Release();
 	t_Result->Release();
 
-	return ShaderCodeHandle(t_ShaderCode);
+	return ShaderCodeHandle((uintptr_t)t_ShaderCode);
 }
 
 void BB::Shader::ReleaseShaderCode(const ShaderCodeHandle a_Handle)

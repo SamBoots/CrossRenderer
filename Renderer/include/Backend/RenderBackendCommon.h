@@ -4,11 +4,6 @@
 #include "Utils/Slice.h"
 #include "Storage/FixedArray.h"
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#endif //_WIN32
-
 namespace BB
 {
 	//Hardware minimally supports 4 binding sets on Vulkan. So we make the hard limit for VK and DX12.

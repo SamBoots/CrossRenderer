@@ -7,14 +7,12 @@ namespace BB
 #define BB_SLL_PUSH(head, node) ((node)->next = (head), (head) = (node))
 #define BB_SLL_POP(head) head; do { (head) = (head)->next; } while(0)
 
+#define BB_INVALID_HANDLE UINT64_MAX
+
 	template<typename Tag>
 	union FrameworkHandle
 	{
 		FrameworkHandle() {};
-		FrameworkHandle(void* a_Handle)
-		{
-			ptrHandle = a_Handle;
-		};
 		FrameworkHandle(uint64_t a_Handle)
 		{
 			handle = a_Handle;

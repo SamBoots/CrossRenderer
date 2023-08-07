@@ -4,6 +4,7 @@
 #include "Frontend/Camera.h"
 #include "RenderFrontend.h"
 #include "Graph/SceneGraph.hpp"
+#include "Graph/FrameGraph.hpp"
 #include "imgui_impl_CrossRenderer.h"
 #include "BBThreadScheduler.hpp"
 #include "Editor.h"
@@ -43,12 +44,10 @@ void UploadTexture_Thread(void* a_Parameters)
 {
 	UploadTexture_Thread_Parameters* t_Parameters = reinterpret_cast<UploadTexture_Thread_Parameters*>(a_Parameters);
 
-	AssetLoaderInfo t_LoadInfo{};
-	t_LoadInfo.assetType = ASSET_TYPE::TEXTURE;
-	t_LoadInfo.path = t_Parameters->path;
-	AssetLoader t_Loader{ t_LoadInfo };
+	AssetLoader t_Loader{};
+	const RImageHandle t_Image = t_Loader.LoadImage(t_Parameters->path);
 
-	t_Parameters->returnValues.texture = Render::UploadTexture(t_Parameters->path);
+	t_Parameters->returnValues.texture = Render::SetupTexture(t_Image);
 }
 
 int main(int argc, char** argv)
@@ -118,8 +117,7 @@ int main(int argc, char** argv)
 	t_Vertex[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
 	t_Vertex[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
 
-	const uint32_t t_Indices[] = {
-	0, 1, 2, 2, 3, 0};
+	const uint32_t t_Indices[] = {0, 1, 2, 2, 3, 0};
 
 	CreateRawModelInfo t_ModelInfo{};
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
@@ -133,8 +131,11 @@ int main(int argc, char** argv)
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
 
+	FrameGraph t_FrameGraph{};
+	t_FrameGraph.RegisterRenderPass(t_Scene);
+
 	//Start frame before we upload.
-	Render::StartFrame();
+	//Render::StartFrame();
 
 	UploadTexture_Thread_Parameters t_DuckTextureUploadParam;
 	t_DuckTextureUploadParam.path = "Resources/Textures/DuckCM.png";
@@ -142,8 +143,14 @@ int main(int argc, char** argv)
 
 	Threads::WaitForTask(t_DuckTexture);
 
-	RModelHandle t_gltfCube = Render::LoadModel(t_LoadInfo);
-	RModelHandle t_Model = Render::CreateRawModel(t_ModelInfo);
+	//I do not like this, it should be automated but for now to test I just cheat.
+	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
+	RModelHandle t_gltfCube = Render::LoadModel(t_CmdList->list, t_LoadInfo);
+	RModelHandle t_Model = Render::CreateRawModel(t_CmdList->list, t_ModelInfo);
+	Render::GetTransferQueue().ExecuteCommands(&t_CmdList, 1, nullptr, nullptr, 0);
+	Render::GetTransferQueue().WaitIdle();
+	//shit code over
+
 	SceneObjectCreateInfo t_SceneObjectCreateInfo;
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
@@ -164,6 +171,8 @@ int main(int argc, char** argv)
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
 	bool t_FreezeCam = false;
+
+
 
 	while (!t_Quit)
 	{
@@ -227,7 +236,7 @@ int main(int argc, char** argv)
 			}
 		}
 		t_Scene.SetView(t_Cam.CalculateView());
-		t_Scene.StartScene(Render::GetRecordingTransfer());
+		t_FrameGraph.BeginRendering();
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
@@ -236,12 +245,10 @@ int main(int argc, char** argv)
 
 		Render::Update(t_DeltaTime);
 		Editor::EndEditorFrame();
-		t_Scene.RenderScene(Render::GetRecordingGraphics());
-		t_Scene.EndScene();
-		Render::EndFrame();
+		t_FrameGraph.Render();
+		t_FrameGraph.EndRendering();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();
-		Render::StartFrame();
 	}
 
 	//Move this to the renderer?

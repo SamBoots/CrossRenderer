@@ -155,13 +155,13 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	case WM_QUIT:
 		break;
 	case WM_DESTROY:
-		sPFN_CloseEvent(a_Hwnd);
+		sPFN_CloseEvent((uintptr_t)a_Hwnd);
 		break;
 	case WM_SIZE:
 	{
 		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
 		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
-		sPFN_ResizeEvent(a_Hwnd, t_X, t_Y);
+		sPFN_ResizeEvent((uintptr_t)a_Hwnd, t_X, t_Y);
 		break;
 	}
 	case WM_MOUSELEAVE:
@@ -233,7 +233,7 @@ LibHandle BB::LoadLib(const wchar* a_LibName)
 		LatestOSError();
 		BB_ASSERT(false, "Failed to load .DLL");
 	}
-	return LibHandle(t_Mod);
+	return LibHandle((uintptr_t)t_Mod);
 }
 
 void BB::UnloadLib(const LibHandle a_Handle)
@@ -305,7 +305,7 @@ OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 			WarningType::HIGH);
 	}
 	
-	return OSFileHandle(t_CreatedFile);
+	return OSFileHandle((uintptr_t)t_CreatedFile);
 }
 
 //char replaced with string view later on.
@@ -327,7 +327,7 @@ OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
 			WarningType::HIGH);
 	}
 
-	return OSFileHandle(t_LoadedFile);
+	return OSFileHandle((uintptr_t)t_LoadedFile);
 }
 
 //Reads a loaded file.
@@ -336,7 +336,7 @@ Buffer BB::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
 {
 	Buffer t_FileBuffer{};
 
-	t_FileBuffer.size = GetOSFileSize(a_FileHandle.ptrHandle);
+	t_FileBuffer.size = GetOSFileSize(a_FileHandle);
 	t_FileBuffer.data = BBalloc(a_SysAllocator, t_FileBuffer.size);
 	DWORD t_BytesRead = 0;
 
@@ -435,7 +435,7 @@ void BB::OSWaitThreadfinish(const OSThreadHandle a_Thread)
 
 BBMutex BB::OSCreateMutex()
 {
-	return BBMutex(CreateMutex(NULL, false, NULL));
+	return BBMutex((uintptr_t)CreateMutex(NULL, false, NULL));
 }
 
 void BB::OSWaitAndLockMutex(const BBMutex a_Mutex)
@@ -558,7 +558,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 		}
 	}
 
-	return WindowHandle(t_Window);
+	return WindowHandle((uintptr_t)t_Window);
 }
 
 void* BB::GetOSWindowHandle(const WindowHandle a_Handle)

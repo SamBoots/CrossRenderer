@@ -10,65 +10,46 @@
 
 using namespace BB;
 
-AssetLoader::AssetLoader(const AssetLoaderInfo& a_Info)
-	:	m_LoadInfo(a_Info)
+static CommandList* SetupCommandLists(const char* a_Name = "default asset loader name")
 {
-	{
-		StackString<256> t_DebugNames{};
-		t_DebugNames.append(a_Info.path);
-		constexpr const char* COMMAND_ALLOC_NAME = " : command allocator";
-		constexpr const char* COMMAND_LIST_NAME = " : command list";
+	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
 
-		{
-			t_DebugNames.append(COMMAND_ALLOC_NAME);
-			RenderCommandAllocatorCreateInfo t_CreateInfo;
-			t_CreateInfo.name = t_DebugNames.c_str();
-			t_CreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
-			t_CreateInfo.commandListCount = 1;
-			m_CmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
-			t_DebugNames.pop_back(strlen(COMMAND_ALLOC_NAME));
-		}
-		{
-			t_DebugNames.append(COMMAND_LIST_NAME);
-			RenderCommandListCreateInfo t_CreateInfo;
-			t_CreateInfo.name = t_DebugNames.c_str();
-			t_CreateInfo.commandAllocator = m_CmdAllocator;
-			m_CommandList = RenderBackend::CreateCommandList(t_CreateInfo);
-		}
-	}
+	//TODO, debug name the resource here.
+	StackString<256> t_DebugNames(a_Name);
+	constexpr const char* COMMAND_ALLOC_NAME = " : command allocator";
+	constexpr const char* COMMAND_LIST_NAME = " : command list";
 
-	RecordingCommandListHandle t_List = RenderBackend::StartCommandList(m_CommandList);
+	t_DebugNames.append(COMMAND_ALLOC_NAME);
+	//m_CmdAllocator = RenderBackend::CreateCommandAllocator(t_CreateInfo);
+	t_DebugNames.pop_back(strlen(COMMAND_ALLOC_NAME));
 
-	switch (a_Info.assetType)
-	{
-	case ASSET_TYPE::GLTF:
-		//lol, lmao
-		break;
-	case ASSET_TYPE::TEXTURE:
-		LoadTexture(a_Info, t_List);
-		break;
-	default:
-		BB_ASSERT(false, "Asset loading trying to load unknown ASSET_TYPE");
-		break;
-	}
+	t_DebugNames.append(COMMAND_LIST_NAME);
+	//m_CommandList = RenderBackend::CreateCommandList(t_CreateInfo);
+
+	return t_CmdList;
+}
+
+AssetLoader::AssetLoader()
+{
+
 }
 
 AssetLoader::~AssetLoader()
 {
-	RenderBackend::DestroyCommandAllocator(m_CmdAllocator);
-	RenderBackend::DestroyCommandList(m_CommandList);
 	m_Allocator.Clear();
 }
 
-void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandListHandle a_List)
+RImageHandle AssetLoader::LoadImage(const char* a_Path)
 {
+	CommandList* t_CmdList = SetupCommandLists(a_Path);
+
 	int x, y, c;
 	//hacky way, whatever we do it for now.
-	stbi_uc* t_Pixels = stbi_load(a_Info.path, &x, &y, &c, 4);
+	stbi_uc* t_Pixels = stbi_load(a_Path, &x, &y, &c, 4);
 	RImageHandle t_Image;
 	{
 		RenderImageCreateInfo t_ImageInfo;
-		t_ImageInfo.name = a_Info.path;
+		t_ImageInfo.name = a_Path;
 		t_ImageInfo.width = static_cast<uint32_t>(x);
 		t_ImageInfo.height = static_cast<uint32_t>(y);
 		t_ImageInfo.depth = 1;
@@ -96,7 +77,7 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		PipelineBarrierInfo t_Barrier{};
 		t_Barrier.imageInfoCount = 1;
 		t_Barrier.imageInfos = &t_ImageTransInfo;
-		RenderBackend::SetPipelineBarriers(a_List, t_Barrier);
+		RenderBackend::SetPipelineBarriers(t_CmdList, t_Barrier);
 	}
 
 
@@ -105,7 +86,7 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 	//NEED TO DO ALIGNMENT ON THE IMAGE IF WE USE THE UPLOAD BUFFER FOR MORE THEN JUST ONE IMAGE.
 	UploadBuffer t_ImageUpload(t_ImageInfo.allocInfo.imageAllocByteSize);
 	{
-		const UINT64 t_SourcePitch = static_cast<UINT64>(t_ImageInfo.width) * sizeof(uint32_t);
+		const uint64_t t_SourcePitch = static_cast<uint64_t>(t_ImageInfo.width) * sizeof(uint32_t);
 		
 		void* t_ImageSrc = t_Pixels;
 		void* t_ImageDst = t_ImageUpload.GetStart();
@@ -136,34 +117,21 @@ void AssetLoader::LoadTexture(const AssetLoaderInfo& a_Info, RecordingCommandLis
 		t_CopyImageInfo.dstImageInfo.baseArrayLayer = 0;
 		t_CopyImageInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
 
-		RenderBackend::CopyBufferImage(a_List, t_CopyImageInfo);
+		RenderBackend::CopyBufferImage(t_CmdList, t_CopyImageInfo);
 	}
 
-	*m_LoadInfo.imageData.image = t_Image;
-
-	RenderBackend::EndCommandList(a_List);
+	RenderBackend::EndCommandList(t_CmdList);
 
 	RenderQueue& t_TransferQueue = Render::GetTransferQueue();
-	m_WaitValue = t_TransferQueue.GetNextFenceValue();
+	const uint64_t t_WaitValue = t_TransferQueue.GetNextFenceValue();
 
-	ExecuteCommandsInfo a_ExecuteInfo{};
-	a_ExecuteInfo.commands = &m_CommandList;
-	a_ExecuteInfo.commandCount = 1;
-
-	a_ExecuteInfo.signalFences = &t_TransferQueue.GetFence();
-	a_ExecuteInfo.signalValues = &m_WaitValue;
-	a_ExecuteInfo.signalCount = 1;
-
-	t_TransferQueue.ExecuteCommands(&a_ExecuteInfo, 1);
+	t_TransferQueue.ExecuteCommands(&t_CmdList, 1, nullptr, nullptr, 0);
 
 	{
 		//for now just stall the thread.
-		RenderWaitCommandsInfo t_WaitInfo;
-		t_WaitInfo.waitFences = &t_TransferQueue.GetFence();
-		t_WaitInfo.waitValues = &m_WaitValue;
-		t_WaitInfo.waitCount = 1;
-		RenderBackend::WaitCommands(t_WaitInfo);
+		t_TransferQueue.WaitFenceValue(t_WaitValue);
 
 		m_IsFinished = true;
 	}
+	return t_Image;
 }

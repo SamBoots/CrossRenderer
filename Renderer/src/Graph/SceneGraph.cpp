@@ -261,8 +261,35 @@ SceneGraph::~SceneGraph()
 	BBfree(t_Allocator, inst);
 }
 
+void PreRenderFunc(const CommandListHandle a_CmdList, const GraphPreRenderInfo& a_PreRenderInfo)
+{
+	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_PreRenderInfo.instance);
+	t_Scene->StartScene(a_CmdList, a_PreRenderInfo.startTransition, a_PreRenderInfo.endTransition);
+}
 
-void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
+void RenderFunc(const CommandListHandle a_CmdList, const GraphRenderInfo& a_RenderInfo)
+{
+	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_RenderInfo.instance);
+	t_Scene->RenderScene(a_CmdList);
+}
+
+void PostRenderFunc(const CommandListHandle a_CmdList, const GraphPostRenderInfo& a_PostRenderInfo)
+{
+	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_PostRenderInfo.instance);
+	t_Scene->EndScene(a_CmdList, a_PostRenderInfo.startTransition, a_PostRenderInfo.endTransition);
+}
+
+SceneGraph::operator FrameGraphRenderPass()
+{
+	FrameGraphRenderPass t_RenderPass{};
+	t_RenderPass.instance = this;
+	t_RenderPass.preRenderFunc = PreRenderFunc;
+	t_RenderPass.renderFunc = RenderFunc;
+	t_RenderPass.postRenderFunc = PostRenderFunc;
+	return t_RenderPass;
+}
+
+void SceneGraph::StartScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout)
 {
 	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
 	WriteDescriptorInfos t_BufferUpdate{};
@@ -278,14 +305,16 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 
 	inst->sceneInfo.ambientLight = { 1.0f, 1.0f, 1.0f };
 	inst->sceneInfo.ambientStrength = 0.1f;
-	//if (inst->sceneInfo.lightCount != inst->lights.size())
-	{
+	if (inst->sceneInfo.lightCount != inst->lights.size())
+	{	//If we hvae more lights then we upload them. Maybe do a bool to check instead.
 		inst->sceneInfo.lightCount = static_cast<uint32_t>(inst->lights.size());
 
 		Memory::Copy(Pointer::Add(t_UploadBuffer.memory, t_UploadUsed),
 			inst->lights.data(),
 			inst->lights.size());
-
+	}
+	
+	{//Copy over transfer buffer to GPU
 		//Copy the perframe buffer over.
 		RenderCopyBufferInfo t_CopyInfo;
 		t_CopyInfo.src = inst->uploadbuffer.Buffer();
@@ -358,17 +387,14 @@ void SceneGraph::StartScene(RecordingCommandListHandle a_GraphicList)
 	}
 
 	RenderBackend::WriteDescriptors(t_BufferUpdate);
-}
 
-void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
-{
 	StartRenderingInfo t_StartRenderInfo;
 	t_StartRenderInfo.viewportWidth = inst->sceneWindowWidth;
 	t_StartRenderInfo.viewportHeight = inst->sceneWindowHeight;
 	t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
-	t_StartRenderInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	t_StartRenderInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	t_StartRenderInfo.colorInitialLayout = a_InitialLayout;
+	t_StartRenderInfo.colorFinalLayout = a_FinalLayout;
 	t_StartRenderInfo.clearColor[0] = 1.0f;
 	t_StartRenderInfo.clearColor[1] = 0.0f;
 	t_StartRenderInfo.clearColor[2] = 0.0f;
@@ -377,7 +403,10 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(a_GraphicList, t_StartRenderInfo);
+}
 
+void SceneGraph::RenderScene(const CommandListHandle a_GraphicList)
+{
 	RModelHandle t_CurrentModel = inst->sceneObjects.begin()->modelHandle;
 	Model* t_Model = &Render::GetModel(t_CurrentModel.handle);
 
@@ -439,15 +468,14 @@ void SceneGraph::RenderScene(RecordingCommandListHandle a_GraphicList)
 			}
 		}
 	}
-
-	EndRenderingInfo t_EndRenderingInfo{};
-	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
 }
 
-void SceneGraph::EndScene()
+void SceneGraph::EndScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout)
 {
+	EndRenderingInfo t_EndRenderingInfo{};
+	t_EndRenderingInfo.colorInitialLayout = a_InitialLayout;
+	t_EndRenderingInfo.colorFinalLayout = a_FinalLayout;
+	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
 	//??, maybe to the EndRendering call here. 
 }
 

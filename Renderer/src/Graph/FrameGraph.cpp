@@ -1,6 +1,9 @@
 #include "FrameGraph.hpp"
 
+#include "Array.h"
 #include "Slotmap.h"
+
+#include "RenderFrontend.h"
 
 using namespace BB;
 
@@ -10,31 +13,98 @@ struct FrameGraphNode
 	FrameGraphRenderPass renderPass;
 };
 
+struct FrameData
+{
+	uint64_t graphicsFenceValue = 0;
+	uint64_t transferFenceValue = 0;
+};
+
 struct BB::FrameGraph_inst
 {
 	FrameGraph_inst(Allocator a_Allocator) :
-		nodes(a_Allocator, 128), resources(a_Allocator, 256) {};
+		renderpasses(a_Allocator, 8), nodes(a_Allocator, 128), resources(a_Allocator, 256) {};
+
+	//TEMP
+	CommandList* commandList = nullptr;
+
+	Array<FrameGraphRenderPass> renderpasses;
 
 	Slotmap<FrameGraphNode> nodes;
 	Slotmap<FrameGraphResource> resources;
+
+	FrameIndex currentFrame = 0;
+	FrameData frameData[3]{};
 };
 
 FrameGraph::FrameGraph()
 {
-	m_Inst = BBnew(m_Allocator, FrameGraph_inst)(m_Allocator);
+	inst = BBnew(m_Allocator, FrameGraph_inst)(m_Allocator);
 }
 
 FrameGraph::~FrameGraph()
 {
-	BBfree(m_Allocator, m_Inst);
+	BBfree(m_Allocator, inst);
+}
+
+void FrameGraph::RegisterRenderPass(FrameGraphRenderPass a_RenderPass)
+{
+	inst->renderpasses.push_back(a_RenderPass);
+}
+
+//temporary for now.
+void FrameGraph::BeginRendering()
+{
+	inst->commandList = Render::GetGraphicsQueue().GetCommandList();
+	RenderBackend::BindDescriptorHeaps(inst->commandList->list, Render::GetGPUHeap(inst->currentFrame), BB_INVALID_HANDLE);
+
+	Render::GetGraphicsQueue().WaitFenceValue(inst->frameData[inst->currentFrame].graphicsFenceValue);
+	Render::GetTransferQueue().WaitFenceValue(inst->frameData[inst->currentFrame].transferFenceValue);
+	
+	StartFrameInfo t_StartInfo{};
+	RenderBackend::StartFrame(t_StartInfo);
+	Render::StartFrame(inst->commandList);
+
+	for (size_t i = 0; i < inst->renderpasses.size(); i++)
+	{
+		GraphPreRenderInfo t_Info{ inst->renderpasses[i].instance };
+		inst->renderpasses[i].preRenderFunc(inst->commandList->list, t_Info);
+	}
+}
+
+void FrameGraph::Render()
+{
+	Render::Update(0);
+	for (size_t i = 0; i < inst->renderpasses.size(); i++)
+	{
+		GraphRenderInfo t_Info{ inst->renderpasses[i].instance };
+		inst->renderpasses[i].renderFunc(inst->commandList->list, t_Info);
+	}
+}
+
+void FrameGraph::EndRendering()
+{
+	for (size_t i = 0; i < inst->renderpasses.size(); i++)
+	{
+		GraphPostRenderInfo t_Info{ inst->renderpasses[i].instance };
+		inst->renderpasses[i].postRenderFunc(inst->commandList->list, t_Info);
+	}
+
+	inst->frameData[inst->currentFrame].graphicsFenceValue = Render::GetGraphicsQueue().GetNextFenceValue() - 1;
+	inst->frameData[inst->currentFrame].transferFenceValue = Render::GetTransferQueue().GetNextFenceValue() - 1;
+
+	Render::EndFrame(inst->commandList->list);
+	Render::GetGraphicsQueue().ExecutePresentCommands(&inst->commandList, 1, nullptr, nullptr, 0);
+
+	PresentFrameInfo t_PresentFrame{};
+	inst->currentFrame = RenderBackend::PresentFrame(t_PresentFrame);
 }
 
 const FrameGraphResourceHandle FrameGraph::CreateResource(const FrameGraphResource& a_Resource)
 {
-	return FrameGraphResourceHandle(m_Inst->resources.emplace(a_Resource).handle);
+	return FrameGraphResourceHandle(inst->resources.emplace(a_Resource).handle);
 }
 
 void FrameGraph::DestroyResource(const FrameGraphResourceHandle a_Handle)
 {
-	m_Inst->resources.erase(a_Handle.handle);
+	inst->resources.erase(a_Handle.handle);
 }

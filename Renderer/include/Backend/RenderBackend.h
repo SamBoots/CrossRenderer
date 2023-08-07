@@ -106,42 +106,11 @@ namespace BB
 	struct CommandList
 	{
 		CommandAllocatorHandle cmdAllocator;
-		CommandListHandle cmdList;
+		CommandListHandle list;
 		uint64_t queueFenceValue;
 		CommandList* next = nullptr;
-		operator CommandListHandle() { return cmdList; }
-	};
-
-
-	//THREAD SAFE: TRUE
-	class RenderQueue
-	{
-	public:
-		RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name);
-		~RenderQueue();
-
-		CommandList* GetCommandList();
-
-		//Also handles incrementing the 
-		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
-		void ExecutePresentCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
-		void WaitFenceValue(const uint64_t a_FenceValue);
-		void WaitIdle();
-
-		const CommandQueueHandle GetQueue() const { return m_Queue; }
-		RenderFence GetFence() const { return m_Fence; }
-		uint64_t GetNextFenceValue() const { return m_Fence.nextFenceValue; }
-		uint64_t GetLastCompletedValue() const { return m_Fence.lastCompleteValue; }
-
-	private:
-		const RENDER_QUEUE_TYPE m_Type;
-		BBMutex m_Mutex;
-		CommandList m_Lists[12]{};
-		CommandList* m_FreeCommandList;
-		CommandList* m_InFlightLists = nullptr;
-
-		CommandQueueHandle m_Queue;
-		RenderFence m_Fence;
+		const CommandListHandle operator -> () { return list; }
+		operator const CommandListHandle () { return list; }
 	};
 
 	namespace RenderBackend
