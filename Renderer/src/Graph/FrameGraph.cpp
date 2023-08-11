@@ -75,6 +75,7 @@ void FrameGraph::BeginRendering()
 void FrameGraph::Render()
 {
 	Render::Update(0);
+	Render::UploadDescriptorsToGPU(inst->currentFrame);
 	for (size_t i = 0; i < inst->renderpasses.size(); i++)
 	{
 		GraphRenderInfo t_Info{ inst->renderpasses[i].instance };
