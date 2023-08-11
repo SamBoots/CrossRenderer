@@ -15,20 +15,20 @@ namespace BB
 	struct GraphPreRenderInfo
 	{
 		void* instance;
-		RENDER_IMAGE_LAYOUT startTransition;
-		RENDER_IMAGE_LAYOUT endTransition;
 	};
 
 	struct GraphRenderInfo
 	{
 		void* instance;
+		RENDER_IMAGE_LAYOUT currentLayout;
+		RENDER_IMAGE_LAYOUT renderLayout;
+		RENDER_IMAGE_LAYOUT endLayout;
 	};
 
 	struct GraphPostRenderInfo
 	{
 		void* instance;
-		RENDER_IMAGE_LAYOUT startTransition;
-		RENDER_IMAGE_LAYOUT endTransition;
+
 	};
 
 	typedef void (*PFN_GraphPreRender)(const CommandListHandle, const GraphPreRenderInfo&);

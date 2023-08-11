@@ -381,6 +381,7 @@ namespace BB
 			BB_ASSERT(a_Size < sizeof(m_String), "Stack string overflow");
 			Memory::Set(m_String, 0, sizeof(m_String));
 			Memory::Copy(m_String, a_String, a_Size);
+			m_Size = a_Size;
 		};
 		Stack_String(const Stack_String<CharT, stringSize>& a_String)
 		{

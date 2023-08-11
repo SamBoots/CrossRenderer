@@ -264,19 +264,19 @@ SceneGraph::~SceneGraph()
 void PreRenderFunc(const CommandListHandle a_CmdList, const GraphPreRenderInfo& a_PreRenderInfo)
 {
 	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_PreRenderInfo.instance);
-	t_Scene->StartScene(a_CmdList, a_PreRenderInfo.startTransition, a_PreRenderInfo.endTransition);
+	t_Scene->StartScene(a_CmdList);
 }
 
 void RenderFunc(const CommandListHandle a_CmdList, const GraphRenderInfo& a_RenderInfo)
 {
 	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_RenderInfo.instance);
-	t_Scene->RenderScene(a_CmdList);
+	t_Scene->RenderScene(a_CmdList, a_RenderInfo.currentLayout, a_RenderInfo.renderLayout, a_RenderInfo.endLayout);
 }
 
 void PostRenderFunc(const CommandListHandle a_CmdList, const GraphPostRenderInfo& a_PostRenderInfo)
 {
 	SceneGraph* t_Scene = reinterpret_cast<SceneGraph*>(a_PostRenderInfo.instance);
-	t_Scene->EndScene(a_CmdList, a_PostRenderInfo.startTransition, a_PostRenderInfo.endTransition);
+	t_Scene->EndScene(a_CmdList);
 }
 
 SceneGraph::operator FrameGraphRenderPass()
@@ -289,7 +289,7 @@ SceneGraph::operator FrameGraphRenderPass()
 	return t_RenderPass;
 }
 
-void SceneGraph::StartScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout)
+void SceneGraph::StartScene(const CommandListHandle a_GraphicList)
 {
 	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
 	WriteDescriptorInfos t_BufferUpdate{};
@@ -387,14 +387,17 @@ void SceneGraph::StartScene(const CommandListHandle a_GraphicList, const RENDER_
 	}
 
 	RenderBackend::WriteDescriptors(t_BufferUpdate);
+}
 
+void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_CurrentLayout, const RENDER_IMAGE_LAYOUT a_RenderLayout, const RENDER_IMAGE_LAYOUT a_EndLayout)
+{
 	StartRenderingInfo t_StartRenderInfo;
 	t_StartRenderInfo.viewportWidth = inst->sceneWindowWidth;
 	t_StartRenderInfo.viewportHeight = inst->sceneWindowHeight;
 	t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
-	t_StartRenderInfo.colorInitialLayout = a_InitialLayout;
-	t_StartRenderInfo.colorFinalLayout = a_FinalLayout;
+	t_StartRenderInfo.colorInitialLayout = a_CurrentLayout;
+	t_StartRenderInfo.colorFinalLayout = a_RenderLayout;
 	t_StartRenderInfo.clearColor[0] = 1.0f;
 	t_StartRenderInfo.clearColor[1] = 0.0f;
 	t_StartRenderInfo.clearColor[2] = 0.0f;
@@ -403,10 +406,7 @@ void SceneGraph::StartScene(const CommandListHandle a_GraphicList, const RENDER_
 
 	//Record rendering commands.
 	RenderBackend::StartRendering(a_GraphicList, t_StartRenderInfo);
-}
 
-void SceneGraph::RenderScene(const CommandListHandle a_GraphicList)
-{
 	RModelHandle t_CurrentModel = inst->sceneObjects.begin()->modelHandle;
 	Model* t_Model = &Render::GetModel(t_CurrentModel.handle);
 
@@ -468,15 +468,16 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList)
 			}
 		}
 	}
+
+	EndRenderingInfo t_EndRenderingInfo{};
+	t_EndRenderingInfo.colorInitialLayout = a_RenderLayout;
+	t_EndRenderingInfo.colorFinalLayout = a_EndLayout;
+	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
 }
 
-void SceneGraph::EndScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout)
+void SceneGraph::EndScene(const CommandListHandle a_GraphicList)
 {
-	EndRenderingInfo t_EndRenderingInfo{};
-	t_EndRenderingInfo.colorInitialLayout = a_InitialLayout;
-	t_EndRenderingInfo.colorFinalLayout = a_FinalLayout;
-	RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
-	//??, maybe to the EndRendering call here. 
+
 }
 
 void SceneGraph::SetProjection(const glm::mat4& a_Proj)

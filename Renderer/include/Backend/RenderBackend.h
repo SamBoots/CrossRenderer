@@ -109,6 +109,8 @@ namespace BB
 		CommandListHandle list;
 		uint64_t queueFenceValue;
 		CommandList* next = nullptr;
+		//debug
+		RENDER_QUEUE_TYPE type;
 		const CommandListHandle operator -> () { return list; }
 		operator const CommandListHandle () { return list; }
 	};

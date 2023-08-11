@@ -147,6 +147,7 @@ int main(int argc, char** argv)
 	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
 	RModelHandle t_gltfCube = Render::LoadModel(t_CmdList->list, t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_CmdList->list, t_ModelInfo);
+	RenderBackend::EndCommandList(t_CmdList->list);
 	Render::GetTransferQueue().ExecuteCommands(&t_CmdList, 1, nullptr, nullptr, 0);
 	Render::GetTransferQueue().WaitIdle();
 	//shit code over
@@ -178,9 +179,6 @@ int main(int argc, char** argv)
 	{
 		ProcessMessages(t_Window);
 		PollInputEvents(t_InputEvents, t_InputEventCount);
-
-		Editor::StartEditorFrame();
-		Editor::DisplaySceneInfo(t_Scene);
 
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
@@ -238,14 +236,16 @@ int main(int argc, char** argv)
 		t_Scene.SetView(t_Cam.CalculateView());
 		t_FrameGraph.BeginRendering();
 
+		Editor::StartEditorFrame();
+		Editor::DisplaySceneInfo(t_Scene);
+
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
 		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
-		Render::Update(t_DeltaTime);
-		Editor::EndEditorFrame();
 		t_FrameGraph.Render();
+		Editor::EndEditorFrame();
 		t_FrameGraph.EndRendering();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();

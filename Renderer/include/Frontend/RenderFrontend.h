@@ -6,9 +6,6 @@ namespace BB
 {
 	constexpr const size_t MAX_TEXTURES = 1024;
 
-	struct Light;
-	struct DrawObject;
-
 	struct Render_IO
 	{
 		uint32_t swapchainWidth = 0;
@@ -27,10 +24,10 @@ namespace BB
 		RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name);
 		~RenderQueue();
 
-		CommandList& GetCommandList();
+		CommandList* GetCommandList();
 
 		//Also handles incrementing the 
-		void ExecuteCommands(CommandList*& a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
+		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 		void ExecutePresentCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 		void WaitFenceValue(const uint64_t a_FenceValue);
 		void WaitIdle();

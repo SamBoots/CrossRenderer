@@ -96,22 +96,21 @@ struct VulkanCommandList
 	VkCommandBuffer Buffer() const { return *bufferPtr; }
 };
 
-constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
 struct VkCommandAllocator
 {
 	VkCommandPool pool;
-	BB::Pool<VkCommandBuffer> buffers;
+	VkCommandBuffer buffer;
 
 	VulkanCommandList GetCommandList()
 	{
 		VulkanCommandList t_CommandList{};
-		t_CommandList.bufferPtr = buffers.Get();
+		t_CommandList.bufferPtr = &buffer;
 		t_CommandList.cmdAllocator = this;
 		return t_CommandList;
 	}
 	void FreeCommandList(const VulkanCommandList t_CmdList)
 	{
-		buffers.Free(t_CmdList.bufferPtr);
+		
 	}
 };
 
@@ -153,9 +152,7 @@ struct VulkanBackend_inst
 
 	VulkanSwapChain swapChain{};
 	VmaAllocator vma{};
-	Slotmap<VulkanCommandList> commandLists{ s_VulkanAllocator };
 
-	Pool<VkCommandAllocator> cmdAllocators;
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
 	Pool<VulkanImage> imagePool;
@@ -167,8 +164,6 @@ struct VulkanBackend_inst
 
 	void CreatePools()
 	{
-		//JANK, will handle command allocators way more efficiently on the app side.
-		cmdAllocators.CreatePool(s_VulkanAllocator, 128);
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
 		imagePool.CreatePool(s_VulkanAllocator, 16);
@@ -176,7 +171,6 @@ struct VulkanBackend_inst
 
 	void DestroyPools()
 	{
-		cmdAllocators.DestroyPool(s_VulkanAllocator);
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
 		imagePool.DestroyPool(s_VulkanAllocator);
@@ -191,8 +185,7 @@ static uint32_t s_DescriptorBufferAlignment = 0;
 #ifdef _DEBUG
 static inline void SetDebugName_f(const char* a_Name, const uint64_t a_ObjectHandle, const VkObjectType a_ObjType)
 {
-	VkDebugUtilsObjectNameInfoEXT t_DebugName{};
-	t_DebugName.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+	VkDebugUtilsObjectNameInfoEXT t_DebugName{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
 	t_DebugName.pNext = nullptr;
 	t_DebugName.objectType = a_ObjType;
 	t_DebugName.objectHandle = a_ObjectHandle;
@@ -737,8 +730,6 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 			vkDestroyImageView(s_VKB.device,
 				s_VKB.swapChain.frames[i].imageView, nullptr);
 			vkDestroySemaphore(s_VKB.device,
-				s_VKB.swapChain.frames[i].frameTimelineSemaphore, nullptr);
-			vkDestroySemaphore(s_VKB.device,
 				s_VKB.swapChain.frames[i].imageAvailableSem, nullptr);
 			vkDestroySemaphore(s_VKB.device,
 				s_VKB.swapChain.frames[i].imageRenderFinishedSem, nullptr);
@@ -835,11 +826,6 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 	VkSemaphoreCreateInfo t_SemInfo{};
 	t_SemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	//Used for the last semaphore created of a single frame struct.
-	VkSemaphoreTypeCreateInfo t_TimelineSemInfo{};
-	t_TimelineSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-	t_TimelineSemInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-	t_TimelineSemInfo.initialValue = 0;
 	for (size_t i = 0; i < s_VKB.frameCount; i++)
 	{
 		s_VKB.swapChain.frames[i].image = t_SwapchainImages[i];
@@ -859,14 +845,6 @@ static void CreateSwapchain(VkSurfaceKHR a_Surface, VkPhysicalDevice a_PhysicalD
 			&t_SemInfo,
 			nullptr,
 			&s_VKB.swapChain.frames[i].imageRenderFinishedSem);
-
-		t_SemInfo.pNext = &t_TimelineSemInfo;
-		vkCreateSemaphore(s_VKB.device,
-			&t_SemInfo,
-			nullptr,
-			&s_VKB.swapChain.frames[i].frameTimelineSemaphore);
-		t_SemInfo.pNext = nullptr;
-		s_VKB.swapChain.frames[i].frameWaitValue = 0;
 	}
 }
 
@@ -1140,7 +1118,7 @@ CommandQueueHandle BB::VulkanCreateCommandQueue(const RenderCommandQueueCreateIn
 
 CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
 {
-	VkCommandAllocator* t_CmdAllocator = s_VKB.cmdAllocators.Get();
+	VkCommandAllocator* t_CmdAllocator = BBnew(s_VulkanAllocator, VkCommandAllocator) {};
 
 	VkCommandPoolCreateInfo t_CreateInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	switch (a_CreateInfo.queueType)
@@ -1165,16 +1143,14 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 		&t_CmdAllocator->pool),
 		"Vulkan: Failed to create command pool.");
 
-	t_CmdAllocator->buffers.CreatePool(s_VulkanAllocator, a_CreateInfo.commandListCount);
-
 	VkCommandBufferAllocateInfo t_AllocCreateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
 	t_AllocCreateInfo.commandPool = t_CmdAllocator->pool;
 	t_AllocCreateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	t_AllocCreateInfo.commandBufferCount = a_CreateInfo.commandListCount;
+	t_AllocCreateInfo.commandBufferCount = 1;
 
 	VKASSERT(vkAllocateCommandBuffers(s_VKB.device,
 		&t_AllocCreateInfo,
-		t_CmdAllocator->buffers.data()),
+		&t_CmdAllocator->buffer),
 		"Vulkan: Failed to allocate command buffers!");
 
 	SetDebugName(a_CreateInfo.name, t_CmdAllocator->pool, VK_OBJECT_TYPE_COMMAND_POOL);
@@ -1184,10 +1160,11 @@ CommandAllocatorHandle BB::VulkanCreateCommandAllocator(const RenderCommandAlloc
 CommandListHandle BB::VulkanCreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
 {
 	BB_ASSERT(a_CreateInfo.commandAllocator.handle != NULL, "Sending a commandallocator handle that is null!");
-	VulkanCommandList t_List = reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList();
+	VulkanCommandList* t_List = BBnew(s_VulkanAllocator, VulkanCommandList);
+	*t_List = reinterpret_cast<VkCommandAllocator*>(a_CreateInfo.commandAllocator.ptrHandle)->GetCommandList();
 
-	SetDebugName(a_CreateInfo.name, t_List.Buffer(), VK_OBJECT_TYPE_COMMAND_BUFFER);
-	return CommandListHandle(s_VKB.commandLists.insert(t_List).handle);
+	SetDebugName(a_CreateInfo.name, t_List->Buffer(), VK_OBJECT_TYPE_COMMAND_BUFFER);
+	return CommandListHandle((uintptr_t)t_List);
 }
 
 RBufferHandle BB::VulkanCreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
@@ -1823,7 +1800,7 @@ void BB::VulkanResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocator
 
 void BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_CmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_CmdHandle.ptrHandle);
 
 	//vkResetCommandBuffer(a_CmdList.buffers[a_CmdList.currentFree], 0);
 	VkCommandBufferBeginInfo t_CmdBeginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
@@ -1834,7 +1811,7 @@ void BB::VulkanStartCommandList(const CommandListHandle a_CmdHandle)
 
 void BB::VulkanEndCommandList(const CommandListHandle a_RecordingCmdHandle)
 {
-	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	t_Cmdlist.currentPipelineLayout = VK_NULL_HANDLE;
 
@@ -1844,7 +1821,7 @@ void BB::VulkanEndCommandList(const CommandListHandle a_RecordingCmdHandle)
 
 void BB::VulkanStartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
-	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	uint32_t t_BarrierCount = 1;
 	VkImageMemoryBarrier2 t_Barriers[2]{};
@@ -1865,7 +1842,7 @@ void BB::VulkanStartRendering(const CommandListHandle a_RecordingCmdHandle, cons
 	VkRenderingAttachmentInfo t_RenderDepthAttach{};
 
 	//If we handle the depth stencil we do that here. 
-	if (a_RenderInfo.depthStencil.ptrHandle != nullptr) 
+	if (a_RenderInfo.depthStencil != BB_INVALID_HANDLE) 
 	{
 		++t_BarrierCount;
 		t_Barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1939,7 +1916,7 @@ void BB::VulkanStartRendering(const CommandListHandle a_RecordingCmdHandle, cons
 
 void BB::VulkanSetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	VkRect2D t_Scissor{};
 	t_Scissor.offset.x = a_ScissorInfo.offset.x;
@@ -1952,7 +1929,7 @@ void BB::VulkanSetScissor(const CommandListHandle a_RecordingCmdHandle, const Sc
 
 void BB::VulkanEndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
-	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	vkCmdEndRendering(t_Cmdlist.Buffer());
 
 	VkImageMemoryBarrier t_PresentBarrier{};
@@ -1983,7 +1960,7 @@ void BB::VulkanEndRendering(const CommandListHandle a_RecordingCmdHandle, const 
 
 void BB::VulkanCopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.src.handle);
 	VulkanBuffer* t_DstBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.dst.handle);
 
@@ -2001,7 +1978,7 @@ void BB::VulkanCopyBuffer(const CommandListHandle a_RecordingCmdHandle, const Re
 
 void BB::VulkanCopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	VulkanBuffer* t_SrcBuffer = reinterpret_cast<VulkanBuffer*>(a_CopyInfo.srcBuffer.handle);
 	VulkanImage* t_DstImage = reinterpret_cast<VulkanImage*>(a_CopyInfo.dstImage.ptrHandle);
 
@@ -2141,13 +2118,13 @@ void BB::VulkanPipelineBarriers(const CommandListHandle a_RecordingCmdHandle, co
 	t_BarrierInfo.imageMemoryBarrierCount = a_BarrierInfo.imageInfoCount;
 	t_BarrierInfo.pImageMemoryBarriers = t_ImageBarriers;
 
-	vkCmdPipelineBarrier2(s_VKB.commandLists[a_RecordingCmdHandle.handle].Buffer(),
+	vkCmdPipelineBarrier2(reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle)->Buffer(),
 		&t_BarrierInfo);
 }
 
 void BB::VulkanBindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);;
 	const VulkanDescriptorBuffer* t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_ResourceHeap.handle);
 
 	uint32_t t_HeapCount = 1;
@@ -2157,7 +2134,7 @@ void BB::VulkanBindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle,
 	t_BindingInfos[0].usage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
 	t_BindingInfos[0].address = t_DescBuffer->GetBaseAddress();
 
-	if (a_SamplerHeap.handle != 0) //sampler heap is optional
+	if (a_SamplerHeap != BB_INVALID_HANDLE) //sampler heap is optional
 	{
 		t_DescBuffer = reinterpret_cast<VulkanDescriptorBuffer*>(a_SamplerHeap.handle);
 		t_BindingInfos[1].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
@@ -2172,7 +2149,7 @@ void BB::VulkanBindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle,
 
 void BB::VulkanBindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
-	VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);;
 
 	const VulkanPipeline* t_Pipeline = reinterpret_cast<VulkanPipeline*>(a_Pipeline.handle);
 
@@ -2190,7 +2167,7 @@ void BB::VulkanBindPipeline(const CommandListHandle a_RecordingCmdHandle, const 
 
 void BB::VulkanSetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	CmdSetDescriptorBufferOffsetsEXT(t_Cmdlist.Buffer(),
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
 		t_Cmdlist.currentPipelineLayout,
@@ -2202,7 +2179,7 @@ void BB::VulkanSetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHa
 
 void BB::VulkanBindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	//quick cheat.
 	VkBuffer t_Buffers[12]{};
@@ -2220,7 +2197,7 @@ void BB::VulkanBindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, c
 
 void BB::VulkanBindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdBindIndexBuffer(t_Cmdlist.Buffer(),
 		reinterpret_cast<VulkanBuffer*>(a_Buffer.ptrHandle)->buffer,
@@ -2230,7 +2207,7 @@ void BB::VulkanBindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, con
 
 void BB::VulkanBindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	
 	vkCmdPushConstants(t_Cmdlist.Buffer(),
 		t_Cmdlist.currentPipelineLayout,
@@ -2242,14 +2219,14 @@ void BB::VulkanBindConstant(const CommandListHandle a_RecordingCmdHandle, const 
 
 void BB::VulkanDrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdDraw(t_Cmdlist.Buffer(), a_VertexCount, a_InstanceCount, a_FirstVertex, a_FirstInstance);
 }
 
 void BB::VulkanDrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
-	const VulkanCommandList& t_Cmdlist = s_VKB.commandLists[a_RecordingCmdHandle.handle];
+	const VulkanCommandList& t_Cmdlist = *reinterpret_cast<VulkanCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	vkCmdDrawIndexed(t_Cmdlist.Buffer(), a_IndexCount, a_InstanceCount, a_FirstIndex, a_VertexOffset, a_FirstInstance);
 }
@@ -2304,13 +2281,6 @@ void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 		VK_NULL_HANDLE,
 		&s_VKB.imageIndex),
 		"Vulkan: failed to get next image.");
-
-	//For now not wait for semaphores, may be required later.
-	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
-	t_WaitInfo.semaphoreCount = 1;
-	t_WaitInfo.pSemaphores = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameTimelineSemaphore;
-	t_WaitInfo.pValues = &s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
-	vkWaitSemaphores(s_VKB.device, &t_WaitInfo, 1000000000);
 }
 
 void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
@@ -2329,7 +2299,7 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 			VkCommandBuffer);
 		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
 		{
-			t_CmdBuffers[j] = s_VKB.commandLists[a_ExecuteInfos[i].commands[j].handle].Buffer();
+			t_CmdBuffers[j] = reinterpret_cast<VulkanCommandList*>(a_ExecuteInfos[i].commands[j].handle)->Buffer();
 		}
 
 		const uint32_t t_WaitSemCount = a_ExecuteInfos[i].waitCount;
@@ -2398,14 +2368,14 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 		VkCommandBuffer);
 	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
 	{
-		t_CmdBuffers[j] = s_VKB.commandLists[a_ExecuteInfo.commands[j].handle].Buffer();
+		t_CmdBuffers[j] = reinterpret_cast<VulkanCommandList*>(a_ExecuteInfo.commands[j].handle)->Buffer();
 	}
 
 	//add 1 more to wait the binary semaphore for image presenting
 	const uint32_t t_WaitSemCount = a_ExecuteInfo.waitCount + 1;
 	//add 1 more to signal the binary semaphore for image presenting
 	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
-	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalCount + 2;
+	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalCount + 1;
 
 	VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
 		t_WaitSemCount,
@@ -2437,11 +2407,7 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	//signal the binary semaphore to signal that the image is being worked on.
 	t_Semaphores[t_WaitSemCount] = s_VKB.swapChain.frames[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_SemValues[t_WaitSemCount] = 0;
-	//signal the binary semaphore to signal that the image is being worked on.
-	t_Semaphores[t_WaitSemCount + 1] = s_VKB.swapChain.frames[s_VKB.currentFrame].frameTimelineSemaphore;
-	//Increment the semaphore by 1 for the next frame to get.
-	t_SemValues[t_WaitSemCount + 1] = ++s_VKB.swapChain.frames[s_VKB.currentFrame].frameWaitValue;
-	for (uint32_t i = 0; i < t_SignalSemCount - 2; i++)
+	for (uint32_t i = 0; i < t_SignalSemCount - 1; i++)
 	{
 		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.signalFences[i].ptrHandle);
 		//Increment the next sem value for signal
@@ -2494,6 +2460,20 @@ FrameIndex BB::VulkanPresentFrame(const PresentFrameInfo& a_PresentInfo)
 
 void BB::VulkanWaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
+	for (size_t i = 0; i < a_WaitInfo.waitCount; i++)
+	{
+		uint64_t t_WaitValue;
+		vkGetSemaphoreCounterValue(s_VKB.device, 
+			reinterpret_cast<VkSemaphore>(a_WaitInfo.waitFences[i].handle),
+			&t_WaitValue);
+
+		if (t_WaitValue >= a_WaitInfo.waitValues[i])
+		{
+			a_WaitInfo.waitValues[i] = t_WaitValue;
+			return;
+		}
+	}
+
 	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
 	t_WaitInfo.semaphoreCount = a_WaitInfo.waitCount;
 	t_WaitInfo.pSemaphores = reinterpret_cast<const VkSemaphore*>(a_WaitInfo.waitFences);
@@ -2543,18 +2523,16 @@ void BB::VulkanDestroyCommandQueue(const CommandQueueHandle a_Handle)
 void BB::VulkanDestroyCommandAllocator(const CommandAllocatorHandle a_Handle)
 {
 	VkCommandAllocator* t_CmdAllocator = reinterpret_cast<VkCommandAllocator*>(a_Handle.ptrHandle);
-	t_CmdAllocator->buffers.DestroyPool(s_VulkanAllocator);
 	vkDestroyCommandPool(s_VKB.device, t_CmdAllocator->pool, nullptr);
 	memset(t_CmdAllocator, 0, sizeof(VkCommandAllocator));
-	s_VKB.cmdAllocators.Free(t_CmdAllocator);
+	BBfree(s_VulkanAllocator, t_CmdAllocator);
 }
 
 void BB::VulkanDestroyCommandList(const CommandListHandle a_Handle)
 {
-	VulkanCommandList& t_List = s_VKB.commandLists[a_Handle.handle];
-	t_List.cmdAllocator->FreeCommandList(t_List); //Place back in the freelist.
-	memset(&t_List, 0, sizeof(VulkanCommandList));
-	s_VKB.commandLists.erase(a_Handle.handle);
+	VulkanCommandList* t_List = reinterpret_cast<VulkanCommandList*>(a_Handle.ptrHandle);
+	memset(t_List, 0, sizeof(VulkanCommandList));
+	BBfree(s_VulkanAllocator, t_List);
 }
 
 void BB::VulkanDestroyDescriptorHeap(const RDescriptorHeap a_Handle)
@@ -2595,8 +2573,6 @@ void BB::VulkanDestroyBackend()
 	{
 		vkDestroyImageView(s_VKB.device,
 			s_VKB.swapChain.frames[i].imageView, nullptr);
-		vkDestroySemaphore(s_VKB.device,
-			s_VKB.swapChain.frames[i].frameTimelineSemaphore, nullptr);
 		vkDestroySemaphore(s_VKB.device,
 			s_VKB.swapChain.frames[i].imageAvailableSem, nullptr);
 		vkDestroySemaphore(s_VKB.device,

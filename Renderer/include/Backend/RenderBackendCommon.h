@@ -366,7 +366,7 @@ namespace BB
 	struct RenderWaitCommandsInfo
 	{
 		const RFenceHandle* waitFences = nullptr;
-		const uint64_t* waitValues = nullptr;
+		uint64_t* waitValues = nullptr;
 		uint32_t waitCount = 0;
 	};
 

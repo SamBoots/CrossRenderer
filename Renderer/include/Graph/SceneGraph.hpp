@@ -37,9 +37,9 @@ namespace BB
 
 		operator FrameGraphRenderPass();
 
-		void StartScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout);
-		void RenderScene(const CommandListHandle a_GraphicList);
-		void EndScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_InitialLayout, const RENDER_IMAGE_LAYOUT a_FinalLayout);
+		void StartScene(const CommandListHandle a_GraphicList);
+		void RenderScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_CurrentLayout, const RENDER_IMAGE_LAYOUT a_RenderLayout, const RENDER_IMAGE_LAYOUT a_EndLayout);
+		void EndScene(const CommandListHandle a_GraphicList);
 
 		void SetProjection(const glm::mat4& a_Proj);
 		void SetView(const glm::mat4& a_View);

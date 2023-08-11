@@ -12,7 +12,7 @@ using namespace BB;
 
 static CommandList* SetupCommandLists(const char* a_Name = "default asset loader name")
 {
-	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
+	CommandList* t_CmdList = Render::GetGraphicsQueue().GetCommandList();
 
 	//TODO, debug name the resource here.
 	StackString<256> t_DebugNames(a_Name);
@@ -77,7 +77,7 @@ RImageHandle AssetLoader::LoadImage(const char* a_Path)
 		PipelineBarrierInfo t_Barrier{};
 		t_Barrier.imageInfoCount = 1;
 		t_Barrier.imageInfos = &t_ImageTransInfo;
-		RenderBackend::SetPipelineBarriers(t_CmdList, t_Barrier);
+		RenderBackend::SetPipelineBarriers(t_CmdList->list, t_Barrier);
 	}
 
 
@@ -117,10 +117,10 @@ RImageHandle AssetLoader::LoadImage(const char* a_Path)
 		t_CopyImageInfo.dstImageInfo.baseArrayLayer = 0;
 		t_CopyImageInfo.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
 
-		RenderBackend::CopyBufferImage(t_CmdList, t_CopyImageInfo);
+		RenderBackend::CopyBufferImage(t_CmdList->list, t_CopyImageInfo);
 	}
 
-	RenderBackend::EndCommandList(t_CmdList);
+	RenderBackend::EndCommandList(t_CmdList->list);
 
 	RenderQueue& t_TransferQueue = Render::GetTransferQueue();
 	const uint64_t t_WaitValue = t_TransferQueue.GetNextFenceValue();

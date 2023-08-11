@@ -18,7 +18,7 @@ static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
 struct TextureManager
 {
-	void SetupManager(UploadBuffer& a_UploadBuffer, CommandListHandle t_CommandList)
+	void SetupManager(UploadBuffer& a_UploadBuffer, CommandListHandle a_CommandList)
 	{
 		RenderImageCreateInfo t_ImageInfo{};
 		t_ImageInfo.name = "debug purple texture";
@@ -49,6 +49,13 @@ struct TextureManager
 			t_ImageWriteTransfer.dstStage = RENDER_PIPELINE_STAGE::TRANSFER;
 		}
 
+		{
+			PipelineBarrierInfo t_PipelineInfos{};
+			t_PipelineInfos.imageInfoCount = 1;
+			t_PipelineInfos.imageInfos = &t_ImageTransitionInfos[0];
+			RenderBackend::SetPipelineBarriers(a_CommandList, t_PipelineInfos);
+		}
+
 		UploadBufferChunk t_DebugImage = a_UploadBuffer.Alloc(sizeof(uint32_t));
 		uint8_t r = 209;
 		uint8_t g = 106;
@@ -72,7 +79,7 @@ struct TextureManager
 		t_CopyImage.dstImageInfo.baseArrayLayer = 0;
 		t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
 
-		RenderBackend::CopyBufferImage(t_CommandList, t_CopyImage);
+		RenderBackend::CopyBufferImage(a_CommandList, t_CopyImage);
 
 		{
 			PipelineBarrierImageInfo& t_ImageReadonlyTransition = t_ImageTransitionInfos[1];
@@ -90,9 +97,9 @@ struct TextureManager
 		}
 
 		PipelineBarrierInfo t_PipelineInfos{};
-		t_PipelineInfos.imageInfoCount = _countof(t_ImageTransitionInfos);
-		t_PipelineInfos.imageInfos = t_ImageTransitionInfos;
-		RenderBackend::SetPipelineBarriers(t_CommandList, t_PipelineInfos);
+		t_PipelineInfos.imageInfoCount = 1;
+		t_PipelineInfos.imageInfos = &t_ImageTransitionInfos[1];
+		RenderBackend::SetPipelineBarriers(a_CommandList, t_PipelineInfos);
 
 		//texture 0 is always the debug texture.
 		textures[0].mutex;
@@ -142,19 +149,25 @@ RenderQueue::RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name
 	m_Fence.nextFenceValue = 1;
 
 	{
+		StackString<128> t_CmdAllocatorName{ a_Name };
+		t_CmdAllocatorName.append(" | command allocator");
+
 		RenderCommandAllocatorCreateInfo t_AllocatorCreateInfo{};
-		t_AllocatorCreateInfo.name = "command allocator";
-		t_AllocatorCreateInfo.queueType = RENDER_QUEUE_TYPE::TRANSFER;
+		t_AllocatorCreateInfo.name = t_CmdAllocatorName.c_str();
+		t_AllocatorCreateInfo.queueType = m_Type;
 		t_AllocatorCreateInfo.commandListCount = 1;
 
-		RenderCommandListCreateInfo t_CmdCreateInfo{};
-		t_CmdCreateInfo.name = "Graphic Commandlist";
+		StackString<128> t_CmdListName{ a_Name };
+		t_CmdListName.append(" | Commandlist");
 
+		RenderCommandListCreateInfo t_CmdCreateInfo{};
+		t_CmdCreateInfo.name = t_CmdListName.c_str();
 		for (size_t i = 0; i < _countof(m_Lists); i++)
 		{
 			m_Lists[i].cmdAllocator = RenderBackend::CreateCommandAllocator(t_AllocatorCreateInfo);
 			t_CmdCreateInfo.commandAllocator = m_Lists[i].cmdAllocator;
 			m_Lists[i].list = RenderBackend::CreateCommandList(t_CmdCreateInfo);
+			m_Lists[i].type = a_QueueType;
 		}
 	}
 
@@ -170,12 +183,7 @@ RenderQueue::RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name
 
 RenderQueue::~RenderQueue()
 {
-	const uint64_t t_LastFenceValue = m_Fence.nextFenceValue - 1;
-	RenderWaitCommandsInfo t_WaitInfo;
-	t_WaitInfo.waitCount = 1;
-	t_WaitInfo.waitFences = &m_Fence.fence;
-	t_WaitInfo.waitValues = &t_LastFenceValue;
-	RenderBackend::WaitCommands(t_WaitInfo);
+	WaitIdle();
 
 	for (size_t i = 0; i < _countof(m_Lists); i++)
 	{
@@ -188,13 +196,13 @@ RenderQueue::~RenderQueue()
 	DestroyMutex(m_Mutex);
 }
 
-CommandList& RenderQueue::GetCommandList()
+CommandList* RenderQueue::GetCommandList()
 {
 	OSWaitAndLockMutex(m_Mutex);
 	CommandList* t_List = BB_SLL_POP(m_FreeCommandList);
 	OSUnlockMutex(m_Mutex);
 	RenderBackend::StartCommandList(t_List->list);
-	return *t_List;
+	return t_List;
 }
 
 void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount)
@@ -203,24 +211,17 @@ void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a
 		_alloca(a_CommandListCount * sizeof(CommandListHandle)));
 	for (uint32_t i = 0; i < a_CommandListCount; i++)
 	{
-		t_CmdListHandles[i] = a_CommandLists[i].list;
-		a_CommandLists[i].queueFenceValue = m_Fence.nextFenceValue;
-
-		if (m_InFlightLists)
-		{
-			m_InFlightLists->next = &a_CommandLists[i];
-		}
-		else
-		{
-			m_InFlightLists = &a_CommandLists[i];
-		}
+		t_CmdListHandles[i] = a_CommandLists[i]->list;
+		a_CommandLists[i]->queueFenceValue = m_Fence.nextFenceValue;
+		BB_ASSERT(a_CommandLists[i]->type == m_Type, "trying to execute a commandlist that is not part of this queue!");
+		BB_SLL_PUSH(m_InFlightLists, a_CommandLists[i]);
 	}
 
 	uint64_t* t_WaitValues = reinterpret_cast<uint64_t*>(
 		_alloca(a_FenceCount * sizeof(uint64_t)));
 	RFenceHandle* t_Fences = reinterpret_cast<RFenceHandle*>(
 		_alloca(a_FenceCount * sizeof(RFenceHandle)));
-	for (uint32_t i = 0; i < a_CommandListCount; i++)
+	for (uint32_t i = 0; i < a_FenceCount; i++)
 	{
 		t_WaitValues[i] = a_WaitFences[i].nextFenceValue;
 		t_Fences[i] = a_WaitFences[i].fence;
@@ -253,32 +254,26 @@ void RenderQueue::ExecutePresentCommands(CommandList** a_CommandLists, const uin
 		t_CmdListHandles[i] = a_CommandLists[i]->list;
 		a_CommandLists[i]->queueFenceValue = m_Fence.nextFenceValue;
 
-		if (m_InFlightLists)
-		{
-			m_InFlightLists->next = a_CommandLists[i];
-		}
-		else
-		{
-			m_InFlightLists = a_CommandLists[i];
-		}
+		BB_SLL_PUSH(m_InFlightLists, a_CommandLists[i]);
 	}
 
 	uint64_t* t_WaitValues = reinterpret_cast<uint64_t*>(
 		_alloca(a_FenceCount * sizeof(uint64_t)));
 	RFenceHandle* t_Fences = reinterpret_cast<RFenceHandle*>(
 		_alloca(a_FenceCount * sizeof(RFenceHandle)));
-	for (uint32_t i = 0; i < a_CommandListCount; i++)
+	for (uint32_t i = 0; i < a_FenceCount; i++)
 	{
 		t_WaitValues[i] = a_WaitFences[i].nextFenceValue;
 		t_Fences[i] = a_WaitFences[i].fence;
 	}
 
-	ExecuteCommandsInfo t_ExecuteInfo;
+	ExecuteCommandsInfo t_ExecuteInfo{};
 	t_ExecuteInfo.commandCount = a_CommandListCount;
 	t_ExecuteInfo.commands = t_CmdListHandles;
 	t_ExecuteInfo.waitCount = a_FenceCount;
 	t_ExecuteInfo.waitFences = t_Fences;
 	t_ExecuteInfo.waitValues = t_WaitValues;
+	t_ExecuteInfo.waitStages = a_WaitStages;
 	t_ExecuteInfo.signalCount = 1;
 	t_ExecuteInfo.signalFences = &m_Fence.fence;
 	t_ExecuteInfo.signalValues = &m_Fence.nextFenceValue;
@@ -294,33 +289,34 @@ void RenderQueue::WaitFenceValue(const uint64_t a_FenceValue)
 	OSWaitAndLockMutex(m_Mutex);
 	if (a_FenceValue > m_Fence.lastCompleteValue)
 	{
+		uint64_t t_WaitValue = a_FenceValue;
 		RenderWaitCommandsInfo t_WaitInfo;
 		t_WaitInfo.waitCount = 1;
 		t_WaitInfo.waitFences = &m_Fence.fence;
-		t_WaitInfo.waitValues = &a_FenceValue;
+		t_WaitInfo.waitValues = &t_WaitValue;
 		RenderBackend::WaitCommands(t_WaitInfo);
 
-
 		//This is not the most efficient, it's best to get the actual current value on the API side. 
+		//maybe make WaitCommands also return the current wait values?
 		m_Fence.lastCompleteValue = a_FenceValue;
 	}
 
 	//Thank you Descent Raytracer teammates great code that I can steal
-	for (CommandList** inflightCommandLists = &m_InFlightLists; *inflightCommandLists;)
+	for (CommandList** inflightCommandList = &m_InFlightLists; *inflightCommandList;)
 	{
-		CommandList* t_CommandList = *inflightCommandLists;
+		CommandList* t_CommandList = *inflightCommandList;
 
 		if (t_CommandList->queueFenceValue <= a_FenceValue)
 		{
 			RenderBackend::ResetCommandAllocator(t_CommandList->cmdAllocator);
 
 			//Get next in-flight commandlist
-			*inflightCommandLists = t_CommandList->next;
-			BB_SLL_PUSH(m_InFlightLists, t_CommandList);
+			*inflightCommandList = t_CommandList->next;
+			BB_SLL_PUSH(m_FreeCommandList, t_CommandList);
 		}
 		else
 		{
-			inflightCommandLists = &t_CommandList->next;
+			inflightCommandList = &t_CommandList->next;
 		}
 	}
 	OSUnlockMutex(m_Mutex);
@@ -351,7 +347,7 @@ struct Render_inst
 	Render_IO io;
 
 	RenderQueue graphicsQueue{ RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue" };
-	RenderQueue computeQueue{ RENDER_QUEUE_TYPE::COMPUTE, "compute queue" };
+	//RenderQueue computeQueue{ RENDER_QUEUE_TYPE::COMPUTE, "compute queue" };
 	RenderQueue transferQueue{ RENDER_QUEUE_TYPE::TRANSFER, "transfer queue" };
 
 	UploadBuffer uploadBuffer;
@@ -384,11 +380,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	BB::Array<RENDER_EXTENSIONS> t_Extensions{ s_TempAllocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
-	//t_Extensions.emplace_back(RENDER_EXTENSIONS::PHYSICAL_DEVICE_EXTRA_PROPERTIES); Now all these are included in STANDARD_VULKAN_INSTANCE
 	if (a_InitInfo.debug)
-	{
 		t_Extensions.emplace_back(RENDER_EXTENSIONS::DEBUG);
-	}
 	BB::Array<RENDER_EXTENSIONS> t_DeviceExtensions{ s_TempAllocator };
 	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_DEVICE);
 	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::PIPELINE_EXTENDED_DYNAMIC_STATE);
@@ -412,7 +405,7 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 
 	{
 		//Write some background info.
-		constexpr size_t SUBHEAPSIZE = 64 * 1024;
+		constexpr size_t SUBHEAPSIZE = static_cast<size_t>(64) * 1024;
 		DescriptorHeapCreateInfo t_HeapInfo;
 		t_HeapInfo.name = "Resource Heap";
 		t_HeapInfo.descriptorCount = SUBHEAPSIZE;
@@ -438,9 +431,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	}
 
 	//Create a unique commandlist for the render setup. 
-	CommandList& t_SetupCmdList = GetGraphicsQueue().GetCommandList();
+	CommandList* t_SetupCmdList = GetGraphicsQueue().GetCommandList();
 	//jank, but I need a commandlist for the debug texture.
-	s_RenderInst->textureManager.SetupManager(s_RenderInst->uploadBuffer, t_SetupCmdList);
+	s_RenderInst->textureManager.SetupManager(s_RenderInst->uploadBuffer, t_SetupCmdList->list);
 
 	{
 		RenderDescriptorCreateInfo t_CreateInfo{};
@@ -517,8 +510,8 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 		t_ImguiInfo.window = a_InitInfo.windowHandle;
 		ImGui_ImplCross_Init(t_ImguiInfo);
 
-		ImGui_ImplCross_CreateFontsTexture(t_SetupCmdList, s_RenderInst->uploadBuffer);
-		RenderBackend::EndCommandList(t_SetupCmdList);
+		ImGui_ImplCross_CreateFontsTexture(t_SetupCmdList->list, s_RenderInst->uploadBuffer);
+		RenderBackend::EndCommandList(t_SetupCmdList->list);
 
 		s_RenderInst->graphicsQueue.ExecuteCommands(&t_SetupCmdList, 1, nullptr, nullptr, 0);
 		s_RenderInst->graphicsQueue.WaitIdle();
@@ -534,7 +527,7 @@ void BB::Render::DestroyRenderer()
 {
 	s_RenderInst->graphicsQueue.WaitIdle();
 	s_RenderInst->transferQueue.WaitIdle();
-	s_RenderInst->computeQueue.WaitIdle();
+//	s_RenderInst->computeQueue.WaitIdle();
 
 	for (auto it = s_RenderInst->models.begin(); it < s_RenderInst->models.end(); it++)
 	{
@@ -660,12 +653,14 @@ RenderQueue& Render::GetGraphicsQueue()
 
 RenderQueue& Render::GetComputeQueue()
 {
-	return s_RenderInst->computeQueue;
+	return s_RenderInst->graphicsQueue;
+	//return s_RenderInst->computeQueue;
 }
 
 RenderQueue& Render::GetTransferQueue()
 {
-	return s_RenderInst->transferQueue;
+	return s_RenderInst->graphicsQueue;
+	//return s_RenderInst->transferQueue;
 }
 
 Model& BB::Render::GetModel(const RModelHandle a_Handle)
@@ -792,7 +787,6 @@ void BB::Render::StartFrame(const CommandListHandle a_CommandList)
 {
 	ImGui_ImplCross_NewFrame();
 	ImGui::NewFrame();
-
 	{
 		OSWaitAndLockMutex(s_RenderInst->startFrameCommands.mutex);
 
@@ -829,8 +823,6 @@ void BB::Render::EndFrame(const CommandListHandle a_CommandList)
 	}
 
 	//UploadDescriptorsToGPU(s_CurrentFrame);
-
-	ImGui::EndFrame();
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)

@@ -124,8 +124,9 @@ namespace BB
 		for (uint32_t i = 0; i < m_Capacity - 1; ++i)
 		{
 			m_IdArr[i].index = i + 1;
-			m_IdArr[i].generation = 0;
+			m_IdArr[i].generation = 1;
 		}
+		m_IdArr[m_Capacity - 1].generation = 1;
 		m_NextFree = 0;
 	}
 
@@ -304,7 +305,6 @@ namespace BB
 		for (uint32_t i = 0; i < m_Capacity; ++i)
 		{
 			m_IdArr[i].index = i + 1;
-			m_IdArr[i].generation = 0;
 		}
 		m_NextFree = 0;
 
@@ -344,11 +344,14 @@ namespace BB
 		BB::Memory::Copy(t_NewObjArr, m_ObjArr, m_Size);
 		BB::Memory::Copy(t_NewEraseArr, m_EraseArr, m_Size);
 
-		for (uint32_t i = m_Capacity; i < a_NewCapacity; ++i)
+		for (uint32_t i = m_Capacity; i < a_NewCapacity - 1; ++i)
 		{
-			t_NewIdArr[i] = static_cast<uint64_t>(i) + 1;
+			t_NewIdArr[i].index = static_cast<uint64_t>(i) + 1;
+			t_NewIdArr[i].generation = 1;
 		}
 
+		m_IdArr[a_NewCapacity - 1].generation = 1;
+		
 		this->~Slotmap();
 
 		m_Capacity = a_NewCapacity;

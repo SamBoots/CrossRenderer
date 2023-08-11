@@ -54,15 +54,16 @@ void FrameGraph::RegisterRenderPass(FrameGraphRenderPass a_RenderPass)
 //temporary for now.
 void FrameGraph::BeginRendering()
 {
-	inst->commandList = Render::GetGraphicsQueue().GetCommandList();
-	RenderBackend::BindDescriptorHeaps(inst->commandList->list, Render::GetGPUHeap(inst->currentFrame), BB_INVALID_HANDLE);
-
+	//wait for the previous frame to be completely done.
 	Render::GetGraphicsQueue().WaitFenceValue(inst->frameData[inst->currentFrame].graphicsFenceValue);
 	Render::GetTransferQueue().WaitFenceValue(inst->frameData[inst->currentFrame].transferFenceValue);
+
+	inst->commandList = Render::GetGraphicsQueue().GetCommandList();
+	RenderBackend::BindDescriptorHeaps(inst->commandList->list, Render::GetGPUHeap(inst->currentFrame), BB_INVALID_HANDLE);
 	
 	StartFrameInfo t_StartInfo{};
 	RenderBackend::StartFrame(t_StartInfo);
-	Render::StartFrame(inst->commandList);
+	Render::StartFrame(inst->commandList->list);
 
 	for (size_t i = 0; i < inst->renderpasses.size(); i++)
 	{
@@ -77,6 +78,9 @@ void FrameGraph::Render()
 	for (size_t i = 0; i < inst->renderpasses.size(); i++)
 	{
 		GraphRenderInfo t_Info{ inst->renderpasses[i].instance };
+		t_Info.currentLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+		t_Info.renderLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		t_Info.endLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		inst->renderpasses[i].renderFunc(inst->commandList->list, t_Info);
 	}
 }
@@ -93,6 +97,7 @@ void FrameGraph::EndRendering()
 	inst->frameData[inst->currentFrame].transferFenceValue = Render::GetTransferQueue().GetNextFenceValue() - 1;
 
 	Render::EndFrame(inst->commandList->list);
+	RenderBackend::EndCommandList(inst->commandList->list);
 	Render::GetGraphicsQueue().ExecutePresentCommands(&inst->commandList, 1, nullptr, nullptr, 0);
 
 	PresentFrameInfo t_PresentFrame{};

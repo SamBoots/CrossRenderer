@@ -288,8 +288,6 @@ namespace BB
 
 		VkSemaphore imageAvailableSem; //The window presenting API requires a binary semaphore, it cannot use timelime that we use.
 		VkSemaphore imageRenderFinishedSem; //The window presenting API requires a binary semaphore, it cannot use timelime that we use normally.
-		VkSemaphore frameTimelineSemaphore; //A special timeline semaphore incorperated inside the backend for ease of use.
-		uint64_t frameWaitValue; //The previous frame it's timelime semaphore value. Used to check if we can use it.
 	};
 
 	struct VulkanSwapChain
