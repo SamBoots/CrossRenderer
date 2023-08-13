@@ -2,7 +2,7 @@
 #include "Allocators/Allocators.h"
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
-
+#include <malloc.h>
 #include <type_traits>
 
 template <typename T>
@@ -19,6 +19,9 @@ namespace BB
 	using FixedLinearAllocator_t = allocators::FixedLinearAllocator;
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
+
+//_alloca wrapper, does not require a free call.
+#define BBstackAlloc(a_Count, a_Type) (a_Type*)_alloca(a_Count * sizeof(a_Type))
 
 #define BBalloc(a_Allocator, a_Size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, a_Size, 1)
 #define BBnew(a_Allocator, a_Type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, sizeof(a_Type), __alignof(a_Type))) a_Type

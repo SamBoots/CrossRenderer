@@ -78,8 +78,6 @@ struct VulkanImage
 };
 
 static FreelistAllocator_t s_VulkanAllocator{ mbSize * 2 };
-//This allocator is what we use to temporary allocate elements.
-static RingAllocator s_VulkanTempAllocator{ s_VulkanAllocator, kbSize * 64 };
 
 struct VkCommandAllocator;
 
@@ -420,11 +418,11 @@ static SwapchainSupportDetails QuerySwapChainSupport(const VkSurfaceKHR a_Surfac
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.capabilities);
 
 	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, nullptr);
-	t_SwapDetails.formats = BBnewArr(s_VulkanTempAllocator, t_SwapDetails.formatCount, VkSurfaceFormatKHR);
+	t_SwapDetails.formats = reinterpret_cast<VkSurfaceFormatKHR*>(_alloca(t_SwapDetails.formatCount * sizeof(VkSurfaceFormatKHR)));
 	vkGetPhysicalDeviceSurfaceFormatsKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.formatCount, t_SwapDetails.formats);
 
 	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, nullptr);
-	t_SwapDetails.presentModes = BBnewArr(s_VulkanTempAllocator, t_SwapDetails.presentModeCount, VkPresentModeKHR);
+	t_SwapDetails.presentModes = reinterpret_cast<VkPresentModeKHR*>(_alloca(t_SwapDetails.presentModeCount * sizeof(VkPresentModeKHR)));
 	vkGetPhysicalDeviceSurfacePresentModesKHR(a_PhysicalDevice, a_Surface, &t_SwapDetails.presentModeCount, t_SwapDetails.presentModes);
 
 	return t_SwapDetails;
@@ -435,7 +433,7 @@ static bool CheckExtensionSupport(BB::Slice<const char*> a_Extensions)
 	// check extensions if they are available.
 	uint32_t t_ExtensionCount;
 	vkEnumerateInstanceExtensionProperties(nullptr, &t_ExtensionCount, nullptr);
-	VkExtensionProperties* t_Extensions = (VkExtensionProperties*)_alloca(t_ExtensionCount * sizeof(VkExtensionProperties));
+	VkExtensionProperties* t_Extensions = BBstackAlloc(t_ExtensionCount, VkExtensionProperties);
 	vkEnumerateInstanceExtensionProperties(nullptr, &t_ExtensionCount, t_Extensions);
 
 	for (auto t_It = a_Extensions.begin(); t_It < a_Extensions.end(); t_It++)
@@ -458,7 +456,7 @@ static bool CheckValidationLayerSupport(const BB::Slice<const char*> a_Layers)
 	// check layers if they are available.
 	uint32_t t_LayerCount;
 	vkEnumerateInstanceLayerProperties(&t_LayerCount, nullptr);
-	VkLayerProperties* t_Layers = (VkLayerProperties*)_alloca(t_LayerCount * sizeof(VkLayerProperties));
+	VkLayerProperties* t_Layers = reinterpret_cast<VkLayerProperties*>(_alloca(t_LayerCount * sizeof(VkLayerProperties)));
 	vkEnumerateInstanceLayerProperties(&t_LayerCount, t_Layers);
 
 	for (auto t_It = a_Layers.begin(); t_It < a_Layers.end(); t_It++)
@@ -481,8 +479,7 @@ static bool QueueFindGraphicsBit(VkPhysicalDevice a_PhysicalDevice)
 {
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, nullptr);
-
-	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(s_VulkanTempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* t_QueueFamilies = reinterpret_cast<VkQueueFamilyProperties*>(_alloca(t_QueueFamilyCount * sizeof(VkQueueFamilyProperties)));
 	vkGetPhysicalDeviceQueueFamilyProperties(a_PhysicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
 	for (uint32_t i = 0; i < t_QueueFamilyCount; i++)
@@ -500,7 +497,7 @@ static VkPhysicalDevice FindPhysicalDevice(const VkInstance a_Instance, const Vk
 	uint32_t t_DeviceCount = 0;
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, nullptr);
 	BB_ASSERT(t_DeviceCount != 0, "Failed to find any GPU's with vulkan support.");
-	VkPhysicalDevice* t_PhysicalDevices = BBnewArr(s_VulkanTempAllocator, t_DeviceCount, VkPhysicalDevice);
+	VkPhysicalDevice* t_PhysicalDevices = BBstackAlloc(t_DeviceCount, VkPhysicalDevice);
 	vkEnumeratePhysicalDevices(a_Instance, &t_DeviceCount, t_PhysicalDevices);
 
 	for (uint32_t i = 0; i < t_DeviceCount; i++)
@@ -549,10 +546,10 @@ static VkDevice CreateLogicalDevice(const BB::Slice<const char*>& a_DeviceExtens
 
 	uint32_t t_QueueFamilyCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, nullptr);
-	VkQueueFamilyProperties* t_QueueFamilies = BBnewArr(s_VulkanTempAllocator, t_QueueFamilyCount, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* t_QueueFamilies = BBstackAlloc(t_QueueFamilyCount, VkQueueFamilyProperties);
 	vkGetPhysicalDeviceQueueFamilyProperties(s_VKB.physicalDevice, &t_QueueFamilyCount, t_QueueFamilies);
 
-	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBnewArr(s_VulkanTempAllocator, 3, VkDeviceQueueCreateInfo);
+	VkDeviceQueueCreateInfo* t_QueueCreateInfos = BBstackAlloc(3, VkDeviceQueueCreateInfo);
 	uint32_t t_DifferentQueues = 0;
 	float t_StandardQueuePrios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
 
@@ -852,15 +849,16 @@ BackendInfo BB::VulkanCreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
+	TemporaryAllocator t_TempAllocator{ s_VulkanAllocator };
 
 	//Initialize data structure
 	s_VKB.CreatePools();
 
 	VKConv::ExtensionResult t_InstanceExtensions = VKConv::TranslateExtensions(
-		s_VulkanTempAllocator,
+		t_TempAllocator,
 		a_CreateInfo.extensions);
 	VKConv::ExtensionResult t_DeviceExtensions = VKConv::TranslateExtensions(
-		s_VulkanTempAllocator,
+		t_TempAllocator,
 		a_CreateInfo.deviceExtensions);
 
 	//Check if the extensions and layers work.
@@ -1026,13 +1024,11 @@ RDescriptor BB::VulkanCreateDescriptor(const RenderDescriptorCreateInfo& a_Creat
 	VulkanDescriptor t_ReturnDesc{};
 	
 	{
-		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBnewArr(
-			s_VulkanTempAllocator,
-			a_CreateInfo.bindings.size(),
+		VkDescriptorSetLayoutBinding* t_LayoutBinds = BBstackAlloc(
+			a_CreateInfo.bindings.size(), 
 			VkDescriptorSetLayoutBinding);
 
-		VkDescriptorBindingFlags* t_BindlessFlags = BBnewArr(
-			s_VulkanTempAllocator,
+		VkDescriptorBindingFlags* t_BindlessFlags = BBstackAlloc(
 			a_CreateInfo.bindings.size(),
 			VkDescriptorBindingFlags);
 
@@ -2285,16 +2281,16 @@ void BB::VulkanStartFrame(const StartFrameInfo& a_StartInfo)
 
 void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo* a_ExecuteInfos, const uint32_t a_ExecuteInfoCount)
 {
-	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBnewArr(s_VulkanTempAllocator,
+	VkTimelineSemaphoreSubmitInfo* t_TimelineInfos = BBstackAlloc(
 		a_ExecuteInfoCount,
 		VkTimelineSemaphoreSubmitInfo);
-	VkSubmitInfo* t_SubmitInfos = BBnewArr(s_VulkanTempAllocator,
+	VkSubmitInfo* t_SubmitInfos = BBstackAlloc(
 		a_ExecuteInfoCount,
 		VkSubmitInfo);
 
 	for (uint32_t i = 0; i < a_ExecuteInfoCount; i++)
 	{
-		VkCommandBuffer* t_CmdBuffers = BBnewArr(s_VulkanTempAllocator,
+		VkCommandBuffer* t_CmdBuffers = BBstackAlloc(
 			a_ExecuteInfos[i].commandCount,
 			VkCommandBuffer);
 		for (uint32_t j = 0; j < a_ExecuteInfos[i].commandCount; j++)
@@ -2306,15 +2302,16 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 		const uint32_t t_SignalSemCount = a_ExecuteInfos[i].signalCount;
 		VkPipelineStageFlags* t_WaitStagesMask = nullptr;
 		if (t_WaitSemCount != 0)
-			t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
+			t_WaitStagesMask = BBstackAlloc(
 				t_WaitSemCount,
 				VkPipelineStageFlags);
 
-		VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
-			t_WaitSemCount + t_SignalSemCount + 1,
+		const uint32_t t_semCount = t_WaitSemCount + t_SignalSemCount;
+		VkSemaphore* t_Semaphores = BBstackAlloc(
+			t_semCount,
 			VkSemaphore);
-		uint64_t* t_SemValues = BBnewArr(s_VulkanTempAllocator,
-			t_WaitSemCount + t_SignalSemCount + 1,
+		uint64_t* t_SemValues = BBstackAlloc(
+			t_semCount,
 			uint64_t);
 
 		//SETTING THE WAIT
@@ -2363,7 +2360,7 @@ void BB::VulkanExecuteCommands(CommandQueueHandle a_ExecuteQueue, const ExecuteC
 
 void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo)
 {
-	VkCommandBuffer* t_CmdBuffers = BBnewArr(s_VulkanTempAllocator,
+	VkCommandBuffer* t_CmdBuffers = BBstackAlloc(
 		a_ExecuteInfo.commandCount,
 		VkCommandBuffer);
 	for (uint32_t j = 0; j < a_ExecuteInfo.commandCount; j++)
@@ -2377,15 +2374,16 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 	//Add 1 additional more to signal if the rendering of this frame is complete. Hacky and not totally accurate however. Might use the queue values for it later.
 	const uint32_t t_SignalSemCount = a_ExecuteInfo.signalCount + 1;
 
-	VkPipelineStageFlags* t_WaitStagesMask = BBnewArr(s_VulkanTempAllocator,
+	VkPipelineStageFlags* t_WaitStagesMask = BBstackAlloc(
 		t_WaitSemCount,
 		VkPipelineStageFlags);
 
-	VkSemaphore* t_Semaphores = BBnewArr(s_VulkanTempAllocator,
-		t_WaitSemCount + t_SignalSemCount,
+	const uint32_t t_semCount = t_WaitSemCount + t_SignalSemCount;
+	VkSemaphore* t_Semaphores = BBstackAlloc(
+		t_semCount,
 		VkSemaphore);
-	uint64_t* t_SemValues = BBnewArr(s_VulkanTempAllocator,
-		t_WaitSemCount + t_SignalSemCount,
+	uint64_t* t_SemValues = BBstackAlloc(
+		t_semCount,
 		uint64_t);
 
 	//SETTING THE WAIT
@@ -2396,22 +2394,22 @@ void BB::VulkanExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const Ex
 
 
 	//Get the semaphore from the queues.
-	for (uint32_t i = 0; i < t_WaitSemCount - 1; i++)
+	for (uint32_t i = 1; i < t_WaitSemCount; i++)
 	{
-		t_Semaphores[i + 1] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.waitFences[i].ptrHandle);
-		t_SemValues[i + 1] = a_ExecuteInfo.waitValues[i];
-		t_WaitStagesMask[i + 1] = VKConv::PipelineStage(a_ExecuteInfo.waitStages[i]);
+		t_Semaphores[i] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.waitFences[i - 1].ptrHandle);
+		t_SemValues[i] = a_ExecuteInfo.waitValues[i];
+		t_WaitStagesMask[i] = VKConv::PipelineStage(a_ExecuteInfo.waitStages[i - 1]);
 	}
 
 	//SETTING THE SIGNAL
 	//signal the binary semaphore to signal that the image is being worked on.
 	t_Semaphores[t_WaitSemCount] = s_VKB.swapChain.frames[s_VKB.currentFrame].imageRenderFinishedSem;
 	t_SemValues[t_WaitSemCount] = 0;
-	for (uint32_t i = 0; i < t_SignalSemCount - 1; i++)
+	for (uint32_t i = 1; i < t_SignalSemCount; i++)
 	{
-		t_Semaphores[t_WaitSemCount + i + 1] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.signalFences[i].ptrHandle);
+		t_Semaphores[t_WaitSemCount + i] = reinterpret_cast<VkSemaphore>(a_ExecuteInfo.signalFences[i - 1].ptrHandle);
 		//Increment the next sem value for signal
-		t_SemValues[t_WaitSemCount + i + 1] = a_ExecuteInfo.signalValues[i];
+		t_SemValues[t_WaitSemCount + i] = a_ExecuteInfo.signalValues[i - 1];
 	}
 
 	VkTimelineSemaphoreSubmitInfo t_TimelineInfo{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };

@@ -1,9 +1,12 @@
 #include "FrameGraph.hpp"
 
+#include "RenderFrontend.h"
+
+#include "imgui_impl_CrossRenderer.h"
+#include "Editor.h"
+
 #include "Array.h"
 #include "Slotmap.h"
-
-#include "RenderFrontend.h"
 
 using namespace BB;
 
@@ -75,7 +78,6 @@ void FrameGraph::BeginRendering()
 void FrameGraph::Render()
 {
 	Render::Update(0);
-	Render::UploadDescriptorsToGPU(inst->currentFrame);
 	for (size_t i = 0; i < inst->renderpasses.size(); i++)
 	{
 		GraphRenderInfo t_Info{ inst->renderpasses[i].instance };
@@ -84,6 +86,7 @@ void FrameGraph::Render()
 		t_Info.endLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		inst->renderpasses[i].renderFunc(inst->commandList->list, t_Info);
 	}
+	Render::UploadDescriptorsToGPU(inst->currentFrame);
 }
 
 void FrameGraph::EndRendering()
@@ -93,6 +96,10 @@ void FrameGraph::EndRendering()
 		GraphPostRenderInfo t_Info{ inst->renderpasses[i].instance };
 		inst->renderpasses[i].postRenderFunc(inst->commandList->list, t_Info);
 	}
+
+	Editor::EndEditorFrame();
+	ImDrawData* t_DrawData = ImGui::GetDrawData();
+	ImGui_ImplCross_RenderDrawData(*t_DrawData, inst->commandList->list);
 
 	inst->frameData[inst->currentFrame].graphicsFenceValue = Render::GetGraphicsQueue().GetNextFenceValue() - 1;
 	inst->frameData[inst->currentFrame].transferFenceValue = Render::GetTransferQueue().GetNextFenceValue() - 1;

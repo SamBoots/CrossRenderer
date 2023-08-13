@@ -218,11 +218,15 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
     StartRenderingInfo t_ImguiStart;
     t_ImguiStart.viewportWidth = a_DrawData.FramebufferScale.x;
     t_ImguiStart.viewportHeight = a_DrawData.FramebufferScale.y;
-    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::CLEAR;
     t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
     t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     RenderBackend::StartRendering(a_CmdList, t_ImguiStart);
+
+    const uint32_t t_IsSampler = false;
+    const size_t t_HeapOffset = bd->descAllocation.offset;
+    RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::PER_PASS, 1, &t_IsSampler, &t_HeapOffset);
 
     // Setup desired CrossRenderer state
     ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
@@ -267,17 +271,6 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
                 t_SciInfo.extent.x = (uint32_t)(clip_max.x);
                 t_SciInfo.extent.y = (uint32_t)(clip_max.y);
                 RenderBackend::SetScissor(a_CmdList, t_SciInfo);
-
-                RDescriptor t_Set[1] = { (uintptr_t)pcmd->TextureId };
-                if (sizeof(ImTextureID) < sizeof(ImU64))
-                {
-                    // We don't support texture switches if ImTextureID hasn't been redefined to be 64-bit. Do a flaky check that other textures haven't been used.
-                    IM_ASSERT(pcmd->TextureId == (ImTextureID)bd->fontDescriptor.ptrHandle);
-                    t_Set[0] = bd->fontDescriptor;
-                }
-                const uint32_t t_IsSampler = false;
-                const size_t t_HeapOffset = bd->descAllocation.offset;
-                RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::PER_PASS, 1, &t_IsSampler, &t_HeapOffset);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);

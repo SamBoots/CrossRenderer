@@ -7,14 +7,13 @@
 
 #include "Storage/Slotmap.h"
 #include "Storage/Array.h"
-#include "Editor.h"
+
 
 using namespace BB;
 using namespace BB::Render;
 
-void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_TransferCmdList, const char* a_Path);
+void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_TransferCmdList, const char* a_Path);
 FreelistAllocator_t s_SystemAllocator{ mbSize * 4, "Render Frontend freelist allocator" };
-static TemporaryAllocator s_TempAllocator{ s_SystemAllocator };
 
 struct TextureManager
 {
@@ -347,7 +346,7 @@ struct Render_inst
 	Render_IO io;
 
 	RenderQueue graphicsQueue{ RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue" };
-	//RenderQueue computeQueue{ RENDER_QUEUE_TYPE::COMPUTE, "compute queue" };
+	RenderQueue computeQueue{ RENDER_QUEUE_TYPE::COMPUTE, "compute queue" };
 	RenderQueue transferQueue{ RENDER_QUEUE_TYPE::TRANSFER, "transfer queue" };
 
 	UploadBuffer uploadBuffer;
@@ -378,11 +377,13 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 {
 	Shader::InitShaderCompiler();
 
-	BB::Array<RENDER_EXTENSIONS> t_Extensions{ s_TempAllocator };
+	TemporaryAllocator t_Allocator{ s_SystemAllocator };
+
+	BB::Array<RENDER_EXTENSIONS> t_Extensions{ t_Allocator };
 	t_Extensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_INSTANCE);
 	if (a_InitInfo.debug)
 		t_Extensions.emplace_back(RENDER_EXTENSIONS::DEBUG);
-	BB::Array<RENDER_EXTENSIONS> t_DeviceExtensions{ s_TempAllocator };
+	BB::Array<RENDER_EXTENSIONS> t_DeviceExtensions{ t_Allocator };
 	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::STANDARD_VULKAN_DEVICE);
 	t_DeviceExtensions.emplace_back(RENDER_EXTENSIONS::PIPELINE_EXTENDED_DYNAMIC_STATE);
 
@@ -527,7 +528,7 @@ void BB::Render::DestroyRenderer()
 {
 	s_RenderInst->graphicsQueue.WaitIdle();
 	s_RenderInst->transferQueue.WaitIdle();
-//	s_RenderInst->computeQueue.WaitIdle();
+	s_RenderInst->computeQueue.WaitIdle();
 
 	for (auto it = s_RenderInst->models.begin(); it < s_RenderInst->models.end(); it++)
 	{
@@ -653,14 +654,12 @@ RenderQueue& Render::GetGraphicsQueue()
 
 RenderQueue& Render::GetComputeQueue()
 {
-	return s_RenderInst->graphicsQueue;
-	//return s_RenderInst->computeQueue;
+	return s_RenderInst->computeQueue;
 }
 
 RenderQueue& Render::GetTransferQueue()
 {
-	return s_RenderInst->graphicsQueue;
-	//return s_RenderInst->transferQueue;
+	return s_RenderInst->transferQueue;
 }
 
 Model& BB::Render::GetModel(const RModelHandle a_Handle)
@@ -752,7 +751,7 @@ RModelHandle BB::Render::LoadModel(const CommandListHandle a_CommandList, const 
 	switch (a_LoadInfo.modelType)
 	{
 	case BB::MODEL_TYPE::GLTF:
-		LoadglTFModel(s_TempAllocator,
+		LoadglTFModel(
 			s_SystemAllocator,
 			t_Model,
 			s_RenderInst->uploadBuffer,
@@ -810,19 +809,12 @@ void BB::Render::StartFrame(const CommandListHandle a_CommandList)
 void BB::Render::Update(const float a_DeltaTime)
 {
 	RenderBackend::DisplayDebugInfo();
-	Editor::DisplayAllocator(s_SystemAllocator);
-	//Draw3DFrame();
-	s_TempAllocator.Clear();
+	//Editor::DisplayAllocator(s_SystemAllocator);
 }
 
 void BB::Render::EndFrame(const CommandListHandle a_CommandList)
 { 
-	{
-		ImDrawData* t_DrawData = ImGui::GetDrawData();
-		ImGui_ImplCross_RenderDrawData(*t_DrawData, a_CommandList);
-	}
 
-	//UploadDescriptorsToGPU(s_CurrentFrame);
 }
 
 void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
@@ -839,10 +831,8 @@ void BB::Render::ResizeWindow(const uint32_t a_X, const uint32_t a_Y)
 
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 {
-	void* t_Data = a_Accessor->buffer_view->buffer->data;
-	t_Data = Pointer::Add(t_Data, a_Accessor->buffer_view->offset);
-	t_Data = Pointer::Add(t_Data, a_Accessor->offset);
-	return t_Data;
+	const size_t t_AccessorOffset = a_Accessor->buffer_view->offset + a_Accessor->offset;
+	return Pointer::Add(a_Accessor->buffer_view->buffer->data, t_AccessorOffset);
 }
 
 static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
@@ -856,7 +846,7 @@ static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 }
 
 //Maybe use own allocators for this?
-void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_CommandList, const char* a_Path)
+void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_CommandList, const char* a_Path)
 {
 	cgltf_options t_Options = {};
 	cgltf_data* t_Data = { 0 };
@@ -926,13 +916,15 @@ void LoadglTFModel(Allocator a_TempAllocator, Allocator a_SystemAllocator, Model
 	a_Model.linearNodes = t_LinearNodes;
 	a_Model.linearNodeCount = t_LinearNodeCount;
 
+
+	TemporaryAllocator t_TempAllocator{ a_SystemAllocator };
 	//Temporary stuff
 	uint32_t* t_Indices = BBnewArr(
-		a_TempAllocator,
+		a_SystemAllocator,
 		t_IndexCount,
 		uint32_t);
 	Vertex* t_Vertices = BBnewArr(
-		a_TempAllocator,
+		a_SystemAllocator,
 		t_VertexCount,
 		Vertex);
 

@@ -245,7 +245,6 @@ int main(int argc, char** argv)
 		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
 
 		t_FrameGraph.Render();
-		Editor::EndEditorFrame();
 		t_FrameGraph.EndRendering();
 
 		t_CurrentTime = std::chrono::high_resolution_clock::now();

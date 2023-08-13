@@ -305,7 +305,7 @@ void SceneGraph::StartScene(const CommandListHandle a_GraphicList)
 
 	inst->sceneInfo.ambientLight = { 1.0f, 1.0f, 1.0f };
 	inst->sceneInfo.ambientStrength = 0.1f;
-	if (inst->sceneInfo.lightCount != inst->lights.size())
+	//if (inst->sceneInfo.lightCount != inst->lights.size())
 	{	//If we hvae more lights then we upload them. Maybe do a bool to check instead.
 		inst->sceneInfo.lightCount = static_cast<uint32_t>(inst->lights.size());
 
