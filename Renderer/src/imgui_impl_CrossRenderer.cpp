@@ -215,10 +215,12 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
         RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
     }
 
+    const Render_IO t_RenderIO = Render::GetIO();
+
     StartRenderingInfo t_ImguiStart;
-    t_ImguiStart.viewportWidth = a_DrawData.FramebufferScale.x;
-    t_ImguiStart.viewportHeight = a_DrawData.FramebufferScale.y;
-    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::CLEAR;
+    t_ImguiStart.viewportWidth = t_RenderIO.swapchainWidth;
+    t_ImguiStart.viewportHeight = t_RenderIO.swapchainHeight;
+    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
     t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
     t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
