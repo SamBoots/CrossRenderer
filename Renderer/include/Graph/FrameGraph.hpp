@@ -21,7 +21,7 @@ namespace BB
 		void DestroyResource(const FrameGraphResourceHandle a_Handle);
 
 	private:
-		FreelistAllocator_t m_Allocator{ mbSize * 32 };
+		FreelistAllocator_t m_Allocator{ mbSize * 32, "Framegraph allocator"};
 		struct FrameGraph_inst* inst;
 	};
 }

@@ -1361,6 +1361,7 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 	for (size_t i = 0; i < a_WriteInfo.data.size(); i++)
 	{
 		const WriteDescriptorData& t_WriteData = a_WriteInfo.data[i];
+		const size_t t_DescriptorSize = s_DescriptorTypeSize[static_cast<uint32_t>(t_WriteData.type)];
 
 		VkDeviceSize t_Offset;
 		GetDescriptorSetLayoutBindingOffsetEXT(s_VKB.device,
@@ -1368,7 +1369,7 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 			t_WriteData.binding,
 			&t_Offset);
 		
-		t_Offset += static_cast<size_t>(s_DescriptorTypeSize[static_cast<uint32_t>(t_WriteData.type)]) * t_WriteData.descriptorIndex;
+		t_Offset += t_DescriptorSize * t_WriteData.descriptorIndex;
 		void* t_DescriptorLocation = Pointer::Add(a_WriteInfo.allocation.bufferStart, a_WriteInfo.allocation.offset + t_Offset);
 
 		union VkDescData
@@ -1404,7 +1405,6 @@ void BB::VulkanWriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 			break;
 		}
 
-		const size_t t_DescriptorSize = s_DescriptorTypeSize[static_cast<uint32_t>(t_WriteData.type)];
 		GetDescriptorEXT(s_VKB.device, &t_DescInfo, t_DescriptorSize, t_DescriptorLocation);
 	}
 }

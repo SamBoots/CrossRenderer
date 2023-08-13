@@ -87,6 +87,7 @@ void FrameGraph::Render()
 		inst->renderpasses[i].renderFunc(inst->commandList->list, t_Info);
 	}
 	Render::UploadDescriptorsToGPU(inst->currentFrame);
+	Editor::DisplayAllocator(m_Allocator);
 }
 
 void FrameGraph::EndRendering()

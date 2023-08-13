@@ -125,7 +125,7 @@ struct TextureManager
 		uint32_t nextFree;
 	};
 
-	uint32_t nextFree = 0;
+	uint32_t nextFree = 1;
 	TextureSlot textures[MAX_TEXTURES]{};
 
 	//purple color

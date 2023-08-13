@@ -22,14 +22,6 @@ struct ImGui_ImplCross_FrameRenderBuffers
     UploadBuffer uploadBuffer{ IMGUI_FRAME_UPLOAD_BUFFER, "Imgui Upload Buffer"};
 };
 
-// Each viewport will hold 1 ImGui_ImplCross_FrameRenderBuffers
-struct ImGui_ImplCross_WindowRenderBuffers
-{
-    uint32_t            Index;
-    uint32_t            Count;
-    ImGui_ImplCross_FrameRenderBuffers*   FrameRenderBuffers;
-};
-
 // CrossRenderer data
 struct ImGui_ImplCrossRenderer_Data
 {
@@ -37,17 +29,12 @@ struct ImGui_ImplCrossRenderer_Data
     PipelineHandle              Pipeline;
     uint32_t                    Subpass;
 
-    // Font data
-    RImageHandle                fontImage;
-    RSamplerHandle              fontSampler;
-    RDescriptor                 fontDescriptor;
-    DescriptorAllocation        descAllocation;
-
-    uint32_t                    imageCount;
-    uint32_t                    minImageCount;
+    RImageHandle                fontImageData;
+    RTexture                    fontImage;
 
     // Render buffers for main window
-    ImGui_ImplCross_WindowRenderBuffers MainWindowRenderBuffers;
+    uint32_t framebufferIndex;
+    ImGui_ImplCross_FrameRenderBuffers* frameRenderBuffers;
 
     ImGui_ImplCrossRenderer_Data()
     {
@@ -97,7 +84,6 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
         RenderBackend::DestroyBuffer(a_Buffer);
     }
 
-
     RenderBufferCreateInfo t_CreateInfo{};
     t_CreateInfo.name = "Imgui buffer";
     t_CreateInfo.usage = a_Usage;
@@ -142,9 +128,14 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
         float translate[2];
         translate[0] = -1.0f - a_DrawData.DisplayPos.x * scale[0];
         translate[1] = -1.0f - a_DrawData.DisplayPos.y * scale[1];
+        uint32_t t_textureIndex = bd->fontImage.index;
         //Constant index will always be 0 if we use it. Imgui pipeline will always use it.
-        RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), 0, &scale);
-        RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), sizeof(translate) / 4, &translate);
+        uint32_t t_Offset = 0;
+        RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), t_Offset, &scale);
+        t_Offset += _countof(scale);
+        RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), t_Offset, &translate);
+        t_Offset += _countof(translate);
+        RenderBackend::BindConstant(a_CmdList, 0, 1, t_Offset, &t_textureIndex);
     }
 }
 
@@ -157,18 +148,16 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
     if (fb_width <= 0 || fb_height <= 0)
         return;
 
+    const Render_IO t_RenderIO = Render::GetIO();
     BB::PipelineHandle t_UsedPipeline = a_Pipeline;
 
     ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
     if (t_UsedPipeline == BB_INVALID_HANDLE)
         t_UsedPipeline = bd->Pipeline;
 
-    // Allocate array to store enough vertex/index buffers
-    ImGui_ImplCross_WindowRenderBuffers& wrb = bd->MainWindowRenderBuffers;
-
-    IM_ASSERT(wrb.Count == bd->imageCount);
-    wrb.Index = (wrb.Index + 1) % wrb.Count;
-    ImGui_ImplCross_FrameRenderBuffers& rb = wrb.FrameRenderBuffers[wrb.Index];
+    BB_ASSERT(bd->framebufferIndex < t_RenderIO.frameBufferAmount, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
+    bd->framebufferIndex = (bd->framebufferIndex + 1) % t_RenderIO.frameBufferAmount;
+    ImGui_ImplCross_FrameRenderBuffers& rb = bd->frameRenderBuffers[bd->framebufferIndex];
 
     rb.uploadBuffer.Clear();
 
@@ -215,8 +204,6 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
         RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
     }
 
-    const Render_IO t_RenderIO = Render::GetIO();
-
     StartRenderingInfo t_ImguiStart;
     t_ImguiStart.viewportWidth = t_RenderIO.swapchainWidth;
     t_ImguiStart.viewportHeight = t_RenderIO.swapchainHeight;
@@ -225,10 +212,6 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
     t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     RenderBackend::StartRendering(a_CmdList, t_ImguiStart);
-
-    const uint32_t t_IsSampler = false;
-    const size_t t_HeapOffset = bd->descAllocation.offset;
-    RenderBackend::SetDescriptorHeapOffsets(a_CmdList, RENDER_DESCRIPTOR_SET::PER_PASS, 1, &t_IsSampler, &t_HeapOffset);
 
     // Setup desired CrossRenderer state
     ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
@@ -304,7 +287,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
     size_t upload_size = static_cast<size_t>(width) * height * 4;
-
+    RImageHandle t_FontImage;
     // Create the Image:
     {
         RenderImageCreateInfo t_Info = {};
@@ -317,10 +300,8 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
         t_Info.depth = 1;
         t_Info.mipLevels = 1;
         t_Info.arrayLayers = 1;
-        bd->fontImage = RenderBackend::CreateImage(t_Info);
+        t_FontImage = RenderBackend::CreateImage(t_Info);
     }
-
-    ImGui_ImplCross_AddTexture(bd->fontImage);
 
     // Upload to buffer then copy to Image:
     {
@@ -330,7 +311,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
             t_WriteTransition.dstMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
             t_WriteTransition.oldLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
             t_WriteTransition.newLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-            t_WriteTransition.image = bd->fontImage;
+            t_WriteTransition.image = t_FontImage;
             t_WriteTransition.layerCount = 1;
             t_WriteTransition.levelCount = 1;
             t_WriteTransition.baseArrayLayer = 0;
@@ -349,7 +330,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
         RenderCopyBufferImageInfo t_CopyImage{};
         t_CopyImage.srcBuffer = a_UploadBuffer.Buffer();
         t_CopyImage.srcBufferOffset = static_cast<uint32_t>(t_Chunk.offset);
-        t_CopyImage.dstImage = bd->fontImage;
+        t_CopyImage.dstImage = t_FontImage;
         t_CopyImage.dstImageInfo.sizeX = static_cast<uint32_t>(width);
         t_CopyImage.dstImageInfo.sizeY = static_cast<uint32_t>(height);
         t_CopyImage.dstImageInfo.sizeZ = 1;
@@ -361,36 +342,31 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
         t_CopyImage.dstImageInfo.baseArrayLayer = 0;
         t_CopyImage.dstImageInfo.layout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
         RenderBackend::CopyBufferImage(a_CmdList, t_CopyImage);
-
-        {
-            PipelineBarrierImageInfo t_ReadonlyTransition;
-            t_ReadonlyTransition.srcMask = RENDER_ACCESS_MASK::TRANSFER_WRITE;
-            t_ReadonlyTransition.dstMask = RENDER_ACCESS_MASK::SHADER_READ;
-            t_ReadonlyTransition.oldLayout = RENDER_IMAGE_LAYOUT::TRANSFER_DST;
-            t_ReadonlyTransition.newLayout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-            t_ReadonlyTransition.image = bd->fontImage;
-            t_ReadonlyTransition.layerCount = 1;
-            t_ReadonlyTransition.levelCount = 1;
-            t_ReadonlyTransition.baseArrayLayer = 0;
-            t_ReadonlyTransition.baseMipLevel = 0;
-            t_ReadonlyTransition.srcStage = RENDER_PIPELINE_STAGE::TRANSFER;
-            t_ReadonlyTransition.dstStage = RENDER_PIPELINE_STAGE::FRAGMENT_SHADER;
-            PipelineBarrierInfo t_PipelineInfos{};
-            t_PipelineInfos.imageInfoCount = 1;
-            t_PipelineInfos.imageInfos = &t_ReadonlyTransition;
-            RenderBackend::SetPipelineBarriers(a_CmdList, t_PipelineInfos);
-        }
     }
 
+    bd->fontImageData = t_FontImage;
+    bd->fontImage = Render::SetupTexture(t_FontImage);
+
     // Store our identifier
-    io.Fonts->SetTexID((ImTextureID)bd->fontDescriptor.ptrHandle);
+    io.Fonts->SetTexID((ImTextureID)t_FontImage.handle);
 
     return true;
+}
+
+void ImGui_ImplCross_DestroyFontUploadObjects()
+{
+    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+    RenderBackend::DestroyImage(bd->fontImageData);
+    bd->fontImageData = BB_INVALID_HANDLE;
+
+    Render::FreeTextures(&bd->fontImage, 1);
+    bd->fontImage = BB_INVALID_HANDLE;
 }
 
 bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 {
     ImGuiIO& io = ImGui::GetIO();
+    const Render_IO t_RenderIO = Render::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
     { // WIN implementation
@@ -419,22 +395,6 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     IM_ASSERT(a_Info.minImageCount >= 2);
     IM_ASSERT(a_Info.imageCount >= a_Info.minImageCount);
 
-    bd->minImageCount = a_Info.minImageCount;
-    bd->imageCount = a_Info.imageCount;
-
-    {
-        FixedArray<DescriptorBinding, 1> t_DescBinds;
-        t_DescBinds[0].binding = 0;
-        t_DescBinds[0].descriptorCount = 1;
-        t_DescBinds[0].stage = RENDER_SHADER_STAGE::FRAGMENT_PIXEL;
-        t_DescBinds[0].type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-        RenderDescriptorCreateInfo t_Info{};
-        t_Info.name = "Imgui descriptor";
-        t_Info.bindings = BB::Slice(t_DescBinds.data(), t_DescBinds.size());
-        bd->fontDescriptor = RenderBackend::CreateDescriptor(t_Info);
-    }
-
     PipelineRenderTargetBlend t_BlendInfo{};
     t_BlendInfo.blendEnable = true;
     t_BlendInfo.srcBlend = RENDER_BLEND_FACTOR::SRC_ALPHA;
@@ -455,8 +415,8 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
 
     // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
     t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
-    //2 vec2's so 4 dwords.
-    t_PipeInitInfo.constantData.dwordSize = 4;
+    //2 vec2's and 1 texture index so 5 dwords.
+    t_PipeInitInfo.constantData.dwordSize = 5;
 
     SamplerCreateInfo t_SamplerInfo{};
     t_SamplerInfo.name = "Imgui font sampler";
@@ -506,20 +466,17 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     }
 
     t_Builder.BindDescriptor(Render::GetGlobalDescriptorSet());
-    t_Builder.BindDescriptor(bd->fontDescriptor);
     bd->Pipeline = t_Builder.BuildPipeline();
 
     //create framebuffers.
     {
-        ImGui_ImplCross_WindowRenderBuffers& t_FrameBuffers = bd->MainWindowRenderBuffers;
-        t_FrameBuffers.Index = 0;
-        t_FrameBuffers.Count = bd->imageCount;
-        t_FrameBuffers.FrameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_FrameBuffers.Count);
+        bd->framebufferIndex = 0;
+        bd->frameRenderBuffers = (ImGui_ImplCross_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplCross_FrameRenderBuffers) * t_RenderIO.frameBufferAmount);
 
-        for (size_t i = 0; i < t_FrameBuffers.Count; i++)
+        for (size_t i = 0; i < t_RenderIO.frameBufferAmount; i++)
         {
             //I love C++
-            new (&t_FrameBuffers.FrameRenderBuffers[i])(ImGui_ImplCross_FrameRenderBuffers);
+            new (&bd->frameRenderBuffers[i])(ImGui_ImplCross_FrameRenderBuffers);
         }
     }
 
@@ -555,53 +512,6 @@ void ImGui_ImplCross_NewFrame()
 
     IM_UNUSED(bd);
 }
-
-void ImGui_ImplCross_SetMinImageCount(uint32_t min_image_count)
-{
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    IM_ASSERT(min_image_count >= 2);
-    if (bd->minImageCount == min_image_count)
-        return;
-
-
-
-    //RenderBackend::WaitCommands();
-    //ImGui_ImplCross_DestroyWindowRenderBuffers(&bd->MainWindowRenderBuffers);
-    bd->minImageCount = min_image_count;
-}
-
-// Register a texture
-// TODO: Make this a bindless descriptor and handle the free slots with a freelist.
-void ImGui_ImplCross_AddTexture(const RImageHandle a_Image)
-{
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    {
-        bd->descAllocation = Render::AllocateDescriptor(bd->fontDescriptor);
-
-        WriteDescriptorInfos t_ImguiDescData{};
-        WriteDescriptorData t_WriteData{};
-        t_WriteData.binding = 0;
-        t_WriteData.descriptorIndex = 0;
-        t_WriteData.type = RENDER_DESCRIPTOR_TYPE::IMAGE;
-
-        t_WriteData.image.layout = RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY;
-        t_WriteData.image.image = a_Image;
-        t_WriteData.image.sampler = BB_INVALID_HANDLE;
-
-        t_ImguiDescData.data = Slice(&t_WriteData, 1);
-        t_ImguiDescData.descriptorHandle = bd->fontDescriptor;
-        t_ImguiDescData.allocation = bd->descAllocation;
-        RenderBackend::WriteDescriptors(t_ImguiDescData);
-    }
-}
-
-void ImGui_ImplCross_RemoveTexture(const RDescriptor a_Set)
-{
-    ImGui_ImplCrossRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    RenderBackend::DestroyDescriptor(a_Set);
-}
-
 
 //BB FRAMEWORK TEMPLATE, MAY CHANGE THIS.
 static ImGuiKey ImGui_ImplBB_KEYBOARD_KEYToImGuiKey(const KEYBOARD_KEY a_Key)

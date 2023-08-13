@@ -30,12 +30,25 @@ struct VSoutput
     _BBEXT(1)  float4 color : COLOR0;
 };
 
+struct GuiInfo
+{
+    float2 uScale;
+    float2 uTranslate;
+    int textureIndex;
+};
+
+#ifdef _VULKAN
+    [[vk::push_constant]] GuiInfo guiInfo;
+#elif _DIRECTX12
+    ConstantBuffer<GuiInfo> guiInfo : register(b0, space0);
+#endif
+
 _BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState samplerColor;
-//should be using the SPACE_GLOBAL, but texture manager not yet implemented.
-_BBBIND(0, SPACE_PER_SCENE) Texture2D text;
+//Maybe add in common if I find a way to combine them.
+_BBBIND(0, SPACE_GLOBAL) Texture2D text[];
 
 float4 main(VSoutput input) : SV_Target
 {
-    float4 color = input.color * text.Sample(samplerColor, input.uv);
+    float4 color = input.color * text[guiInfo.textureIndex].Sample(samplerColor, input.uv);
     return color;
 }

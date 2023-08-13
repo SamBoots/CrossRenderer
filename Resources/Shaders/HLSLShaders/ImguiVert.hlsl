@@ -39,22 +39,23 @@ struct VSOutput
     _BBEXT(1)  float4 color : COLOR0;
 };
 
-struct guiinfo
+struct GuiInfo
 {
     float2 uScale;
     float2 uTranslate;
+    int textureIndex;
 };
 
 #ifdef _VULKAN
-    [[vk::push_constant]] guiinfo GuiInfo;
+    [[vk::push_constant]] GuiInfo guiInfo;
 #elif _DIRECTX12
-    ConstantBuffer<guiinfo> GuiInfo : register(b0, space0);
+    ConstantBuffer<GuiInfo> guiInfo : register(b0, space0);
 #endif
 
 VSOutput main(VSInput input)
 {
     VSOutput output = (VSOutput) 0;
-    output.pos = float4((input.inPosition * GuiInfo.uScale) + GuiInfo.uTranslate, 0, 1);
+    output.pos = float4((input.inPosition * guiInfo.uScale) + guiInfo.uTranslate, 0, 1);
     output.color = input.inColor;
     output.uv = input.inUV;
     return output;

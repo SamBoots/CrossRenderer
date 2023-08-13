@@ -44,6 +44,21 @@ struct Light
     float4 color;
 };
 
+struct BindlessIndices
+{
+    uint model;
+    uint texture1;
+#ifdef _VULKAN
+    uint paddingTo64Bytes[14];
+#endif
+};
+
+#ifdef _VULKAN
+    [[vk::push_constant]] BindlessIndices indices;
+#elif _DIRECTX12
+    ConstantBuffer<BindlessIndices> indices : register(b0, space0);
+#endif
+
 //Maybe add in common if I find a way to combine them.
 _BBBIND(0, SPACE_GLOBAL)    Texture2D text[];
 _BBBIND(0, SPACE_PER_SCENE) ByteAddressBuffer sceneBuffer;
@@ -64,7 +79,7 @@ float4 main(VSoutput input) : SV_Target
 {
     //not loading the entire buffer here.
     SceneInfo t_SceneInfo = sceneBuffer.Load < SceneInfo > (0);
-    float4 t_TextureColor = text[0].Sample(samplerColor, input.uv);
+    float4 t_TextureColor = text[indices.texture1].Sample(samplerColor, input.uv);
     float4 t_Color = t_TextureColor * float4(input.color.xyz, 1.0f);
     
     float4 t_Diffuse = 0;
