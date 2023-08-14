@@ -47,7 +47,7 @@ namespace BB
 
 	struct Buffer
 	{
-		void* data;
+		char* data;
 		uint64_t size;
 	};
 

@@ -71,9 +71,11 @@ namespace BB
 
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
+	OSFileHandle CreateOSFile(const char* a_FileName);
 	OSFileHandle CreateOSFile(const wchar* a_FileName);
 	//char replaced with string view later on.
 	//handle is 0 if it failed to load the file.
+	OSFileHandle LoadOSFile(const char* a_FileName);
 	OSFileHandle LoadOSFile(const wchar* a_FileName);
 	//char replaced with string view later on.
 	void WriteToFile(const OSFileHandle a_FileHandle, const Buffer& a_Buffer);
@@ -82,6 +84,7 @@ namespace BB
 	Buffer ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle);
 	//Reads an external file from path.
 	//Buffer.data will have a dynamic allocation from the given allocator.
+	Buffer ReadOSFile(Allocator a_SysAllocator, const char* a_Path);
 	Buffer ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path);
 	//Get a file's size in bytes.
 	uint64_t GetOSFileSize(const OSFileHandle a_FileHandle);

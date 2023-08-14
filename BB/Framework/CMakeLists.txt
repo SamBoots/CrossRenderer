@@ -14,8 +14,7 @@ endif ()
 # Export all Symbols by default (on Windows creates '.lib'+ '.dll').
 set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
 
-
-set (BB_Public
+set (BB_Source
 "include/Allocators/BackingAllocator.h" 
 "include/Allocators/Allocators.h" 
 "include/Allocators/TemporaryAllocator.h"
@@ -33,12 +32,11 @@ set (BB_Public
 "include/OS/Program.h" 
 "include/OS/HID.h"
 "include/OS/HID.inl"
+"include/BBjson.hpp"
 "include/BBThreadScheduler.hpp"
 "include/Common.h"
-"include/BBMemory.h" 
-"include/BBMain.h")
-
-set (BB_Source
+"include/BBMemory.h"
+"include/BBMain.h"
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/BackingAllocator.cpp" 
 "src/Allocators/TemporaryAllocator.cpp"
@@ -47,16 +45,11 @@ set (BB_Source
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
 "src/BBThreadScheduler.cpp"
+"src/BBjson.cpp"
 "src/BBMain.cpp")
 
-
 #Add source to this project's executable.
-add_library (BBFramework SHARED ${BB_Source})
-
-#Executable-Object
-set_target_properties (BBFramework PROPERTIES
-	PUBLIC_HEADER ${BB_Public}
-	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}>)
+add_library (BBFramework SHARED ${BB_Source} ${BB_Public})
 
 #Include library
 target_include_directories(BBFramework PUBLIC

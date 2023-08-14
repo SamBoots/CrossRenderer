@@ -85,7 +85,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const wchar_t* a_
 	}
 
 	Buffer t_LogBuffer{};
-	t_LogBuffer.data = t_String.data();
+	t_LogBuffer.data = reinterpret_cast<char*>(t_String.data());
 	t_LogBuffer.size = t_String.size();
 
 	WriteToFile(g_LogFile, t_LogBuffer);

@@ -118,6 +118,6 @@ void BB::Shader::ReleaseShaderCode(const ShaderCodeHandle a_Handle)
 
 void BB::Shader::GetShaderCodeBuffer(const ShaderCodeHandle a_Handle, Buffer& a_Buffer)
 {
-	a_Buffer.data = reinterpret_cast<IDxcBlob*>(a_Handle.ptrHandle)->GetBufferPointer();
+	a_Buffer.data = reinterpret_cast<char*>(reinterpret_cast<IDxcBlob*>(a_Handle.ptrHandle)->GetBufferPointer());
 	a_Buffer.size = reinterpret_cast<IDxcBlob*>(a_Handle.ptrHandle)->GetBufferSize();
 }
