@@ -134,8 +134,6 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
         RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), t_Offset, &scale);
         t_Offset += _countof(scale);
         RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), t_Offset, &translate);
-        t_Offset += _countof(translate);
-        RenderBackend::BindConstant(a_CmdList, 0, 1, t_Offset, &t_textureIndex);
     }
 }
 
@@ -248,7 +246,9 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
                 // Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
-
+                
+                //offset = 2 vec2's. So 4 dwords
+                RenderBackend::BindConstant(a_CmdList, 0, 1, 4, &pcmd->TextureId);
                 // Apply scissor/clipping rectangle
                 ScissorInfo t_SciInfo;
                 t_SciInfo.offset.x = (int32_t)(clip_min.x);
@@ -348,7 +348,7 @@ bool ImGui_ImplCross_CreateFontsTexture(const CommandListHandle a_CmdList, Uploa
     bd->fontImage = Render::SetupTexture(t_FontImage);
 
     // Store our identifier
-    io.Fonts->SetTexID((ImTextureID)t_FontImage.handle);
+    io.Fonts->SetTexID(bd->fontImage.index);
 
     return true;
 }

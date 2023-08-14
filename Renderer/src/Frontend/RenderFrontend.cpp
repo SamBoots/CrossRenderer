@@ -8,6 +8,8 @@
 #include "Storage/Slotmap.h"
 #include "Storage/Array.h"
 
+#include "Editor.h"
+
 
 using namespace BB;
 using namespace BB::Render;
@@ -809,6 +811,7 @@ void BB::Render::StartFrame(const CommandListHandle a_CommandList)
 void BB::Render::Update(const float a_DeltaTime)
 {
 	RenderBackend::DisplayDebugInfo();
+	Editor::DisplayTextureManager();
 	//Editor::DisplayAllocator(s_SystemAllocator);
 }
 
@@ -1073,4 +1076,30 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 	}
 
 	cgltf_free(t_Data);
+}
+
+void BB::Editor::DisplayTextureManager()
+{
+	if (!g_ShowEditor)
+		return;
+
+	if (ImGui::CollapsingHeader("Texture Manager"))
+	{
+		const TextureManager& t_Man = s_RenderInst->textureManager;
+		for (size_t i = 0; i < _countof(t_Man.textures); i++)
+		{
+			const TextureManager::TextureSlot& t_Slot = t_Man.textures[i];
+			ImGui::Indent();
+			if (ImGui::TreeNodeEx((void*)i, ImGuiTreeNodeFlags_CollapsingHeader, "Texture Slot: %u", i))
+			{
+				ImGui::Indent();
+				const ImVec2 t_ImageSize = { 160, 160 };
+				ImGui::Image(i, t_ImageSize);
+
+				ImGui::Unindent();
+			}
+			ImGui::Unindent();
+		}
+		
+	}
 }
