@@ -3,20 +3,33 @@
 
 namespace BB
 {
-	class AssetLoader
+	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
+
+
+
+	enum class AssetType : uint32_t
 	{
-	public:
-		AssetLoader();
-		~AssetLoader();
+		IMAGE
+	};
 
-		RImageHandle LoadImage(const char* a_Path);
+	enum class AssetLoadType : uint32_t
+	{
+		DISK,
+		MEMORY
+	};
 
-		bool IsFinished() const { return m_IsFinished; };
+	struct AssetDiskJobInfo
+	{
+		AssetType assetType;
+		AssetLoadType loadType;
+		const char* path;
+	};
 
-	private:
-		LinearAllocator_t m_Allocator{ mbSize * 4 };
+	namespace Asset
+	{
+		AssetHandle LoadAsset(void* a_AssetJobInfo);
 
-		uint64_t m_WaitValue = UINT64_MAX;
-		bool m_IsFinished = false;
+		const RImageHandle GetImage(const AssetHandle a_Asset);
+		const RImageHandle GetImageWait(const char* a_Path);
 	};
 }

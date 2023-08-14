@@ -8,6 +8,40 @@
 #include "stb/stb_image.h"
 #pragma warning (pop)
 
+#include "Storage/Hashmap.h"
+
+using namespace BB;
+
+//crappy hash, don't care for now.
+const uint64_t StringHash(const char* a_String)
+{
+	uint64_t hash = 5381;
+	int c;
+
+	while (c = *a_String++)
+		hash = ((hash << 5) + hash) + c;
+
+	return hash;
+}
+
+struct AssetSlot
+{
+	AssetType type;
+	uint64_t hash;
+	char path[256];
+	union
+	{
+		RImageHandle image{};
+	};
+};
+
+struct AssetManager
+{
+	FreelistAllocator_t assetAllocator{ mbSize * 64, "asset manager allocator" };
+	OL_HashMap<uint64_t, AssetSlot> assetMap{ assetAllocator, 64 };
+};
+static AssetManager s_AssetManager{};
+
 using namespace BB;
 
 static CommandList* SetupCommandLists(const char* a_Name = "default asset loader name")
@@ -29,17 +63,7 @@ static CommandList* SetupCommandLists(const char* a_Name = "default asset loader
 	return t_CmdList;
 }
 
-AssetLoader::AssetLoader()
-{
-
-}
-
-AssetLoader::~AssetLoader()
-{
-	m_Allocator.Clear();
-}
-
-RImageHandle AssetLoader::LoadImage(const char* a_Path)
+static RImageHandle LoadImage(const char* a_Path)
 {
 	CommandList* t_CmdList = SetupCommandLists(a_Path);
 
@@ -80,14 +104,13 @@ RImageHandle AssetLoader::LoadImage(const char* a_Path)
 		RenderBackend::SetPipelineBarriers(t_CmdList->list, t_Barrier);
 	}
 
-
 	const ImageReturnInfo t_ImageInfo = RenderBackend::GetImageInfo(t_Image);
 	constexpr size_t TEXTURE_BYTE_ALIGNMENT = 512;
 	//NEED TO DO ALIGNMENT ON THE IMAGE IF WE USE THE UPLOAD BUFFER FOR MORE THEN JUST ONE IMAGE.
 	UploadBuffer t_ImageUpload(t_ImageInfo.allocInfo.imageAllocByteSize);
 	{
 		const uint64_t t_SourcePitch = static_cast<uint64_t>(t_ImageInfo.width) * sizeof(uint32_t);
-		
+
 		void* t_ImageSrc = t_Pixels;
 		void* t_ImageDst = t_ImageUpload.GetStart();
 		//Layouts should be only 1 right now due to mips.
@@ -127,11 +150,71 @@ RImageHandle AssetLoader::LoadImage(const char* a_Path)
 
 	t_TransferQueue.ExecuteCommands(&t_CmdList, 1, nullptr, nullptr, 0);
 
-	{
-		//for now just stall the thread.
-		t_TransferQueue.WaitFenceValue(t_WaitValue);
+	//for now just stall the thread.
+	t_TransferQueue.WaitFenceValue(t_WaitValue);
 
-		m_IsFinished = true;
-	}
 	return t_Image;
+}
+
+AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
+{
+	const AssetDiskJobInfo* a_JobInfo = reinterpret_cast<const AssetDiskJobInfo*>(a_AssetDiskJobInfo);
+
+	AssetSlot t_AssetSlot{};
+	BB_ASSERT(strlen(a_JobInfo->path) < _countof(t_AssetSlot.path) - 1, "Asset load path too long");
+	strcpy(t_AssetSlot.path, a_JobInfo->path);
+
+	t_AssetSlot.type = a_JobInfo->assetType;
+	t_AssetSlot.hash = StringHash(t_AssetSlot.path);
+
+	switch (a_JobInfo->assetType)
+	{
+	case AssetType::IMAGE:
+		switch (a_JobInfo->loadType)
+		{
+		case AssetLoadType::DISK:
+			t_AssetSlot.image = LoadImage(t_AssetSlot.path);
+			break;
+		case AssetLoadType::MEMORY:
+			BB_ASSERT(false, "Invalid AssetLoadType");
+			break;
+		default:
+			BB_ASSERT(false, "Invalid AssetLoadType");
+			break;
+		}
+
+		break;
+	}
+
+	s_AssetManager.assetMap.emplace(t_AssetSlot.hash, t_AssetSlot);
+	return AssetHandle(t_AssetSlot.hash);
+}
+
+const RImageHandle Asset::GetImage(const AssetHandle a_Asset)
+{
+	const AssetSlot* t_Asset = s_AssetManager.assetMap.find(a_Asset.handle);
+	BB_ASSERT(t_Asset->type == AssetType::IMAGE, "Asset found is not an image!");
+	return t_Asset->image;
+}
+
+const RImageHandle Asset::GetImageWait(const char* a_Path)
+{
+	const uint64_t t_Hash = StringHash(a_Path);
+
+	AssetSlot* t_Slot = s_AssetManager.assetMap.find(t_Hash);
+
+	if (t_Slot != BB_INVALID_HANDLE)
+		return t_Slot->image;
+
+	AssetDiskJobInfo a_JobInfo{};
+	a_JobInfo.assetType = AssetType::IMAGE;
+	a_JobInfo.loadType = AssetLoadType::DISK;
+	a_JobInfo.path = a_Path;
+
+	LoadAsset(&a_JobInfo);
+	t_Slot = s_AssetManager.assetMap.find(t_Hash);
+
+	BB_ASSERT(t_Slot != BB_INVALID_HANDLE, "Uploaded a resource but still can't find it");
+
+	return t_Slot->image;
 }

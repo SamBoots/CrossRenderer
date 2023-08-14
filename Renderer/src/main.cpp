@@ -43,9 +43,7 @@ struct UploadTexture_Thread_Parameters
 void UploadTexture_Thread(void* a_Parameters)
 {
 	UploadTexture_Thread_Parameters* t_Parameters = reinterpret_cast<UploadTexture_Thread_Parameters*>(a_Parameters);
-
-	AssetLoader t_Loader{};
-	const RImageHandle t_Image = t_Loader.LoadImage(t_Parameters->path);
+	const RImageHandle t_Image = Asset::GetImageWait(t_Parameters->path);
 
 	t_Parameters->returnValues.texture = Render::SetupTexture(t_Image);
 }
