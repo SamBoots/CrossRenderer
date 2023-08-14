@@ -1086,20 +1086,28 @@ void BB::Editor::DisplayTextureManager()
 	if (ImGui::CollapsingHeader("Texture Manager"))
 	{
 		const TextureManager& t_Man = s_RenderInst->textureManager;
+		ImGui::Indent();
+		if (ImGui::CollapsingHeader("next free image slot"))
+		{
+			ImGui::Indent();
+			ImGui::Text("Texture slot index: %u", t_Man.nextFree);
+			const ImVec2 t_ImageSize = { 160, 160 };
+			ImGui::Image(t_Man.nextFree, t_ImageSize);
+			ImGui::Unindent();
+		}
+
 		for (size_t i = 0; i < _countof(t_Man.textures); i++)
 		{
 			const TextureManager::TextureSlot& t_Slot = t_Man.textures[i];
-			ImGui::Indent();
+
 			if (ImGui::TreeNodeEx((void*)i, ImGuiTreeNodeFlags_CollapsingHeader, "Texture Slot: %u", i))
 			{
 				ImGui::Indent();
 				const ImVec2 t_ImageSize = { 160, 160 };
 				ImGui::Image(i, t_ImageSize);
-
 				ImGui::Unindent();
 			}
-			ImGui::Unindent();
 		}
-		
+		ImGui::Unindent();
 	}
 }
