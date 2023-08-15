@@ -29,3 +29,12 @@ add_custom_target(copy_textures ALL
     COMMENT "Copying Textures")
 
 add_dependencies(Renderer copy_textures)
+
+#copy json files when a change happened.
+add_custom_target(copy_json ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/Resources/Json
+    ${CMAKE_BINARY_DIR}/Resources/Json
+    COMMENT "Copying Json files")
+
+add_dependencies(Renderer copy_json)
