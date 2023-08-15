@@ -1,11 +1,12 @@
 #pragma once
 #include "Common.h"
 #include "BBMemory.h"
+#include "Hashmap.h"
 
 //tutorial/guide used: https://kishoreganesh.com/post/writing-a-json-parser-in-cplusplus/
 namespace BB
 {
-	enum class JSON_TYPE
+	enum class JSON_TYPE : uint32_t
 	{
 		OBJECT,
 		LIST,
@@ -15,31 +16,30 @@ namespace BB
 		NULL_TYPE
 	};
 
-	struct JsonNode;
-
-	struct JsonObject
-	{
-		
-	};
-
-	struct JsonList
+	struct JsonList //12 bytes
 	{
 		uint32_t nodeCount;
-		JsonNode** nodes;
+		struct JsonNode** nodes;
 	};
 
-	//20 bytes. Jank
-	struct JsonNode
+	struct JsonNode //16 bytes
 	{
-		JSON_TYPE type;
-		union
+		JSON_TYPE type; //4 bytes
+		union //biggest type JsonList 12 bytes
 		{
-			JsonObject* object;
+			struct JsonObject* object;
 			JsonList list;
-			const char* string;
+			char* string;
 			int number;
 			bool boolean;
 		};
+	};
+
+	struct JsonObject
+	{
+		JsonObject(Allocator a_Allocator, const uint32_t a_MapSize)
+			: map(a_Allocator, a_MapSize) {};
+		OL_HashMap<Hash, JsonNode*> map;
 	};
 
 	struct JsonFile
@@ -49,6 +49,8 @@ namespace BB
 		uint32_t pos = 0;
 	};
 
+	struct Token;
+
 	class JsonParser
 	{
 	public:
@@ -57,10 +59,10 @@ namespace BB
 		void Parse();
 
 		JsonNode* ParseObject();
-		JsonNode* ParseString();
-		JsonNode* ParseNumber();
 		JsonNode* ParseList();
-		JsonNode* ParseBoolean();
+		JsonNode* ParseString(const Token& a_Token);
+		JsonNode* ParseNumber(const Token& a_Token);
+		JsonNode* ParseBoolean(const Token& a_Token);
 		JsonNode* ParseNull();
 
 	private:

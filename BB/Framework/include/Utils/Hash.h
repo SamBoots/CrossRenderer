@@ -2,6 +2,8 @@
 #include "Utils/Logger.h"
 #include <type_traits>
 
+//will remove this, I don't like it.
+//Maybe a unified hash is cringe and I should just have some basic hashing operations in this file.
 struct Hash
 {
 	Hash() {};
@@ -40,12 +42,11 @@ inline Hash Hash::MakeHash(void* a_Value)
 
 inline Hash Hash::MakeHash(const char* a_Value)
 {
-	uint64_t t_Hash = 0;
+	uint64_t t_Hash = 5381;
+	int t_C;
 
-	while (*a_Value != '\0')
-	{
-		t_Hash += static_cast<uint64_t>(*a_Value++);
-	}
+	while (t_C = *a_Value++)
+		t_Hash = ((t_Hash << 5) + t_Hash) + t_C;
 
 	return Hash(t_Hash);
 }
