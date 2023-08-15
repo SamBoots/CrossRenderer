@@ -1,7 +1,6 @@
 #include "AssetLoader.hpp"
 #include "RenderFrontend.h"
 #include "Storage/BBString.h"
-#include "Hash.h"
 
 
 #pragma warning(push, 0)
@@ -13,10 +12,22 @@
 
 using namespace BB;
 
+//crappy hash, don't care for now.
+const uint64_t StringHash(const char* a_String)
+{
+	uint64_t hash = 5381;
+	int c;
+
+	while (c = *a_String++)
+		hash = ((hash << 5) + hash) + c;
+
+	return hash;
+}
+
 struct AssetSlot
 {
 	AssetType type;
-	Hash hash;
+	uint64_t hash;
 	char path[256];
 	union
 	{
@@ -27,7 +38,7 @@ struct AssetSlot
 struct AssetManager
 {
 	FreelistAllocator_t assetAllocator{ mbSize * 64, "asset manager allocator" };
-	OL_HashMap<Hash, AssetSlot> assetMap{ assetAllocator, 64 };
+	OL_HashMap<uint64_t, AssetSlot> assetMap{ assetAllocator, 64 };
 };
 static AssetManager s_AssetManager{};
 
@@ -154,7 +165,7 @@ AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
 	strcpy(t_AssetSlot.path, a_JobInfo->path);
 
 	t_AssetSlot.type = a_JobInfo->assetType;
-	t_AssetSlot.hash.MakeHash(t_AssetSlot.path);
+	t_AssetSlot.hash = StringHash(t_AssetSlot.path);
 
 	switch (a_JobInfo->assetType)
 	{
@@ -188,8 +199,7 @@ const RImageHandle Asset::GetImage(const AssetHandle a_Asset)
 
 const RImageHandle Asset::GetImageWait(const char* a_Path)
 {
-	Hash t_Hash;
-	t_Hash.MakeHash(a_Path);
+	const uint64_t t_Hash = StringHash(a_Path);
 
 	AssetSlot* t_Slot = s_AssetManager.assetMap.find(t_Hash);
 
