@@ -16,9 +16,8 @@ namespace BB
 	//second 32 bytes is the generation.
 	union SlotmapHandle
 	{
-		SlotmapHandle() {};
 		SlotmapHandle(const uint64_t a_Handle) : handle(a_Handle) {}
-		uint64_t handle = 0;
+		uint64_t handle;
 		struct
 		{
 			uint32_t index;

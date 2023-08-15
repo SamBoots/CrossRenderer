@@ -26,7 +26,6 @@ add_executable (Unittest_Project
 "Framework/Hashmap_UTEST.h"
 "Framework/MemoryArena_UTEST.h"
 "Framework/Slice_UTEST.h"
-"Framework/BBjson_UTEST.hpp"
 "Framework/Slotmap_UTEST.h"
 "Framework/String_UTEST.h" 
 "Framework/MemoryOperations_UTEST.h" 
