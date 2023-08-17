@@ -15,6 +15,7 @@
 #include "Framework/Pool_UTEST.h"
 #include "Framework/Hashmap_UTEST.h"
 #include "Framework/MemoryArena_UTEST.h"
+#include "Framework/BBjson_UTEST.hpp"
 #include "Framework/MemoryOperations_UTEST.h"
 #include "Framework/Slice_UTEST.h"
 #include "Framework/Slotmap_UTEST.h"

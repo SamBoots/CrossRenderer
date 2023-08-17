@@ -143,6 +143,7 @@ namespace BB
 		if (m_String != nullptr)
 		{
 			BBfree(m_Allocator, m_String);
+			m_String = nullptr;
 		}
 	}
 
@@ -349,7 +350,7 @@ namespace BB
 		size_t t_ModifiedCapacity = m_Capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Array_Specs::multipleValue);
+			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, String_Specs::multipleValue);
 
 		reallocate(t_ModifiedCapacity);
 	}
