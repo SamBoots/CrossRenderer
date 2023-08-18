@@ -119,18 +119,6 @@ TEST(Hashmap_Datastructure, UM_Hashmap_Range_Based_Loop)
 		ASSERT_EQ(t_Map.find(t_Key)->value, t_Value.value) << "Wrong element was likely grabbed.";
 	}
 
-	size_t t_IteratorCount = 0;
-	size_t t_PreviousKey = 0xDEADBEEF;
-	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
-	{
-		++t_IteratorCount;
-		size_t t_Key = t_It->key;
-		ASSERT_EQ(t_Map.find(t_Key)->value, t_It->value.value) << "Iterator found an pair that the hashmap couldn't find.";
-		ASSERT_NE(t_Key, t_PreviousKey) << "You read the same key twice.";
-		t_PreviousKey = t_Key;
-	}
-	ASSERT_EQ(t_IteratorCount, samples) << "Did not iterate over all the values.";
-
 	//Not supporting range based loops.
 	//for (auto& t_It : t_Map)
 	//{
@@ -449,57 +437,6 @@ TEST(Hashmap_Datastructure, Hashmap_Speedtest)
 		{
 			EXPECT_EQ(t_OL_Map.find(EMPTY_KEY + i), nullptr) << "OL Hashmap found a key while it shouldn't exist." << t_RandomKeys[i];
 		}
-		auto t_OLMapSpeed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "OL map speed with time in MS " << t_OLMapSpeed << "\n";
-	}
-
-#pragma endregion
-	std::cout << "/-----------------------------------------/" << "\n" << "Iterator Speed Test, it also sets all values to 0." << "\n";
-#pragma region Iterator_Test
-
-	{
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		//Unordered Map speed.
-		size_t t_IteratorCount = 0;
-		//unordered map works with != instead of < so we use this.
-		for (auto t_It = t_UnorderedMap.begin(); t_It != t_UnorderedMap.end(); t_It++)
-		{
-			t_It->second.value = 100 * 5 * 2;
-			t_It->second.value = 0;
-			++t_IteratorCount;
-		}
-		EXPECT_EQ(t_IteratorCount, samples) << "unordered_map, Iterated too many times";
-		auto t_Unordered_MapSpeed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "Unordered map speed with time in MS " << t_Unordered_MapSpeed << "\n";
-	}
-
-	{
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		//BB::UM speed.
-		size_t t_IteratorCount = 0;
-		for (auto t_It = t_UM_Map.begin(); t_It < t_UM_Map.end(); t_It++)
-		{
-			t_It->value.value = 100 * 5 * 2;
-			t_It->value.value = 0;
-			++t_IteratorCount;
-		}
-		EXPECT_EQ(t_IteratorCount, samples) << "UM map, Iterated too many times";
-		auto t_UMMapSpeed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "UM map speed with time in MS " << t_UMMapSpeed << "\n";
-	}
-
-	{
-
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		//BB::OL speed.
-		size_t t_IteratorCount = 0;
-		for (auto t_It = t_OL_Map.begin(); t_It < t_OL_Map.end(); t_It++)
-		{
-			t_It->value->value = 100 * 5 * 2;
-			t_It->value->value = 0;
-			++t_IteratorCount;
-		}
-		EXPECT_EQ(t_IteratorCount, samples) << "OL map, Iterated too many times";
 		auto t_OLMapSpeed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
 		std::cout << "OL map speed with time in MS " << t_OLMapSpeed << "\n";
 	}

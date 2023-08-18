@@ -13,7 +13,6 @@ namespace BB
 		constexpr const float UM_LoadFactor = 1.f;
 		constexpr const size_t UM_EMPTYNODE = 0xAABBCCDD;
 
-
 		constexpr const float OL_LoadFactor = 1.3f;
 		constexpr const size_t OL_TOMBSTONE = 0xDEADBEEFDEADBEEF;
 		constexpr const size_t OL_EMPTY = 0xAABBCCDD;
@@ -25,9 +24,18 @@ namespace BB
 		return static_cast<size_t>(static_cast<float>(a_Size) * (1.f / a_LoadFactor + 1.f));
 	}
 
+	template<typename Key>
+	struct Standard_KeyComp
+	{
+		bool operator()(const Key& a_A, const Key& a_B) const
+		{
+			return a_A == a_B;
+		}
+	};
+
 #pragma region Unordered_Map
 	//Unordered Map, uses linked list for collision.
-	template<typename Key, typename Value>
+	template<typename Key, typename Value, typename KeyComp = Standard_KeyComp<Key>>
 	class UM_HashMap
 	{
 		struct HashEntry
@@ -101,32 +109,315 @@ namespace BB
 		};
 
 	public:
-		UM_HashMap(Allocator a_Allocator);
-		UM_HashMap(Allocator a_Allocator, const size_t a_Size);
-		UM_HashMap(const UM_HashMap<Key, Value>& a_Map);
-		UM_HashMap(UM_HashMap<Key, Value>&& a_Map) noexcept;
-		~UM_HashMap();
+		UM_HashMap(Allocator a_Allocator)
+			: UM_HashMap(a_Allocator, Hashmap_Specs::Standard_Hashmap_Size)
+		{}
+		UM_HashMap(Allocator a_Allocator, const size_t a_Size)
+			: m_Allocator(a_Allocator)
+		{
+			m_Capacity = LFCalculation(a_Size, Hashmap_Specs::UM_LoadFactor);
+			m_Size = 0;
+			m_LoadCapacity = a_Size;
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
 
-		UM_HashMap<Key, Value>& operator=(const UM_HashMap<Key, Value>& a_Rhs);
-		UM_HashMap<Key, Value>& operator=(UM_HashMap<Key, Value>&& a_Rhs) noexcept;
+			for (size_t i = 0; i < m_Capacity; i++)
+			{
+				new (&m_Entries[i]) HashEntry();
+			}
+		}
+		UM_HashMap(const UM_HashMap<Key, Value>& a_Map)
+		{
+			m_Allocator = a_Map.m_Allocator;
+			m_Size = a_Map.m_Size;
+			m_Capacity = a_Map.m_Capacity;
+			m_LoadCapacity = a_Map.m_LoadCapacity;
 
-		void insert(Key& a_Key, Value& a_Res);
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
+
+			//Copy over the hashmap and construct the element
+			for (size_t i = 0; i < m_Capacity; i++)
+			{
+				if (a_Map.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				{
+					new (&m_Entries[i]) HashEntry(a_Map.m_Entries[i]);
+					HashEntry* t_Entry = &m_Entries[i];
+					HashEntry* t_PreviousEntry;
+					while (t_Entry->next_Entry != nullptr)
+					{
+						t_PreviousEntry = t_Entry;
+						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(*t_Entry->next_Entry));
+						t_PreviousEntry->next_Entry = t_Entry;
+					}
+				}
+				else
+				{
+					new (&m_Entries[i]) HashEntry();
+				}
+			}
+		}
+		UM_HashMap(UM_HashMap<Key, Value>&& a_Map) noexcept
+		{
+			m_Allocator = a_Map.m_Allocator;
+			m_Size = a_Map.m_Size;
+			m_Capacity = a_Map.m_Capacity;
+			m_LoadCapacity = a_Map.m_LoadCapacity;
+			m_Entries = a_Map.m_Entries;
+
+			a_Map.m_Size = 0;
+			a_Map.m_Capacity = 0;
+			a_Map.m_LoadCapacity = 0;
+			a_Map.m_Entries = nullptr;
+			a_Map.m_Allocator.allocator = nullptr;
+			a_Map.m_Allocator.func = nullptr;
+		}
+		~UM_HashMap()
+		{
+			if (m_Entries != nullptr)
+			{
+				clear();
+
+				BBfree(m_Allocator, m_Entries);
+			}
+		}
+
+		UM_HashMap<Key, Value>& operator=(const UM_HashMap<Key, Value>& a_Rhs)
+		{
+			this->~UM_HashMap();
+
+			m_Allocator = a_Rhs.m_Allocator;
+			m_Size = a_Rhs.m_Size;
+			m_Capacity = a_Rhs.m_Capacity;
+			m_LoadCapacity = a_Rhs.m_LoadCapacity;
+
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
+
+			//Copy over the hashmap and construct the element
+			for (size_t i = 0; i < m_Capacity; i++)
+			{
+				if (a_Rhs.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				{
+					new (&m_Entries[i]) HashEntry(a_Rhs.m_Entries[i]);
+					HashEntry* t_Entry = &m_Entries[i];
+					HashEntry* t_PreviousEntry;
+					while (t_Entry->next_Entry != nullptr)
+					{
+						t_PreviousEntry = t_Entry;
+						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(*t_Entry->next_Entry));
+						t_PreviousEntry->next_Entry = t_Entry;
+					}
+				}
+				else
+				{
+					new (&m_Entries[i]) HashEntry();
+				}
+			}
+
+			return *this;
+		}
+		UM_HashMap<Key, Value>& operator=(UM_HashMap<Key, Value>&& a_Rhs) noexcept
+		{
+			this->~UM_HashMap();
+
+			m_Allocator = a_Rhs.m_Allocator;
+			m_Size = a_Rhs.m_Size;
+			m_Capacity = a_Rhs.m_Capacity;
+			m_LoadCapacity = a_Rhs.m_LoadCapacity;
+			m_Entries = a_Rhs.m_Entries;
+
+			a_Rhs.m_Size = 0;
+			a_Rhs.m_Capacity = 0;
+			a_Rhs.m_LoadCapacity = 0;
+			a_Rhs.m_Entries = nullptr;
+			a_Rhs.m_Allocator.allocator = nullptr;
+			a_Rhs.m_Allocator.func = nullptr;
+
+			return *this;
+		}
+
+		void insert(Key& a_Key, Value& a_Res)
+		{
+			emplace(a_Key, a_Res);
+		}
 		template <class... Args>
-		void emplace(Key& a_Key, Args&&... a_ValueArgs);
-		Value* find(const Key& a_Key) const;
-		void erase(const Key& a_Key);
-		void clear();
+		void emplace(Key& a_Key, Args&&... a_ValueArgs)
+		{
+			if (m_Size > m_LoadCapacity)
+				grow();
 
-		void reserve(const size_t a_Size);
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
 
-		Iterator begin() const;
-		Iterator end() const;
+			HashEntry* t_Entry = &m_Entries[t_Hash.hash];
+			if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
+			{
+				t_Entry->key = a_Key;
+				new (&t_Entry->value) Value(std::forward<Args>(a_ValueArgs)...);
+				t_Entry->next_Entry = nullptr;
+				return;
+			}
+			//Collision accurred, no problem we just create a linked list and make a new element.
+			//Bad for cache memory though.
+			while (t_Entry)
+			{
+				if (t_Entry->next_Entry == nullptr)
+				{
+					HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry);
+					t_NewEntry->key = a_Key;
+					new (&t_NewEntry->value) Value(std::forward<Args>(a_ValueArgs)...);
+					t_NewEntry->next_Entry = nullptr;
+					t_Entry->next_Entry = t_NewEntry;
+					return;
+				}
+				t_Entry = t_Entry->next_Entry;
+			}
+		}
+		Value* find(const Key& a_Key) const
+		{
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+
+			HashEntry* t_Entry = &m_Entries[t_Hash];
+
+			if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
+				return nullptr;
+
+			while (t_Entry)
+			{
+				if (Match(t_Entry, a_Key))
+				{
+					return &t_Entry->value;
+				}
+				t_Entry = t_Entry->next_Entry;
+			}
+			return nullptr;
+		}
+		void erase(const Key& a_Key)
+		{
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;;
+
+			HashEntry* t_Entry = &m_Entries[t_Hash];
+			if (Match(t_Entry, a_Key))
+			{
+				t_Entry->~HashEntry();
+
+				if (t_Entry->next_Entry != nullptr)
+				{
+					HashEntry* t_NextEntry = t_Entry->next_Entry;
+					*t_Entry = *t_Entry->next_Entry;
+					BBfree(m_Allocator, t_NextEntry);
+					return;
+				}
+
+				t_Entry->state = Hashmap_Specs::UM_EMPTYNODE;
+				return;
+			}
+
+			HashEntry* t_PreviousEntry = nullptr;
+
+			while (t_Entry)
+			{
+				if (Match(t_Entry, a_Key))
+				{
+					t_PreviousEntry = t_Entry->next_Entry;
+					BBfree(m_Allocator, t_Entry);
+					return;
+				}
+				t_PreviousEntry = t_Entry;
+				t_Entry = t_Entry->next_Entry;
+			}
+		}
+		void clear()
+		{
+			//go through all the entries and individually delete the extra values from the linked list.
+			//They need to be deleted seperatly since the memory is somewhere else.
+			for (size_t i = 0; i < m_Capacity; i++)
+			{
+				if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				{
+					HashEntry* t_NextEntry = m_Entries[i].next_Entry;
+					while (t_NextEntry != nullptr)
+					{
+						HashEntry* t_DeleteEntry = t_NextEntry;
+						t_NextEntry = t_NextEntry->next_Entry;
+						t_DeleteEntry->~HashEntry();
+
+						BBfree(m_Allocator, t_DeleteEntry);
+					}
+					m_Entries[i].state = Hashmap_Specs::UM_EMPTYNODE;
+				}
+			}
+			for (size_t i = 0; i < m_Capacity; i++)
+				if (m_Entries[i].state == Hashmap_Specs::UM_EMPTYNODE)
+					m_Entries[i].~HashEntry();
+
+			m_Size = 0;
+		}
+
+		void reserve(const size_t a_Size)
+		{
+			if (a_Size > m_Capacity)
+			{
+				size_t t_ModifiedCapacity = Math::RoundUp(a_Size, Hashmap_Specs::multipleValue);
+
+				reallocate(t_ModifiedCapacity);
+			}
+		}
 
 		size_t size() const { return m_Size; }
 
 	private:
-		void grow(size_t a_MinCapacity = 1);
-		void reallocate(const size_t a_NewCapacity);
+		void grow(size_t a_MinCapacity = 1)
+		{
+			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
+
+			size_t t_ModifiedCapacity = m_Capacity * 2;
+
+			if (a_MinCapacity > t_ModifiedCapacity)
+				t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
+
+			reallocate(t_ModifiedCapacity);
+		}
+
+		void reallocate(const size_t a_NewLoadCapacity)
+		{
+			const size_t t_NewCapacity = LFCalculation(a_NewLoadCapacity, Hashmap_Specs::UM_LoadFactor);
+
+			//Allocate the new buffer.
+			HashEntry* t_NewEntries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, t_NewCapacity * sizeof(HashEntry)));
+
+			for (size_t i = 0; i < t_NewCapacity; i++)
+			{
+				new (&t_NewEntries[i]) HashEntry();
+			}
+
+			for (size_t i = 0; i < m_Capacity; i++)
+			{
+				if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				{
+					const Hash t_Hash = Hash::MakeHash(m_Entries[i].key) % t_NewCapacity;
+
+					HashEntry* t_Entry = &t_NewEntries[t_Hash.hash];
+					if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
+					{
+						*t_Entry = m_Entries[i];
+					}
+					//Collision accurred, no problem we just create a linked list and make a new element.
+					//Bad for cache memory though.
+					while (t_Entry)
+					{
+						if (t_Entry->next_Entry == nullptr)
+						{
+							HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry)(m_Entries[i]);
+						}
+						t_Entry = t_Entry->next_Entry;
+					}
+				}
+			}
+
+			this->~UM_HashMap();
+
+			m_Capacity = t_NewCapacity;
+			m_LoadCapacity = a_NewLoadCapacity;
+			m_Entries = t_NewEntries;
+		}
 
 		size_t m_Capacity;
 		size_t m_LoadCapacity;
@@ -139,368 +430,10 @@ namespace BB
 	private:
 		bool Match(const HashEntry* a_Entry, const Key& a_Key) const
 		{
-			if (a_Entry->key == a_Key)
-			{
-				return true;
-			}
-			return false;
+			return KeyComp()(a_Entry->key, a_Key);
 		}
 	};
 
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>::UM_HashMap(Allocator a_Allocator)
-		: UM_HashMap(a_Allocator, Hashmap_Specs::Standard_Hashmap_Size)
-	{}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>::UM_HashMap(Allocator a_Allocator, const size_t a_Size)
-		: m_Allocator(a_Allocator)
-	{
-		m_Capacity = LFCalculation(a_Size, Hashmap_Specs::UM_LoadFactor);
-		m_Size = 0;
-		m_LoadCapacity = a_Size;
-		m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
-
-		for (size_t i = 0; i < m_Capacity; i++)
-		{
-			new (&m_Entries[i]) HashEntry();
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>::UM_HashMap(const UM_HashMap<Key, Value>& a_Map)
-	{
-		m_Allocator = a_Map.m_Allocator;
-		m_Size = a_Map.m_Size;
-		m_Capacity = a_Map.m_Capacity;
-		m_LoadCapacity = a_Map.m_LoadCapacity;
-
-		m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
-
-		//Copy over the hashmap and construct the element
-		for (size_t i = 0; i < m_Capacity; i++)
-		{
-			if (a_Map.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
-			{
-				new (&m_Entries[i]) HashEntry(a_Map.m_Entries[i]);
-				HashEntry* t_Entry = &m_Entries[i];
-				HashEntry* t_PreviousEntry;
-				while (t_Entry->next_Entry != nullptr)
-				{
-					t_PreviousEntry = t_Entry;
-					t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(* t_Entry->next_Entry));
-					t_PreviousEntry->next_Entry = t_Entry;
-				}
-			}
-			else
-			{
-				new (&m_Entries[i]) HashEntry();
-			}
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>::UM_HashMap(UM_HashMap<Key, Value>&& a_Map) noexcept
-	{
-		m_Allocator = a_Map.m_Allocator;
-		m_Size = a_Map.m_Size;
-		m_Capacity = a_Map.m_Capacity;
-		m_LoadCapacity = a_Map.m_LoadCapacity;
-		m_Entries = a_Map.m_Entries;
-
-		a_Map.m_Size = 0;
-		a_Map.m_Capacity = 0;
-		a_Map.m_LoadCapacity = 0;
-		a_Map.m_Entries = nullptr;
-		a_Map.m_Allocator.allocator = nullptr;
-		a_Map.m_Allocator.func = nullptr;
-	}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>::~UM_HashMap()
-	{
-		if (m_Entries != nullptr)
-		{ 
-			clear();
-
-			BBfree(m_Allocator, m_Entries);
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>& BB::UM_HashMap<Key, Value>::operator=(const UM_HashMap<Key, Value>& a_Rhs)
-	{
-		this->~UM_HashMap();
-
-		m_Allocator = a_Rhs.m_Allocator;
-		m_Size = a_Rhs.m_Size;
-		m_Capacity = a_Rhs.m_Capacity;
-		m_LoadCapacity = a_Rhs.m_LoadCapacity;
-
-		m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
-
-		//Copy over the hashmap and construct the element
-		for (size_t i = 0; i < m_Capacity; i++)
-		{
-			if (a_Rhs.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
-			{
-				new (&m_Entries[i]) HashEntry(a_Rhs.m_Entries[i]);
-				HashEntry* t_Entry = &m_Entries[i];
-				HashEntry* t_PreviousEntry;
-				while (t_Entry->next_Entry != nullptr)
-				{
-					t_PreviousEntry = t_Entry;
-					t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(* t_Entry->next_Entry));
-					t_PreviousEntry->next_Entry = t_Entry;
-				}
-			}
-			else
-			{
-				new (&m_Entries[i]) HashEntry();
-			}
-		}
-
-		return *this;
-	}
-
-	template<typename Key, typename Value>
-	inline UM_HashMap<Key, Value>& BB::UM_HashMap<Key, Value>::operator=(UM_HashMap<Key, Value>&& a_Rhs) noexcept
-	{
-		this->~UM_HashMap();
-
-		m_Allocator = a_Rhs.m_Allocator;
-		m_Size = a_Rhs.m_Size;
-		m_Capacity = a_Rhs.m_Capacity;
-		m_LoadCapacity = a_Rhs.m_LoadCapacity;
-		m_Entries = a_Rhs.m_Entries;
-
-		a_Rhs.m_Size = 0;
-		a_Rhs.m_Capacity = 0;
-		a_Rhs.m_LoadCapacity = 0;
-		a_Rhs.m_Entries = nullptr;
-		a_Rhs.m_Allocator.allocator = nullptr;
-		a_Rhs.m_Allocator.func = nullptr;
-
-		return *this;
-	}
-
-	template<typename Key, typename Value>
-	inline void UM_HashMap<Key, Value>::insert(Key& a_Key, Value& a_Res)
-	{
-		emplace(a_Key, a_Res);
-	}
-
-	template<typename Key, typename Value>
-	template <class... Args>
-	inline void UM_HashMap<Key, Value>::emplace(Key& a_Key, Args&&... a_ValueArgs)
-	{
-		if (m_Size > m_LoadCapacity)
-			grow();
-
-		const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
-
-		HashEntry* t_Entry = &m_Entries[t_Hash.hash];
-		if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
-		{
-			t_Entry->key = a_Key;
-			new (&t_Entry->value) Value(std::forward<Args>(a_ValueArgs)...);
-			t_Entry->next_Entry = nullptr;
-			return;
-		}
-		//Collision accurred, no problem we just create a linked list and make a new element.
-		//Bad for cache memory though.
-		while (t_Entry)
-		{
-			if (t_Entry->next_Entry == nullptr)
-			{
-				HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry);
-				t_NewEntry->key = a_Key;
-				new (&t_NewEntry->value) Value(std::forward<Args>(a_ValueArgs)...);
-				t_NewEntry->next_Entry = nullptr;
-				t_Entry->next_Entry = t_NewEntry;
-				return;
-			}
-			t_Entry = t_Entry->next_Entry;
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline Value* UM_HashMap<Key, Value>::find(const Key& a_Key) const
-	{
-		const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
-
-		HashEntry* t_Entry = &m_Entries[t_Hash];
-
-		if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
-			return nullptr;
-
-		while (t_Entry)
-		{
-			if (Match(t_Entry, a_Key))
-			{
-				return &t_Entry->value;
-			}
-			t_Entry = t_Entry->next_Entry;
-		}
-		return nullptr;
-	}
-
-	template<typename Key, typename Value>
-	inline void UM_HashMap<Key, Value>::erase(const Key& a_Key)
-	{
-		const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;;
-
-		HashEntry* t_Entry = &m_Entries[t_Hash];
-		if (Match(t_Entry, a_Key))
-		{
-			t_Entry->~HashEntry();
-
-			if (t_Entry->next_Entry != nullptr)
-			{
-				HashEntry* t_NextEntry = t_Entry->next_Entry;
-				*t_Entry = *t_Entry->next_Entry;
-				BBfree(m_Allocator, t_NextEntry);
-				return;
-			}
-
-			t_Entry->state = Hashmap_Specs::UM_EMPTYNODE;
-			return;
-		}
-
-		HashEntry* t_PreviousEntry = nullptr;
-
-		while (t_Entry)
-		{
-			if (Match(t_Entry, a_Key))
-			{
-				t_PreviousEntry = t_Entry->next_Entry;
-				BBfree(m_Allocator, t_Entry);
-				return;
-			}
-			t_PreviousEntry = t_Entry;
-			t_Entry = t_Entry->next_Entry;
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline void UM_HashMap<Key, Value>::clear()
-	{
-		//go through all the entries and individually delete the extra values from the linked list.
-		//They need to be deleted seperatly since the memory is somewhere else.
-		for (size_t i = 0; i < m_Capacity; i++)
-		{
-			if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
-			{
-				HashEntry* t_NextEntry = m_Entries[i].next_Entry;
-				while (t_NextEntry != nullptr)
-				{
-					HashEntry* t_DeleteEntry = t_NextEntry;
-					t_NextEntry = t_NextEntry->next_Entry;
-					t_DeleteEntry->~HashEntry();
-
-					BBfree(m_Allocator, t_DeleteEntry);
-				}
-				m_Entries[i].state = Hashmap_Specs::UM_EMPTYNODE;
-			}
-		}
-		for (size_t i = 0; i < m_Capacity; i++)
-			if (m_Entries[i].state == Hashmap_Specs::UM_EMPTYNODE)
-				m_Entries[i].~HashEntry();
-
-		m_Size = 0;
-	}
-
-	template<typename Key, typename Value>
-	inline void UM_HashMap<Key, Value>::reserve(const size_t a_Size)
-	{
-		if (a_Size > m_Capacity)
-		{
-			size_t t_ModifiedCapacity = Math::RoundUp(a_Size, Hashmap_Specs::multipleValue);
-
-			reallocate(t_ModifiedCapacity);
-		}
-	}
-
-	template<typename Key, typename Value>
-	inline typename UM_HashMap<Key, Value>::Iterator UM_HashMap<Key, Value>::begin() const
-	{
-		size_t t_FirstFilled = 0;
-		while (m_Entries[t_FirstFilled].state == Hashmap_Specs::UM_EMPTYNODE)
-		{
-			++t_FirstFilled;
-		}
-
-		return UM_HashMap<Key, Value>::Iterator(&m_Entries[t_FirstFilled]);
-	}
-
-	template<typename Key, typename Value>
-	inline typename UM_HashMap<Key, Value>::Iterator UM_HashMap<Key, Value>::end() const
-	{
-		size_t t_FirstFilled = m_Capacity;
-		while (m_Entries[t_FirstFilled].state == Hashmap_Specs::UM_EMPTYNODE)
-		{
-			--t_FirstFilled;
-		}
-
-		return UM_HashMap<Key, Value>::Iterator(&m_Entries[t_FirstFilled]);
-	}
-
-	template<typename Key, typename Value>
-	inline void UM_HashMap<Key, Value>::grow(size_t a_MinCapacity)
-	{
-		BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
-
-		size_t t_ModifiedCapacity = m_Capacity * 2;
-
-		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
-
-		reallocate(t_ModifiedCapacity);
-	}
-
-	template<typename Key, typename Value>
-	inline void BB::UM_HashMap<Key, Value>::reallocate(const size_t a_NewLoadCapacity)
-	{
-		const size_t t_NewCapacity = LFCalculation(a_NewLoadCapacity, Hashmap_Specs::UM_LoadFactor);
-
-		//Allocate the new buffer.
-		HashEntry* t_NewEntries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, t_NewCapacity * sizeof(HashEntry)));
-
-		for (size_t i = 0; i < t_NewCapacity; i++)
-		{
-			new (&t_NewEntries[i]) HashEntry();
-		}
-
-		for (size_t i = 0; i < m_Capacity; i++)
-		{
-			if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
-			{
-				const Hash t_Hash = Hash::MakeHash(m_Entries[i].key) % t_NewCapacity;
-
-				HashEntry* t_Entry = &t_NewEntries[t_Hash.hash];
-				if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
-				{
-					*t_Entry = m_Entries[i];
-				}
-				//Collision accurred, no problem we just create a linked list and make a new element.
-				//Bad for cache memory though.
-				while (t_Entry)
-				{
-					if (t_Entry->next_Entry == nullptr)
-					{
-						HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry)(m_Entries[i]);
-					}
-					t_Entry = t_Entry->next_Entry;
-				}
-			}
-		}
-
-		this->~UM_HashMap();
-
-		m_Capacity = t_NewCapacity;
-		m_LoadCapacity = a_NewLoadCapacity;
-		m_Entries = t_NewEntries;
-	}
 
 #pragma endregion
 
