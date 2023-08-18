@@ -31,9 +31,35 @@ namespace BB
 			struct JsonObject* object;
 			JsonList list;
 			char* string;
-			int number;
+			float number;
 			bool boolean;
 		};
+
+		inline struct JsonObject* GetObject() const
+		{
+			BB_ASSERT(type == JSON_TYPE::OBJECT, "json type not an object");
+			return object;
+		}
+		inline JsonList GetList() const
+		{
+			BB_ASSERT(type == JSON_TYPE::LIST, "json type not an object");
+			return list;
+		}
+		inline char* GetString() const
+		{
+			BB_ASSERT(type == JSON_TYPE::STRING, "json type not an object");
+			return string;
+		}
+		inline float GetNumber() const
+		{
+			BB_ASSERT(type == JSON_TYPE::NUMBER, "json type not an object");
+			return number;
+		}
+		inline bool GetBoolean() const
+		{
+			BB_ASSERT(type == JSON_TYPE::BOOL, "json type not an object");
+			return boolean;
+		}
 	};
 
 	struct JsonObject
@@ -80,6 +106,7 @@ namespace BB
 		JsonNode* ParseBoolean(const Token& a_Token);
 		JsonNode* ParseNull();
 	private:
+		
 		//jank
 		JsonNode* PraseSingleToken(const Token& a_Token);
 		LinearAllocator_t m_Allocator;

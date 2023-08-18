@@ -2,6 +2,7 @@
 #include "OS/Program.h"
 
 #include "Utils/Utils.h"
+#include <string>
 
 using namespace BB;
 
@@ -458,9 +459,7 @@ JsonNode* JsonParser::ParseNumber(const Token& a_Token)
 	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
 	t_Node->type = JSON_TYPE::NUMBER;
 
-	t_Node->string = BBnewArr(m_Allocator, a_Token.strSize + 1, char);
-	Memory::Copy(t_Node->string, a_Token.str, a_Token.strSize);
-	t_Node->string[a_Token.strSize] = '\0';
+	t_Node->number = std::stof(a_Token.str);
 
 	return t_Node;
 }
