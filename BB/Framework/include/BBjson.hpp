@@ -74,7 +74,7 @@ namespace BB
 		JsonObject(Allocator a_Allocator, const uint32_t a_MapSize, Pair* a_PairHead)
 			: map(a_Allocator, a_MapSize), pairLL(a_PairHead)
 		{};
-		OL_HashMap<char*, JsonNode*> map;
+		OL_HashMap<char*, JsonNode*, String_KeyComp> map;
 		Pair* pairLL;
 	};
 

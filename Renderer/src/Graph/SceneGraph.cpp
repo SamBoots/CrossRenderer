@@ -7,6 +7,7 @@
 #include "RenderFrontend.h"
 
 #include "LightSystem.h"
+#include "BBjson.hpp"
 
 using namespace BB;
 
@@ -95,6 +96,61 @@ struct BB::SceneGraph_inst
 };
 
 SceneGraph::SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo)
+{
+	Init(a_Allocator, a_CreateInfo);
+}
+
+SceneGraph::SceneGraph(Allocator a_Allocator, Allocator a_TemporaryAllocator, const char* a_JsonPath)
+{
+	JsonParser t_SceneJson(a_JsonPath);
+	t_SceneJson.Parse();
+	const JsonObject& t_Head = *t_SceneJson.GetRootNode()->GetObject();
+	//Jank, find new way to do hashmap finding that does not return a pointer.
+	JsonNode* t_JsonNode = *t_Head.map.find("scene");
+	const JsonObject& t_SceneObj = *t_JsonNode->GetObject();
+
+	SceneCreateInfo t_SceneCreateInfo;
+	{
+		t_JsonNode = *t_SceneObj.map.find("scene_name");
+		t_SceneCreateInfo.sceneName = "Fake scene name";
+
+		t_JsonNode = *t_SceneObj.map.find("scene_lights");
+		const JsonList& t_LightsList = t_JsonNode->GetList();
+		//
+		Light* t_Lights = BBnewArr(a_TemporaryAllocator, t_LightsList.nodeCount, Light);
+		for (size_t i = 0; i < t_LightsList.nodeCount; i++)
+		{
+			const JsonObject& t_LightObject = *t_LightsList.nodes[i]->GetObject();
+			//Jank, find new way to do hashmap finding that does not return a pointer.
+			{
+				const JsonNode* t_Radius = *t_LightObject.map.find("radius");
+				t_Lights->radius = t_Radius->GetNumber();
+			}
+			{
+				const JsonNode* t_PosList = *t_LightObject.map.find("position");
+				t_Lights->pos.x = t_PosList->GetList().nodes[0]->GetNumber();
+				t_Lights->pos.y = t_PosList->GetList().nodes[1]->GetNumber();
+				t_Lights->pos.z = t_PosList->GetList().nodes[2]->GetNumber();
+			}
+			{
+				const JsonNode* t_ColorList = *t_LightObject.map.find("color");
+				t_Lights->color.x = t_ColorList->GetList().nodes[0]->GetNumber();
+				t_Lights->color.y = t_ColorList->GetList().nodes[1]->GetNumber();
+				t_Lights->color.z = t_ColorList->GetList().nodes[2]->GetNumber();
+				t_Lights->color.w = t_ColorList->GetList().nodes[3]->GetNumber();
+			}
+		}
+
+		t_SceneCreateInfo.lights = BB::Slice(t_Lights, t_LightsList.nodeCount);
+	}
+	const Render_IO t_RIO = Render::GetIO();
+	t_SceneCreateInfo.sceneWindowWidth = t_RIO.swapchainWidth;
+	t_SceneCreateInfo.sceneWindowHeight = t_RIO.swapchainHeight;
+
+	Init(a_Allocator, t_SceneCreateInfo);
+}
+
+void SceneGraph::Init(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo)
 {
 	const uint32_t t_BackBufferAmount = RenderBackend::GetFrameBufferAmount();
 	const size_t t_GPUBufferSize = (mbSize * 32);

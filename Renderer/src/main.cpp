@@ -90,17 +90,10 @@ int main(int argc, char** argv)
 	Render::InitRenderer(t_RenderInfo);
 
 	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
-	Light t_StandardLight{};
-	t_StandardLight.color = { 255, 255, 255, 0.f };
-	t_StandardLight.pos = { 0.f, 0.f, 0.f };
-	t_StandardLight.radius = 10.f;
 	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
+	TemporaryAllocator t_TempAllocator{ t_SceneAllocator };
 	SceneCreateInfo t_SceneCreateInfo;
-	t_SceneCreateInfo.sceneName = "test 3d scene";
-	t_SceneCreateInfo.lights = BB::Slice(&t_StandardLight, 1);
-	t_SceneCreateInfo.sceneWindowWidth = t_WindowWidth;
-	t_SceneCreateInfo.sceneWindowHeight = t_WindowHeight;
-	SceneGraph t_Scene{ t_SceneAllocator, t_SceneCreateInfo };
+	SceneGraph t_Scene{ t_SceneAllocator,t_TempAllocator, "Resources/Json/test_scene.json" };
 
 	glm::mat4 t_Proj = glm::perspective(glm::radians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
@@ -170,8 +163,6 @@ int main(int argc, char** argv)
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
 	bool t_FreezeCam = false;
-
-
 
 	while (!t_Quit)
 	{

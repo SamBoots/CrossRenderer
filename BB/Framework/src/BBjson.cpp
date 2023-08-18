@@ -70,7 +70,7 @@ Token GetToken(JsonFile& a_JsonFile)
 	{
 		//get string length which are numbers
 		size_t t_StrLen = 1;
-		char t_Num = a_JsonFile.fileData.data[a_JsonFile.pos + t_StrLen++];
+		char t_Num = a_JsonFile.fileData.data[a_JsonFile.pos + t_StrLen];
 		while (t_Num == '-' || (t_Num >= '0' && t_Num <= '9') || t_Num == '.')
 			t_Num = a_JsonFile.fileData.data[a_JsonFile.pos + t_StrLen++];
 
@@ -78,7 +78,7 @@ Token GetToken(JsonFile& a_JsonFile)
 		t_Token.strSize = t_StrLen;
 		t_Token.str = &a_JsonFile.fileData.data[a_JsonFile.pos - 1];
 
-		a_JsonFile.pos += t_StrLen + 1; //includes the last "
+		a_JsonFile.pos += t_StrLen - 1; //includes the last
 	}
 	else if (t_C == 'f') {
 		t_Token.type = TOKEN_TYPE::BOOLEAN;
@@ -312,6 +312,7 @@ JsonNode* JsonParser::ParseObject()
 
 		t_NextToken = GetToken(m_JsonFile);
 
+		++t_PairCount;
 		if (t_NextToken.type == TOKEN_TYPE::CURLY_CLOSE)
 			t_ContinueLoop = false;
 		else
@@ -349,6 +350,7 @@ JsonNode* JsonParser::ParseList()
 		{
 			uint32_t t_ObjectStack = 1;
 			bool t_LocalLoop = true;
+			t_NextToken = GetToken(m_JsonFile);
 			while (t_LocalLoop)
 			{
 				if (t_NextToken.type == TOKEN_TYPE::CURLY_OPEN)
@@ -357,10 +359,11 @@ JsonNode* JsonParser::ParseList()
 				}
 				else if (t_NextToken.type == TOKEN_TYPE::CURLY_CLOSE)
 				{
-					if (t_ObjectStack-- == 0)
+					if (--t_ObjectStack == 0)
 						t_LocalLoop = false;
 				}
-				t_NextToken = GetToken(m_JsonFile);
+				else
+					t_NextToken = GetToken(m_JsonFile);
 			}
 			++t_ListSize;
 		}
@@ -368,6 +371,7 @@ JsonNode* JsonParser::ParseList()
 		case TOKEN_TYPE::ARRAY_OPEN:
 		{
 			uint32_t t_ArrayStack = 1;
+			t_NextToken = GetToken(m_JsonFile);
 			bool t_LocalLoop = true;
 			while (t_LocalLoop)
 			{
@@ -377,10 +381,11 @@ JsonNode* JsonParser::ParseList()
 				}
 				else if (t_NextToken.type == TOKEN_TYPE::ARRAY_CLOSE)
 				{
-					if (t_ArrayStack-- == 0)
+					if (--t_ArrayStack == 0)
 						t_LocalLoop = false;
 				}
-				t_NextToken = GetToken(m_JsonFile);
+				else
+					t_NextToken = GetToken(m_JsonFile);
 			}
 			++t_ListSize;
 		}

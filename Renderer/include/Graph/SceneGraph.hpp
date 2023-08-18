@@ -33,6 +33,7 @@ namespace BB
 	{
 	public:
 		SceneGraph(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo);
+		SceneGraph(Allocator a_Allocator, Allocator a_TemporaryAllocator, const char* a_JsonPath);
 		~SceneGraph();
 
 		operator FrameGraphRenderPass();
@@ -63,6 +64,7 @@ namespace BB
 		const PipelineHandle GetPipelineHandle() const;
 
 	private:
+		void Init(Allocator a_Allocator, const SceneCreateInfo& a_CreateInfo);
 		struct SceneGraph_inst* inst;
 	};
 }

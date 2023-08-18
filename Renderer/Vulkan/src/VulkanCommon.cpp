@@ -2558,13 +2558,13 @@ void BB::VulkanDestroyPipeline(const PipelineHandle a_Handle)
 
 void BB::VulkanDestroyBackend()
 {
-	for (auto t_It = s_VKB.pipelineLayouts.begin();
-		t_It < s_VKB.pipelineLayouts.end(); t_It++)
-	{
-		vkDestroyPipelineLayout(s_VKB.device,
-			*t_It->value,
-			nullptr);
-	}
+	//for (auto t_It = s_VKB.pipelineLayouts.begin();
+	//	t_It < s_VKB.pipelineLayouts.end(); t_It++)
+	//{
+	//	vkDestroyPipelineLayout(s_VKB.device,
+	//		*t_It->value,
+	//		nullptr);
+	//}
 	s_VKB.pipelineLayouts.clear();
 
 	for (size_t i = 0; i < s_VKB.frameCount; i++)

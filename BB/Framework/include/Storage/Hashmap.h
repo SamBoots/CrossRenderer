@@ -24,10 +24,18 @@ namespace BB
 		return static_cast<size_t>(static_cast<float>(a_Size) * (1.f / a_LoadFactor + 1.f));
 	}
 
+	struct String_KeyComp
+	{
+		bool operator()(const char* a_A, const char* a_B) const
+		{
+			return strcmp(a_A, a_B) == 0;
+		}
+	};
+
 	template<typename Key>
 	struct Standard_KeyComp
 	{
-		bool operator()(const Key& a_A, const Key& a_B) const
+		inline bool operator()(const Key a_A, const Key a_B) const
 		{
 			return a_A == a_B;
 		}
