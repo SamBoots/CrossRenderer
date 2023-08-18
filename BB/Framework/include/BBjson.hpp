@@ -23,7 +23,7 @@ namespace BB
 		struct JsonNode** nodes;
 	};
 
-	struct JsonNode //24 bytes
+	struct JsonNode //16 bytes
 	{
 		JSON_TYPE type = JSON_TYPE::NULL_TYPE; //4 bytes
 		union //biggest type JsonList 12 bytes
