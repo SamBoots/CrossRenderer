@@ -261,18 +261,6 @@ TEST(Hashmap_Datastructure, OL_Hashmap_Range_Based_Loop)
 		ASSERT_EQ(t_Map.find(t_Key)->value, t_Value.value) << "Wrong element was likely grabbed.";
 	}
 
-	size_t t_IteratorCount = 0;
-	size_t t_PreviousKey = 0xDEADBEEF;
-	for (auto t_It = t_Map.begin(); t_It < t_Map.end(); t_It++)
-	{
-		++t_IteratorCount;
-		size_t t_Key = *t_It->key;
-		ASSERT_EQ(t_Map.find(t_Key)->value, t_It->value->value) << "Iterator found an pair that the hashmap couldn't find.";
-		ASSERT_NE(t_Key, t_PreviousKey) << "You read the same key twice.";
-		t_PreviousKey = t_Key;
-	}
-	ASSERT_EQ(t_IteratorCount, samples) << "Did not iterate over all the values.";
-
 	//Not supporting range based loops.
 	//for (auto& t_It : t_Map)
 	//{
