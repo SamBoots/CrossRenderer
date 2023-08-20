@@ -238,9 +238,9 @@ namespace BB
 	static inline Mat4x4 Mat4x4FromTranslation(const float3 translation)
 	{
 		Mat4x4 result = Mat4x4Identity();
-		result.e[0][3] = translation.x;
-		result.e[1][3] = translation.y;
-		result.e[2][3] = translation.z;
+		result.e[3][0] = translation.x;
+		result.e[3][1] = translation.y;
+		result.e[3][2] = translation.z;
 		return result;
 	}
 
@@ -248,13 +248,13 @@ namespace BB
 	{
 		Mat4x4 mat;
 
-		mat.e[0][3] = 0.0f;
-		mat.e[1][3] = 0.0f;
-		mat.e[2][3] = 0.0f;
-
 		mat.e[3][0] = 0.0f;
 		mat.e[3][1] = 0.0f;
 		mat.e[3][2] = 0.0f;
+
+		mat.e[0][3] = 0.0f;
+		mat.e[1][3] = 0.0f;
+		mat.e[2][3] = 0.0f;
 		mat.e[3][3] = 1.0f;
 
 		const float qx = 2.0f * q.x * q.x;
@@ -271,25 +271,26 @@ namespace BB
 		mat.e[1][1] = 1.0f - qx - qz;
 		mat.e[2][2] = 1.0f - qx - qy;
 
-		mat.e[1][0] = qxqy + qzqw;
-		mat.e[2][0] = qxqz - qyqw;
+		mat.e[0][1] = qxqy + qzqw;
+		mat.e[0][2] = qxqz - qyqw;
 
-		mat.e[0][1] = qxqy - qzqw;
-		mat.e[2][1] = qyqz + qxqw;
+		mat.e[1][0] = qxqy - qzqw;
+		mat.e[1][2] = qyqz + qxqw;
 
-		mat.e[0][2] = qxqz + qyqw;
-		mat.e[1][2] = qyqz - qxqw;
+		mat.e[2][0] = qxqz + qyqw;
+		mat.e[2][1] = qyqz - qxqw;
 
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4FromScale(const float3 scale)
+	static inline Mat4x4 Mat4x4Scale(const Mat4x4 m, const float3 s)
 	{
-		return Mat4x4FromFloats(
-			scale.x, 0, 0, 0,
-			0, scale.y, 0, 0,
-			0, 0, scale.z, 0,
-			0, 0, 0, 1);
+		Mat4x4 mat;
+		mat.r0 = m.r0 * s.x;
+		mat.r1 = m.r1 * s.y;
+		mat.r2 = m.r2 * s.z;
+		mat.r3 = m.r3;
+		return mat;
 	}
 
 	//static inline Mat4x4 Mat4x4Perspective(const float fov, const float aspect, float near, float far)

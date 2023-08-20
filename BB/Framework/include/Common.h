@@ -52,66 +52,103 @@ namespace BB
 	};
 
 
-	struct float2
+	union float2
 	{
-		float x;
-		float y;
+		float e[2];
+		struct
+		{
+			float x;
+			float y;
+		};
 	};
 
-	struct float3
+	union float3
 	{
-		float x;
-		float y;
-		float z;
-	};
-	struct float4
-	{
-		float x;
-		float y;
-		float z;
-		float w;
+		float e[3];
+		struct
+		{
+			float x;
+			float y;
+			float z;
+		};
 	};
 
-	struct int2
+	union float4
 	{
-		int x;
-		int y;
+		float e[4];
+		struct
+		{
+			float x;
+			float y;
+			float z;
+			float w;
+		};
 	};
 
-	struct int3
+	union int2
 	{
-		int x;
-		int y;
-		int z;
+		int e[2];
+		struct
+		{
+			int x;
+			int y;
+		};
 	};
 
-	struct int4
+	union int3
 	{
-		int x;
-		int y;
-		int z;
-		int w;
+		int e[3];
+		struct
+		{
+			int x;
+			int y;
+			int z;
+		};
 	};
 
-	struct uint2
+	union int4
 	{
-		uint32_t x;
-		uint32_t y;
+		int e[4];
+		struct
+		{
+			int x;
+			int y;
+			int z;
+			int w;
+		};
 	};
 
-	struct uint3
+	union uint2
 	{
-		uint32_t x;
-		uint32_t y;
-		uint32_t z;
+		uint32_t e[2];
+		struct
+		{
+			uint32_t x;
+			uint32_t y;
+		};
 	};
 
-	struct uint4
+	union uint3
 	{
-		uint32_t x;
-		uint32_t y;
-		uint32_t z;
-		uint32_t w;
+		uint32_t e[3];
+		struct
+		{
+			uint32_t x;
+			uint32_t y;
+			uint32_t z;
+		};
+	};
+
+	union uint4
+	{
+		uint32_t e[4];
+		struct
+		{
+			uint32_t x;
+			uint32_t y;
+			uint32_t z;
+			uint32_t w;
+		};
 	};
 
 	union Quat
