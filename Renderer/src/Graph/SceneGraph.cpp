@@ -547,7 +547,7 @@ void SceneGraph::SetView(const glm::mat4& a_View)
 	inst->sceneInfo.view = a_View;
 }
 
-SceneObjectHandle SceneGraph::CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const glm::vec3 a_Position, const glm::vec3 a_Axis, const float a_Radians, const glm::vec3 a_Scale)
+SceneObjectHandle SceneGraph::CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
 {
 	SceneObject t_DrawObject{ a_CreateInfo.name, a_CreateInfo.model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale), a_CreateInfo.texture };
 	return SceneObjectHandle(inst->sceneObjects.emplace(t_DrawObject).handle);

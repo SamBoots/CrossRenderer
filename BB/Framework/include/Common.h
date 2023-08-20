@@ -54,63 +54,88 @@ namespace BB
 
 	struct float2
 	{
-		float x = 0;
-		float y = 0;
+		float x;
+		float y;
 	};
 
 	struct float3
 	{
-		float x = 0;
-		float y = 0;
-		float z = 0;
+		float x;
+		float y;
+		float z;
 	};
 	struct float4
 	{
-		float x = 0;
-		float y = 0;
-		float z = 0;
-		float w = 0;
+		float x;
+		float y;
+		float z;
+		float w;
 	};
 
 	struct int2
 	{
-		int x = 0;
-		int y = 0;
+		int x;
+		int y;
 	};
 
 	struct int3
 	{
-		int x = 0;
-		int y = 0;
-		int z = 0;
+		int x;
+		int y;
+		int z;
 	};
 
 	struct int4
 	{
-		int x = 0;
-		int y = 0;
-		int z = 0;
-		int w = 0;
+		int x;
+		int y;
+		int z;
+		int w;
 	};
 
 	struct uint2
 	{
-		uint32_t x = 0;
-		uint32_t y = 0;
+		uint32_t x;
+		uint32_t y;
 	};
 
 	struct uint3
 	{
-		uint32_t x = 0;
-		uint32_t y = 0;
-		uint32_t z = 0;
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
 	};
 
 	struct uint4
 	{
-		uint32_t x = 0;
-		uint32_t y = 0;
-		uint32_t z = 0;
-		uint32_t w = 0;
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+		uint32_t w;
+	};
+
+	union Quat
+	{
+		struct
+		{
+			float x;
+			float y;
+			float z;
+			float w;
+		};
+		float3 xyz;
+		float4 xyzw;
+	};
+
+	union Mat4x4
+	{
+		float e[4][4];
+		struct
+		{
+			float4 r0;
+			float4 r1;
+			float4 r2;
+			float4 r3;
+		};
 	};
 }

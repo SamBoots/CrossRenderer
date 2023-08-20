@@ -48,9 +48,9 @@ void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 					if (ImGui::CollapsingHeader("Transform"))
 					{
 						ImGui::Indent();
-						ImGui::InputFloat3("Position", glm::value_ptr(t_Trans.m_Pos));
-						ImGui::InputFloat3("Rotation quat", glm::value_ptr(t_Trans.m_Rot));
-						ImGui::InputFloat3("Scale", glm::value_ptr(t_Trans.m_Scale));
+						ImGui::InputFloat3("Position", &t_Trans.m_Pos.x);
+						ImGui::InputFloat3("Rotation quat", &t_Trans.m_Rot.x);
+						ImGui::InputFloat3("Scale", &t_Trans.m_Scale.x);
 						ImGui::Unindent();
 					}
 					if (ImGui::CollapsingHeader("ModelInfo"))

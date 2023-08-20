@@ -45,7 +45,7 @@ namespace BB
 		void SetProjection(const glm::mat4& a_Proj);
 		void SetView(const glm::mat4& a_View);
 
-		SceneObjectHandle CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const glm::vec3 a_Position = glm::vec3(0), const glm::vec3 a_Axis = glm::vec3(0), const float a_Radians = 0, const glm::vec3 a_Scale = glm::vec3(1));
+		SceneObjectHandle CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const float3 a_Position = float3{ 0,0,0 }, const float3 a_Axis = float3{ 0,0,0 }, const float a_Radians = 0, const float3 a_Scale = float3{ 1,1,1 });
 		void DestroySceneObject(const SceneObjectHandle a_Handle);
 
 		Transform& GetTransform(const SceneObjectHandle a_Handle) const;

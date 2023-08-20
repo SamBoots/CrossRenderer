@@ -147,14 +147,14 @@ int main(int argc, char** argv)
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
 	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
-	SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
-		glm::vec3(0, -1, 1), glm::vec3(0, 0, 1), 90.f, glm::vec3(0.01f));
-	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
+	//SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
+		//float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.01f, 0.01f, 0.01f });
+	//Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
 	t_SceneObjectCreateInfo.model = t_Model;
 	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
-	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, glm::vec3(0, 1, 0));
+	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, float3{ 0, 1, 0 });
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
@@ -230,8 +230,8 @@ int main(int argc, char** argv)
 
 		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		t_Transform1.SetRotation(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(-90.0f * t_DeltaTime));
-		t_Transform2.SetRotation(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(20.0f * t_DeltaTime));
+		//t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, glm::radians(-90.0f * t_DeltaTime));
+		t_Transform2.SetRotation(float3{ 0.0f, 0.0f, 1.0f }, glm::radians(20.0f * t_DeltaTime));
 
 		t_FrameGraph.Render();
 		t_FrameGraph.EndRendering();
