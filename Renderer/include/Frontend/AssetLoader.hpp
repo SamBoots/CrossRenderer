@@ -30,7 +30,9 @@ namespace BB
 
 	namespace Asset
 	{
-		AssetHandle LoadAsset(void* a_AssetJobInfo);
+		char* FindOrCreateString(const char* a_string);
+
+		const AssetHandle LoadAsset(void* a_AssetJobInfo);
 
 		const RImageHandle GetImage(const AssetHandle a_Asset);
 		const RImageHandle GetImageWait(const char* a_Path);

@@ -2,7 +2,6 @@
 #include "RenderFrontend.h"
 #include "Storage/BBString.h"
 
-
 #pragma warning(push, 0)
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -37,8 +36,10 @@ struct AssetSlot
 
 struct AssetManager
 {
-	FreelistAllocator_t assetAllocator{ mbSize * 64, "asset manager allocator" };
-	OL_HashMap<uint64_t, AssetSlot> assetMap{ assetAllocator, 64 };
+	FreelistAllocator_t allocator{ mbSize * 64, "asset manager allocator" };
+	OL_HashMap<uint64_t, AssetSlot> assetMap{ allocator, 64 };
+
+	OL_HashMap<uint64_t, char*> stringMap{ allocator, 128 };
 };
 static AssetManager s_AssetManager{};
 
@@ -156,7 +157,22 @@ static RImageHandle LoadImage(const char* a_Path)
 	return t_Image;
 }
 
-AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
+char* Asset::FindOrCreateString(const char* a_string)
+{
+	const uint64_t t_StringHash = StringHash(a_string);
+	char** t_StringPtr = s_AssetManager.stringMap.find(t_StringHash);
+	if (t_StringPtr != nullptr)
+		return *t_StringPtr;
+
+	const uint32_t t_StringSize = strlen(a_string) + 1;
+	char* t_String = BBnewArr(s_AssetManager.allocator, t_StringSize, char);
+	memcpy(t_String, a_string, t_StringSize);
+	t_String[t_StringSize] = '\0';
+	s_AssetManager.stringMap.emplace(t_StringHash, t_String);
+	return t_String;
+}
+
+const AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
 {
 	const AssetDiskJobInfo* a_JobInfo = reinterpret_cast<const AssetDiskJobInfo*>(a_AssetDiskJobInfo);
 

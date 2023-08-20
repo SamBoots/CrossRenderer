@@ -5,6 +5,7 @@
 
 #include "RenderBackend.h"
 #include "RenderFrontend.h"
+#include "AssetLoader.hpp"
 
 #include "LightSystem.h"
 #include "BBjson.hpp"
@@ -112,7 +113,7 @@ SceneGraph::SceneGraph(Allocator a_Allocator, Allocator a_TemporaryAllocator, co
 	SceneCreateInfo t_SceneCreateInfo;
 	{
 		t_JsonNode = *t_SceneObj.map.find("scene_name");
-		t_SceneCreateInfo.sceneName = "Fake scene name";
+		t_SceneCreateInfo.sceneName = Asset::FindOrCreateString(t_JsonNode->GetString());
 
 		t_JsonNode = *t_SceneObj.map.find("scene_lights");
 		const JsonList& t_LightsList = t_JsonNode->GetList();

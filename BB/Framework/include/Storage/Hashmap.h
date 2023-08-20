@@ -195,12 +195,12 @@ namespace BB
 			return *this;
 		}
 
-		void insert(Key& a_Key, Value& a_Res)
+		void insert(const Key& a_Key, Value& a_Res)
 		{
 			emplace(a_Key, a_Res);
 		}
 		template <class... Args>
-		void emplace(Key& a_Key, Args&&... a_ValueArgs)
+		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
 		{
 			if (m_Size > m_LoadCapacity)
 				grow();
@@ -555,12 +555,12 @@ namespace BB
 			return *this;
 		}
 
-		void insert(Key& a_Key, Value& a_Res)
+		void insert(const Key& a_Key, Value& a_Res)
 		{
 			emplace(a_Key, a_Res);
 		}
 		template <class... Args>
-		void emplace(Key& a_Key, Args&&... a_ValueArgs)
+		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
 		{
 			if (m_Size > m_LoadCapacity)
 				grow();
