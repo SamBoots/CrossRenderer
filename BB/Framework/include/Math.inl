@@ -209,20 +209,12 @@ namespace BB
 
 	static inline Mat4x4 operator*(const Mat4x4 a_Lhs, const Mat4x4 a_Rhs)
 	{
-		Mat4x4 result = { 0 };
-
-		for (int col = 0; col < 4; col++)
-		{
-			for (int row = 0; row < 4; row++)
-			{
-				for (int e = 0; e < 4; e++)
-				{
-					result.e[col][row] += a_Lhs.e[col][e] * a_Rhs.e[e][row];
-				}
-			}
-		}
-
-		return result;
+		Mat4x4 mat;
+		mat.r0 = a_Lhs.r0 * a_Rhs.r0.x + a_Lhs.r1 * a_Rhs.r0.y + a_Lhs.r2 * a_Rhs.r0.z + a_Lhs.r3 * a_Rhs.r0.w;
+		mat.r1 = a_Lhs.r0 * a_Rhs.r1.x + a_Lhs.r1 * a_Rhs.r1.y + a_Lhs.r2 * a_Rhs.r1.z + a_Lhs.r3 * a_Rhs.r1.w;
+		mat.r2 = a_Lhs.r0 * a_Rhs.r2.x + a_Lhs.r1 * a_Rhs.r2.y + a_Lhs.r2 * a_Rhs.r2.z + a_Lhs.r3 * a_Rhs.r2.w;
+		mat.r3 = a_Lhs.r0 * a_Rhs.r3.x + a_Lhs.r1 * a_Rhs.r3.y + a_Lhs.r2 * a_Rhs.r3.z + a_Lhs.r3 * a_Rhs.r3.w;
+		return mat;
 	}
 
 	static inline Mat4x4 Mat4x4Identity()
@@ -246,41 +238,31 @@ namespace BB
 
 	static inline Mat4x4 Mat4x4FromQuat(const Quat q)
 	{
-		Mat4x4 mat;
+		Mat4x4 rotMat = Mat4x4Identity();
+		const float qxx = q.x * q.x;
+		const float qyy = q.y * q.y;
+		const float qzz = q.z * q.z;
 
-		mat.e[3][0] = 0.0f;
-		mat.e[3][1] = 0.0f;
-		mat.e[3][2] = 0.0f;
+		const float qxz = q.x * q.z;
+		const float qxy = q.x * q.y;
+		const float qyz = q.y * q.z;
 
-		mat.e[0][3] = 0.0f;
-		mat.e[1][3] = 0.0f;
-		mat.e[2][3] = 0.0f;
-		mat.e[3][3] = 1.0f;
+		const float qwx = q.w * q.x;
+		const float qwy = q.w * q.y;
+		const float qwz = q.w * q.z;
 
-		const float qx = 2.0f * q.x * q.x;
-		const float qy = 2.0f * q.y * q.y;
-		const float qz = 2.0f * q.z * q.z;
-		const float qxqy = 2.0f * q.x * q.y;
-		const float qxqz = 2.0f * q.x * q.z;
-		const float qxqw = 2.0f * q.x * q.w;
-		const float qyqz = 2.0f * q.y * q.z;
-		const float qyqw = 2.0f * q.y * q.w;
-		const float qzqw = 2.0f * q.z * q.w;
+		rotMat.e[0][0] = 1.f - 2.f * (qyy + qzz);
+		rotMat.e[0][1] = 2.f * (qxy + qwz);
+		rotMat.e[0][2] = 2.f * (qxz - qwy);
 
-		mat.e[0][0] = 1.0f - qy - qz;
-		mat.e[1][1] = 1.0f - qx - qz;
-		mat.e[2][2] = 1.0f - qx - qy;
+		rotMat.e[1][0] = 2.f * (qxy - qwz);
+		rotMat.e[1][1] = 1.f - 2.f * (qxx + qzz);
+		rotMat.e[1][2] = 2.f * (qyz + qwx);
 
-		mat.e[0][1] = qxqy + qzqw;
-		mat.e[0][2] = qxqz - qyqw;
-
-		mat.e[1][0] = qxqy - qzqw;
-		mat.e[1][2] = qyqz + qxqw;
-
-		mat.e[2][0] = qxqz + qyqw;
-		mat.e[2][1] = qyqz - qxqw;
-
-		return mat;
+		rotMat.e[2][0] = 2.f * (qxz + qwy);
+		rotMat.e[2][1] = 2.f * (qyz - qwx);
+		rotMat.e[2][2] = 1.f - 2.f * (qxx + qyy);
+		return rotMat;
 	}
 
 	static inline Mat4x4 Mat4x4Scale(const Mat4x4 m, const float3 s)
@@ -357,14 +339,13 @@ namespace BB
 
 	static inline Quat QuatFromAxisAngle(const float3 axis, const float angle)
 	{
-		const float3 normAxis = Float3Normalize(axis);
+		//const float3 normAxis = Float3Normalize(axis);
 
 		const float s = sinf(0.5f * angle);
-		const float c = cosf(0.5f * angle);
 
 		Quat quat;
 		quat.xyz = axis * s;
-		quat.w = c;
+		quat.w = cosf(angle * 0.5f);
 		return quat;
 	}
 
