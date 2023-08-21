@@ -62,14 +62,5 @@ void Camera::SetSpeed(const float a_SpeedModifier)
 
 const Mat4x4 Camera::CalculateView()
 {
-	glm::vec3 pos = glm::vec3(m_Pos.x, m_Pos.y, m_Pos.z);
-	glm::vec3 forward = glm::vec3(m_Forward.x, m_Forward.y, m_Forward.z);
-	glm::vec3 up = glm::vec3(m_Up.x, m_Up.y, m_Up.z);
-
-	glm::mat4 t_Mat = glm::lookAt(pos, pos + forward, up);
-
-	Mat4x4 t_RetMat;
-	memcpy(&t_RetMat, &t_Mat, sizeof(Mat4x4));
-	return t_RetMat;
 	return Mat4x4Lookat(m_Pos, m_Pos + m_Forward, m_Up);
 }

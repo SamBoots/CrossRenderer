@@ -26,21 +26,4 @@ add_library(cgltf INTERFACE
 "cgltf/cgltf.h"
 )
 
-find_package(GLM)
-#Not found
-if (${GLM_FOUND})
-message(STATUS "glm found, version ${GLM_VERSION}")
-else()
-message(STATUS "glm not found, downloading it form https://github.com/g-truc/glm/releases/download/0.9.9.8/glm-0.9.9.8.zip")
-include(FetchContent)
-FetchContent_Declare(
-  glmLib
-  URL https://github.com/g-truc/glm/releases/download/0.9.9.8/glm-0.9.9.8.zip
-)
-FetchContent_MakeAvailable(glmLib)
-message(STATUS "glm downloaded, version ${GLM_VERSION}")
-endif()
-
-message(STATUS "GLM Source dir: ${glm_SOURCE_DIR}")
-
 add_subdirectory("imgui")

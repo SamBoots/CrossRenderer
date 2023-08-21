@@ -1,8 +1,6 @@
 #pragma once
 #include "../Backend/RenderBackend.h"
 #include "Transform.h"
-#include "glm/glm.hpp"
-#include "glm/gtc/quaternion.hpp"
 
 namespace BB
 {

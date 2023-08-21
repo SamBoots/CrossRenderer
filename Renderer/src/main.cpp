@@ -215,7 +215,7 @@ int main(int argc, char** argv)
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& t_Mouse = t_Event.mouseInfo;
-				const float2 t_MouseMove = (t_Event.mouseInfo.moveOffset * t_DeltaTime) * 0.01;
+				const float2 t_MouseMove = (t_Event.mouseInfo.moveOffset * t_DeltaTime) * 0.005f;
 				if (!t_FreezeCam)
 					t_Cam.Rotate(t_MouseMove.x, t_MouseMove.y);
 

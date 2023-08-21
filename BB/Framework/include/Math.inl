@@ -306,22 +306,22 @@ namespace BB
 	static inline Mat4x4 Mat4x4Lookat(const float3 eye, const float3 center, const float3 up)
 	{
 		const float3 f = Float3Normalize(center - eye);
-		const float3 s = Float3Normalize(Float3Cross(up, f));
-		const float3 u = Float3Cross(f, s);
+		const float3 s = Float3Normalize(Float3Cross(f, up));
+		const float3 u = Float3Cross(s, f);
 
-		Mat4x4 mat = {1};
+		Mat4x4 mat = Mat4x4Identity();
 		mat.e[0][0] = s.x;
 		mat.e[1][0] = s.y;
 		mat.e[2][0] = s.z;
 		mat.e[0][1] = u.x;
 		mat.e[1][1] = u.y;
 		mat.e[2][1] = u.z;
-		mat.e[0][2] = f.x;
-		mat.e[1][2] = f.y;
-		mat.e[2][2] = f.z;
+		mat.e[0][2] = -f.x;
+		mat.e[1][2] = -f.y;
+		mat.e[2][2] = -f.z;
 		mat.e[3][0] = -Float3Dot(s, eye);
 		mat.e[3][1] = -Float3Dot(u, eye);
-		mat.e[3][2] = -Float3Dot(f, eye);
+		mat.e[3][2] = Float3Dot(f, eye);
 		return mat;
 	}
 
