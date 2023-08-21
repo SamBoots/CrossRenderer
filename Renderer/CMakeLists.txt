@@ -12,6 +12,11 @@ endif()
 
 #Add source to this project's executable.
 add_executable (Renderer 
+#API specific backend
+"Vulkan/src/VulkanHelperTypes.cpp"
+"Vulkan/src/VulkanBackend.cpp"
+"Vulkan/src/VulkanCommon.cpp"
+
 #Backend
 "src/Backend/RenderBackend.cpp"
 "src/Backend/ShaderCompiler.cpp"
@@ -35,13 +40,6 @@ add_executable (Renderer
 #temporary to test
 "src/main.cpp")
 
-target_link_libraries(Renderer
-    DXCompiler
-    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
-    BBFramework 
-    stb_image
-    IMGUI)
-
 #Include library
 target_include_directories(Renderer PUBLIC
 "../BB/Framework/include"
@@ -55,11 +53,33 @@ target_include_directories(Renderer PUBLIC
 ${glm_SOURCE_DIR}
 )
 
-add_subdirectory("Vulkan")
-#add_subdirectory("DirectX12")
+find_package(Vulkan REQUIRED)
+if (NOT Vulkan_FOUND)
+message(FATAL_ERROR "Vulkan not found")
+else()
+message(STATUS "Vulkan found")
+message(STATUS ${Vulkan_INCLUDE_DIRS})
+endif()
 
-add_dependencies(Renderer BB_VulkanDLL)
-#add_dependencies(Renderer BB_DirectXDLL)
+target_link_libraries(Renderer
+    DXCompiler
+    "${CMAKE_SOURCE_DIR}/Libs/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib"
+    BBFramework 
+    stb_image
+    IMGUI
+    Vulkan::Vulkan
+    VMA
+    #BB_DirectX
+)
+
+#compile Definitions.
+if (WIN32)
+set(PLATFORM_NAME "_WIN")
+target_compile_definitions(Renderer PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+elseif(UNIX)
+set(PLATFORM_NAME "_LINUX")
+target_compile_definitions(Renderer PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+endif ()
 
 #Executable-Object
 set_target_properties (Renderer PROPERTIES

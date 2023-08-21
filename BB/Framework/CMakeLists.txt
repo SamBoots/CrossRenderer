@@ -11,35 +11,8 @@ set(PLATFORM_NAME "_LINUX")
 include_directories(/usr/include/X11)
 endif ()
 
-# Export all Symbols by default (on Windows creates '.lib'+ '.dll').
-set ( CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON )
-
-set (BB_Public
-"include/Allocators/BackingAllocator.h" 
-"include/Allocators/Allocators.h" 
-"include/Allocators/TemporaryAllocator.h"
-"include/Allocators/RingAllocator.h"
-"include/Storage/Array.h" 
-"include/Storage/Pool.h" 
-"include/Storage/GrowPool.h"
-"include/Storage/Hashmap.h"
-"include/Storage/Slotmap.h"
-"include/Storage/BBString.h"
-"include/Utils/Utils.h"
-"include/Utils/Hash.h"
-"include/Utils/Slice.h"
-"include/Utils/Logger.h"
-"include/OS/Program.h" 
-"include/OS/HID.h"
-"include/OS/HID.inl"
-"include/BBjson.hpp"
-"include/BBThreadScheduler.hpp"
-"include/Common.h"
-"include/BBMemory.h"
-"include/BBMain.h"
-)
-
-set (BB_Source
+#Add source to this project's executable.
+add_library (BBFramework STATIC
 "src/Allocators/Allocators.cpp" 
 "src/Allocators/BackingAllocator.cpp" 
 "src/Allocators/TemporaryAllocator.cpp"
@@ -51,13 +24,6 @@ set (BB_Source
 "src/BBjson.cpp"
 "src/BBMain.cpp")
 
-#Add source to this project's executable.
-add_library (BBFramework SHARED ${BB_Source})
-
-set_target_properties (BBFramework PROPERTIES
-	${BB_Public}
-	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
 #Include library
 target_include_directories(BBFramework PUBLIC
 "include"
@@ -67,6 +33,3 @@ target_include_directories(BBFramework PUBLIC
 "include/Utils"
 "include/OS"
 )
-
-install(TARGETS BBFramework
-DESTINATION $<TARGET_FILE_DIR:Renderer>)

@@ -3,7 +3,7 @@
 
 using namespace BB;
 
-void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
+void BB::GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = VulkanCreateBackend;
 	a_FuncCreateInfo.createDescriptorHeap = VulkanCreateDescriptorHeap;

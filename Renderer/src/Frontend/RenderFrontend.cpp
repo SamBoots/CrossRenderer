@@ -8,6 +8,8 @@
 #include "Storage/Slotmap.h"
 #include "Storage/Array.h"
 
+#include "../Vulkan/include/VulkanBackend.h"
+
 #include "Editor.h"
 
 
@@ -394,7 +396,15 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	GetWindowSize(a_InitInfo.windowHandle, t_WindowWidth, t_WindowHeight);
 
 	RenderBackendCreateInfo t_BackendCreateInfo;
-	t_BackendCreateInfo.getApiFuncPtr = (PFN_RenderGetAPIFunctions)LibLoadFunc(a_InitInfo.renderDll, "GetRenderAPIFunctions");
+	switch (a_InitInfo.renderAPI)
+	{
+	case RENDER_API::VULKAN:
+		t_BackendCreateInfo.getApiFuncPtr = GetVulkanAPIFunctions;
+		break;
+	default:
+		BB_ASSERT(false, "backend not supported yet");
+		break;
+	}
 	t_BackendCreateInfo.extensions = t_Extensions;
 	t_BackendCreateInfo.deviceExtensions = t_DeviceExtensions;
 	t_BackendCreateInfo.windowHandle = a_InitInfo.windowHandle;

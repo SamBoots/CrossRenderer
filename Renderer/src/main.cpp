@@ -78,16 +78,7 @@ int main(int argc, char** argv)
 #else
 	t_RenderInfo.debug = false;
 #endif //_DEBUG
-#ifdef USE_VULKAN
 	t_RenderInfo.renderAPI = RENDER_API::VULKAN;
-	//load DLL
-	t_RenderInfo.renderDll = BB::LoadLib(L"BB_VulkanDLL");
-#elif USE_DIRECTX12
-	t_RenderInfo.renderAPI = RENDER_API::DX12;
-	//load DLL
-	t_RenderInfo.renderDll = BB::LoadLib(L"BB_DirectXDLL");
-#endif //choose graphicsAPI.
-
 	Render::InitRenderer(t_RenderInfo);
 
 	Camera t_Cam{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
