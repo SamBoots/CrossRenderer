@@ -3,6 +3,11 @@
 
 namespace BB
 {
+	static inline float ToRadians(const float degrees)
+	{
+		return degrees * 0.01745329252f;
+	}
+
 	inline static size_t RoundUp(const size_t a_NumToRound, const size_t a_Multiple)
 	{
 		return ((a_NumToRound + a_Multiple - 1) / a_Multiple) * a_Multiple;
@@ -68,10 +73,19 @@ namespace BB
 		return float2{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y };
 	}
 
+	static inline float2 operator*(const float2 a_Lhs, const float a_Rhs)
+	{
+		return float2{ a_Lhs.x * a_Rhs, a_Lhs.y * a_Rhs };
+	}
+
 	static inline float2 operator/(const float2 a_Lhs, const float2 a_Rhs)
 	{
 		return float2{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y };
 	}
+
+	// FLOAT2
+	//--------------------------------------------------------
+	// FLOAT3
 
 	static inline float3 operator+(const float3 a_Lhs, const float3 a_Rhs)
 	{
@@ -184,7 +198,8 @@ namespace BB
 	//--------------------------------------------------------
 	// MAT4x4
 
-	static inline Mat4x4 Mat4x4FromFloats(float m00, float m01, float m02, float m03,
+	static inline Mat4x4 Mat4x4FromFloats(
+		float m00, float m01, float m02, float m03,
 		float m10, float m11, float m12, float m13,
 		float m20, float m21, float m22, float m23,
 		float m30, float m31, float m32, float m33)
@@ -275,17 +290,40 @@ namespace BB
 		return mat;
 	}
 
-	//static inline Mat4x4 Mat4x4Perspective(const float fov, const float aspect, float near, float far)
-	//{
-	//	const float g = tanf(fov / 2);
-	//	const float k = far / (far - near);
+	static Mat4x4 Mat4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
+	{
+		const float tanHalfFov = tan(fov / 2.f);
 
-	//	return Mat4x4FromFloats(
-	//		g / aspect, 0, 0, 0,
-	//		0, g, 0, 0,
-	//		0, 0, k, -near * k,
-	//		0, 0, -1, 0);
-	//}
+		Mat4x4 mat = {0};
+		mat.e[0][0] = 1.f / (aspect * tanHalfFov);
+		mat.e[1][1] = 1.f / (tanHalfFov);
+		mat.e[2][2] = -(farField + nearField) / (farField - nearField);
+		mat.e[2][3] = -1.f;
+		mat.e[3][2] = -(2.f * farField * nearField) / (farField - nearField);
+		return mat;
+	}
+
+	static inline Mat4x4 Mat4x4Lookat(const float3 eye, const float3 center, const float3 up)
+	{
+		const float3 f = Float3Normalize(center - eye);
+		const float3 s = Float3Normalize(Float3Cross(up, f));
+		const float3 u = Float3Cross(f, s);
+
+		Mat4x4 mat = {1};
+		mat.e[0][0] = s.x;
+		mat.e[1][0] = s.y;
+		mat.e[2][0] = s.z;
+		mat.e[0][1] = u.x;
+		mat.e[1][1] = u.y;
+		mat.e[2][1] = u.z;
+		mat.e[0][2] = f.x;
+		mat.e[1][2] = f.y;
+		mat.e[2][2] = f.z;
+		mat.e[3][0] = -Float3Dot(s, eye);
+		mat.e[3][1] = -Float3Dot(u, eye);
+		mat.e[3][2] = -Float3Dot(f, eye);
+		return mat;
+	}
 
 	static inline Mat4x4 Mat4x4Inverse(const Mat4x4 m)
 	{

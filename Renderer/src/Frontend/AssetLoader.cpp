@@ -164,7 +164,7 @@ char* Asset::FindOrCreateString(const char* a_string)
 	if (t_StringPtr != nullptr)
 		return *t_StringPtr;
 
-	const uint32_t t_StringSize = strlen(a_string) + 1;
+	const uint32_t t_StringSize = static_cast<uint32_t>(strlen(a_string) + 1);
 	char* t_String = BBnewArr(s_AssetManager.allocator, t_StringSize, char);
 	memcpy(t_String, a_string, t_StringSize);
 	t_String[t_StringSize] = '\0';

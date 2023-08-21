@@ -3,18 +3,18 @@
 
 using namespace BB;
 
-constexpr glm::vec3 UP_VECTOR = glm::vec3(0, 1.f, 0);
-constexpr glm::vec3 STANDARD_CAM_FRONT = glm::vec3(0, 0, -1);
+constexpr float3 UP_VECTOR = float3{ 0, 1.f, 0 };
+constexpr float3 STANDARD_CAM_FRONT = float3{ 0, 0, -1 };
 
-Camera::Camera(const glm::vec3 a_Pos, const float a_CamSpeed)
+Camera::Camera(const float3 a_Pos, const float a_CamSpeed)
 {
 	m_Pos = a_Pos;
 	m_Speed = a_CamSpeed;
 
-	glm::vec3 t_Direction = glm::normalize(m_Pos);
+	float3 t_Direction = Float3Normalize(m_Pos);
 
-	m_Right = glm::normalize(glm::cross(UP_VECTOR, t_Direction));
-	m_Up = glm::cross(t_Direction, m_Right);
+	m_Right = Float3Normalize(Float3Cross(UP_VECTOR, t_Direction));
+	m_Up = Float3Cross(t_Direction, m_Right);
 	m_Forward = STANDARD_CAM_FRONT;
 
 	m_Yaw = 90.f;
@@ -26,19 +26,19 @@ Camera::~Camera()
 
 }
 
-void Camera::Move(const glm::vec3 a_Movement)
+void Camera::Move(const float3 a_Movement)
 {
-	glm::vec3 t_Velocity{0.0f};
+	float3 t_Velocity{0, 0, 0};
 	if (a_Movement.z != 0)
-		t_Velocity += m_Forward * a_Movement.z;
+		t_Velocity = t_Velocity + m_Forward * a_Movement.z;
 	if (a_Movement.x != 0)
-		t_Velocity += glm::normalize(glm::cross(m_Forward, m_Up)) * a_Movement.x;
+		t_Velocity = t_Velocity + Float3Normalize(Float3Cross(m_Forward, m_Up)) * a_Movement.x; //glm::normalize(glm::cross(m_Forward, m_Up)) * a_Movement.x;
 	if (a_Movement.y != 0)
-		t_Velocity += UP_VECTOR * a_Movement.y;
+		t_Velocity = t_Velocity + UP_VECTOR * a_Movement.y;
 
-	t_Velocity *= m_Speed;
+	t_Velocity = t_Velocity * m_Speed;
 
-	m_Pos += t_Velocity;
+	m_Pos = t_Velocity + t_Velocity;
 }
 
 void Camera::Rotate(const float a_Yaw, const float a_Pitch)
@@ -47,12 +47,12 @@ void Camera::Rotate(const float a_Yaw, const float a_Pitch)
 	m_Pitch += a_Pitch * m_Speed;
 	m_Pitch = Clampf(m_Pitch, -90.f, 90.f);
 
-	glm::vec3 t_Direction{};
-	t_Direction.x = cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
-	t_Direction.y = sin(glm::radians(m_Pitch));
-	t_Direction.z = sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+	float3 t_Direction{};
+	t_Direction.x = cosf(m_Yaw) * cosf(m_Pitch);//cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+	t_Direction.y = sinf(m_Pitch);				//sin(glm::radians(m_Pitch));
+	t_Direction.z = sinf(m_Yaw) * cosf(m_Pitch);//sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
 
-	m_Forward = glm::normalize(t_Direction);
+	m_Forward = Float3Normalize(t_Direction); //glm::normalize(t_Direction);
 }
 
 void Camera::SetSpeed(const float a_SpeedModifier)
@@ -60,7 +60,16 @@ void Camera::SetSpeed(const float a_SpeedModifier)
 	m_Speed = a_SpeedModifier;
 }
 
-const glm::mat4 Camera::CalculateView()
+const Mat4x4 Camera::CalculateView()
 {
-	return glm::lookAt(m_Pos, m_Pos + m_Forward, m_Up);
+	glm::vec3 pos = glm::vec3(m_Pos.x, m_Pos.y, m_Pos.z);
+	glm::vec3 forward = glm::vec3(m_Forward.x, m_Forward.y, m_Forward.z);
+	glm::vec3 up = glm::vec3(m_Up.x, m_Up.y, m_Up.z);
+
+	glm::mat4 t_Mat = glm::lookAt(pos, pos + forward, up);
+
+	Mat4x4 t_RetMat;
+	memcpy(&t_RetMat, &t_Mat, sizeof(Mat4x4));
+	return t_RetMat;
+	return Mat4x4Lookat(m_Pos, m_Pos + m_Forward, m_Up);
 }

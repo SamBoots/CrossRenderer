@@ -80,7 +80,7 @@ struct BB::TransformPool_inst
 
 		for (size_t i = 0; i < static_cast<size_t>(transformCount - 1); i++)
 		{
-			transforms[i].next = i + 1;
+			transforms[i].next = static_cast<uint32_t>(i + 1);
 			transforms[i].generation = 1;
 		}
 

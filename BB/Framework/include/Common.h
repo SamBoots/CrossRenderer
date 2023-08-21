@@ -164,17 +164,6 @@ namespace BB
 		float4 xyzw;
 	};
 
-	union Mat3x3
-	{
-		float e[3][3];
-		struct
-		{
-			float3 r0;
-			float3 r1;
-			float3 r2;
-		};
-	};
-
 	union Mat4x4
 	{
 		float e[4][4];

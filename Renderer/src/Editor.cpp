@@ -7,9 +7,8 @@
 #include "BBMemory.h"
 
 #include "SceneGraph.hpp"
-
-#include <glm/gtc/type_ptr.hpp>
 #include "imgui.h"
+
 using namespace BB;
 bool BB::g_ShowEditor;
 

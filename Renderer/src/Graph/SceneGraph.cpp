@@ -14,8 +14,8 @@ using namespace BB;
 
 struct SceneInfo
 {
-	glm::mat4 view{};
-	glm::mat4 projection{};
+	Mat4x4 view{};
+	Mat4x4 projection{};
 
 	float3 ambientLight{};
 	float ambientStrength = 0.f;
@@ -537,12 +537,12 @@ void SceneGraph::EndScene(const CommandListHandle a_GraphicList)
 
 }
 
-void SceneGraph::SetProjection(const glm::mat4& a_Proj)
+void SceneGraph::SetProjection(const Mat4x4& a_Proj)
 {
 	inst->sceneInfo.projection = a_Proj;
 }
 
-void SceneGraph::SetView(const glm::mat4& a_View)
+void SceneGraph::SetView(const Mat4x4& a_View)
 {
 	inst->sceneInfo.view = a_View;
 }

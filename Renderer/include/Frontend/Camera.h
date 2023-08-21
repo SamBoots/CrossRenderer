@@ -6,22 +6,22 @@ namespace BB
 	class Camera
 	{
 	public:
-		Camera(const glm::vec3 a_Pos, const float a_CamSpeed = 0.15f);
+		Camera(const float3 a_Pos, const float a_CamSpeed = 0.15f);
 		~Camera();
 
-		void Move(const glm::vec3 a_Movement);
+		void Move(const float3 a_Movement);
 		void Rotate(const float a_Yaw, const float a_Pitch);
 		void SetSpeed(const float a_SpeedModifier);
 
-		const glm::mat4 CalculateView();
+		const Mat4x4 CalculateView();
 	private:
 		float m_Yaw;
 		float m_Pitch;
 		float m_Speed;
 
-		glm::vec3 m_Pos;
-		glm::vec3 m_Forward;
-		glm::vec3 m_Right;
-		glm::vec3 m_Up;	
+		float3 m_Pos;
+		float3 m_Forward;
+		float3 m_Right;
+		float3 m_Up;
 	};
 }

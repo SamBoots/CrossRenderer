@@ -61,7 +61,7 @@ Token GetToken(JsonFile& a_JsonFile)
 			++t_StrLen;
 
 		t_Token.type = TOKEN_TYPE::STRING;
-		t_Token.strSize = t_StrLen;
+		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
 		t_Token.str = &a_JsonFile.fileData.data[a_JsonFile.pos];
 
 		a_JsonFile.pos += t_StrLen + 1; //includes the last "
@@ -75,7 +75,7 @@ Token GetToken(JsonFile& a_JsonFile)
 			t_Num = a_JsonFile.fileData.data[a_JsonFile.pos + t_StrLen++];
 
 		t_Token.type = TOKEN_TYPE::NUMBER;
-		t_Token.strSize = t_StrLen;
+		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
 		t_Token.str = &a_JsonFile.fileData.data[a_JsonFile.pos - 1];
 
 		a_JsonFile.pos += t_StrLen - 1; //includes the last
@@ -340,7 +340,7 @@ JsonNode* JsonParser::ParseList()
 	t_Node->type = JSON_TYPE::LIST;
 
 	uint32_t t_ListSize = 0;
-	const uint32_t t_ListStartPos = m_JsonFile.pos;
+	const uint32_t t_ListStartPos = static_cast<uint32_t>(m_JsonFile.pos);
 	Token t_NextToken = GetToken(m_JsonFile);
 	while (t_NextToken.type != TOKEN_TYPE::ARRAY_CLOSE) //get how many tokens we need to allocate
 	{

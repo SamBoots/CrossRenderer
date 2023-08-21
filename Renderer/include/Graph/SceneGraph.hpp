@@ -42,8 +42,8 @@ namespace BB
 		void RenderScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_CurrentLayout, const RENDER_IMAGE_LAYOUT a_RenderLayout, const RENDER_IMAGE_LAYOUT a_EndLayout);
 		void EndScene(const CommandListHandle a_GraphicList);
 
-		void SetProjection(const glm::mat4& a_Proj);
-		void SetView(const glm::mat4& a_View);
+		void SetProjection(const Mat4x4& a_Proj);
+		void SetView(const Mat4x4& a_View);
 
 		SceneObjectHandle CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const float3 a_Position = float3{ 0,0,0 }, const float3 a_Axis = float3{ 0,0,0 }, const float a_Radians = 0, const float3 a_Scale = float3{ 1,1,1 });
 		void DestroySceneObject(const SceneObjectHandle a_Handle);

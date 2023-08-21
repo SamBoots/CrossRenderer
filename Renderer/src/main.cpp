@@ -10,6 +10,7 @@
 #include "Editor.h"
 
 #include "AssetLoader.hpp"
+#include "Math.inl"
 
 #include <chrono>
 
@@ -89,17 +90,17 @@ int main(int argc, char** argv)
 
 	Render::InitRenderer(t_RenderInfo);
 
-	Camera t_Cam{ glm::vec3(2.0f, 2.0f, 2.0f), 0.35f};
+	Camera t_Cam{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
 	TemporaryAllocator t_TempAllocator{ t_SceneAllocator };
 	SceneCreateInfo t_SceneCreateInfo;
 	SceneGraph t_Scene{ t_SceneAllocator,t_TempAllocator, "Resources/Json/test_scene.json" };
 
-	glm::mat4 t_Proj = glm::perspective(glm::radians(60.0f),
+	Mat4x4 t_ProjMat = Mat4x4Perspective(ToRadians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
-		0.001f, 10000.0f);
+		.001f, 10000.0f);
 
-	t_Scene.SetProjection(t_Proj);
+	t_Scene.SetProjection(t_ProjMat);
 	t_Scene.SetView(t_Cam.CalculateView());
 
 	Vertex t_Vertex[4];
@@ -147,14 +148,14 @@ int main(int argc, char** argv)
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
 	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
-	//SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
-		//float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.01f, 0.01f, 0.01f });
-	//Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
+	const SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
+		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.01f, 0.01f, 0.01f });
+	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
 	t_SceneObjectCreateInfo.model = t_Model;
 	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
-	SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, float3{ 0, 1, 0 });
+	const SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, float3{ 0, 1, 0 });
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
@@ -163,6 +164,7 @@ int main(int argc, char** argv)
 	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX];
 	size_t t_InputEventCount = 0;
 	bool t_FreezeCam = false;
+	float t_DeltaTime = 0;
 
 	while (!t_Quit)
 	{
@@ -177,7 +179,7 @@ int main(int argc, char** argv)
 				continue;
 			if (t_Event.inputType == INPUT_TYPE::KEYBOARD)
 			{
-				glm::vec3 t_CamMove{};
+				float3 t_CamMove{};
 				if (t_Event.keyInfo.keyPressed)
 					switch (t_Event.keyInfo.scancode)
 					{
@@ -213,8 +215,9 @@ int main(int argc, char** argv)
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& t_Mouse = t_Event.mouseInfo;
+				const float2 t_MouseMove = (t_Event.mouseInfo.moveOffset * t_DeltaTime) * 0.01;
 				if (!t_FreezeCam)
-					t_Cam.Rotate(t_Event.mouseInfo.moveOffset.x, t_Event.mouseInfo.moveOffset.y);
+					t_Cam.Rotate(t_MouseMove.x, t_MouseMove.y);
 
 				if (t_Mouse.right_released)
 					FreezeMouseOnWindow(t_Window);
@@ -228,10 +231,10 @@ int main(int argc, char** argv)
 		Editor::StartEditorFrame();
 		Editor::DisplaySceneInfo(t_Scene);
 
-		float t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
+		t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		//t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, glm::radians(-90.0f * t_DeltaTime));
-		t_Transform2.SetRotation(float3{ 0.0f, 0.0f, 1.0f }, glm::radians(20.0f * t_DeltaTime));
+		t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, 1.1f * t_DeltaTime);
+		t_Transform2.SetRotation(float3{ 0.0f, 0.0f, 1.0f }, 1.0f * t_DeltaTime);
 
 		t_FrameGraph.Render();
 		t_FrameGraph.EndRendering();
