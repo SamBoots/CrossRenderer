@@ -4,10 +4,10 @@
 namespace BB
 {
 	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
-	constexpr const char* JSON_DIRECTORY = "Resources/Json/";
-	constexpr const char* MODELS_DIRECTORY = "Resources/Models/";
-	constexpr const char* SHADERS_DIRECTORY = "Resources/Shaders/";
-	constexpr const char* TEXTURE_DIRECTORY = "Resources/Textures/";
+	constexpr const char JSON_DIRECTORY[] = "Resources/Json/";
+	constexpr const char MODELS_DIRECTORY[] = "Resources/Models/";
+	constexpr const char SHADERS_DIRECTORY[] = "Resources/Shaders/";
+	constexpr const char TEXTURE_DIRECTORY[] = "Resources/Textures/";
 
 
 	enum class AssetType : uint32_t

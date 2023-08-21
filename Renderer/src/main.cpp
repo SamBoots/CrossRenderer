@@ -85,7 +85,7 @@ int main(int argc, char** argv)
 	FreelistAllocator_t t_SceneAllocator{ mbSize * 32 };
 	TemporaryAllocator t_TempAllocator{ t_SceneAllocator };
 	SceneCreateInfo t_SceneCreateInfo;
-	SceneGraph t_Scene{ t_SceneAllocator,t_TempAllocator, "Resources/Json/test_scene.json" };
+	SceneGraph t_Scene{ t_SceneAllocator, t_TempAllocator, "Resources/Json/test_scene.json" };
 
 	Mat4x4 t_ProjMat = Mat4x4Perspective(ToRadians(60.0f),
 		t_WindowWidth / (float)t_WindowHeight,
@@ -117,15 +117,6 @@ int main(int argc, char** argv)
 	FrameGraph t_FrameGraph{};
 	t_FrameGraph.RegisterRenderPass(t_Scene);
 
-	//Start frame before we upload.
-	//Render::StartFrame();
-
-	UploadTexture_Thread_Parameters t_DuckTextureUploadParam;
-	t_DuckTextureUploadParam.path = "Resources/Textures/DuckCM.png";
-	ThreadTask t_DuckTexture = Threads::StartTaskThread(UploadTexture_Thread, &t_DuckTextureUploadParam);
-
-	Threads::WaitForTask(t_DuckTexture);
-
 	//I do not like this, it should be automated but for now to test I just cheat.
 	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
 	RModelHandle t_gltfCube = Render::LoadModel(t_CmdList->list, t_LoadInfo);
@@ -138,14 +129,12 @@ int main(int argc, char** argv)
 	SceneObjectCreateInfo t_SceneObjectCreateInfo;
 	t_SceneObjectCreateInfo.name = "Duck";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
-	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
 	const SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
 		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.01f, 0.01f, 0.01f });
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
 	t_SceneObjectCreateInfo.model = t_Model;
-	t_SceneObjectCreateInfo.texture = t_DuckTextureUploadParam.returnValues.texture;
 	const SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, float3{ 0, 1, 0 });
 	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
 

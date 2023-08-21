@@ -23,6 +23,8 @@ namespace BB
 		{
 			uint32_t indexStart = 0;
 			uint32_t indexCount = 0;
+			RTexture baseColorIndex = BB_INVALID_HANDLE;
+			RTexture normalIndex = BB_INVALID_HANDLE;
 		};
 
 		struct Mesh

@@ -502,7 +502,7 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 		ScenePushConstantInfo t_PushInfo
 		{
 			t_It->transformHandle.index,
-			t_It->texture1.index
+			t_Model->primitives[0].baseColorIndex.index,
 		};
 
 		RenderBackend::BindConstant(a_GraphicList, 0, SCENE_PUSH_CONSTANT_DWORD_COUNT, 0, &t_PushInfo);
@@ -515,6 +515,12 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 				for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
 				{
 					const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+					if (t_PushInfo.textureIndex1 != t_Prim.baseColorIndex.index)
+					{
+						t_PushInfo.textureIndex1 = t_Prim.baseColorIndex.index;
+						RenderBackend::BindConstant(a_GraphicList, 0, 1, 1, &t_It->transformHandle.index);
+					}
+						
 					RenderBackend::DrawIndexed(a_GraphicList,
 						t_Prim.indexCount,
 						1,
@@ -549,7 +555,7 @@ void SceneGraph::SetView(const Mat4x4& a_View)
 
 SceneObjectHandle SceneGraph::CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
 {
-	SceneObject t_DrawObject{ a_CreateInfo.name, a_CreateInfo.model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale), a_CreateInfo.texture };
+	SceneObject t_DrawObject{ a_CreateInfo.name, a_CreateInfo.model, inst->transformPool.CreateTransform(a_Position, a_Axis, a_Radians, a_Scale) };
 	return SceneObjectHandle(inst->sceneObjects.emplace(t_DrawObject).handle);
 }
 

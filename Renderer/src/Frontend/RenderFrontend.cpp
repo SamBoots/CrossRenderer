@@ -11,6 +11,7 @@
 #include "../Vulkan/include/VulkanBackend.h"
 
 #include "Editor.h"
+#include "AssetLoader.hpp"
 
 
 using namespace BB;
@@ -18,6 +19,17 @@ using namespace BB::Render;
 
 void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_TransferCmdList, const char* a_Path);
 FreelistAllocator_t s_SystemAllocator{ mbSize * 4, "Render Frontend freelist allocator" };
+
+char* CreateGLTFImagePath(Allocator a_TempAllocator, const char* a_ImagePath)
+{
+	const size_t t_ImagePathSize = strlen(a_ImagePath);
+	char* t_NewPath = BBnewArr(a_TempAllocator, sizeof(TEXTURE_DIRECTORY) + t_ImagePathSize, char);
+
+	Memory::Copy(t_NewPath, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
+	Memory::Copy(&t_NewPath[sizeof(TEXTURE_DIRECTORY) - 1], a_ImagePath, t_ImagePathSize);
+
+	return t_NewPath;
+}
 
 struct TextureManager
 {
@@ -861,6 +873,8 @@ static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 //Maybe use own allocators for this?
 void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_CommandList, const char* a_Path)
 {
+	TemporaryAllocator t_TempAllocator(a_SystemAllocator);
+
 	cgltf_options t_Options = {};
 	cgltf_data* t_Data = { 0 };
 
@@ -929,8 +943,6 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 	a_Model.linearNodes = t_LinearNodes;
 	a_Model.linearNodeCount = t_LinearNodeCount;
 
-
-	TemporaryAllocator t_TempAllocator{ a_SystemAllocator };
 	//Temporary stuff
 	uint32_t* t_Indices = BBnewArr(
 		a_SystemAllocator,
@@ -958,19 +970,32 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 		if (t_Node.mesh != nullptr)
 		{
 			const cgltf_mesh& t_Mesh = *t_Node.mesh;
-
 			Model::Mesh& t_ModelMesh = t_Meshes[t_CurrentMesh];
 			t_ModelNode.meshIndex = t_CurrentMesh++;
 			t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
 			t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
-
+			
 			for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
 			{
 				const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
 				Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
+
+				if (t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture)
+				{
+					const cgltf_image& t_Image = *t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
+					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
+					t_MeshPrimitive.baseColorIndex = Render::SetupTexture(Asset::GetImageWait(t_FullImagePath));
+				}
+
+				if (t_Primitive.material->normal_texture.texture)
+				{
+					const cgltf_image& t_Image = *t_Primitive.material->normal_texture.texture->image;
+					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
+					t_MeshPrimitive.normalIndex = Render::SetupTexture(Asset::GetImageWait(t_FullImagePath));
+				}
+
 				t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);
 				t_MeshPrimitive.indexStart = t_CurrentIndex;
-
 				void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
 				if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
 				{

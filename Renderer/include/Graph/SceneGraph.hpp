@@ -16,7 +16,6 @@ namespace BB
 	{
 		char* name; 
 		RModelHandle model;
-		RTexture texture;
 	};
 
 	struct SceneObject
