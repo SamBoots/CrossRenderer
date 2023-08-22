@@ -153,7 +153,6 @@ struct VulkanBackend_inst
 
 	Pool<VulkanPipeline> pipelinePool;
 	Pool<VulkanBuffer> bufferPool;
-	Pool<VulkanImage> imagePool;
 
 	OL_HashMap<PipelineLayoutHash, VkPipelineLayout> pipelineLayouts{ s_VulkanAllocator };
 
@@ -164,14 +163,12 @@ struct VulkanBackend_inst
 	{
 		pipelinePool.CreatePool(s_VulkanAllocator, 8);
 		bufferPool.CreatePool(s_VulkanAllocator, 32);
-		imagePool.CreatePool(s_VulkanAllocator, 16);
 	}
 
 	void DestroyPools()
 	{
 		pipelinePool.DestroyPool(s_VulkanAllocator);
 		bufferPool.DestroyPool(s_VulkanAllocator);
-		imagePool.DestroyPool(s_VulkanAllocator);
 	}
 };
 static VulkanBackend_inst s_VKB;
@@ -1191,7 +1188,7 @@ constexpr VkFormat DEPTH_FORMAT = VK_FORMAT_D24_UNORM_S8_UINT;
 
 RImageHandle BB::VulkanCreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
-	VulkanImage* t_Image = s_VKB.imagePool.Get();
+	VulkanImage* t_Image = BBnew(s_VulkanAllocator, VulkanImage);
 
 	VkImageCreateInfo t_ImageCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 
@@ -2502,7 +2499,7 @@ void BB::VulkanDestroyImage(const RImageHandle a_Handle)
 	vkDestroyImageView(s_VKB.device, t_Image->view, nullptr);
 	vmaDestroyImage(s_VKB.vma, t_Image->image, t_Image->allocation);
 	memset(t_Image, 0, sizeof(VulkanImage));
-	s_VKB.imagePool.Free(t_Image);
+	BBfree(s_VulkanAllocator, t_Image);
 }
 
 void BB::VulkanDestroyBuffer(RBufferHandle a_Handle)

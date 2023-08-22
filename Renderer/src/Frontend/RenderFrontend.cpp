@@ -27,6 +27,7 @@ char* CreateGLTFImagePath(Allocator a_TempAllocator, const char* a_ImagePath)
 
 	Memory::Copy(t_NewPath, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
 	Memory::Copy(&t_NewPath[sizeof(TEXTURE_DIRECTORY) - 1], a_ImagePath, t_ImagePathSize);
+	t_NewPath[sizeof(TEXTURE_DIRECTORY) - 1 + t_ImagePathSize] = '\0';
 
 	return t_NewPath;
 }
@@ -748,18 +749,18 @@ RModelHandle BB::Render::CreateRawModel(const CommandListHandle a_CommandList, c
 		RenderBackend::WriteDescriptors(t_WriteInfos);
 	}
 	
-	t_Model.linearNodes = BBnewArr(s_SystemAllocator, 1, Model::Node);
+	t_Model.linearNodes = BBnew(s_SystemAllocator, Model::Node)();
 	t_Model.linearNodeCount = 1;
 	t_Model.nodes = t_Model.linearNodes;
 	t_Model.nodeCount = 1;
 
-	t_Model.primitives = BBnewArr(s_SystemAllocator, 1, Model::Primitive);
+	t_Model.primitives = BBnew(s_SystemAllocator, Model::Primitive)();
 	t_Model.primitiveCount = 1;
 	t_Model.primitives->indexStart = 0;
 	t_Model.primitives->indexCount = static_cast<uint32_t>(a_CreateInfo.indices.size());
 
 	t_Model.meshCount = 1;
-	t_Model.meshes = BBnewArr(s_SystemAllocator, 1, Model::Mesh);
+	t_Model.meshes = BBnew(s_SystemAllocator, Model::Mesh)();
 	t_Model.meshes->primitiveCount = 1;
 	t_Model.meshes->primitiveOffset = 0;
 
@@ -984,14 +985,14 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 				{
 					const cgltf_image& t_Image = *t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
 					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
-					t_MeshPrimitive.baseColorIndex = Render::SetupTexture(Asset::GetImageWait(t_FullImagePath));
+					t_MeshPrimitive.baseColorIndex = Asset::GetImageWait(t_FullImagePath);
 				}
 
 				if (t_Primitive.material->normal_texture.texture)
 				{
 					const cgltf_image& t_Image = *t_Primitive.material->normal_texture.texture->image;
 					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
-					t_MeshPrimitive.normalIndex = Render::SetupTexture(Asset::GetImageWait(t_FullImagePath));
+					t_MeshPrimitive.normalIndex = Asset::GetImageWait(t_FullImagePath);
 				}
 
 				t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);

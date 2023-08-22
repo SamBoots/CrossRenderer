@@ -31,24 +31,6 @@ void WindowResize(WindowHandle a_Handle, uint32_t a_X, uint32_t a_Y)
 
 LinearAllocator_t m_ScopeAllocator{2 * kbSize};
 
-struct UploadTexture_Thread_Parameters
-{
-	const char* path;
-	
-	struct ReturnValues
-	{
-		RTexture texture;
-	} returnValues;
-};
-
-void UploadTexture_Thread(void* a_Parameters)
-{
-	UploadTexture_Thread_Parameters* t_Parameters = reinterpret_cast<UploadTexture_Thread_Parameters*>(a_Parameters);
-	const RImageHandle t_Image = Asset::GetImageWait(t_Parameters->path);
-
-	t_Parameters->returnValues.texture = Render::SetupTexture(t_Image);
-}
-
 int main(int argc, char** argv)
 {
 	BBInitInfo t_BBInitInfo{};
@@ -110,7 +92,7 @@ int main(int argc, char** argv)
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
-	t_LoadInfo.path = "Resources/Models/Duck.gltf";
+	t_LoadInfo.path = "Resources/Models/Sponza.gltf";
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
 
@@ -127,10 +109,10 @@ int main(int argc, char** argv)
 	//shit code over
 
 	SceneObjectCreateInfo t_SceneObjectCreateInfo;
-	t_SceneObjectCreateInfo.name = "Duck";
+	t_SceneObjectCreateInfo.name = "sponza";
 	t_SceneObjectCreateInfo.model = t_gltfCube;
 	const SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
-		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.01f, 0.01f, 0.01f });
+		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.001f, 0.001f, 0.001f });
 	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
 	t_SceneObjectCreateInfo.name = "Quad";
@@ -195,7 +177,7 @@ int main(int argc, char** argv)
 			else if (t_Event.inputType == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& t_Mouse = t_Event.mouseInfo;
-				const float2 t_MouseMove = (t_Event.mouseInfo.moveOffset * t_DeltaTime) * 0.005f;
+				const float2 t_MouseMove = (t_Event.mouseInfo.moveOffset * t_DeltaTime) * 0.003f;
 				if (!t_FreezeCam)
 					t_Cam.Rotate(t_MouseMove.x, t_MouseMove.y);
 
@@ -213,7 +195,7 @@ int main(int argc, char** argv)
 
 		t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, 1.1f * t_DeltaTime);
+		//t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, 1.1f * t_DeltaTime);
 		t_Transform2.SetRotation(float3{ 0.0f, 0.0f, 1.0f }, 1.0f * t_DeltaTime);
 
 		t_FrameGraph.Render();

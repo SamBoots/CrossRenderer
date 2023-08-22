@@ -23,6 +23,12 @@ const uint64_t StringHash(const char* a_String)
 	return hash;
 }
 
+struct TextureAsset
+{
+	RTexture texture;
+	RImageHandle backendImage;
+};
+
 struct AssetSlot
 {
 	AssetType type;
@@ -30,7 +36,7 @@ struct AssetSlot
 	char path[256];
 	union
 	{
-		RImageHandle image{};
+		TextureAsset texture;
 	};
 };
 
@@ -64,13 +70,14 @@ static CommandList* SetupCommandLists(const char* a_Name = "default asset loader
 	return t_CmdList;
 }
 
-static RImageHandle LoadImage(const char* a_Path)
+static TextureAsset LoadImageDisk(const char* a_Path)
 {
 	CommandList* t_CmdList = SetupCommandLists(a_Path);
 
 	int x, y, c;
 	//hacky way, whatever we do it for now.
 	stbi_uc* t_Pixels = stbi_load(a_Path, &x, &y, &c, 4);
+	BB_ASSERT(t_Pixels != nullptr, "failed to load image from disk");
 	RImageHandle t_Image;
 	{
 		RenderImageCreateInfo t_ImageInfo;
@@ -154,7 +161,10 @@ static RImageHandle LoadImage(const char* a_Path)
 	//for now just stall the thread.
 	t_TransferQueue.WaitFenceValue(t_WaitValue);
 
-	return t_Image;
+	TextureAsset t_ReturnValue;
+	t_ReturnValue.backendImage = t_Image;
+	t_ReturnValue.texture = Render::SetupTexture(t_Image);
+	return t_ReturnValue;
 }
 
 char* Asset::FindOrCreateString(const char* a_string)
@@ -189,7 +199,7 @@ const AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
 		switch (a_JobInfo->loadType)
 		{
 		case AssetLoadType::DISK:
-			t_AssetSlot.image = LoadImage(t_AssetSlot.path);
+			t_AssetSlot.texture = LoadImageDisk(t_AssetSlot.path);
 			break;
 		case AssetLoadType::MEMORY:
 			BB_ASSERT(false, "Invalid AssetLoadType");
@@ -206,21 +216,21 @@ const AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
 	return AssetHandle(t_AssetSlot.hash);
 }
 
-const RImageHandle Asset::GetImage(const AssetHandle a_Asset)
+const RTexture Asset::GetImage(const AssetHandle a_Asset)
 {
 	const AssetSlot* t_Asset = s_AssetManager.assetMap.find(a_Asset.handle);
 	BB_ASSERT(t_Asset->type == AssetType::IMAGE, "Asset found is not an image!");
-	return t_Asset->image;
+	return t_Asset->texture.texture;
 }
 
-const RImageHandle Asset::GetImageWait(const char* a_Path)
+const RTexture Asset::GetImageWait(const char* a_Path)
 {
 	const uint64_t t_Hash = StringHash(a_Path);
 
 	AssetSlot* t_Slot = s_AssetManager.assetMap.find(t_Hash);
 
 	if (t_Slot != BB_INVALID_HANDLE)
-		return t_Slot->image;
+		return t_Slot->texture.texture;
 
 	AssetDiskJobInfo a_JobInfo{};
 	a_JobInfo.assetType = AssetType::IMAGE;
@@ -232,5 +242,5 @@ const RImageHandle Asset::GetImageWait(const char* a_Path)
 
 	BB_ASSERT(t_Slot != BB_INVALID_HANDLE, "Uploaded a resource but still can't find it");
 
-	return t_Slot->image;
+	return t_Slot->texture.texture;
 }

@@ -29,7 +29,7 @@ struct DescriptorDebugInfo
 
 struct BB::RenderResourceTracker_Inst
 {
-	RenderResourceTracker_Inst(Allocator a_Allocator) : entryMap(a_Allocator, 128) {};
+	RenderResourceTracker_Inst(Allocator a_Allocator) : entryMap(a_Allocator, 1028) {};
 
 	OL_HashMap<uint64_t, Entry*> entryMap;
 	SORT_TYPE sortType = SORT_TYPE::TIME;

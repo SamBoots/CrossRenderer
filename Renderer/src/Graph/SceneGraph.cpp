@@ -521,6 +521,7 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 						RenderBackend::BindConstant(a_GraphicList, 0, 1, 1, &t_It->transformHandle.index);
 					}
 						
+					BB_ASSERT(t_Prim.indexCount + t_Prim.indexStart < t_Model->indexView.size, "index buffer reading out of bounds");
 					RenderBackend::DrawIndexed(a_GraphicList,
 						t_Prim.indexCount,
 						1,

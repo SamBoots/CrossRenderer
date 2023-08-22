@@ -75,7 +75,7 @@ namespace BB
 			{
 				return memcpy(a_Destination, a_Source, a_ElementCount * sizeof(T));
 			}
-			else if constexpr (!trivalConstruction && !trivalDestructible)
+			else if constexpr (!trivalConstruction || !trivalDestructible)
 			{
 				for (size_t i = 0; i < a_ElementCount; i++)
 				{

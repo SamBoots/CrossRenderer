@@ -38,7 +38,7 @@ void Camera::Move(const float3 a_Movement)
 
 	t_Velocity = t_Velocity * m_Speed;
 
-	m_Pos = t_Velocity + t_Velocity;
+	m_Pos = m_Pos + t_Velocity;
 }
 
 void Camera::Rotate(const float a_Yaw, const float a_Pitch)
