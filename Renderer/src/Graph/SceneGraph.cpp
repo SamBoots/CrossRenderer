@@ -641,6 +641,40 @@ void SceneGraph::SetView(const Mat4x4& a_View)
 	inst->sceneInfo.view = a_View;
 }
 
+void TraverseModelNode(SceneGraph_inst* a_Inst, SceneDrawCall& a_DrawCall, const Model& a_Model, const Model::Node& a_Node, const Mat4x4& a_Transform)
+{
+	for (size_t i = 0; i < a_Node.childCount; i++)
+	{
+		const Model::Node& a_ChildNode = a_Node.childeren[i];
+		const Mat4x4 t_LocalTransform = a_Transform * a_ChildNode.transform;
+
+		if (a_ChildNode.meshIndex != MESH_INVALID_INDEX)
+		{
+			const Model::Mesh& t_Mesh = a_Model.meshes[a_ChildNode.meshIndex];
+			InstanceTransform t_Transform;
+			//wrong, need to go through the childeren and then update the transforms that way.
+			t_Transform.transform = t_LocalTransform;
+			t_Transform.inverse = Mat4x4Inverse(t_LocalTransform);
+			a_DrawCall.transformIndex = a_Inst->currentFrame->transformArray.AddTransform(t_Transform);
+
+			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
+			{
+				const Model::Primitive& t_Prim = a_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+
+				BB_ASSERT(t_Prim.indexCount + t_Prim.indexStart < a_Model.indexView.size, "index buffer reading out of bounds");
+				a_DrawCall.baseColorIndex = t_Prim.baseColorIndex.index;
+				a_DrawCall.normalTexture = t_Prim.normalIndex.index;
+				a_DrawCall.indexCount = t_Prim.indexCount;
+				//Hacky way to only set the index buffer once, and let the drawindexed just index deep into the buffer.
+				a_DrawCall.indexStart = t_Prim.indexStart + (a_Model.indexView.offset / (sizeof(uint32_t)));
+				a_Inst->currentFrame->drawArray.AddDrawCall(a_DrawCall);
+			}
+		}
+		
+		TraverseModelNode(a_Inst, a_DrawCall, a_Model, a_ChildNode, t_LocalTransform);
+	}
+}
+
 void SceneGraph::RenderModel(const RModelHandle a_Model, const Mat4x4& a_Transform)
 {
 	const Model& t_Model = Render::GetModel(a_Model);
@@ -649,32 +683,8 @@ void SceneGraph::RenderModel(const RModelHandle a_Model, const Mat4x4& a_Transfo
 	t_DrawCall.meshDescriptorOffset = t_Model.descAllocation.offset;
 	t_DrawCall.pipeline = t_Model.pipelineHandle;
 
-	for (size_t i = 0; i < t_Model.linearNodeCount; i++)
-	{
-		const Model::Node& t_Node = t_Model.linearNodes[i];
-		if (t_Node.meshIndex != MESH_INVALID_INDEX)
-		{
-			const Model::Mesh& t_Mesh = t_Model.meshes[t_Node.meshIndex];
-			InstanceTransform t_Transform;
-			//wrong, need to go through the childeren and then update the transforms that way.
-			t_Transform.transform = a_Transform * t_Node.transform;
-			t_Transform.inverse = Mat4x4Inverse(t_Transform.transform);
-			t_DrawCall.transformIndex = inst->currentFrame->transformArray.AddTransform(t_Transform);
-
-			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
-			{
-				const Model::Primitive& t_Prim = t_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
-
-				BB_ASSERT(t_Prim.indexCount + t_Prim.indexStart < t_Model.indexView.size, "index buffer reading out of bounds");
-				t_DrawCall.baseColorIndex = t_Prim.baseColorIndex.index;
-				t_DrawCall.normalTexture = t_Prim.normalIndex.index;
-				t_DrawCall.indexCount = t_Prim.indexCount;
-				//Hacky way to only set the index buffer once, and let the drawindexed just index deep into the buffer.
-				t_DrawCall.indexStart = t_Prim.indexStart + (t_Model.indexView.offset / (sizeof(uint32_t)));
-				inst->currentFrame->drawArray.AddDrawCall(t_DrawCall);
-			}
-		}
-	}
+	//root node is always 0? I think so, needs confirmation.
+	TraverseModelNode(inst, t_DrawCall, t_Model, t_Model.nodes[0], a_Transform);
 }
 
 void SceneGraph::RenderModels(const RModelHandle* a_Models, const Mat4x4* a_Transforms, const uint32_t a_ObjectCount)
