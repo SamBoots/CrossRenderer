@@ -60,6 +60,7 @@ namespace BB
 		void UploadDescriptorsToGPU(const uint32_t a_FrameNum);
 		RenderBufferPart AllocateFromVertexBuffer(const size_t a_Size);
 		RenderBufferPart AllocateFromIndexBuffer(const size_t a_Size);
+		const LinearRenderBuffer& GetIndexBuffer();
 
 		const RTexture SetupTexture(const RImageHandle a_Image);
 		void FreeTextures(const RTexture* a_Textures, const uint32_t a_Count);

@@ -1,7 +1,6 @@
 #include "RenderFrontend.h"
 #include "ShaderCompiler.h"
 
-#include "Transform.h"
 #include "OS/Program.h"
 #include "imgui_impl_CrossRenderer.h"
 
@@ -12,6 +11,7 @@
 
 #include "Editor.h"
 #include "AssetLoader.hpp"
+#include "Math.inl"
 
 
 using namespace BB;
@@ -589,6 +589,11 @@ RenderBufferPart BB::Render::AllocateFromIndexBuffer(const size_t a_Size)
 	return s_RenderInst->indexBuffer.SubAllocate(a_Size, __alignof(uint32_t));
 }
 
+const LinearRenderBuffer& BB::Render::GetIndexBuffer()
+{
+	return s_RenderInst->indexBuffer;
+}
+
 const RTexture BB::Render::SetupTexture(const RImageHandle a_Image)
 {
 	OSWaitAndLockMutex(s_RenderInst->startFrameCommands.mutex);
@@ -1071,6 +1076,12 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 					BB_ASSERT(t_VertexCount >= t_CurrentVertex, "Overwriting vertices in the gltf loader!");
 				}
 			}
+		}
+
+		if (t_Node.has_matrix)
+		{
+			memcpy(&t_ModelNode.transform, t_Node.matrix, sizeof(Mat4x4));
+			//maybe transpose?
 		}
 	}
 

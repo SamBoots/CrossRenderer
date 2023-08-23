@@ -4,19 +4,6 @@
 
 namespace BB
 {
-	struct ModelBufferInfo
-	{
-		Mat4x4 model;
-		Mat4x4 inverseModel;
-	};
-
-	enum class TRANSFORM_STATE : uint32_t
-	{
-		NOT_USED = 0,
-		NO_ACTION = 1,
-		REBUILD_MATRIX = 2
-	};
-
 	class Transform
 	{
 	public:
@@ -31,14 +18,12 @@ namespace BB
 		void SetRotation(const float3 a_Axis, const float a_Radians);
 		void SetScale(const float3 a_Scale);
 
-		const TRANSFORM_STATE GetState() const { return m_State; };
-		const Mat4x4 CreateModelMatrix();
+		const Mat4x4 CreateMatrix();
 
 		//44 bytes class
 		float3 m_Pos; //12
 		Quat m_Rot; //28
 		float3 m_Scale; //40
-		TRANSFORM_STATE m_State = TRANSFORM_STATE::NOT_USED; //44
 	};
 
 	using TransformHandle = FrameworkHandle<struct TransformHandleTag>;
@@ -59,8 +44,6 @@ namespace BB
 		TransformHandle CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale);
 		void FreeTransform(const TransformHandle a_Handle);
 		Transform& GetTransform(const TransformHandle a_Handle) const;
-
-		void UpdateTransforms();
 
 		const uint32_t PoolSize() const;
 		const class UploadBuffer& PoolGPUUploadBuffer();

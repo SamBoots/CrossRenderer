@@ -12,22 +12,6 @@ namespace BB
 		uint32_t sceneWindowHeight = 0;
 	};
 
-	struct SceneObjectCreateInfo
-	{
-		char* name; 
-		RModelHandle model;
-	};
-
-	struct SceneObject
-	{
-		const char* name;
-		RModelHandle modelHandle{};
-		TransformHandle transformHandle{};
-		RTexture texture1;
-	};
-
-	using SceneObjectHandle = FrameworkHandle<struct RDrawObjectHandleTag>;
-
 	class SceneGraph
 	{
 	public:
@@ -44,14 +28,9 @@ namespace BB
 		void SetProjection(const Mat4x4& a_Proj);
 		void SetView(const Mat4x4& a_View);
 
-		SceneObjectHandle CreateSceneObject(const SceneObjectCreateInfo& a_CreateInfo, const float3 a_Position = float3{ 0,0,0 }, const float3 a_Axis = float3{ 0,0,0 }, const float a_Radians = 0, const float3 a_Scale = float3{ 1,1,1 });
-		void DestroySceneObject(const SceneObjectHandle a_Handle);
+		void RenderModel(const RModelHandle a_Model, const Mat4x4& a_Transform);
+		void RenderModels(const RModelHandle* a_Models, const Mat4x4* a_Transforms, const uint32_t a_ObjectCount);
 
-		Transform& GetTransform(const SceneObjectHandle a_Handle) const;
-		Transform& GetTransform(const TransformHandle a_Handle) const;
-		
-		//TEMP, should be local to the scenegraph.cpp
-		BB::Slice<SceneObject> GetSceneObjects();
 		//TEMP, should be local to the scenegraph.cpp
 		BB::Slice<Light> GetLights();
 		const RDescriptor GetSceneDescriptor() const;

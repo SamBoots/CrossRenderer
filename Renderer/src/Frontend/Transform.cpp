@@ -13,47 +13,40 @@ Transform::Transform(const float3 a_Position, const float3 a_Axis, const float a
 Transform::Transform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
 	: m_Pos(a_Position), m_Scale(a_Scale) 
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Rot = QuatFromAxisAngle(a_Axis, a_Radians); //glm::angleAxis(glm::radians(a_Radians), a_Axis);
 }
 
 void Transform::Translate(const float3 a_Translation)
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Pos = m_Pos + a_Translation;
 }
 
 void Transform::Rotate(const float3 a_Axis, const float a_Radians)
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	//m_Rot = m_Rot * Quat{ a_Axis.x,a_Axis.y,a_Axis.z, a_Radians }; //glm::rotate(m_Rot, a_Radians, a_Axis);
 }
 
 void Transform::SetPosition(const float3 a_Position)
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Pos = a_Position;
 }
 
 void Transform::SetRotation(const float3 a_Axis, const float a_Radians)
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Rot = QuatFromAxisAngle(a_Axis, a_Radians); //glm::angleAxis(a_Radians, a_Axis);
 }
 
 void Transform::SetScale(const float3 a_Scale)
 {
-	m_State = TRANSFORM_STATE::REBUILD_MATRIX;
 	m_Scale = a_Scale;
 }
 
-const Mat4x4 Transform::CreateModelMatrix()
+const Mat4x4 Transform::CreateMatrix()
 {
 	Mat4x4 t_Matrix = Mat4x4Identity();
 	t_Matrix = t_Matrix * Mat4x4FromTranslation(m_Pos);
 	t_Matrix = t_Matrix * Mat4x4FromQuat(m_Rot);
 	t_Matrix = Mat4x4Scale(t_Matrix, m_Scale);
-	m_State = TRANSFORM_STATE::NO_ACTION;
 	return t_Matrix;
 }
 
@@ -72,12 +65,11 @@ struct TransformNode
 struct BB::TransformPool_inst
 {
 	TransformPool_inst(Allocator a_SysAllocator, const uint32_t a_TransformCount)
-		:	systemAllocator(a_SysAllocator),
-			uploadMatrixBuffer(a_TransformCount * sizeof(ModelBufferInfo))
+		:	systemAllocator(a_SysAllocator)
 	{
 		transformCount = a_TransformCount;
+		nextFreeTransform = 0;
 		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_SysAllocator, sizeof(TransformNode) * a_TransformCount));
-
 		for (size_t i = 0; i < static_cast<size_t>(transformCount - 1); i++)
 		{
 			transforms[i].next = static_cast<uint32_t>(i + 1);
@@ -89,7 +81,6 @@ struct BB::TransformPool_inst
 	};
 
 	Allocator systemAllocator;
-	UploadBuffer uploadMatrixBuffer;
 
 	uint32_t transformCount;
 	uint32_t nextFreeTransform;
@@ -160,32 +151,7 @@ Transform& TransformPool::GetTransform(const TransformHandle a_Handle) const
 	return inst->transforms[a_Handle.index].transform;
 }
 
-void TransformPool::UpdateTransforms()
-{
-	void* t_GPUBufferStart = inst->uploadMatrixBuffer.GetStart();
-
-	for (size_t i = 0; i < static_cast<size_t>(inst->transformCount); i++)
-	{
-		//if (inst->pool[t_Index].GetState() == TRANSFORM_STATE::REBUILD_MATRIX)
-		{
-			ModelBufferInfo t_Pack{};
-			t_Pack.model = inst->transforms[i].transform.CreateModelMatrix();
-			t_Pack.inverseModel = Mat4x4Inverse(t_Pack.model);
-
-			//Copy the model matrix into the transfer buffer.
-			memcpy(Pointer::Add(t_GPUBufferStart, i * sizeof(ModelBufferInfo)),
-				&t_Pack,
-				sizeof(ModelBufferInfo));
-		}
-	}
-}
-
 const uint32_t TransformPool::PoolSize() const
 {
 	return inst->transformCount;
-}
-
-const UploadBuffer& TransformPool::PoolGPUUploadBuffer()
-{
-	return inst->uploadMatrixBuffer;
 }

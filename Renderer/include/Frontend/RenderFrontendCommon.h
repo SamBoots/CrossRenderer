@@ -35,6 +35,7 @@ namespace BB
 
 		struct Node
 		{
+			Mat4x4 transform;
 			Model::Node* childeren = nullptr;
 			uint32_t childCount = 0;
 			uint32_t meshIndex = MESH_INVALID_INDEX;
