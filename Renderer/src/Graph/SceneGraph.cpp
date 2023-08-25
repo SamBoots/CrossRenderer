@@ -92,6 +92,7 @@ struct TransformArray
 	//jank, should get a global upload buffer, and later on this should be an indirect draw buffer.
 	UploadBuffer uploadBuffer; //24 bytes
 	InstanceTransform* currentMatrices; //32 bytes
+	InstanceTransform* start;
 	uint32_t elementCount; //44 bytes, jank
 	const uint32_t elementMax; //40 bytes, jank
 
@@ -100,6 +101,7 @@ struct TransformArray
 	{
 		elementCount = 0;
 		currentMatrices = reinterpret_cast<InstanceTransform*>(uploadBuffer.GetStart());
+		start = reinterpret_cast<InstanceTransform*>(uploadBuffer.GetStart());
 	};
 
 	inline size_t ElementCount() const
@@ -121,6 +123,7 @@ struct TransformArray
 	inline void Reset()
 	{
 		currentMatrices = reinterpret_cast<InstanceTransform*>(uploadBuffer.GetStart());
+		elementCount = 0;
 	}
 };
 
@@ -443,102 +446,128 @@ SceneGraph::operator FrameGraphRenderPass()
 
 void SceneGraph::StartScene(const CommandListHandle a_GraphicList)
 {
-	FixedArray<WriteDescriptorData, 3> t_WriteDatas;
-	WriteDescriptorInfos t_BufferUpdate{};
-	t_BufferUpdate.allocation = inst->sceneAllocation;
-	t_BufferUpdate.descriptorHandle = inst->sceneDescriptor;
-	t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
-
 	inst->currentFrame = &inst->sceneFrames[RenderBackend::GetCurrentFrameBufferIndex()];
-	const SceneFrame& t_SceneFrame = *inst->currentFrame;
-	uint32_t t_UploadUsed = 0;
-
-	inst->sceneInfo.ambientLight = { 1.0f, 1.0f, 1.0f };
-	inst->sceneInfo.ambientStrength = 0.1f;
-	//if (inst->sceneInfo.lightCount != inst->lights.size())
-	{	//If we hvae more lights then we upload them. Maybe do a bool to check instead.
-		inst->sceneInfo.lightCount = static_cast<uint32_t>(inst->lights.size());
-
-		Memory::Copy(Pointer::Add(t_SceneFrame.uploadChunk.memory, t_UploadUsed),
-			inst->lights.data(),
-			inst->lights.size());
-	}
-	
-	{//Copy over transfer buffer to GPU
-		//Copy the perframe buffer over.
-		RenderCopyBufferInfo t_CopyInfo;
-		t_CopyInfo.src = inst->uploadbuffer.Buffer();
-		t_CopyInfo.dst = t_SceneFrame.lightBuffer.buffer;
-		t_CopyInfo.size = inst->lights.size() * sizeof(inst->lights[0]);
-		t_CopyInfo.srcOffset = static_cast<uint64_t>(t_SceneFrame.uploadChunk.offset) + t_UploadUsed;
-		t_CopyInfo.dstOffset = t_SceneFrame.lightBuffer.offset;
-		BB_ASSERT(t_CopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow, uploading too many lights!");
-
-		RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
-
-		//temporarily shift the buffer part for the scene upload
-		t_UploadUsed += static_cast<uint32_t>(t_CopyInfo.size);
-
-		t_WriteDatas[2].binding = 2;
-		t_WriteDatas[2].descriptorIndex = 0;
-		t_WriteDatas[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteDatas[2].buffer.buffer = t_CopyInfo.dst;
-		t_WriteDatas[2].buffer.offset = t_CopyInfo.dstOffset;
-		t_WriteDatas[2].buffer.range = t_CopyInfo.size;
-	}
-
-	{	//always upload the current scene info.
-		memcpy(Pointer::Add(t_SceneFrame.uploadChunk.memory, t_UploadUsed),
-			&inst->sceneInfo,
-			sizeof(inst->sceneInfo));
-
-		//Copy the perframe buffer and matrices.
-		RenderCopyBufferInfo t_SceneCopyInfo;
-		t_SceneCopyInfo.src = inst->uploadbuffer.Buffer();
-		t_SceneCopyInfo.dst = t_SceneFrame.sceneBuffer.buffer;
-		t_SceneCopyInfo.size = t_SceneFrame.sceneBuffer.size;
-		t_SceneCopyInfo.srcOffset = static_cast<uint64_t>(t_SceneFrame.uploadChunk.offset) + t_UploadUsed;
-		t_SceneCopyInfo.dstOffset = t_SceneFrame.sceneBuffer.offset;
-		BB_ASSERT(t_SceneCopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow");
-
-		RenderBackend::CopyBuffer(a_GraphicList, t_SceneCopyInfo);
-
-		t_UploadUsed += static_cast<uint32_t>(t_SceneCopyInfo.size);
-
-		t_WriteDatas[0].binding = 0;
-		t_WriteDatas[0].descriptorIndex = 0;
-		t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-		t_WriteDatas[0].buffer.buffer = t_SceneCopyInfo.dst;
-		t_WriteDatas[0].buffer.offset = t_SceneCopyInfo.dstOffset;
-		t_WriteDatas[0].buffer.range = t_SceneCopyInfo.size;
-
-		{	//upload matrices
-			RenderCopyBufferInfo t_MatrixCopyInfo;
-			t_MatrixCopyInfo.src = t_SceneFrame.transformArray.uploadBuffer.Buffer();
-			t_MatrixCopyInfo.dst = t_SceneFrame.matrixBuffer.buffer;
-			t_MatrixCopyInfo.size = t_SceneFrame.transformArray.ArraySizeInBytes();
-			t_MatrixCopyInfo.srcOffset = 0; //WHEN UPLOADBYFFER SYSTEM IN PLACE THIS CANNOT BE 0
-			t_MatrixCopyInfo.dstOffset = t_SceneFrame.matrixBuffer.offset;
-			BB_ASSERT(t_MatrixCopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow, uploading too many model matrices!");
-
-			t_WriteDatas[1].binding = 1;
-			t_WriteDatas[1].descriptorIndex = 0;
-			t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
-			t_WriteDatas[1].buffer.buffer = t_MatrixCopyInfo.dst;
-			t_WriteDatas[1].buffer.offset = t_MatrixCopyInfo.dstOffset;
-			t_WriteDatas[1].buffer.range = t_MatrixCopyInfo.size;
-
-			RenderBackend::CopyBuffer(a_GraphicList, t_MatrixCopyInfo);
-
-			t_UploadUsed += static_cast<uint32_t>(t_MatrixCopyInfo.size);
-		}
-	}
-
-	RenderBackend::WriteDescriptors(t_BufferUpdate);
+	inst->currentFrame->transformArray.Reset();
+	inst->currentFrame->drawArray.Reset();
 }
 
 void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER_IMAGE_LAYOUT a_CurrentLayout, const RENDER_IMAGE_LAYOUT a_RenderLayout, const RENDER_IMAGE_LAYOUT a_EndLayout)
 {
+	//early out if we have nothing to render. Still do image transitions.
+	if (inst->currentFrame->drawArray.ArraySizeInBytes() == 0)
+	{
+		StartRenderingInfo t_StartRenderInfo;
+		t_StartRenderInfo.viewportWidth = inst->sceneWindowWidth;
+		t_StartRenderInfo.viewportHeight = inst->sceneWindowHeight;
+		t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
+		t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
+		t_StartRenderInfo.colorInitialLayout = a_CurrentLayout;
+		t_StartRenderInfo.colorFinalLayout = a_RenderLayout;
+		t_StartRenderInfo.clearColor[0] = 1.0f;
+		t_StartRenderInfo.clearColor[1] = 0.0f;
+		t_StartRenderInfo.clearColor[2] = 0.0f;
+		t_StartRenderInfo.clearColor[3] = 1.0f;
+		t_StartRenderInfo.depthStencil = inst->depthImage;
+
+		EndRenderingInfo t_EndRenderingInfo{};
+		t_EndRenderingInfo.colorInitialLayout = a_RenderLayout;
+		t_EndRenderingInfo.colorFinalLayout = a_EndLayout;
+		RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
+		return;
+	}
+
+	{
+		FixedArray<WriteDescriptorData, 3> t_WriteDatas;
+		WriteDescriptorInfos t_BufferUpdate{};
+		t_BufferUpdate.allocation = inst->sceneAllocation;
+		t_BufferUpdate.descriptorHandle = inst->sceneDescriptor;
+		t_BufferUpdate.data = BB::Slice(t_WriteDatas.data(), t_WriteDatas.size());
+
+		const SceneFrame& t_SceneFrame = *inst->currentFrame;
+		uint32_t t_UploadUsed = 0;
+
+		inst->sceneInfo.ambientLight = { 1.0f, 1.0f, 1.0f };
+		inst->sceneInfo.ambientStrength = 0.1f;
+		//if (inst->sceneInfo.lightCount != inst->lights.size())
+		{	//If we hvae more lights then we upload them. Maybe do a bool to check instead.
+			inst->sceneInfo.lightCount = static_cast<uint32_t>(inst->lights.size());
+
+			Memory::Copy(Pointer::Add(t_SceneFrame.uploadChunk.memory, t_UploadUsed),
+				inst->lights.data(),
+				inst->lights.size());
+		}
+
+		{//Copy over transfer buffer to GPU
+			//Copy the perframe buffer over.
+			RenderCopyBufferInfo t_CopyInfo;
+			t_CopyInfo.src = inst->uploadbuffer.Buffer();
+			t_CopyInfo.dst = t_SceneFrame.lightBuffer.buffer;
+			t_CopyInfo.size = inst->lights.size() * sizeof(inst->lights[0]);
+			t_CopyInfo.srcOffset = static_cast<uint64_t>(t_SceneFrame.uploadChunk.offset) + t_UploadUsed;
+			t_CopyInfo.dstOffset = t_SceneFrame.lightBuffer.offset;
+			BB_ASSERT(t_CopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow, uploading too many lights!");
+
+			RenderBackend::CopyBuffer(a_GraphicList, t_CopyInfo);
+
+			//temporarily shift the buffer part for the scene upload
+			t_UploadUsed += static_cast<uint32_t>(t_CopyInfo.size);
+
+			t_WriteDatas[2].binding = 2;
+			t_WriteDatas[2].descriptorIndex = 0;
+			t_WriteDatas[2].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_WriteDatas[2].buffer.buffer = t_CopyInfo.dst;
+			t_WriteDatas[2].buffer.offset = t_CopyInfo.dstOffset;
+			t_WriteDatas[2].buffer.range = t_CopyInfo.size;
+		}
+
+		{	//always upload the current scene info.
+			memcpy(Pointer::Add(t_SceneFrame.uploadChunk.memory, t_UploadUsed),
+				&inst->sceneInfo,
+				sizeof(inst->sceneInfo));
+
+			//Copy the perframe buffer and matrices.
+			RenderCopyBufferInfo t_SceneCopyInfo;
+			t_SceneCopyInfo.src = inst->uploadbuffer.Buffer();
+			t_SceneCopyInfo.dst = t_SceneFrame.sceneBuffer.buffer;
+			t_SceneCopyInfo.size = t_SceneFrame.sceneBuffer.size;
+			t_SceneCopyInfo.srcOffset = static_cast<uint64_t>(t_SceneFrame.uploadChunk.offset) + t_UploadUsed;
+			t_SceneCopyInfo.dstOffset = t_SceneFrame.sceneBuffer.offset;
+			BB_ASSERT(t_SceneCopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow");
+
+			RenderBackend::CopyBuffer(a_GraphicList, t_SceneCopyInfo);
+
+			t_UploadUsed += static_cast<uint32_t>(t_SceneCopyInfo.size);
+
+			t_WriteDatas[0].binding = 0;
+			t_WriteDatas[0].descriptorIndex = 0;
+			t_WriteDatas[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+			t_WriteDatas[0].buffer.buffer = t_SceneCopyInfo.dst;
+			t_WriteDatas[0].buffer.offset = t_SceneCopyInfo.dstOffset;
+			t_WriteDatas[0].buffer.range = t_SceneCopyInfo.size;
+
+			{	//upload matrices
+				RenderCopyBufferInfo t_MatrixCopyInfo;
+				t_MatrixCopyInfo.src = t_SceneFrame.transformArray.uploadBuffer.Buffer();
+				t_MatrixCopyInfo.dst = t_SceneFrame.matrixBuffer.buffer;
+				t_MatrixCopyInfo.size = t_SceneFrame.matrixBuffer.size;
+				t_MatrixCopyInfo.srcOffset = 0; //WHEN UPLOADBYFFER SYSTEM IN PLACE THIS CANNOT BE 0
+				t_MatrixCopyInfo.dstOffset = t_SceneFrame.matrixBuffer.offset;
+				//BB_ASSERT(t_MatrixCopyInfo.size + t_UploadUsed < t_SceneFrame.uploadChunk.size, "Upload buffer overflow, uploading too many model matrices!");
+
+				RenderBackend::CopyBuffer(a_GraphicList, t_MatrixCopyInfo);
+
+				t_WriteDatas[1].binding = 1;
+				t_WriteDatas[1].descriptorIndex = 0;
+				t_WriteDatas[1].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+				t_WriteDatas[1].buffer.buffer = t_SceneFrame.transformArray.uploadBuffer.Buffer();
+				t_WriteDatas[1].buffer.offset = 0;
+				t_WriteDatas[1].buffer.range = t_SceneFrame.transformArray.ArraySizeInBytes();
+			}
+		}
+
+		RenderBackend::WriteDescriptors(t_BufferUpdate);
+	}
+
 	StartRenderingInfo t_StartRenderInfo;
 	t_StartRenderInfo.viewportWidth = inst->sceneWindowWidth;
 	t_StartRenderInfo.viewportHeight = inst->sceneWindowHeight;
@@ -546,7 +575,7 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
 	t_StartRenderInfo.colorInitialLayout = a_CurrentLayout;
 	t_StartRenderInfo.colorFinalLayout = a_RenderLayout;
-	t_StartRenderInfo.clearColor[0] = 1.0f;
+	t_StartRenderInfo.clearColor[0] = 0.25f;
 	t_StartRenderInfo.clearColor[1] = 0.0f;
 	t_StartRenderInfo.clearColor[2] = 0.0f;
 	t_StartRenderInfo.clearColor[3] = 1.0f;
@@ -555,22 +584,9 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 	//Record rendering commands.
 	RenderBackend::StartRendering(a_GraphicList, t_StartRenderInfo);
 
-	//early out if we have nothing to render. Still do image transitions.
-	if (inst->currentFrame->drawArray.ArraySizeInBytes() == 0)
-	{
-		EndRenderingInfo t_EndRenderingInfo{};
-		t_EndRenderingInfo.colorInitialLayout = a_RenderLayout;
-		t_EndRenderingInfo.colorFinalLayout = a_EndLayout;
-		RenderBackend::EndRendering(a_GraphicList, t_EndRenderingInfo);
-		return;
-	}
-
-
-	const SceneDrawCall* t_DrawCall = inst->currentFrame->drawArray.startMemory;
+	SceneDrawCall* t_DrawCall = inst->currentFrame->drawArray.startMemory;
 	uint32_t t_MeshDescriptorOffset = t_DrawCall->meshDescriptorOffset;
 	PipelineHandle t_Pipeline = t_DrawCall->pipeline;
-
-	const uint32_t t_FrameNum = RenderBackend::GetCurrentFrameBufferIndex();
 
 	RenderBackend::BindPipeline(a_GraphicList, t_Pipeline);
 
@@ -583,7 +599,7 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 		RenderBackend::BindIndexBuffer(a_GraphicList, Render::GetIndexBuffer().GetBuffer(), 0);
 	}
 
-	for (auto t_It = inst->currentFrame->drawArray.startMemory; t_It < inst->currentFrame->drawArray.currentCall; t_It++)
+	for (t_DrawCall; t_DrawCall < inst->currentFrame->drawArray.currentCall; t_DrawCall++)
 	{
 		//check material, for later
 		if (false)
@@ -591,15 +607,15 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 			//change material.....
 		}
 
-		if (t_It->pipeline != t_Pipeline)
+		if (t_DrawCall->pipeline != t_Pipeline)
 		{
-			t_Pipeline = t_It->pipeline;
+			t_Pipeline = t_DrawCall->pipeline;
 			RenderBackend::BindPipeline(a_GraphicList, t_Pipeline);
 		}
 
-		if (t_It->meshDescriptorOffset != t_MeshDescriptorOffset)
+		if (t_DrawCall->meshDescriptorOffset != t_MeshDescriptorOffset)
 		{
-			t_MeshDescriptorOffset = t_It->meshDescriptorOffset;
+			t_MeshDescriptorOffset = t_DrawCall->meshDescriptorOffset;
 			const uint32_t t_IsSamplerHeap[1]{ false };
 			const size_t t_BufferOffsets[1]{ t_MeshDescriptorOffset };
 			RenderBackend::SetDescriptorHeapOffsets(a_GraphicList, RENDER_DESCRIPTOR_SET::PER_MATERIAL, 1, t_IsSamplerHeap, t_BufferOffsets);
@@ -607,15 +623,15 @@ void SceneGraph::RenderScene(const CommandListHandle a_GraphicList, const RENDER
 
 		ScenePushConstantInfo t_PushInfo
 		{
-			t_It->transformIndex,
-			t_It->baseColorIndex
+			t_DrawCall->transformIndex,
+			t_DrawCall->baseColorIndex
 		};
 
 		RenderBackend::BindConstant(a_GraphicList, 0, SCENE_PUSH_CONSTANT_DWORD_COUNT, 0, &t_PushInfo);
 		RenderBackend::DrawIndexed(a_GraphicList,
-			t_It->indexCount,
+			t_DrawCall->indexCount,
 			1,
-			t_It->indexStart,
+			t_DrawCall->indexStart,
 			0,
 			0);
 	}
@@ -643,34 +659,34 @@ void SceneGraph::SetView(const Mat4x4& a_View)
 
 void TraverseModelNode(SceneGraph_inst* a_Inst, SceneDrawCall& a_DrawCall, const Model& a_Model, const Model::Node& a_Node, const Mat4x4& a_Transform)
 {
+	const Mat4x4 t_LocalTransform = a_Transform * a_Node.transform;
+
+	if (a_Node.meshIndex != MESH_INVALID_INDEX)
+	{
+		const Model::Mesh& t_Mesh = a_Model.meshes[a_Node.meshIndex];
+		InstanceTransform t_Transform;
+		//wrong, need to go through the childeren and then update the transforms that way.
+		t_Transform.transform = t_LocalTransform;
+		t_Transform.inverse = Mat4x4Inverse(t_LocalTransform);
+		a_DrawCall.transformIndex = a_Inst->currentFrame->transformArray.AddTransform(t_Transform);
+
+		for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
+		{
+			const Model::Primitive& t_Prim = a_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+
+			BB_ASSERT(t_Prim.indexCount + t_Prim.indexStart < a_Model.indexView.size, "index buffer reading out of bounds");
+			a_DrawCall.baseColorIndex = t_Prim.baseColorIndex.index;
+			a_DrawCall.normalTexture = t_Prim.normalIndex.index;
+			a_DrawCall.indexCount = t_Prim.indexCount;
+			//Hacky way to only set the index buffer once, and let the drawindexed just index deep into the buffer.
+			a_DrawCall.indexStart = t_Prim.indexStart + (a_Model.indexView.offset / (sizeof(uint32_t)));
+			a_Inst->currentFrame->drawArray.AddDrawCall(a_DrawCall);
+		}
+	}
+
 	for (size_t i = 0; i < a_Node.childCount; i++)
 	{
 		const Model::Node& a_ChildNode = a_Node.childeren[i];
-		const Mat4x4 t_LocalTransform = a_Transform * a_ChildNode.transform;
-
-		if (a_ChildNode.meshIndex != MESH_INVALID_INDEX)
-		{
-			const Model::Mesh& t_Mesh = a_Model.meshes[a_ChildNode.meshIndex];
-			InstanceTransform t_Transform;
-			//wrong, need to go through the childeren and then update the transforms that way.
-			t_Transform.transform = t_LocalTransform;
-			t_Transform.inverse = Mat4x4Inverse(t_LocalTransform);
-			a_DrawCall.transformIndex = a_Inst->currentFrame->transformArray.AddTransform(t_Transform);
-
-			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
-			{
-				const Model::Primitive& t_Prim = a_Model.primitives[t_Mesh.primitiveOffset + t_PrimIndex];
-
-				BB_ASSERT(t_Prim.indexCount + t_Prim.indexStart < a_Model.indexView.size, "index buffer reading out of bounds");
-				a_DrawCall.baseColorIndex = t_Prim.baseColorIndex.index;
-				a_DrawCall.normalTexture = t_Prim.normalIndex.index;
-				a_DrawCall.indexCount = t_Prim.indexCount;
-				//Hacky way to only set the index buffer once, and let the drawindexed just index deep into the buffer.
-				a_DrawCall.indexStart = t_Prim.indexStart + (a_Model.indexView.offset / (sizeof(uint32_t)));
-				a_Inst->currentFrame->drawArray.AddDrawCall(a_DrawCall);
-			}
-		}
-		
 		TraverseModelNode(a_Inst, a_DrawCall, a_Model, a_ChildNode, t_LocalTransform);
 	}
 }
@@ -684,7 +700,7 @@ void SceneGraph::RenderModel(const RModelHandle a_Model, const Mat4x4& a_Transfo
 	t_DrawCall.pipeline = t_Model.pipelineHandle;
 
 	//root node is always 0? I think so, needs confirmation.
-	TraverseModelNode(inst, t_DrawCall, t_Model, t_Model.nodes[0], a_Transform);
+	TraverseModelNode(inst, t_DrawCall, t_Model, t_Model.linearNodes[0], a_Transform);
 }
 
 void SceneGraph::RenderModels(const RModelHandle* a_Models, const Mat4x4* a_Transforms, const uint32_t a_ObjectCount)

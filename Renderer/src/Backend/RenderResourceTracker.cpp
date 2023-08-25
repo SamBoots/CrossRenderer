@@ -587,6 +587,9 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 					case RENDER_BUFFER_USAGE::STAGING:
 						ImGui::Text("Usage: STAGING");
 						break;
+					case RENDER_BUFFER_USAGE::VERTEX:
+						ImGui::Text("Usage: VERTEX");
+						break;
 					default:
 						BB_ASSERT(false, "Unknown RENDER_BUFFER_USAGE for resource trackering editor");
 						break;

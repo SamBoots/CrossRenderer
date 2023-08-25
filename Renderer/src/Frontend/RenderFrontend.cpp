@@ -223,8 +223,7 @@ CommandList* RenderQueue::GetCommandList()
 
 void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount)
 {
-	CommandListHandle* t_CmdListHandles = reinterpret_cast<CommandListHandle*>(
-		_alloca(a_CommandListCount * sizeof(CommandListHandle)));
+	CommandListHandle* t_CmdListHandles = BBstackAlloc(a_CommandListCount, CommandListHandle);
 	for (uint32_t i = 0; i < a_CommandListCount; i++)
 	{
 		t_CmdListHandles[i] = a_CommandLists[i]->list;
@@ -233,10 +232,8 @@ void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a
 		BB_SLL_PUSH(m_InFlightLists, a_CommandLists[i]);
 	}
 
-	uint64_t* t_WaitValues = reinterpret_cast<uint64_t*>(
-		_alloca(a_FenceCount * sizeof(uint64_t)));
-	RFenceHandle* t_Fences = reinterpret_cast<RFenceHandle*>(
-		_alloca(a_FenceCount * sizeof(RFenceHandle)));
+	uint64_t* t_WaitValues = BBstackAlloc(a_FenceCount, uint64_t);
+	RFenceHandle* t_Fences = BBstackAlloc(a_FenceCount, RFenceHandle);
 	for (uint32_t i = 0; i < a_FenceCount; i++)
 	{
 		t_WaitValues[i] = a_WaitFences[i].nextFenceValue;
@@ -263,8 +260,7 @@ void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a
 void RenderQueue::ExecutePresentCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount)
 {
 	BB_ASSERT(m_Type == RENDER_QUEUE_TYPE::GRAPHICS, "Trying to present commands via a non graphics queue, This is not possible!");
-	CommandListHandle* t_CmdListHandles = reinterpret_cast<CommandListHandle*>(
-		_alloca(a_CommandListCount * sizeof(CommandListHandle)));
+	CommandListHandle* t_CmdListHandles = BBstackAlloc(a_CommandListCount, CommandListHandle);
 	for (uint32_t i = 0; i < a_CommandListCount; i++)
 	{
 		t_CmdListHandles[i] = a_CommandLists[i]->list;
@@ -273,10 +269,8 @@ void RenderQueue::ExecutePresentCommands(CommandList** a_CommandLists, const uin
 		BB_SLL_PUSH(m_InFlightLists, a_CommandLists[i]);
 	}
 
-	uint64_t* t_WaitValues = reinterpret_cast<uint64_t*>(
-		_alloca(a_FenceCount * sizeof(uint64_t)));
-	RFenceHandle* t_Fences = reinterpret_cast<RFenceHandle*>(
-		_alloca(a_FenceCount * sizeof(RFenceHandle)));
+	uint64_t* t_WaitValues = BBstackAlloc(a_FenceCount, uint64_t);
+	RFenceHandle* t_Fences = BBstackAlloc(a_FenceCount, RFenceHandle);
 	for (uint32_t i = 0; i < a_FenceCount; i++)
 	{
 		t_WaitValues[i] = a_WaitFences[i].nextFenceValue;
@@ -757,6 +751,8 @@ RModelHandle BB::Render::CreateRawModel(const CommandListHandle a_CommandList, c
 	t_Model.linearNodes = BBnew(s_SystemAllocator, Model::Node)();
 	t_Model.linearNodeCount = 1;
 	t_Model.nodes = t_Model.linearNodes;
+	t_Model.nodes->meshIndex = 0;
+	t_Model.nodes->transform = Mat4x4Identity();
 	t_Model.nodeCount = 1;
 
 	t_Model.primitives = BBnew(s_SystemAllocator, Model::Primitive)();
@@ -876,6 +872,126 @@ static inline uint32_t GetChildNodeCount(const cgltf_node& a_Node)
 	return t_NodeCount;
 }
 
+void LoadglTFNode(Allocator a_TempAllocator, Model& a_Model, const cgltf_node& a_glTFNode, uint32_t& a_NodeIndex, uint32_t& a_MeshIndex, uint32_t& a_PrimitiveIndex, Vertex* a_Vertices, uint32_t& a_CurrentVertex, uint32_t* a_Indices, uint32_t& a_CurrentIndex)
+{
+	Model::Node& t_ModelNode = a_Model.linearNodes[a_NodeIndex++];
+	if (a_glTFNode.has_matrix)
+		memcpy(&t_ModelNode.transform, a_glTFNode.matrix, sizeof(Mat4x4));
+	else
+		t_ModelNode.transform = Mat4x4Identity();
+
+	if (a_glTFNode.mesh != nullptr)
+	{
+		const cgltf_mesh& t_Mesh = *a_glTFNode.mesh;
+		Model::Mesh& t_ModelMesh = a_Model.meshes[a_MeshIndex];
+		t_ModelNode.meshIndex = a_MeshIndex++;
+		t_ModelMesh.primitiveOffset = a_PrimitiveIndex;
+		t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
+
+		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
+		{
+			const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+			Model::Primitive& t_MeshPrimitive = a_Model.primitives[a_PrimitiveIndex++];
+
+			if (t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture)
+			{
+				const cgltf_image& t_Image = *t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
+				char* t_FullImagePath = CreateGLTFImagePath(a_TempAllocator, t_Image.uri);
+				t_MeshPrimitive.baseColorIndex = Asset::GetImageWait(t_FullImagePath);
+			}
+
+			if (t_Primitive.material->normal_texture.texture)
+			{
+				const cgltf_image& t_Image = *t_Primitive.material->normal_texture.texture->image;
+				char* t_FullImagePath = CreateGLTFImagePath(a_TempAllocator, t_Image.uri);
+				t_MeshPrimitive.normalIndex = Asset::GetImageWait(t_FullImagePath);
+			}
+
+			t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);
+			t_MeshPrimitive.indexStart = a_CurrentIndex;
+			void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
+			if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
+			{
+				for (size_t i = 0; i < t_Primitive.indices->count; i++)
+					a_Indices[a_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
+			}
+			else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
+			{
+				for (size_t i = 0; i < t_Primitive.indices->count; i++)
+					a_Indices[a_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
+			}
+			else
+			{
+				BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+			}
+
+			const size_t t_VertexStart = a_CurrentVertex;
+			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
+			{
+				const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
+				float* t_PosData = nullptr;
+
+				switch (t_Attribute.type)
+				{
+				case cgltf_attribute_type_position:
+					t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+					for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+					{
+						a_Vertices[t_VertexStart + posIndex].pos.x = t_PosData[0];
+						a_Vertices[t_VertexStart + posIndex].pos.y = t_PosData[1];
+						a_Vertices[t_VertexStart + posIndex].pos.z = t_PosData[2];
+
+						t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+						++a_CurrentVertex;
+					}
+					break;
+				case cgltf_attribute_type_texcoord:
+					t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+					for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+					{
+						a_Vertices[t_VertexStart + posIndex].uv.x = t_PosData[0];
+						a_Vertices[t_VertexStart + posIndex].uv.y = t_PosData[1];
+
+						t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+					}
+
+					break;
+				case cgltf_attribute_type_normal:
+					t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
+
+					for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
+					{
+						a_Vertices[t_VertexStart + posIndex].normal.x = t_PosData[0];
+						a_Vertices[t_VertexStart + posIndex].normal.y = t_PosData[1];
+						a_Vertices[t_VertexStart + posIndex].normal.z = t_PosData[2];
+
+						t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
+					}
+					break;
+				}
+				//BB_ASSERT(t_VertexCount >= t_CurrentVertex, "Overwriting vertices in the gltf loader!");
+			}
+		}
+	}
+	else
+		t_ModelNode.meshIndex = MESH_INVALID_INDEX;
+
+
+	if (a_glTFNode.children_count > 0)
+	{
+		t_ModelNode.childCount = a_glTFNode.children_count;
+		t_ModelNode.childeren = &a_Model.linearNodes[a_NodeIndex];; //For now we don't care.
+		for (size_t i = 0; i < a_glTFNode.children_count; i++)
+		{
+			LoadglTFNode(a_TempAllocator, a_Model, *a_glTFNode.children[i], a_NodeIndex, a_MeshIndex, a_PrimitiveIndex, a_Vertices, a_CurrentVertex, a_Indices, a_CurrentIndex);
+		}
+	}
+	else
+		t_ModelNode.childCount = 0;
+}
+
 //Maybe use own allocators for this?
 void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_CommandList, const char* a_Path)
 {
@@ -908,16 +1024,16 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 	//Get the sizes first for efficient allocation.
 	for (size_t meshIndex = 0; meshIndex < t_Data->meshes_count; meshIndex++)
 	{
-		cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
+		const cgltf_mesh& t_Mesh = t_Data->meshes[meshIndex];
 		for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
 		{
 			++t_PrimitiveCount;
-			cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
+			const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
 			t_IndexCount += static_cast<uint32_t>(t_Mesh.primitives[meshIndex].indices->count);
 
 			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
 			{
-				cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
+				const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
 				if (t_Attribute.type == cgltf_attribute_type_position)
 				{
 					BB_ASSERT(t_Attribute.data->type == cgltf_type_vec3, "GLTF position type is not a vec3!");
@@ -959,130 +1075,23 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 		t_VertexCount,
 		Vertex);
 
+	for (size_t i = 0; i < t_VertexCount; i++) //temp solution to set color. Maybe permanent
+	{
+		t_Vertices[i].color.x = 1.0f;
+		t_Vertices[i].color.y = 1.0f;
+		t_Vertices[i].color.z = 1.0f;
+	}
+
 	uint32_t t_CurrentIndex = 0;
+	uint32_t t_CurrentVertex = 0;
 
 	uint32_t t_CurrentNode = 0;
 	uint32_t t_CurrentMesh = 0;
 	uint32_t t_CurrentPrimitive = 0;
 
-	for (size_t nodeIndex = 0; nodeIndex < t_LinearNodeCount; nodeIndex++)
+	for (size_t i = 0; i < t_Data->scene->nodes_count; i++)
 	{
-		//TODO: we do not handle childeren now, we should!
-		const cgltf_node& t_Node = t_Data->nodes[nodeIndex];
-		Model::Node& t_ModelNode = t_LinearNodes[t_CurrentNode++];
-		t_ModelNode.childCount = 0;
-		t_ModelNode.childeren = nullptr; //For now we don't care.
-		t_ModelNode.meshIndex = MESH_INVALID_INDEX;
-		if (t_Node.mesh != nullptr)
-		{
-			const cgltf_mesh& t_Mesh = *t_Node.mesh;
-			Model::Mesh& t_ModelMesh = t_Meshes[t_CurrentMesh];
-			t_ModelNode.meshIndex = t_CurrentMesh++;
-			t_ModelMesh.primitiveOffset = t_CurrentPrimitive;
-			t_ModelMesh.primitiveCount = static_cast<uint32_t>(t_Mesh.primitives_count);
-			
-			for (size_t primitiveIndex = 0; primitiveIndex < t_Mesh.primitives_count; primitiveIndex++)
-			{
-				const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
-				Model::Primitive& t_MeshPrimitive = t_Primitives[t_CurrentPrimitive++];
-
-				if (t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture)
-				{
-					const cgltf_image& t_Image = *t_Primitive.material->pbr_metallic_roughness.base_color_texture.texture->image;
-					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
-					t_MeshPrimitive.baseColorIndex = Asset::GetImageWait(t_FullImagePath);
-				}
-
-				if (t_Primitive.material->normal_texture.texture)
-				{
-					const cgltf_image& t_Image = *t_Primitive.material->normal_texture.texture->image;
-					char* t_FullImagePath = CreateGLTFImagePath(t_TempAllocator, t_Image.uri);
-					t_MeshPrimitive.normalIndex = Asset::GetImageWait(t_FullImagePath);
-				}
-
-				t_MeshPrimitive.indexCount = static_cast<uint32_t>(t_Primitive.indices->count);
-				t_MeshPrimitive.indexStart = t_CurrentIndex;
-				void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
-				if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
-				{
-					for (size_t i = 0; i < t_Primitive.indices->count; i++)
-						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
-				}
-				else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
-				{
-					for (size_t i = 0; i < t_Primitive.indices->count; i++)
-						t_Indices[t_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
-				}
-				else
-				{
-					BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
-				}
-
-				for (size_t i = 0; i < t_VertexCount; i++)
-				{
-					t_Vertices[i].color.x = 1.0f;
-					t_Vertices[i].color.y = 1.0f;
-					t_Vertices[i].color.z = 1.0f;
-				}
-
-				for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
-				{
-					const cgltf_attribute& t_Attribute = t_Primitive.attributes[attrIndex];
-					float* t_PosData = nullptr;
-					size_t t_CurrentVertex = 0;
-
-					switch (t_Attribute.type)
-					{
-					case cgltf_attribute_type_position:
-						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
-
-						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
-						{
-							t_Vertices[t_CurrentVertex].pos.x = t_PosData[0];
-							t_Vertices[t_CurrentVertex].pos.y = t_PosData[1];
-							t_Vertices[t_CurrentVertex].pos.z = t_PosData[2];
-
-							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
-							++t_CurrentVertex;
-						}
-						break;
-					case cgltf_attribute_type_texcoord:
-						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
-
-						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
-						{
-							t_Vertices[t_CurrentVertex].uv.x = t_PosData[0];
-							t_Vertices[t_CurrentVertex].uv.y = t_PosData[1];
-
-							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
-							++t_CurrentVertex;
-						}
-
-						break;
-					case cgltf_attribute_type_normal:
-						t_PosData = reinterpret_cast<float*>(GetAccessorDataPtr(t_Attribute.data));
-
-						for (size_t posIndex = 0; posIndex < t_Attribute.data->count; posIndex++)
-						{
-							t_Vertices[t_CurrentVertex].normal.x = t_PosData[0];
-							t_Vertices[t_CurrentVertex].normal.y = t_PosData[1];
-							t_Vertices[t_CurrentVertex].normal.z = t_PosData[2];
-
-							t_PosData = reinterpret_cast<float*>(Pointer::Add(t_PosData, t_Attribute.data->stride));
-							++t_CurrentVertex;
-						}
-						break;
-					}
-					BB_ASSERT(t_VertexCount >= t_CurrentVertex, "Overwriting vertices in the gltf loader!");
-				}
-			}
-		}
-
-		if (t_Node.has_matrix)
-		{
-			memcpy(&t_ModelNode.transform, t_Node.matrix, sizeof(Mat4x4));
-			//maybe transpose?
-		}
+		LoadglTFNode(t_TempAllocator, a_Model, *t_Data->scene->nodes[i], t_CurrentNode, t_CurrentMesh, t_CurrentPrimitive, t_Vertices, t_CurrentVertex, t_Indices, t_CurrentIndex);
 	}
 
 	//get it all in GPU buffers now.

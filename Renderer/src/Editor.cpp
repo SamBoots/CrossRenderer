@@ -31,40 +31,6 @@ void BB::Editor::DisplaySceneInfo(SceneGraph& t_Scene)
 	if (ImGui::CollapsingHeader(t_Scene.GetSceneName()))
 	{
 		ImGui::Indent();
-		if (ImGui::CollapsingHeader("Scene Objects"))
-		{
-			ImGui::Indent();
-			BB::Slice<SceneObject> t_SceneObjects = t_Scene.GetSceneObjects();
-			for (size_t i = 0; i < t_SceneObjects.size(); i++)
-			{
-				const SceneObject& t_Obj = t_SceneObjects[i];
-				Transform& t_Trans = t_Scene.GetTransform(t_Obj.transformHandle);
-
-				if (ImGui::CollapsingHeader(t_Obj.name))
-				{
-					ImGui::PushID(static_cast<int>(i));
-					ImGui::Indent();
-					if (ImGui::CollapsingHeader("Transform"))
-					{
-						ImGui::Indent();
-						ImGui::InputFloat3("Position", &t_Trans.m_Pos.x);
-						ImGui::InputFloat3("Rotation quat", &t_Trans.m_Rot.x);
-						ImGui::InputFloat3("Scale", &t_Trans.m_Scale.x);
-						ImGui::Unindent();
-					}
-					if (ImGui::CollapsingHeader("ModelInfo"))
-					{
-						ImGui::Indent();
-						ImGui::Text("Do some model meta info here....");
-						ImGui::Unindent();
-					}
-
-					ImGui::Unindent();
-					ImGui::PopID();
-				}
-			}
-			ImGui::Unindent();
-		}
 		ImGui::Unindent();
 	}
 }

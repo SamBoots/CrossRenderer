@@ -92,12 +92,14 @@ int main(int argc, char** argv)
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
-	t_LoadInfo.path = "Resources/Models/Sponza.gltf";
+	t_LoadInfo.path = "Resources/Models/Duck.gltf";
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
 	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
 
 	FrameGraph t_FrameGraph{};
 	t_FrameGraph.RegisterRenderPass(t_Scene);
+
+	TransformPool transformPool(t_SceneAllocator, 256);
 
 	//I do not like this, it should be automated but for now to test I just cheat.
 	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
@@ -108,17 +110,13 @@ int main(int argc, char** argv)
 	Render::GetTransferQueue().WaitIdle();
 	//shit code over
 
-	SceneObjectCreateInfo t_SceneObjectCreateInfo;
-	t_SceneObjectCreateInfo.name = "sponza";
-	t_SceneObjectCreateInfo.model = t_gltfCube;
-	const SceneObjectHandle t_DrawObj1 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo,
-		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f, float3{ 0.001f, 0.001f, 0.001f });
-	Transform& t_Transform1 = t_Scene.GetTransform(t_DrawObj1);
 
-	t_SceneObjectCreateInfo.name = "Quad";
-	t_SceneObjectCreateInfo.model = t_Model;
-	const SceneObjectHandle t_DrawObj2 = t_Scene.CreateSceneObject(t_SceneObjectCreateInfo, float3{ 0, 1, 0 });
-	Transform& t_Transform2 = t_Scene.GetTransform(t_DrawObj2);
+	const TransformHandle t_TransformHandle1 = transformPool.CreateTransform(
+		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f);
+	Transform& t_Transform1 = transformPool.GetTransform(t_TransformHandle1);
+
+	const TransformHandle t_TransformHandle2 = transformPool.CreateTransform(float3{ 0, 1, 0 });
+	Transform& t_Transform2 = transformPool.GetTransform(t_TransformHandle2);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
@@ -190,12 +188,15 @@ int main(int argc, char** argv)
 		t_Scene.SetView(t_Cam.CalculateView());
 		t_FrameGraph.BeginRendering();
 
+		t_Scene.RenderModel(t_gltfCube, t_Transform1.CreateMatrix());
+		Mat4x4 t_Matrix = t_Transform2.CreateMatrix();
+		t_Scene.RenderModel(t_Model, t_Matrix);
 		Editor::StartEditorFrame();
 		Editor::DisplaySceneInfo(t_Scene);
 
 		t_DeltaTime = std::chrono::duration<float, std::chrono::seconds::period>(t_CurrentTime - t_StartTime).count();
 
-		//t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, 1.1f * t_DeltaTime);
+		t_Transform1.SetRotation(float3{ 0.0f, 1.0f, 0.0f }, 1.1f * t_DeltaTime);
 		t_Transform2.SetRotation(float3{ 0.0f, 0.0f, 1.0f }, 1.0f * t_DeltaTime);
 
 		t_FrameGraph.Render();
