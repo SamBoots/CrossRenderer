@@ -103,7 +103,9 @@ int main(int argc, char** argv)
 
 	//I do not like this, it should be automated but for now to test I just cheat.
 	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
-	RModelHandle t_gltfCube = Render::LoadModel(t_CmdList->list, t_LoadInfo);
+	RModelHandle t_glTFDuck = Render::LoadModel(t_CmdList->list, t_LoadInfo);
+	t_LoadInfo.path = "Resources/Models/Sponza.gltf";
+	RModelHandle t_gltfSponza = Render::LoadModel(t_CmdList->list, t_LoadInfo);
 	RModelHandle t_Model = Render::CreateRawModel(t_CmdList->list, t_ModelInfo);
 	RenderBackend::EndCommandList(t_CmdList->list);
 	Render::GetTransferQueue().ExecuteCommands(&t_CmdList, 1, nullptr, nullptr, 0);
@@ -111,12 +113,15 @@ int main(int argc, char** argv)
 	//shit code over
 
 
-	const TransformHandle t_TransformHandle1 = transformPool.CreateTransform(
-		float3{ 0, -1, 1 }, float3{ 0, 0, 1 }, 90.f);
+	const TransformHandle t_TransformHandle1 = transformPool.CreateTransform(float3{ 0, -1, 1 });
 	Transform& t_Transform1 = transformPool.GetTransform(t_TransformHandle1);
 
 	const TransformHandle t_TransformHandle2 = transformPool.CreateTransform(float3{ 0, 1, 0 });
 	Transform& t_Transform2 = transformPool.GetTransform(t_TransformHandle2);
+
+	const TransformHandle t_TransformHandle3 = transformPool.CreateTransform(float3{ 0, 10, 0 },
+		float3{ 0, 0, 0 }, 0, float3{ 0.1f, 0.1f, 0.1f });
+	Transform& t_Transform3 = transformPool.GetTransform(t_TransformHandle3);
 
 	static auto t_StartTime = std::chrono::high_resolution_clock::now();
 	auto t_CurrentTime = std::chrono::high_resolution_clock::now();
@@ -188,9 +193,9 @@ int main(int argc, char** argv)
 		t_Scene.SetView(t_Cam.CalculateView());
 		t_FrameGraph.BeginRendering();
 
-		t_Scene.RenderModel(t_gltfCube, t_Transform1.CreateMatrix());
-		Mat4x4 t_Matrix = t_Transform2.CreateMatrix();
-		t_Scene.RenderModel(t_Model, t_Matrix);
+		t_Scene.RenderModel(t_glTFDuck, t_Transform1.CreateMatrix());
+		t_Scene.RenderModel(t_Model, t_Transform2.CreateMatrix());
+		t_Scene.RenderModel(t_gltfSponza, t_Transform3.CreateMatrix());
 		Editor::StartEditorFrame();
 		Editor::DisplaySceneInfo(t_Scene);
 
