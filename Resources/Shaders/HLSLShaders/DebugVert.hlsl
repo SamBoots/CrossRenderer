@@ -62,8 +62,8 @@ struct ModelInstance
 
 struct BindlessIndices
 {
-    uint model;
-    uint texture1;
+    uint transform;
+    uint albedo;
 #ifdef _VULKAN
     uint paddingTo64Bytes[14];
 #endif
@@ -77,12 +77,12 @@ struct BindlessIndices
 
 _BBBIND(0, SPACE_PER_SCENE)     ByteAddressBuffer sceneBuffer;
 _BBBIND(1, SPACE_PER_SCENE)     ByteAddressBuffer modelInstances;
- _BBBIND(0, SPACE_PER_MATERIAL) ByteAddressBuffer vertData;
+_BBBIND(0, SPACE_PER_MATERIAL) ByteAddressBuffer vertData;
 
 VSOutput main(uint VertexIndex : SV_VertexID)
 {
-    ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.model);
-    SceneInfo t_SceneInfo = sceneBuffer.Load < SceneInfo > (0);
+    ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.transform);
+    SceneInfo t_SceneInfo = sceneBuffer.Load<SceneInfo>(0);
     
     float4x4 t_Model = t_ModelInstance.model;
     float4x4 t_InverseModel = t_ModelInstance.inverse;

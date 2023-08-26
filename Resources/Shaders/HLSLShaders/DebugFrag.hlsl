@@ -46,8 +46,8 @@ struct Light
 
 struct BindlessIndices
 {
-    uint model;
-    uint texture1;
+    uint transform;
+    uint albedo;
 #ifdef _VULKAN
     uint paddingTo64Bytes[14];
 #endif
@@ -78,8 +78,8 @@ struct VSoutput
 float4 main(VSoutput input) : SV_Target
 {
     //not loading the entire buffer here.
-    SceneInfo t_SceneInfo = sceneBuffer.Load < SceneInfo > (0);
-    float4 t_TextureColor = text[indices.texture1].Sample(samplerColor, input.uv);
+    SceneInfo t_SceneInfo = sceneBuffer.Load<SceneInfo>(0);
+    float4 t_TextureColor = text[indices.albedo].Sample(samplerColor, input.uv);
     float4 t_Color = t_TextureColor * float4(input.color.xyz, 1.0f);
     
     float4 t_Diffuse = 0;
