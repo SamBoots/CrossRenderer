@@ -10,6 +10,12 @@ else()
 message(FATAL_ERROR "Not chosen a valid graphicsAPI, the one chosen is: ${GraphicsAPI}")
 endif()
 
+if (CMAKE_BUILD_TYPE MATCHES Debug)
+add_compile_definitions(PUBLIC _TRACK_RENDER_RESOURCES)
+elseif(CMAKE_BUILD_TYPE MATCHES Release)
+add_compile_definitions(PUBLIC _TRACK_RENDER_RESOURCES)
+endif(CMAKE_BUILD_TYPE)
+
 #Add source to this project's executable.
 add_executable (Renderer 
 #API specific backend

@@ -1311,6 +1311,43 @@ RFenceHandle BB::VulkanCreateFence(const FenceCreateInfo& a_CreateInfo)
 	return RFenceHandle((uintptr_t)t_TimelineSemaphore);
 }
 
+void BB::VulkanSetResourceName(const SetResourceNameInfo& a_Info)
+{
+	switch (a_Info.resourceType)
+	{
+	case RENDER_RESOURCE_TYPE::DESCRIPTOR_HEAP:
+		SetDebugName(a_Info.name, reinterpret_cast<VulkanDescriptorBuffer*>(a_Info.resouceHandle)->GetBuffer(), VK_OBJECT_TYPE_BUFFER);
+		break;
+	case RENDER_RESOURCE_TYPE::DESCRIPTOR:
+		SetDebugName(a_Info.name, reinterpret_cast<VulkanDescriptor*>(a_Info.resouceHandle)->layout, VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT);
+		break;
+	case RENDER_RESOURCE_TYPE::QUEUE:
+		SetDebugName(a_Info.name, a_Info.resouceHandle, VK_OBJECT_TYPE_QUEUE);
+		break;
+	case RENDER_RESOURCE_TYPE::COMMAND_ALLOCATOR:
+		SetDebugName(a_Info.name, reinterpret_cast<VkCommandAllocator*>(a_Info.resouceHandle)->pool, VK_OBJECT_TYPE_COMMAND_POOL);
+		break;
+	case RENDER_RESOURCE_TYPE::COMMANT_LIST:
+		SetDebugName(a_Info.name, reinterpret_cast<VulkanCommandList*>(a_Info.resouceHandle)->Buffer(), VK_OBJECT_TYPE_COMMAND_BUFFER);
+		break;
+	case RENDER_RESOURCE_TYPE::BUFFER:
+		SetDebugName(a_Info.name, reinterpret_cast<VulkanBuffer*>(a_Info.resouceHandle)->buffer, VK_OBJECT_TYPE_BUFFER);
+		break;
+	case RENDER_RESOURCE_TYPE::IMAGE:
+		SetDebugName(a_Info.name, reinterpret_cast<VulkanImage*>(a_Info.resouceHandle)->image, VK_OBJECT_TYPE_IMAGE);
+		break;
+	case RENDER_RESOURCE_TYPE::SAMPLER:
+		SetDebugName(a_Info.name, a_Info.resouceHandle, VK_OBJECT_TYPE_SAMPLER);
+		break;
+	case RENDER_RESOURCE_TYPE::FENCE:
+		SetDebugName(a_Info.name, a_Info.resouceHandle, VK_OBJECT_TYPE_SEMAPHORE);
+		break;
+	default:
+		BB_ASSERT(false, "unknown RENDER_RESOURCE_TYPE provided")
+			break;
+	}
+}
+
 DescriptorAllocation BB::VulkanAllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
 {
 	return reinterpret_cast<VulkanDescriptorBuffer*>(a_AllocateInfo.heap.handle)->Allocate(a_AllocateInfo.descriptor, a_AllocateInfo.heapOffset);

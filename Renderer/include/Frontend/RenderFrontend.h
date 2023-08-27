@@ -24,7 +24,7 @@ namespace BB
 		RenderQueue(const RENDER_QUEUE_TYPE a_QueueType, const char* a_Name);
 		~RenderQueue();
 
-		CommandList* GetCommandList();
+		CommandList* GetCommandList(const char* a_ListName = "");
 
 		//Also handles incrementing the 
 		void ExecuteCommands(CommandList** a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);

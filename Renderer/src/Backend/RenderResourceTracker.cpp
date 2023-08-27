@@ -86,13 +86,13 @@ struct BB::RenderResourceTracker_Inst
 
 BB::RenderResourceTracker::RenderResourceTracker()
 {
-	m_Instance = BBnew(m_Allocator, RenderResourceTracker_Inst)(m_Allocator);
+	inst = BBnew(m_Allocator, RenderResourceTracker_Inst)(m_Allocator);
 }
 
 BB::RenderResourceTracker::~RenderResourceTracker()
 {
 
-	BBfree(m_Allocator, m_Instance);
+	BBfree(m_Allocator, inst);
 }
 
 void BB::RenderResourceTracker::AddDescriptor(const RenderDescriptorCreateInfo& a_Descriptor, const char* a_Name, const uint64_t a_ID)
@@ -103,10 +103,10 @@ void BB::RenderResourceTracker::AddDescriptor(const RenderDescriptorCreateInfo& 
 
 	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_AllocSize));
 	t_Entry->type = RESOURCE_TYPE::DESCRIPTOR;
-	t_Entry->timeId = m_Instance->timeID++;
+	t_Entry->timeId = inst->timeID++;
 	t_Entry->id = a_ID;
 	t_Entry->name = a_Name;
-	t_Entry->next = m_Instance->headEntry;
+	t_Entry->next = inst->headEntry;
 	t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
 	DescriptorDebugInfo* t_DescDebug = reinterpret_cast<DescriptorDebugInfo*>(t_Entry->typeInfo);
 	t_DescDebug->name = a_Name;
@@ -115,24 +115,24 @@ void BB::RenderResourceTracker::AddDescriptor(const RenderDescriptorCreateInfo& 
 	Memory::Copy(t_DescDebug->bindings, a_Descriptor.bindings.data(), t_DescDebug->bindingCount);
 
 
-	++m_Instance->entries;
-	m_Instance->headEntry = t_Entry;
-	m_Instance->entryMap.insert(t_Entry->id, t_Entry);
+	++inst->entries;
+	inst->headEntry = t_Entry;
+	inst->entryMap.insert(t_Entry->id, t_Entry);
 }
 
 void BB::RenderResourceTracker::AddQueue(const RenderCommandQueueCreateInfo& a_Queue, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Queue, RESOURCE_TYPE::COMMAND_QUEUE, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_Queue, RESOURCE_TYPE::COMMAND_QUEUE, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CommandAllocator, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_CommandAllocator, RESOURCE_TYPE::COMMAND_ALLOCATOR, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_CommandAllocator, RESOURCE_TYPE::COMMAND_ALLOCATOR, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddCommandList(const RenderCommandListCreateInfo& a_CommandList, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_CommandList, RESOURCE_TYPE::COMMAND_LIST, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_CommandList, RESOURCE_TYPE::COMMAND_LIST, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline, const char* a_Name, const uint64_t a_ID)
@@ -147,10 +147,10 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 
 	Entry* t_Entry = reinterpret_cast<Entry*>(BBalloc(m_Allocator, t_AllocSize));
 	t_Entry->type = RESOURCE_TYPE::PIPELINE;
-	t_Entry->timeId = m_Instance->timeID++;
+	t_Entry->timeId = inst->timeID++;
 	t_Entry->id = a_ID;
 	t_Entry->name = a_Name;
-	t_Entry->next = m_Instance->headEntry;
+	t_Entry->next = inst->headEntry;
 	t_Entry->typeInfo = Pointer::Add(t_Entry, sizeof(Entry));
 	PipelineDebugInfo* t_PipelineInfo = reinterpret_cast<PipelineDebugInfo*>(t_Entry->typeInfo);
 	*t_PipelineInfo = a_Pipeline;
@@ -171,50 +171,56 @@ void BB::RenderResourceTracker::AddPipeline(const PipelineDebugInfo& a_Pipeline,
 		t_PipelineInfo->immutableSamplers[i] = a_Pipeline.immutableSamplers[i];
 	}
 
-	++m_Instance->entries;
-	m_Instance->headEntry = t_Entry;
-	m_Instance->entryMap.insert(t_Entry->id, t_Entry);
+	++inst->entries;
+	inst->headEntry = t_Entry;
+	inst->entryMap.insert(t_Entry->id, t_Entry);
 }
 
 void BB::RenderResourceTracker::AddBuffer(const RenderBufferCreateInfo& a_Buffer, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Buffer, RESOURCE_TYPE::BUFFER, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_Buffer, RESOURCE_TYPE::BUFFER, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddImage(const TrackerImageInfo& a_Image, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Image, RESOURCE_TYPE::IMAGE, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_Image, RESOURCE_TYPE::IMAGE, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddSampler(const SamplerCreateInfo& a_Sampler, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Sampler, RESOURCE_TYPE::SAMPLER, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_Sampler, RESOURCE_TYPE::SAMPLER, a_Name, a_ID);
 }
 
 void BB::RenderResourceTracker::AddFence(const FenceCreateInfo& a_Fence, const char* a_Name, const uint64_t a_ID)
 {
-	m_Instance->AddEntry(m_Allocator, a_Fence, RESOURCE_TYPE::FENCE, a_Name, a_ID);
+	inst->AddEntry(m_Allocator, a_Fence, RESOURCE_TYPE::FENCE, a_Name, a_ID);
 }
 
 void* BB::RenderResourceTracker::GetData(const uint64_t a_ID, const RESOURCE_TYPE a_Type)
 {
-	Entry* t_Entry = *m_Instance->entryMap.find(a_ID);
+	Entry* t_Entry = *inst->entryMap.find(a_ID);
 	BB_ASSERT(t_Entry->type == a_Type, "Trying to get a resource but the ID is not equal to it's type!");
 	return t_Entry->typeInfo;
+}
+
+void BB::RenderResourceTracker::ChangeName(const uint64_t a_ID, const char* a_NewName)
+{
+	Entry* t_Entry = *inst->entryMap.find(a_ID);
+	t_Entry->name = a_NewName;
 }
 
 void BB::RenderResourceTracker::RemoveEntry(const uint64_t a_ID)
 {
 	Entry* t_PreviousEntry = nullptr;
-	Entry* t_Entry = m_Instance->headEntry;
-	for (size_t i = 0; i < m_Instance->entries; i++)
+	Entry* t_Entry = inst->headEntry;
+	for (size_t i = 0; i < inst->entries; i++)
 	{
 		BB_ASSERT(t_Entry != nullptr, "Trying to remove an entry but iterating over too many elements!");
 		if (t_Entry->id == a_ID)
 		{
 			if (t_PreviousEntry == nullptr)
 			{
-				m_Instance->headEntry = t_Entry->next;
+				inst->headEntry = t_Entry->next;
 				//memset the header to 0 for safety, the typeInfo is not null.
 				memset(t_Entry, 0, sizeof(Entry));
 				BBfree(m_Allocator, t_Entry);
@@ -228,8 +234,8 @@ void BB::RenderResourceTracker::RemoveEntry(const uint64_t a_ID)
 		t_PreviousEntry = t_Entry;
 		t_Entry = t_Entry->next;
 	}
-	--m_Instance->entries;
-	m_Instance->entryMap.erase(t_Entry->id);
+	--inst->entries;
+	inst->entryMap.erase(t_Entry->id);
 }
 
 void BB::RenderResourceTracker::Editor()
@@ -299,8 +305,8 @@ static void SortEntriesByType(Entry** a_Head)
 
 void BB::RenderResourceTracker::SortByType()
 {
-	m_Instance->sortType = SORT_TYPE::TYPE;
-	SortEntriesByType(&m_Instance->headEntry);
+	inst->sortType = SORT_TYPE::TYPE;
+	SortEntriesByType(&inst->headEntry);
 }
 
 Entry* SortedTimeMerge(Entry* a_First, Entry* a_Second)
@@ -343,8 +349,8 @@ static void SortEntriesByTime(Entry** a_Head)
 
 void BB::RenderResourceTracker::SortByTime()
 {
-	m_Instance->sortType = SORT_TYPE::TIME;
-	SortEntriesByTime(&m_Instance->headEntry);
+	inst->sortType = SORT_TYPE::TIME;
+	SortEntriesByTime(&inst->headEntry);
 }
 
 #pragma region Editor
@@ -370,7 +376,7 @@ void BB::Editor::DisplayRenderResources(BB::RenderResourceTracker& a_ResTracker)
 	if (!g_ShowEditor)
 		return;
 
-	RenderResourceTracker_Inst* t_Inst = a_ResTracker.m_Instance;
+	RenderResourceTracker_Inst* t_Inst = a_ResTracker.inst;
 
 	if (ImGui::CollapsingHeader("Render resources"))
 	{

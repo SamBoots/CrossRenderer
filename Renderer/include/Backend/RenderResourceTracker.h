@@ -45,6 +45,7 @@ namespace BB
 
 		//Get the typedata, 
 		void* GetData(const uint64_t a_ID, const RESOURCE_TYPE a_Type);
+		void ChangeName(const uint64_t a_ID, const char* a_NewName);
 
 		void RemoveEntry(const uint64_t a_ID);
 
@@ -54,6 +55,6 @@ namespace BB
 
 	private:
 		FreelistAllocator_t m_Allocator{ mbSize * 2 };
-		struct RenderResourceTracker_Inst* m_Instance = nullptr;
+		struct RenderResourceTracker_Inst* inst = nullptr;
 	};
 }

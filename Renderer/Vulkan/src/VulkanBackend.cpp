@@ -16,6 +16,8 @@ void BB::GetVulkanAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createSampler = VulkanCreateSampler;
 	a_FuncCreateInfo.createFence = VulkanCreateFence;
 
+	a_FuncCreateInfo.setResourceName = VulkanSetResourceName;
+
 	a_FuncCreateInfo.allocateDescriptor = VulkanAllocateDescriptor;
 	a_FuncCreateInfo.copyDescriptors = VulkanCopyDescriptors;
 	a_FuncCreateInfo.writeDescriptors = VulkanWriteDescriptors;

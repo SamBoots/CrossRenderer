@@ -40,6 +40,19 @@ namespace BB
 		DX12
 	};
 
+	enum class RENDER_RESOURCE_TYPE : uint32_t
+	{
+		DESCRIPTOR_HEAP,
+		DESCRIPTOR,
+		QUEUE,
+		COMMAND_ALLOCATOR,
+		COMMANT_LIST,
+		BUFFER,
+		IMAGE,
+		SAMPLER,
+		FENCE
+	};
+
 	enum class RENDER_BUFFER_USAGE : uint32_t
 	{
 		VERTEX,
@@ -248,18 +261,25 @@ namespace BB
 		bool validationLayers = false;
 	};
 
+	struct SetResourceNameInfo
+	{
+		const char* name;
+		uint64_t resouceHandle;
+		RENDER_RESOURCE_TYPE resourceType;
+	};
+
 	struct SamplerCreateInfo
 	{
-		const char* name = nullptr;
+		const char* name;
 		SAMPLER_ADDRESS_MODE addressModeU{};
 		SAMPLER_ADDRESS_MODE addressModeV{};
 		SAMPLER_ADDRESS_MODE addressModeW{};
 
 		SAMPLER_FILTER filter{};
-		float maxAnistoropy = 0;
+		float maxAnistoropy;
 
-		float minLod = 0;
-		float maxLod = 0;
+		float minLod;
+		float maxLod;
 	};
 
 	struct DescriptorAllocation
@@ -681,6 +701,8 @@ namespace BB
 	typedef RSamplerHandle			(*PFN_RenderAPICreateSampler)(const SamplerCreateInfo& a_Info);
 	typedef RFenceHandle			(*PFN_RenderAPICreateFence)(const FenceCreateInfo& a_Info);
 	
+	typedef void					(*PFN_RenderAPISetResourceName)(const SetResourceNameInfo& a_Info);
+
 	typedef DescriptorAllocation	(*PFN_RenderAPIAllocateDescriptor)(const AllocateDescriptorInfo& a_AllocateInfo);
 	typedef void					(*PFN_RenderAPICopyDescriptors)(const CopyDescriptorsInfo& a_CopyInfo);
 	typedef void					(*PFN_RenderAPIWriteDescriptors)(const WriteDescriptorInfos& a_WriteInfo);
@@ -753,6 +775,8 @@ namespace BB
 		PFN_RenderAPICreateImage createImage;
 		PFN_RenderAPICreateSampler createSampler;
 		PFN_RenderAPICreateFence createFence;
+
+		PFN_RenderAPISetResourceName setResourceName;
 
 		PFN_RenderAPIAllocateDescriptor allocateDescriptor;
 		PFN_RenderAPICopyDescriptors copyDescriptors;

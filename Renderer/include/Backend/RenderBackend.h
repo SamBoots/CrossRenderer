@@ -132,6 +132,8 @@ namespace BB
 		RSamplerHandle CreateSampler(const SamplerCreateInfo& a_CreateInfo);
 		RFenceHandle CreateFence(const FenceCreateInfo& a_CreateInfo);
 
+		void SetResourceName(const SetResourceNameInfo& a_Info);
+
 		void WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
 		void CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
 		ImageReturnInfo GetImageInfo(const RImageHandle a_Handle);

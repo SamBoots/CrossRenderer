@@ -58,7 +58,7 @@ namespace BB
 		template<typename T>
 		inline static void Copy(T* __restrict a_Destination, const void* __restrict a_Source, const size_t a_ElementCount)
 		{
-			Memory::Copy(a_Destination, reinterpret_cast<T * __restrict>(a_Source), a_ElementCount);
+			Memory::Copy(a_Destination, reinterpret_cast<const T * __restrict>(a_Source), a_ElementCount);
 		}
 
 		/// <summary>

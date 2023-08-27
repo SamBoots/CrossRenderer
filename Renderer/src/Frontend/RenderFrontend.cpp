@@ -212,10 +212,17 @@ RenderQueue::~RenderQueue()
 	DestroyMutex(m_Mutex);
 }
 
-CommandList* RenderQueue::GetCommandList()
+CommandList* RenderQueue::GetCommandList(const char* a_ListName)
 {
 	OSWaitAndLockMutex(m_Mutex);
 	CommandList* t_List = BB_SLL_POP(m_FreeCommandList);
+#ifdef _TRACK_RENDER_RESOURCES
+	SetResourceNameInfo t_ResInfo;
+	t_ResInfo.name = a_ListName;
+	t_ResInfo.resouceHandle = t_List->list.handle;
+	t_ResInfo.resourceType = RENDER_RESOURCE_TYPE::COMMANT_LIST;
+	RenderBackend::SetResourceName(t_ResInfo);
+#endif //_TRACK_RENDER_RESOURCES
 	OSUnlockMutex(m_Mutex);
 	RenderBackend::StartCommandList(t_List->list);
 	return t_List;
@@ -229,6 +236,14 @@ void RenderQueue::ExecuteCommands(CommandList** a_CommandLists, const uint32_t a
 		t_CmdListHandles[i] = a_CommandLists[i]->list;
 		a_CommandLists[i]->queueFenceValue = m_Fence.nextFenceValue;
 		BB_ASSERT(a_CommandLists[i]->type == m_Type, "trying to execute a commandlist that is not part of this queue!");
+
+		//reset the name to null
+		SetResourceNameInfo t_ResInfo;
+		t_ResInfo.name = "";
+		t_ResInfo.resouceHandle = a_CommandLists[i]->list.handle;
+		t_ResInfo.resourceType = RENDER_RESOURCE_TYPE::COMMANT_LIST;
+		RenderBackend::SetResourceName(t_ResInfo);
+
 		BB_SLL_PUSH(m_InFlightLists, a_CommandLists[i]);
 	}
 
@@ -912,8 +927,8 @@ void LoadglTFNode(Allocator a_TempAllocator, Model& a_Model, const cgltf_node& a
 			void* t_IndexData = GetAccessorDataPtr(t_Primitive.indices);
 			if (t_Primitive.indices->component_type == cgltf_component_type_r_32u)
 			{
-				for (size_t i = 0; i < t_Primitive.indices->count; i++)
-					a_Indices[a_CurrentIndex++] = reinterpret_cast<uint32_t*>(t_IndexData)[i];
+				Memory::Copy(&a_Indices[a_CurrentIndex], t_IndexData, t_Primitive.indices->count);
+				a_CurrentIndex += t_Primitive.indices->count;
 			}
 			else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
 			{
@@ -1029,7 +1044,7 @@ void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_
 		{
 			++t_PrimitiveCount;
 			const cgltf_primitive& t_Primitive = t_Mesh.primitives[primitiveIndex];
-			t_IndexCount += static_cast<uint32_t>(t_Mesh.primitives[meshIndex].indices->count);
+			t_IndexCount += static_cast<uint32_t>(t_Primitive.indices->count);
 
 			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)
 			{

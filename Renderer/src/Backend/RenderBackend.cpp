@@ -463,6 +463,14 @@ RFenceHandle BB::RenderBackend::CreateFence(const FenceCreateInfo& a_CreateInfo)
 	return t_Fence;
 }
 
+void BB::RenderBackend::SetResourceName(const SetResourceNameInfo& a_Info)
+{
+#ifdef _DEBUG
+	s_ResourceTracker.ChangeName(a_Info.resouceHandle, a_Info.name);
+#endif //_DEBUG
+	s_ApiFunc.setResourceName(a_Info);
+}
+
 void BB::RenderBackend::WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 {
 	s_ApiFunc.writeDescriptors(a_WriteInfo);

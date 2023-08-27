@@ -33,7 +33,7 @@ struct AssetSlot
 {
 	AssetType type;
 	uint64_t hash;
-	char path[256];
+	const char* path;
 	union
 	{
 		TextureAsset texture;
@@ -177,7 +177,7 @@ char* Asset::FindOrCreateString(const char* a_string)
 	const uint32_t t_StringSize = static_cast<uint32_t>(strlen(a_string) + 1);
 	char* t_String = BBnewArr(s_AssetManager.allocator, t_StringSize, char);
 	memcpy(t_String, a_string, t_StringSize);
-	t_String[t_StringSize] = '\0';
+	t_String[t_StringSize - 1] = '\0';
 	s_AssetManager.stringMap.emplace(t_StringHash, t_String);
 	return t_String;
 }
@@ -187,12 +187,10 @@ const AssetHandle Asset::LoadAsset(void* a_AssetDiskJobInfo)
 	const AssetDiskJobInfo* a_JobInfo = reinterpret_cast<const AssetDiskJobInfo*>(a_AssetDiskJobInfo);
 
 	AssetSlot t_AssetSlot{};
-	BB_ASSERT(strlen(a_JobInfo->path) < _countof(t_AssetSlot.path) - 1, "Asset load path too long");
-	strcpy(t_AssetSlot.path, a_JobInfo->path);
 
 	t_AssetSlot.type = a_JobInfo->assetType;
+	t_AssetSlot.path = FindOrCreateString(a_JobInfo->path);
 	t_AssetSlot.hash = StringHash(t_AssetSlot.path);
-
 	switch (a_JobInfo->assetType)
 	{
 	case AssetType::IMAGE:
