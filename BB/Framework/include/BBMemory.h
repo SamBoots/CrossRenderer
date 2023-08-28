@@ -110,5 +110,18 @@ namespace BB
 			a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
 		}
 	}
+
+	inline void BBTagAlloc(Allocator a_Allocator, const void* a_Ptr, const char* a_TagName)
+	{
+		typedef allocators::BaseAllocator::AllocationLog AllocationLog;
+		AllocationLog* t_Log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));
+		//do a check to see if the boundries are there, if yes. Then it's a 99.99999% chance this is a existing allocation using BB.
+		//not the same allocator tho, so bad usage of this will still bite you in the ass.
+		const uintptr_t back = reinterpret_cast<uintptr_t>(t_Log->back) + MEMORY_BOUNDRY_FRONT;
+		const uintptr_t front = reinterpret_cast<uintptr_t>(t_Log->front);
+		BB_ASSERT(back - front == t_Log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+
+		t_Log->tagName = a_TagName;
+	}
 }
 #pragma endregion // AllocationFunctions

@@ -931,14 +931,10 @@ void LoadglTFNode(Allocator a_TempAllocator, Model& a_Model, const cgltf_node& a
 				a_CurrentIndex += t_Primitive.indices->count;
 			}
 			else if (t_Primitive.indices->component_type == cgltf_component_type_r_16u)
-			{
 				for (size_t i = 0; i < t_Primitive.indices->count; i++)
 					a_Indices[a_CurrentIndex++] = reinterpret_cast<uint16_t*>(t_IndexData)[i];
-			}
 			else
-			{
 				BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
-			}
 
 			const size_t t_VertexStart = a_CurrentVertex;
 			for (size_t attrIndex = 0; attrIndex < t_Primitive.attributes_count; attrIndex++)

@@ -12,8 +12,6 @@ using namespace BB::allocators;
 #pragma region DEBUG_LOG
 
 constexpr const uintptr_t MEMORY_BOUNDRY_CHECK_VALUE = 0xDEADBEEFDEADBEEF;
-constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
-constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
 enum class BOUNDRY_ERROR
 {
 	NONE,
@@ -34,7 +32,7 @@ static BaseAllocator::AllocationLog* DeleteEntry(BaseAllocator::AllocationLog* a
 }
 
 //Checks Adds memory boundry to an allocation log.
-void* Memory_AddBoundries(void* a_Front, size_t a_AllocSize)
+void* Memory_AddBoundries(void* a_Front, const size_t a_AllocSize)
 {
 	//Set the begin bound value
 	*reinterpret_cast<size_t*>(a_Front) = MEMORY_BOUNDRY_CHECK_VALUE;
@@ -45,8 +43,9 @@ void* Memory_AddBoundries(void* a_Front, size_t a_AllocSize)
 
 	return a_Back;
 }
+
 //Checks the memory boundries, 
-BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
+const BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
 {
 	if (*reinterpret_cast<size_t*>(a_Front) != MEMORY_BOUNDRY_CHECK_VALUE)
 		return BOUNDRY_ERROR::FRONT;
@@ -69,6 +68,7 @@ void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_Allocator, const size_t a_Size
 	t_AllocLog->allocSize = static_cast<uint32_t>(a_Size);
 	t_AllocLog->file = a_File;
 	t_AllocLog->line = a_Line;
+	t_AllocLog->tagName = "";
 	//set the new front log.
 	a_Allocator->frontLog = t_AllocLog;
 	return Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
@@ -76,20 +76,22 @@ void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_Allocator, const size_t a_Size
 
 void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
 {
-	BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
+	const BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
 		Pointer::Subtract(a_Ptr, sizeof(BaseAllocator::AllocationLog)));
 
-	BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+	const BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
 	switch (t_HasError)
 	{
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line),
+		Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "ss", 
+			t_AllocLog->tagName,
 			"Memory Boundry overwritten at the front of memory block.");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Error(t_AllocLog->file, static_cast<int>(t_AllocLog->line),
+		Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "ss",
+			t_AllocLog->tagName,
 			"Memory Boundry overwritten at the back of memory block.");
 		break;
 	}
@@ -132,7 +134,8 @@ void BB::allocators::BaseAllocator::Validate() const
 		}
 	
 
-		Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, t_TempString.c_str());
+		Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, "ss",
+			t_FrontLog->tagName, t_TempString.c_str());
 
 		t_FrontLog = t_FrontLog->prev;
 	}

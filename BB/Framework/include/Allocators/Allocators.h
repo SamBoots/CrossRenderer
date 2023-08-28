@@ -15,6 +15,9 @@ namespace BB
 #define BB_MEMORY_DEBUG_SEND
 #define BB_MEMORY_DEBUG_FREE
 #endif //_DEBUG
+
+	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
+	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
 	
 	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
@@ -44,13 +47,14 @@ namespace BB
 
 			struct AllocationLog
 			{
-				AllocationLog* prev;
-				void* front;
-				void* back;
+				AllocationLog* prev; //8 bytes
+				void* front; //16 bytes 
+				void* back; //24 bytes
 				//maybe not safe due to possibly allocating more then 4 gb.
-				uint32_t allocSize;
-				const char* file;
-				int line;
+				const char* file; //32 bytes
+				int line; //36 bytes
+				uint32_t allocSize; //40 bytes
+				const char* tagName; //48 bytes
 			}* frontLog = nullptr;
 			const char* name;
 
