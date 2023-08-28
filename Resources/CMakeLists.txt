@@ -37,4 +37,5 @@ add_custom_target(copy_json ALL
     ${CMAKE_BINARY_DIR}/Resources/Json
     COMMENT "Copying Json files")
 
+add_dependencies(Renderer Unittest_Project)
 add_dependencies(Renderer copy_json)

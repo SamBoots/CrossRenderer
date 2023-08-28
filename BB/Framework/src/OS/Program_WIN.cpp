@@ -213,10 +213,20 @@ const uint32_t BB::LatestOSError()
 	DWORD t_ErrorMsg = GetLastError();
 	if (t_ErrorMsg == 0)
 		return 0;
-	LPWSTR t_Message = nullptr;
+	LPSTR t_Message = nullptr;
+	
+	FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		t_ErrorMsg,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
+		(LPSTR)&t_Message,
+		0, NULL);
 
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-		NULL, t_ErrorMsg, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), t_Message, 0, NULL);
+	if (t_Message == nullptr)
+		LatestOSError();
 
 	BB_WARNING(false, t_Message, WarningType::HIGH);
 
