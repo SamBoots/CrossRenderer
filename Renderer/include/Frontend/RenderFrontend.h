@@ -8,8 +8,14 @@ namespace BB
 
 	struct Render_IO
 	{
+		//IN
+
+
+		//IN/OUT
 		uint32_t swapchainWidth = 0;
 		uint32_t swapchainHeight = 0;
+
+		//OUT
 		uint32_t frameBufferAmount = 0;
 		RENDER_API renderAPI = RENDER_API::NONE;
 

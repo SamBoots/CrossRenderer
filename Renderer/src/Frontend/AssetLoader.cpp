@@ -53,7 +53,7 @@ using namespace BB;
 
 static CommandList* SetupCommandLists(const char* a_Name = "default asset loader name")
 {
-	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList();
+	CommandList* t_CmdList = Render::GetTransferQueue().GetCommandList(a_Name);
 
 	//TODO, debug name the resource here.
 	StackString<256> t_DebugNames(a_Name);

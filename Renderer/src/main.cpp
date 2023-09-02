@@ -88,13 +88,13 @@ int main(int argc, char** argv)
 	t_ModelInfo.vertices = Slice(t_Vertex, _countof(t_Vertex));
 	t_ModelInfo.indices = Slice(t_Indices, _countof(t_Indices));
 	t_ModelInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
-	t_ModelInfo.pipeline = t_Scene.GetPipelineHandle();
+	t_ModelInfo.pipeline = t_Scene.GetMeshPipeline();
 
 	LoadModelInfo t_LoadInfo{};
 	t_LoadInfo.modelType = MODEL_TYPE::GLTF;
 	t_LoadInfo.path = "Resources/Models/Duck.gltf";
 	t_LoadInfo.meshDescriptor = t_Scene.GetMeshDescriptor();
-	t_LoadInfo.pipeline = t_Scene.GetPipelineHandle();
+	t_LoadInfo.pipeline = t_Scene.GetMeshPipeline();
 
 	FrameGraph t_FrameGraph{};
 	t_FrameGraph.RegisterRenderPass(t_Scene);

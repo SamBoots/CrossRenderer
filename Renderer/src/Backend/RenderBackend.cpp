@@ -148,7 +148,7 @@ UploadBuffer::~UploadBuffer()
 const UploadBufferChunk UploadBuffer::Alloc(const size_t a_Size)
 {
 	BB_ASSERT(a_Size < UINT32_MAX, "upload buffer alloc size is larger then UINT32_MAX, this is not supported");
-	BB_ASSERT(m_Size >= m_Offset + a_Size, "Now enough space to alloc in the uploadbuffer.");
+	BB_ASSERT(m_Size >= m_Offset + a_Size, "not enough space to alloc in the uploadbuffer.");
 	UploadBufferChunk t_Chunk{};
 	t_Chunk.memory = Pointer::Add(m_Start, m_Offset);
 	t_Chunk.offset = m_Offset;

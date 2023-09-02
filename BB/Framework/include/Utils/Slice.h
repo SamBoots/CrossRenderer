@@ -1,6 +1,5 @@
 #pragma once
 #include "Storage/Array.h"
-#include "Storage/Pool.h"
 
 namespace BB
 {
@@ -48,11 +47,19 @@ namespace BB
 		Slice(T* a_Ptr, size_t a_Size) : m_Ptr(a_Ptr), m_Size(a_Size) {};
 		Slice(T* a_Begin, T* a_End) : m_Ptr(a_Begin), m_Size(a_End - a_Begin) {};
 		Slice(Array<T>& a_Array) : m_Ptr(a_Array.data()), m_Size(a_Array.size()) {};
-		Slice(Pool<T>& a_Pool) : m_Ptr(a_Pool.data()), m_Size(a_Pool.size()) {};
 
-		Slice<T>& operator=(const Slice<T>& a_Slice);
-		Slice<T>& operator=(const Array<T>& a_Rhs);
-		Slice<T>& operator=(const Pool<T>& a_Rhs);
+		Slice<T>& operator=(const Slice<T>& a_Rhs)
+		{
+			m_Ptr = a_Rhs.data();
+			m_Size = a_Rhs.size();
+			return *this;
+		}
+		Slice<T>& operator=(const Array<T>& a_Rhs)
+		{
+			m_Ptr = a_Rhs.data();
+			m_Size = a_Rhs.size();
+			return *this;
+		}
 
 		T& operator[](size_t a_Index) const
 		{
@@ -77,28 +84,4 @@ namespace BB
 		T* m_Ptr;
 		size_t m_Size;
 	};
-
-	template<typename T>
-	inline Slice<T>& BB::Slice<T>::operator=(const Slice<T>& a_Rhs)
-	{
-		m_Ptr = a_Rhs.m_Ptr;
-		m_Size = a_Rhs.m_Size;
-		return *this;
-	}
-
-	template<typename T>
-	inline Slice<T>& BB::Slice<T>::operator=(const Array<T>& a_Rhs)
-	{
-		m_Ptr = a_Rhs.data();
-		m_Size = a_Rhs.size();
-		return *this;
-	}
-
-	template<typename T>
-	inline Slice<T>& BB::Slice<T>::operator=(const Pool<T>& a_Rhs)
-	{
-		m_Ptr = a_Rhs.data();
-		m_Size = a_Rhs.size();
-		return *this;
-	}
 }

@@ -324,9 +324,9 @@ namespace BB
 
 	struct WriteDescriptorData
 	{
-		uint32_t binding = 0;
-		uint32_t descriptorIndex = 0;
-		RENDER_DESCRIPTOR_TYPE type{};
+		uint32_t binding;
+		uint32_t descriptorIndex;
+		RENDER_DESCRIPTOR_TYPE type;
 		union
 		{
 			WriteDescriptorBuffer buffer{};

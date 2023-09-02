@@ -94,11 +94,13 @@ namespace BB
 		//This function also changes the m_Capacity value.
 		void reallocate(size_t a_NewCapacity);
 
-		Allocator m_Allocator;
+		Allocator m_Allocator; //16 bytes
 
-		T* m_Arr;
-		size_t m_Size = 0;
-		size_t m_Capacity;
+		T* m_Arr; //24 bytes
+
+		//TODO, maybe make these uint32_t so that this class is 32 bytes in size?
+		size_t m_Size = 0; //32 bytes
+		size_t m_Capacity; //40 bytes 
 	};
 
 	template<typename T>

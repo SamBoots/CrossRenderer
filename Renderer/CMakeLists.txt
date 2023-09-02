@@ -34,6 +34,7 @@ add_executable (Renderer
 "src/Frontend/Transform.cpp"
 "src/Frontend/Materials.cpp"
 "src/Frontend/Camera.cpp"
+"src/Frontend/Particle.cpp"
 
 #graph
 "src/Graph/FrameGraph.cpp"
