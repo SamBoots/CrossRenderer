@@ -20,12 +20,12 @@ namespace BB
 	class ParticleEmitter
 	{
 	public:
-		ParticleEmitter(Allocator a_Allocator);
+		ParticleEmitter(Allocator a_SystemAllocator);
 		~ParticleEmitter();
 
 		void Initialize(const char* a_Name);
 
-		void Render();
+		void Render(ParticleBuffer& a_ParticleBuffer);
 		void Update();
 
 		const float CurrentLifeTime() const { return m_CurrentLifeTime; }
@@ -54,10 +54,15 @@ namespace BB
 	class ParticleSystem
 	{
 	public:
-		ParticleSystem(Allocator a_Allocator);
-		~ParticleSystem();
+		ParticleSystem(Allocator a_SystemAllocator);
+		void Initialize(const char* a_Name, const uint32_t a_MemoryPoolID);
 
-		void Initialize(const char* a_Name);
+		void Render(ParticleBuffer& a_ParticleBuffer);
+
+		Slice<ParticleEmitter*> GetEmitters() const
+		{
+			return Slice(m_Emitters.data(), m_Emitters.size());
+		}
 
 	private:
 		const char* m_Name;
@@ -65,19 +70,6 @@ namespace BB
 
 		RenderBufferPart m_VertexBufferPart;
 		Array<ParticleEmitter*> m_Emitters;
-	};
-
-	struct ParticleBuffer
-	{
-		RBufferHandle buffer;
-		uint32_t size;
-		uint32_t currentOffset;
-	};
-	
-	struct ParticleBufferPart
-	{
-		uint32_t size;
-		uint32_t offset;
 	};
 
 	class ParticleMemoryPool
@@ -89,6 +81,10 @@ namespace BB
 		ParticleEmitter* GetNewEmitter();
 		Particle* GetNewParticle();
 
+		void FreeSystem(ParticleSystem* a_System);
+		void FreeEmitter(ParticleEmitter* a_Emitter);
+		void FreeParticle(Particle* a_Particle);
+
 		const size_t OccupancyScore() const
 		{
 			const size_t t_Score = m_CurrentSystem + m_CurrentEmitter + m_CurrentParticle;
@@ -98,9 +94,9 @@ namespace BB
 		}
 
 	private:
-		uint32_t m_MaxSystems;
-		uint32_t m_MaxEmitters;
-		uint32_t m_MaxParticles;
+		const uint32_t m_MaxSystems;
+		const uint32_t m_MaxEmitters;
+		const uint32_t m_MaxParticles;
 
 		uint32_t m_CurrentSystem;
 		uint32_t m_CurrentEmitter;
@@ -120,6 +116,34 @@ namespace BB
 
 	};
 
+	class ParticleGPUMemory
+	{
+	public:
+		ParticleGPUMemory(Allocator a_SystemAllocator, const uint32_t a_VertexAmount, const uint32_t a_PoolAmount);
+		~ParticleGPUMemory();
+
+
+
+	private:
+		struct ParticleFrame
+		{
+			UploadBufferChunk uploadChunk;
+			RenderBufferPart vertexBuffer;
+			RenderBufferPart indexBuffer;
+		};
+		//will be replaced by a nice global upload buffer
+		UploadBuffer m_VertexUploadBuffer;
+		ParticleFrame m_ParticleFrames[3];
+
+		struct ParticleGPUPool
+		{
+			uint32_t currentVert;
+			uint32_t vertexOffset;
+			const Vertex* gpuMemory;
+		};
+		ParticleGPUPool* m_ParticleGPUPools;
+	};
+
 	//Handles all the particles and their memory.
 	class ParticleManager
 	{
@@ -132,6 +156,9 @@ namespace BB
 
 	private:
 		LinearAllocator_t allocator{ mbSize * 32, "Particle manager allocator" };
+		//tripple buffer max
+
+		ParticleGPUMemory m_GPUMemory;
 		ParticleMemoryPool* m_MemoryPools;
 		Array<ParticleSystem*> m_ActiveSystems;
 	};

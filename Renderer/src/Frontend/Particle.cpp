@@ -4,7 +4,7 @@
 using namespace BB;
 
 BB::ParticleManager::ParticleManager(const uint32_t a_MaxSystems, const uint32_t a_MaxEmitters, const uint32_t a_MaxParticles)
-	: m_ActiveSystems(allocator, 8)
+	: m_ActiveSystems(allocator, 8), m_GPUMemory(a_MaxParticles * 6)
 {
 	constexpr uint32_t MEMORY_POOL_COUNT = 4;
 
@@ -17,12 +17,42 @@ BB::ParticleManager::ParticleManager(const uint32_t a_MaxSystems, const uint32_t
 		new (&m_MemoryPools[i])ParticleMemoryPool(allocator, t_SystemsPerPool, t_EmittersPerPool, t_ParticlesPerPool);
 }
 
-ParticleMemoryPool::ParticleMemoryPool(Allocator a_SystemAllocator, const uint32_t a_MaxSystems, const uint32_t a_MaxEmitters, const uint32_t a_MaxParticles)
+ParticleGPUMemory::ParticleGPUMemory(Allocator a_SystemAllocator, const uint32_t a_VertexAmount, const uint32_t a_PoolAmount)
+	: m_VertexUploadBuffer(a_VertexAmount * sizeof(Vertex) * 3) //3 is backbuffer amount
 {
-	m_MaxSystems = a_MaxSystems;
-	m_MaxEmitters = a_MaxEmitters;
-	m_MaxParticles = a_MaxParticles;
+	const size_t t_ParticleVertexBufferSize = a_VertexAmount * sizeof(Vertex);
+	const size_t t_ParticleIndexBufferSize = a_VertexAmount * sizeof(uint32_t);
+	//Normally we have 3 backbuffers, in case we don't? Maybe do a check with the renderIO.
+	//For now, memory ahoy
+	for (size_t i = 0; i < 3; i++)
+	{
+		m_ParticleFrames[i].uploadChunk = m_VertexUploadBuffer.Alloc(t_ParticleVertexBufferSize);
+		m_ParticleFrames[i].vertexBuffer = Render::AllocateFromVertexBuffer(t_ParticleVertexBufferSize);
+		m_ParticleFrames[i].indexBuffer = Render::AllocateFromIndexBuffer(t_ParticleIndexBufferSize);
+	}
 
+	const size_t t_VerticesPerPool = t_ParticleVertexBufferSize / a_PoolAmount;
+	m_ParticleGPUPools = BBnewArr(a_SystemAllocator, a_PoolAmount, ParticleGPUPool);
+	for (size_t i = 0; i < a_PoolAmount; i++)
+	{
+		m_ParticleGPUPools[i].currentVert = 0;
+		m_ParticleGPUPools[i].vertexOffset = t_VerticesPerPool * i;
+	}
+}
+
+ParticleGPUMemory::~ParticleGPUMemory()
+{
+	//set memory back to vertices again. But should we? 
+	//When this gets deleted then the entire application may be shut down.
+	//Beter yet, all the memory that we allocate here for the GPU are suballocated from
+	//bigger GPU buffers.
+}
+
+ParticleMemoryPool::ParticleMemoryPool(Allocator a_SystemAllocator, const uint32_t a_MaxSystems, const uint32_t a_MaxEmitters, const uint32_t a_MaxParticles)
+	:	m_MaxSystems(a_MaxSystems), 
+		m_MaxEmitters(a_MaxEmitters), 
+		m_MaxParticles(a_MaxParticles)
+{
 	m_CurrentSystem = 0;
 	m_CurrentEmitter = 0;
 	m_CurrentParticle = 0;
@@ -75,4 +105,41 @@ Particle* ParticleMemoryPool::GetNewParticle()
 		return m_ReuseParticles[m_ReuseCurrentParticle--];
 
 	return nullptr;
+}
+
+void ParticleMemoryPool::FreeSystem(ParticleSystem* a_System)
+{
+	//do set defaults?
+	m_ReuseSystems[m_ReuseCurrentSystem++] = a_System;
+}
+
+void ParticleMemoryPool::FreeEmitter(ParticleEmitter* a_Emitter)
+{
+	//do set defaults?
+	m_ReuseEmitters[m_ReuseCurrentEmitter++] = a_Emitter;
+}
+
+void ParticleMemoryPool::FreeParticle(Particle* a_Particle)
+{
+	//do set defaults?
+	m_ReuseParticles[m_ReuseCurrentParticle++] = a_Particle;
+}
+
+BB::ParticleSystem::ParticleSystem(Allocator a_SystemAllocator)
+	:	m_Emitters(a_SystemAllocator)
+{
+	m_Name = nullptr;
+	m_MemoryPoolID = 0;
+	memset(&m_VertexBufferPart, 0, sizeof(m_VertexBufferPart));
+}
+
+void ParticleSystem::Initialize(const char* a_Name, const uint32_t a_MemoryPoolID)
+{
+	m_Name = a_Name;
+	m_MemoryPoolID = a_MemoryPoolID;
+}
+
+void ParticleSystem::Render(ParticleBuffer& a_ParticleBuffer)
+{
+
 }
