@@ -42,6 +42,7 @@ namespace BB
 	using LibHandle = FrameworkHandle<struct LibHandleTag>;
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
 	using BBMutex = FrameworkHandle<struct BBMutexTag>;
+	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
 	using wchar = wchar_t;
 

@@ -349,12 +349,7 @@ OSFileHandle BB::LoadOSFile(const char* a_FileName)
 		NULL);
 
 	if (t_LoadedFile == INVALID_HANDLE_VALUE)
-	{
 		LatestOSError();
-		BB_WARNING(false,
-			"OS, failed to load file! This can be severe.",
-			WarningType::HIGH);
-	}
 
 	return OSFileHandle((uintptr_t)t_LoadedFile);
 }

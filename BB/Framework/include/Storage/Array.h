@@ -109,7 +109,7 @@ namespace BB
 	inline BB::Array<T>::Array(Allocator a_Allocator, size_t a_Size)
 		: m_Allocator(a_Allocator)
 	{
-		BB_EXCEPTION(a_Size != 0, "Dynamic_array size is specified to be 0");
+		BB_ASSERT(a_Size != 0, "Dynamic_array size is specified to be 0");
 		m_Capacity = Math::RoundUp(a_Size, Array_Specs::multipleValue);
 
 		m_Arr = reinterpret_cast<T*>(BBalloc(m_Allocator, m_Capacity * sizeof(T)));
@@ -195,7 +195,7 @@ namespace BB
 	template<typename T>
 	inline T& Array<T>::operator[](const size_t a_Index) const
 	{
-		BB_EXCEPTION(a_Index <= m_Size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
+		BB_ASSERT(a_Index <= m_Size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
 		return m_Arr[a_Index];
 	}
 

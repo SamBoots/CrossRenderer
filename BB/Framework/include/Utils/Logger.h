@@ -3,14 +3,18 @@
 
 namespace BB
 {
-	enum class WarningType
+	using WarningTypeFlags = unsigned int;
+	enum class WarningType : WarningTypeFlags
 	{
-		INFO, //No warning, just a message.
-		OPTIMALIZATION, //Indicates a possible issue that might cause problems with performance.
-		LOW, //Low chance of breaking the application or causing undefined behaviour.
-		MEDIUM, //Medium chance of breaking the application or causing undefined behaviour.
-		HIGH //High chance of breaking the application or causing undefined behaviour.
+		INFO			= 1 << 0, //No warning, just a message.
+		OPTIMALIZATION	= 1 << 1, //Indicates a possible issue that might cause problems with performance.
+		LOW				= 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
+		MEDIUM			= 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
+		HIGH			= 1 << 4, //High chance of breaking the application or causing undefined behaviour.
+		ERROR			= 1 << 5, //Use BB_ASSERT for this
 	};
+
+
 
 	namespace Logger
 	{
@@ -24,11 +28,12 @@ namespace BB
 		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
 		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...);
-		//Use BB_EXCEPTION for better use.
-		void Log_Exception(const char* a_FileName, int a_Line, const char* a_Formats, ...);
 		//Use BB_ASSERT for better use.
 		//IT DOES NOT ASSERT, BB_ASSERT DOES
 		void Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+
+		void EnableLogType(const WarningType a_WarningType);
+		void EnableLogTypes(const WarningTypeFlags a_WarningTypes);
 	}
 }
 
@@ -50,13 +55,6 @@ namespace BB
 				assert(false);\
 			}
 
-
-			/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
-			@param a_Check, If false the program will print the message and assert.
-			@param a_Msg, The message that will be printed. */
-#define BB_EXCEPTION(a_Check, a_Msg)\
-			if (!(a_Check)) \
-				BB::Logger::Log_Exception(__FILE__, __LINE__, "s", a_Msg)\
 
 			/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 			@param a_Check, If false the program will print the message and assert.
