@@ -171,7 +171,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_War
 
 void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::INFO))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::INFO))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
@@ -181,7 +181,7 @@ void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Forma
 
 void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::OPTIMALIZATION))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::OPTIMALIZATION))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
@@ -191,7 +191,7 @@ void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const 
 
 void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::LOW))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::LOW))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
@@ -201,7 +201,7 @@ void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_F
 
 void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::MEDIUM))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::MEDIUM))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
@@ -211,7 +211,7 @@ void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const char* 
 
 void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::HIGH))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::HIGH))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
@@ -221,7 +221,7 @@ void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_
 
 void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ERROR))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ERROR))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);

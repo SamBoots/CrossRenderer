@@ -38,6 +38,7 @@ int main(int argc, char** argv)
 
 	Threads::InitThreads(8);
 
+	Logger::EnableLogTypes(0);
 	Logger::EnableLogType(WarningType::INFO);
 	testing::InitGoogleTest();
 	RUN_ALL_TESTS();
@@ -59,7 +60,7 @@ int main(int argc, char** argv)
 				{
 				case KEYBOARD_KEY::_W:
 					if (t_Event.keyInfo.keyPressed)
-						BB_LOG("W pressed!");
+w						BB_LOG("W pressed!");
 					else
 						BB_LOG("W released!");
 					break;
