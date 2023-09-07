@@ -425,7 +425,10 @@ namespace BB
 				return true;
 			return false;
 		};
-
+		void append(const CharT a_Char)
+		{
+			m_String[m_Size++] = a_Char;
+		}
 		void append(const Stack_String<CharT, stringSize>& a_String)
 		{
 			append(a_String.c_str(), a_String.size());

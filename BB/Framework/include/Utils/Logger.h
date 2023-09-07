@@ -1,8 +1,10 @@
 #pragma once
 #include <cassert>
+#include "Common.h"
 
 namespace BB
 {
+	constexpr uint64_t DEFAULT_LOG_CHANNEL = 0;
 	using WarningTypeFlags = unsigned int;
 	enum class WarningType : WarningTypeFlags
 	{
@@ -11,7 +13,7 @@ namespace BB
 		LOW				= 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
 		MEDIUM			= 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
 		HIGH			= 1 << 4, //High chance of breaking the application or causing undefined behaviour.
-		ERROR			= 1 << 5, //Use BB_ASSERT for this
+		ERROR			= 1 << 5  //Use BB_ASSERT for this
 	};
 
 
@@ -19,25 +21,25 @@ namespace BB
 	namespace Logger
 	{
 		//Use BB_LOG for better use.
-		void Log_Message(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Message(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Low(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Medium(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_High(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 		//Use BB_ASSERT for better use.
 		//IT DOES NOT ASSERT, BB_ASSERT DOES
-		void Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Error(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...);
 
-		void EnableLogType(const WarningType a_WarningType);
-		void EnableLogTypes(const WarningTypeFlags a_WarningTypes);
+		void EnableLogType(const WarningType a_WarningType, const LogChannel a_Channel = DEFAULT_LOG_CHANNEL);
+		void EnableLogTypes(const WarningTypeFlags a_WarningTypes, const LogChannel a_Channel = DEFAULT_LOG_CHANNEL);
 	}
 }
 
-#define BB_LOG(a_Msg) BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_Msg) \
+#define BB_LOG(a_Msg) BB::Logger::Log_Message(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg) \
 
 #ifdef _DEBUG
 		/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
@@ -51,7 +53,7 @@ namespace BB
 #define BB_ASSERT(a_Check, a_Msg)\
 			if (!(a_Check)) \
 			{ \
-				BB::Logger::Log_Error(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Error(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg);\
 				assert(false);\
 			}
 
@@ -65,19 +67,49 @@ namespace BB
 			{\
 				WarningType TYPE{}; switch(a_WarningType){ \
 			case WarningType::OPTIMALIZATION:           \
-				BB::Logger::Log_Warning_Optimization(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Warning_Optimization(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg);\
 				break;\
             case WarningType::LOW:\
-				BB::Logger::Log_Warning_Low(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Warning_Low(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg);\
 				break;\
             case WarningType::MEDIUM:\
-				BB::Logger::Log_Warning_Medium(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Warning_Medium(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg);\
 				break;\
             case WarningType::HIGH:\
-				BB::Logger::Log_Warning_High(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Warning_High(__FILE__, __LINE__, BB::DEFAULT_LOG_CHANNEL, "s", a_Msg);\
 				break;\
          }; TYPE; \
 			}
+
+#define BB_LOG_CHANNEL(a_Msg, a_ChannelHandle) BB::Logger::Log_Message(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg) \
+
+
+#define BB_ASSERT_CHANNEL(a_Check, a_Msg, a_ChannelHandle)\
+			if (!(a_Check)) \
+			{ \
+				BB::Logger::Log_Error(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg);\
+				assert(false);\
+			}
+
+#define BB_WARNING_CHANNEL(a_Check, a_Msg, a_WarningType, a_ChannelHandle) \
+			if (!(a_Check)) \
+			{\
+				WarningType TYPE{}; switch(a_WarningType){ \
+			case WarningType::OPTIMALIZATION:           \
+				BB::Logger::Log_Warning_Optimization(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg);\
+				break;\
+            case WarningType::LOW:\
+				BB::Logger::Log_Warning_Low(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg);\
+				break;\
+            case WarningType::MEDIUM:\
+				BB::Logger::Log_Warning_Medium(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg);\
+				break;\
+            case WarningType::HIGH:\
+				BB::Logger::Log_Warning_High(__FILE__, __LINE__, a_ChannelHandle, "s", a_Msg);\
+				break;\
+         }; TYPE; \
+			}
+
 #else
 /*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
 	@param a_Check, If false the program will print the message and assert.

@@ -8,6 +8,7 @@
 #include <stdarg.h>
 
 using namespace BB;
+using namespace Logger;
 
 static void WriteLoggerToFile(void*);
 
@@ -17,37 +18,61 @@ static LinearAllocator_t s_Allocator(mbSize * 4, "Log Allocator");
 class LoggerSingleton
 {
 private:
+	struct Channel
+	{
+		const char* name;
+		OSFileHandle file;
+		BBMutex mutex;
+		bool overwriteWarningFlags = false;
+		WarningTypeFlags overwriteFlags = 0;
+		//create a fixed string class for this.
+		String* cacheString = nullptr;
+	};
+
 	uint32_t m_MaxLoggerBufferSize;
-	WarningTypeFlags m_EnabledWarningFlags = 0;
+	uint32_t m_NextFreeChannel = 0;
+	Channel m_Channels[32];
 	//create a fixed string class for this.
-	String m_CacheString;
-	//create a fixed string class for this.
+	//One upload string, maybe have an upload strng per channel.
 	String m_UploadString;
 	ThreadTask m_LastThreadTask = 0;
-	const BBMutex m_WriteToFileMutex;
-	const OSFileHandle m_LogFile;
+	const BBMutex m_WriteConsoleMut;
 
 	static LoggerSingleton* m_LoggerInst;
 public:
 
 	LoggerSingleton()
 		: m_MaxLoggerBufferSize(2024),
-		  m_CacheString(s_Allocator, m_MaxLoggerBufferSize),
 		  m_UploadString(s_Allocator, m_MaxLoggerBufferSize),
-		  m_LogFile(CreateOSFile(L"logger.txt")),
-		  m_WriteToFileMutex(OSCreateMutex())
+	      m_WriteConsoleMut(OSCreateMutex())
 	{
-		//set them all to true at the start.
-		m_EnabledWarningFlags = UINT32_MAX;
+		Channel& t_Chan = m_Channels[m_NextFreeChannel++];
+		t_Chan.name = "Default";
+		StackString<128> t_FileName("Default");
+		t_FileName.append(".txt");
+		t_Chan.file = CreateOSFile(t_FileName.c_str());
+		t_Chan.mutex = OSCreateMutex();
+		t_Chan.overwriteWarningFlags = UINT32_MAX;
+		t_Chan.overwriteFlags = true;
+		t_Chan.cacheString = BBnew(s_Allocator, String)(s_Allocator, m_MaxLoggerBufferSize);
 	};
 
 	~LoggerSingleton()
 	{
-		//write the last logger information
-		LoggerWriteToFile();
+		//Can't use the uploadstring safetly if a task is not finished.
+		Threads::WaitForTask(m_LastThreadTask);
+		//write the last logger information to file
+		for (size_t i = 0; i < _countof(m_Channels); i++)
+		{
+			if (m_Channels[i].cacheString)
+			{
+				const Buffer t_String{ m_Channels[i].cacheString->data(), m_Channels[i].cacheString->size() };
+				WriteToFile(m_Channels[i].file, t_String);
+			}
+		}
 		//clear it to avoid issues related to reporting memory leaks.
 		s_Allocator.Clear();
-		DestroyMutex(m_WriteToFileMutex);
+		DestroyMutex(m_WriteConsoleMut);
 	};
 
 	static LoggerSingleton* GetInstance()
@@ -58,81 +83,113 @@ public:
 		return m_LoggerInst;
 	}
 
-	void WriteLogInfoToFile(const char* a_Msg, const size_t a_Size)
+	LogChannel CreateChannel(const char* a_Name, const WarningTypeFlags a_WarningFlags)
 	{
-		OSWaitAndLockMutex(m_WriteToFileMutex);
-		WriteToConsole(a_Msg, static_cast<uint32_t>(a_Size));
+		//set them all to true at the start.
+		BB_ASSERT(m_NextFreeChannel >= 32, "Over 32 channels! This is not supported)");
+		const LogChannel t_Return(m_NextFreeChannel);
+		Channel& t_Chan = m_Channels[m_NextFreeChannel++];
 
-		if (m_CacheString.size() + a_Size > m_MaxLoggerBufferSize)
-		{
-			m_UploadString.clear();
-			m_UploadString.append(m_CacheString);
-			//async upload to file.
-			Threads::WaitForTask(m_LastThreadTask);
-			m_LastThreadTask = Threads::StartTaskThread(WriteLoggerToFile, nullptr);
-			//clear the cache string for new logging infos
-			m_CacheString.clear();
-		}
-
-		m_CacheString.append(a_Msg, a_Size);
-
-		OSUnlockMutex(m_WriteToFileMutex);
+		t_Chan.name = a_Name;
+		StackString<128> t_FileName(a_Name);
+		t_FileName.append(".txt");
+		t_Chan.file = CreateOSFile(t_FileName.c_str());
+		t_Chan.mutex = OSCreateMutex();
+		t_Chan.overwriteWarningFlags = a_WarningFlags;
+		t_Chan.overwriteFlags = a_WarningFlags;
+		t_Chan.cacheString = BBnew(s_Allocator, String)(s_Allocator, m_MaxLoggerBufferSize);
+		return t_Return;
 	}
 
-	void LoggerWriteToFile()
+	void Log(const char* a_Msg, const size_t a_Size, const LogChannel a_Channel)
+	{
+		OSWaitAndLockMutex(m_WriteConsoleMut);
+		WriteToConsole(a_Msg, static_cast<uint32_t>(a_Size));
+		OSUnlockMutex(m_WriteConsoleMut);
+
+		Channel& t_Chan = m_Channels[a_Channel.index];
+		OSWaitAndLockMutex(t_Chan.mutex);
+		if (t_Chan.cacheString->size() + a_Size > m_MaxLoggerBufferSize)
+		{
+			//if the task is finished then the upload string is free to use.
+			Threads::WaitForTask(m_LastThreadTask);
+			m_UploadString.clear();
+			m_UploadString.append(*t_Chan.cacheString);
+			//async upload to file.
+			m_LastThreadTask = Threads::StartTaskThread(WriteLoggerToFile, t_Chan.file.ptrHandle);
+			//clear the cache string for new logging infos
+			t_Chan.cacheString->clear();
+		}
+		t_Chan.cacheString->append(a_Msg, a_Size);
+		OSUnlockMutex(t_Chan.mutex);
+	}
+
+	const char* GetChannelName(const LogChannel a_Channel) const
+	{
+		return m_Channels[a_Channel.index].name;
+	}
+
+	void LoggerWriteToFile(const OSFileHandle a_File)
 	{
 		const Buffer t_Buffer{ m_UploadString.data(), m_UploadString.size() };
-		WriteToFile(m_LogFile, t_Buffer);
+		WriteToFile(a_File, t_Buffer);
 	}
 
-	void EnableLogType(const WarningType a_WarningType)
+	void EnableLogType(const WarningType a_WarningType, const LogChannel a_Channel)
 	{
-		m_EnabledWarningFlags |= static_cast<WarningTypeFlags>(a_WarningType);
+		m_Channels[a_Channel.index].overwriteWarningFlags |= static_cast<WarningTypeFlags>(a_WarningType);
 	}
 
-	void EnableLogTypes(const WarningTypeFlags a_WarningTypes)
+	void EnableLogTypes(const WarningTypeFlags a_WarningTypes, const LogChannel a_Channel)
 	{
-		m_EnabledWarningFlags = a_WarningTypes;
+		m_Channels[a_Channel.index].overwriteWarningFlags = a_WarningTypes;
 	}
 
-	bool IsLogEnabled(const WarningType a_Type)
+	bool IsLogEnabled(const WarningType a_Type, const LogChannel a_Channel) const
 	{
-		return (m_EnabledWarningFlags & (WarningTypeFlags)a_Type) == (WarningTypeFlags)a_Type;
+		return (m_Channels[a_Channel.index].overwriteWarningFlags & (WarningTypeFlags)a_Type) == (WarningTypeFlags)a_Type;
 	}
 };
 LoggerSingleton* LoggerSingleton::LoggerSingleton::m_LoggerInst = nullptr;
 
-static void WriteLoggerToFile(void*)
+static void WriteLoggerToFile(void* a_File)
 {
-	LoggerSingleton::GetInstance()->LoggerWriteToFile();
+	//jank
+	LoggerSingleton::GetInstance()->LoggerWriteToFile(reinterpret_cast<uint64_t>(a_File));
 }
 
-static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_WarningLevel, const char* a_Formats, va_list a_Args)
+static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_WarningLevel, const char* a_Formats, va_list a_Args, const LogChannel a_Channel)
 {
-	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Error Level: " };
-	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
-	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
-	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
+	constexpr const char LOG_MESSAGE_ERROR_LEVEL_1[]{ " Error Level: " };
+	constexpr const char LOG_MESSAGE_FILE_2[]{ "\nFile: " };
+	constexpr const char LOG_MESSAGE_LINE_NUMBER_3[]{ "\nLine Number: " };
+	constexpr const char LOG_MESSAGE_MESSAGE_TXT_4[]{ "\nThe Message: " };
 
 	//Format the message
 	StackString<1024> t_String{};
-	{	//Start with the warning level
-		t_String.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+	{	//Start with the channel
+		t_String.append('[');
+		t_String.append(LoggerSingleton::GetInstance()->GetChannelName(a_Channel));
+		t_String.append(']');
+	}
+
+	{	//add warning level
+		t_String.append(LOG_MESSAGE_ERROR_LEVEL_1, sizeof(LOG_MESSAGE_ERROR_LEVEL_1) - 1);
 		t_String.append(a_WarningLevel);
 	}
 	{ //Get the file.
-		t_String.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
+		t_String.append(LOG_MESSAGE_FILE_2, sizeof(LOG_MESSAGE_FILE_2) - 1);
 		t_String.append(a_FileName);
 	}
 	{ //Get the line number into the buffer
 		char lineNumString[8]{};
 		sprintf_s(lineNumString, 8, "%u", a_Line);
 
-		t_String.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+		t_String.append(LOG_MESSAGE_LINE_NUMBER_3, sizeof(LOG_MESSAGE_LINE_NUMBER_3) - 1);
 		t_String.append(lineNumString);
 	}
 	{ //Get the message(s).
-		t_String.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+		t_String.append(LOG_MESSAGE_MESSAGE_TXT_4, sizeof(LOG_MESSAGE_MESSAGE_TXT_4) - 1);
 		for (size_t i = 0; i < a_Formats[i] != '\0'; i++)
 		{
 			switch (a_Formats[i])
@@ -166,75 +223,75 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_War
 	t_LogBuffer.data = t_String.data();
 	t_LogBuffer.size = t_String.size();
 
-	LoggerSingleton::GetInstance()->WriteLogInfoToFile(t_String.data(), t_String.size());
+	LoggerSingleton::GetInstance()->Log(t_String.data(), t_String.size(), a_Channel);
 }
 
-void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Message(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::INFO))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::INFO, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Info", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Info", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::OPTIMALIZATION))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::OPTIMALIZATION, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Optimalization Warning", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Optimalization Warning", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::LOW))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::LOW, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (LOW)", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Warning (LOW)", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::MEDIUM))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::MEDIUM, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (MEDIUM)", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Warning (MEDIUM)", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::HIGH))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::HIGH, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (HIGH)", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Warning (HIGH)", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Error(const char* a_FileName, int a_Line, const LogChannel a_Channel, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ERROR))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ERROR, a_Channel))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Critical", a_Formats, t_vl);
+	Log_to_Console(a_FileName, a_Line, "Critical", a_Formats, t_vl, a_Channel);
 	va_end(t_vl);
 }
 
-void Logger::EnableLogType(const WarningType a_WarningType)
+void Logger::EnableLogType(const WarningType a_WarningType, const LogChannel a_Channel)
 {
-	LoggerSingleton::GetInstance()->EnableLogType(a_WarningType);
+	LoggerSingleton::GetInstance()->EnableLogType(a_WarningType, a_Channel);
 }
 
-void Logger::EnableLogTypes(const WarningTypeFlags a_WarningTypes)
+void Logger::EnableLogTypes(const WarningTypeFlags a_WarningTypes, const LogChannel a_Channel)
 {
-	LoggerSingleton::GetInstance()->EnableLogTypes(a_WarningTypes);
+	LoggerSingleton::GetInstance()->EnableLogTypes(a_WarningTypes, a_Channel);
 }

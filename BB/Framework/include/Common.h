@@ -43,6 +43,7 @@ namespace BB
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
 	using BBMutex = FrameworkHandle<struct BBMutexTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
+	using LogChannel = FrameworkHandle<struct LogChannelTag>;
 
 	using wchar = wchar_t;
 
