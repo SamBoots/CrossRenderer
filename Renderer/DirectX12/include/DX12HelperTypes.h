@@ -7,8 +7,7 @@
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
 	if (a_HRESULT != S_OK)\
-		BB_ASSERT(false, a_Msg);\
-
+		BB_ASSERT(false, a_Msg);
 #else
 #define DXASSERT(a_HRESULT, a_Msg) a_HRESULT
 #endif //_DEBUG
@@ -38,6 +37,25 @@ namespace BB
 			default:
 				BB_ASSERT(false, "DX12: RENDER_DESCRIPTOR_TYPE failed to convert to a D3D12_DESCRIPTOR_RANGE_TYPE.");
 				return D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+				break;
+			}
+		}
+
+		static inline D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+		{
+			switch (a_ImageLayout)
+			{
+			case RENDER_IMAGE_LAYOUT::UNDEFINED:				return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return D3D12_RESOURCE_STATE_RENDER_TARGET;
+			case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return D3D12_RESOURCE_STATE_DEPTH_READ | D3D12_RESOURCE_STATE_DEPTH_WRITE;
+			case RENDER_IMAGE_LAYOUT::GENERAL:					return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return D3D12_RESOURCE_STATE_COPY_SOURCE;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return D3D12_RESOURCE_STATE_COPY_DEST;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			case RENDER_IMAGE_LAYOUT::PRESENT:					return D3D12_RESOURCE_STATE_PRESENT;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_IMAGE_LAYOUT failed to convert to a D3D12_RESOURCE_STATES.");
+				return D3D12_RESOURCE_STATE_COMMON;
 				break;
 			}
 		}
@@ -96,7 +114,6 @@ namespace BB
 
 		const D3D12_SHADER_VISIBILITY ShaderVisibility(const RENDER_SHADER_STAGE a_Stage);
 
-		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
 		const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties);
 		const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType);
 		const D3D12_BLEND Blend(const RENDER_BLEND_FACTOR a_BlendFactor);
@@ -253,11 +270,8 @@ namespace BB
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
 		//Some extra metadata.
-		union
-		{
 			TextureData m_TextureData{};
 			DepthMetaData m_DepthData;
-		};
 		
 	};
 
@@ -397,14 +411,12 @@ namespace BB
 		uint32_t descriptorCount = 0;
 	};
 
-	//lazy to make it work for depth.
-	class DepthDescriptorHeap
+	//lazy way to make it work for depth.
+	struct DepthDescriptorHeap
 	{
-	public:
 		~DepthDescriptorHeap()
 		{
 			DXRelease(heap);
-			memset(this, 0, sizeof(*this));
 		}
 		D3D12_CPU_DESCRIPTOR_HANDLE Allocate();
 
@@ -456,7 +468,7 @@ namespace BB
 			descriptorPool.CreatePool(s_DX12Allocator, 16);
 			cmdQueues.CreatePool(s_DX12Allocator, 4);
 			cmdAllocators.CreatePool(s_DX12Allocator, 16);
-			renderResources.CreatePool(s_DX12Allocator, 32);
+			renderResources.CreatePool(s_DX12Allocator, 64);
 			renderImages.CreatePool(s_DX12Allocator, 8);
 			fencePool.CreatePool(s_DX12Allocator, 16);
 			samplerPool.CreatePool(s_DX12Allocator, 16);

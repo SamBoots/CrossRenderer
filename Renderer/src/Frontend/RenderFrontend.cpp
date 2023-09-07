@@ -139,97 +139,98 @@ void Draw3DFrame()
 
 	RenderBackend::CopyBuffer(t_RecordingTransfer, t_CopyInfo);
 
-	StartRenderingInfo t_StartRenderInfo;
-	t_StartRenderInfo.viewportWidth = s_RendererInst.swapchainWidth;
-	t_StartRenderInfo.viewportHeight = s_RendererInst.swapchainHeight;
-	t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
-	t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
-	t_StartRenderInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	t_StartRenderInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	t_StartRenderInfo.clearColor[0] = 1.0f;
-	t_StartRenderInfo.clearColor[1] = 0.0f;
-	t_StartRenderInfo.clearColor[2] = 0.0f;
-	t_StartRenderInfo.clearColor[3] = 1.0f;
-	t_StartRenderInfo.depthStencil = t_DepthImage;
+	//StartRenderingInfo t_StartRenderInfo;
+	//t_StartRenderInfo.viewportWidth = s_RendererInst.swapchainWidth;
+	//t_StartRenderInfo.viewportHeight = s_RendererInst.swapchainHeight;
+	//t_StartRenderInfo.colorLoadOp = RENDER_LOAD_OP::CLEAR;
+	//t_StartRenderInfo.colorStoreOp = RENDER_STORE_OP::STORE;
+	//t_StartRenderInfo.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	//t_StartRenderInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	//t_StartRenderInfo.clearColor[0] = 1.0f;
+	//t_StartRenderInfo.clearColor[1] = 0.0f;
+	//t_StartRenderInfo.clearColor[2] = 0.0f;
+	//t_StartRenderInfo.clearColor[3] = 1.0f;
+	//t_StartRenderInfo.depthStencil = t_DepthImage;
 
-	//Record rendering commands.
-	RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
-	
-	RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
-	Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
+	////Record rendering commands.
+	//RenderBackend::StartRendering(t_RecordingGraphics, t_StartRenderInfo);
+	//
+	//RModelHandle t_CurrentModel = s_RendererInst.drawObjects.begin()->modelHandle;
+	//Model* t_Model = &s_RendererInst.models.find(t_CurrentModel.handle);
 
-	uint32_t t_BaseFrameInfoOffset = static_cast<uint32_t>(s_GlobalInfo.perFrameBufferSize * s_CurrentFrame);
-	uint32_t t_CamOffset = t_BaseFrameInfoOffset + sizeof(BaseFrameInfo);
-	uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
-	uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
+	//uint32_t t_BaseFrameInfoOffset = static_cast<uint32_t>(s_GlobalInfo.perFrameBufferSize * s_CurrentFrame);
+	//uint32_t t_CamOffset = t_BaseFrameInfoOffset + sizeof(BaseFrameInfo);
+	//uint32_t t_MatrixOffset = t_CamOffset + sizeof(CameraRenderData);
+	//uint32_t t_DynOffSets[3]{ t_BaseFrameInfoOffset, t_CamOffset, t_MatrixOffset };
 
 	RenderBackend::BindDescriptorHeaps(t_RecordingGraphics, g_descriptorManager->GetGPUHeap(s_CurrentFrame), nullptr);
-	RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
+	//RenderBackend::BindPipeline(t_RecordingGraphics, t_Model->pipelineHandle);
 
-	uint32_t t_IsSamplerHeap = false;
-	size_t t_HeapOffset = sceneDescAllocation.offset;
-	RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
+	//uint32_t t_IsSamplerHeap = false;
+	//size_t t_HeapOffset = sceneDescAllocation.offset;
+	//RenderBackend::SetDescriptorHeapOffsets(t_RecordingGraphics, RENDER_DESCRIPTOR_SET::SCENE_SET, 1, &t_IsSamplerHeap, &t_HeapOffset);
 
-	uint64_t t_BufferOffsets[1]{ 0 };
-	RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
-	RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexBuffer, 0);
+	//uint64_t t_BufferOffsets[1]{ 0 };
+	//RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_Model->vertexBuffer, t_BufferOffsets, 1);
+	//RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_Model->indexBuffer, 0);
 
-	for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
-	{
-		if (t_CurrentModel != t_It->modelHandle)
-		{
-			t_CurrentModel = t_It->modelHandle;
-			Model* t_NewModel = &s_RendererInst.models.find(t_CurrentModel.handle);
+	//for (auto t_It = s_RendererInst.drawObjects.begin(); t_It < s_RendererInst.drawObjects.end(); t_It++)
+	//{
+	//	if (t_CurrentModel != t_It->modelHandle)
+	//	{
+	//		t_CurrentModel = t_It->modelHandle;
+	//		Model* t_NewModel = &s_RendererInst.models.find(t_CurrentModel.handle);
 
-			if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
-			{
-				RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
-			}
+	//		if (t_NewModel->pipelineHandle != t_Model->pipelineHandle)
+	//		{
+	//			RenderBackend::BindPipeline(t_RecordingGraphics, t_NewModel->pipelineHandle);
+	//		}
 
-			RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
-			RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexBuffer, 0);
+	//		RenderBackend::BindVertexBuffers(t_RecordingGraphics, &t_NewModel->vertexBuffer, t_BufferOffsets, 1);
+	//		RenderBackend::BindIndexBuffer(t_RecordingGraphics, t_NewModel->indexBuffer, 0);
 
-			t_Model = t_NewModel;
-		}
+	//		t_Model = t_NewModel;
+	//	}
 
-		RenderBackend::BindConstant(t_RecordingGraphics, 0, 1, 0, &t_It->transformHandle.index);
-		for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
-		{
-			const Model::Node& t_Node = t_Model->linearNodes[i];
-			if (t_Node.meshIndex != MESH_INVALID_INDEX) 
-			{
-				const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
-				for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
-				{
-					const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
-					RenderBackend::DrawIndexed(t_RecordingGraphics,
-						t_Prim.indexCount,
-						1,
-						t_Prim.indexStart,
-						0,
-						0);
-				}
-			}
-		}
-	}
+	//	RenderBackend::BindConstant(t_RecordingGraphics, 0, 1, 0, &t_It->transformHandle.index);
+	//	for (uint32_t i = 0; i < t_Model->linearNodeCount; i++)
+	//	{
+	//		const Model::Node& t_Node = t_Model->linearNodes[i];
+	//		if (t_Node.meshIndex != MESH_INVALID_INDEX) 
+	//		{
+	//			const Model::Mesh& t_Mesh = t_Model->meshes[t_Node.meshIndex];
+	//			for (size_t t_PrimIndex = 0; t_PrimIndex < t_Mesh.primitiveCount; t_PrimIndex++)
+	//			{
+	//				const Model::Primitive& t_Prim = t_Model->primitives[t_Mesh.primitiveOffset + t_PrimIndex];
+	//				RenderBackend::DrawIndexed(t_RecordingGraphics,
+	//					t_Prim.indexCount,
+	//					1,
+	//					t_Prim.indexStart,
+	//					0,
+	//					0);
+	//			}
+	//		}
+	//	}
+	//}
 
-	
-	EndRenderingInfo t_EndRenderingInfo{};
-	t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
-	t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
+	//
+	//EndRenderingInfo t_EndRenderingInfo{};
+	//t_EndRenderingInfo.colorInitialLayout = t_StartRenderInfo.colorFinalLayout;
+	//t_EndRenderingInfo.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	//RenderBackend::EndRendering(t_RecordingGraphics, t_EndRenderingInfo);
 	{
 		StartRenderingInfo t_ImguiStart;
 		t_ImguiStart.viewportWidth = s_RendererInst.swapchainWidth;
 		t_ImguiStart.viewportHeight = s_RendererInst.swapchainHeight;
-		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
+		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-		t_ImguiStart.colorInitialLayout = t_EndRenderingInfo.colorFinalLayout;
+		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;//t_EndRenderingInfo.colorFinalLayout;
 		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		t_ImguiStart.clearColor[0] = 1.0f;
 		t_ImguiStart.clearColor[1] = 0.0f;
 		t_ImguiStart.clearColor[2] = 0.0f;
 		t_ImguiStart.clearColor[3] = 1.0f;
+		t_ImguiStart.depthStencil = nullptr;
 		RenderBackend::StartRendering(t_RecordingGraphics, t_ImguiStart);
 
 		ImDrawData* t_DrawData = ImGui::GetDrawData();
