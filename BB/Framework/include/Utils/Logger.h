@@ -11,7 +11,7 @@ namespace BB
 		LOW				= 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
 		MEDIUM			= 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
 		HIGH			= 1 << 4, //High chance of breaking the application or causing undefined behaviour.
-		ERROR			= 1 << 5, //Use BB_ASSERT for this
+		ERROR			= 1 << 5 //Use BB_ASSERT for this
 	};
 
 

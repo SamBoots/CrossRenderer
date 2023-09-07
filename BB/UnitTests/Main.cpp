@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 				{
 				case KEYBOARD_KEY::_W:
 					if (t_Event.keyInfo.keyPressed)
-w						BB_LOG("W pressed!");
+						BB_LOG("W pressed!");
 					else
 						BB_LOG("W released!");
 					break;
