@@ -3,8 +3,6 @@
 
 namespace BB
 {
-	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
-
 	namespace Threads
 	{
 		void InitThreads(const uint32_t a_ThreadCount);

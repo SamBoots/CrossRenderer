@@ -60,12 +60,16 @@ target_include_directories(Renderer PUBLIC
 ${glm_SOURCE_DIR}
 )
 
-find_package(Vulkan REQUIRED)
+find_package(Vulkan)
 if (NOT Vulkan_FOUND)
-message(FATAL_ERROR "Vulkan not found")
+message(STATUS "Vulkan not found")
 else()
 message(STATUS "Vulkan found")
 message(STATUS ${Vulkan_INCLUDE_DIRS})
+target_link_libraries(Renderer
+    Vulkan::Vulkan
+    VMA
+)
 endif()
 
 target_link_libraries(Renderer
@@ -74,8 +78,6 @@ target_link_libraries(Renderer
     BBFramework 
     stb_image
     IMGUI
-    Vulkan::Vulkan
-    VMA
     #BB_DirectX
 )
 

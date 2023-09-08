@@ -84,13 +84,13 @@ void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
 	{
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "ss", 
+		Logger::Log_Assert(t_AllocLog->file, t_AllocLog->line, "ss",
 			t_AllocLog->tagName,
 			"Memory Boundry overwritten at the front of memory block.");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Error(t_AllocLog->file, t_AllocLog->line, "ss",
+		Logger::Log_Assert(t_AllocLog->file, t_AllocLog->line, "ss",
 			t_AllocLog->tagName,
 			"Memory Boundry overwritten at the back of memory block.");
 		break;
@@ -134,7 +134,7 @@ void BB::allocators::BaseAllocator::Validate() const
 		}
 	
 
-		Logger::Log_Error(t_FrontLog->file, t_FrontLog->line, "ss",
+		Logger::Log_Assert(t_FrontLog->file, t_FrontLog->line, "ss",
 			t_FrontLog->tagName, t_TempString.c_str());
 
 		t_FrontLog = t_FrontLog->prev;

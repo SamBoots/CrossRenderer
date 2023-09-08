@@ -8,7 +8,7 @@ namespace BB
 	{
 		T& operator[](const size_t a_Index)
 		{
-			BB_EXCEPTION(a_Index <= arrSize, "FixedArray, trying to access a index that is out of bounds.");
+			BB_ASSERT(a_Index <= arrSize, "FixedArray, trying to access a index that is out of bounds.");
 			return m_Arr[a_Index];
 		}
 

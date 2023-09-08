@@ -666,7 +666,7 @@ namespace BB
 					return;
 				}
 			}
-			BB_EXCEPTION(false, "OL_Hashmap remove called but key not found!");
+			BB_ASSERT(false, "OL_Hashmap remove called but key not found!");
 		}
 		void clear()
 		{
