@@ -11,10 +11,8 @@ namespace BB
 		LOW				= 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
 		MEDIUM			= 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
 		HIGH			= 1 << 4, //High chance of breaking the application or causing undefined behaviour.
-		ERROR			= 1 << 5 //Use BB_ASSERT for this
+		ASSERT			= 1 << 5  //Use BB_ASSERT for this
 	};
-
-
 
 	namespace Logger
 	{
@@ -30,7 +28,7 @@ namespace BB
 		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...);
 		//Use BB_ASSERT for better use.
 		//IT DOES NOT ASSERT, BB_ASSERT DOES
-		void Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Assert(const char* a_FileName, int a_Line, const char* a_Formats, ...);
 
 		void EnableLogType(const WarningType a_WarningType);
 		void EnableLogTypes(const WarningTypeFlags a_WarningTypes);
@@ -51,7 +49,7 @@ namespace BB
 #define BB_ASSERT(a_Check, a_Msg)\
 			if (!(a_Check)) \
 			{ \
-				BB::Logger::Log_Error(__FILE__, __LINE__, "s", a_Msg);\
+				BB::Logger::Log_Assert(__FILE__, __LINE__, "s", a_Msg);\
 				assert(false);\
 			}
 
@@ -64,6 +62,9 @@ namespace BB
 			if (!(a_Check)) \
 			{\
 				WarningType TYPE{}; switch(a_WarningType){ \
+			case WarningType::INFO:           \
+				BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_Msg);\
+				break;\
 			case WarningType::OPTIMALIZATION:           \
 				BB::Logger::Log_Warning_Optimization(__FILE__, __LINE__, "s", a_Msg);\
 				break;\
@@ -76,6 +77,9 @@ namespace BB
             case WarningType::HIGH:\
 				BB::Logger::Log_Warning_High(__FILE__, __LINE__, "s", a_Msg);\
 				break;\
+            case WarningType::ASSERT:\
+				BB::Logger::Log_Assert(__FILE__, __LINE__, "s", a_Msg);\
+				break;\
          }; TYPE; \
 			}
 #else
@@ -87,10 +91,6 @@ namespace BB
 @param a_Check, If false the program will print the message and assert.
 @param a_Msg, The message that will be printed. */
 #define BB_ASSERT(a_Check, a_Msg) a_Check
-/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
-@param a_Check, If false the program will print the message and assert.
-@param a_Msg, The message that will be printed. */
-#define BB_EXCEPTION(a_Check, a_Msg) a_Check
 /*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 @param a_Check, If false the program will print the message and assert.
 @param a_Msg, The message that will be printed.

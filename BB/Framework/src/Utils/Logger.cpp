@@ -219,9 +219,9 @@ void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_
 	va_end(t_vl);
 }
 
-void Logger::Log_Error(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Assert(const char* a_FileName, int a_Line, const char* a_Formats, ...)
 {
-	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ERROR))
+	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ASSERT))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
