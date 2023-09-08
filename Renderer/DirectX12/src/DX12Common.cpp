@@ -504,7 +504,6 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 	return t_ReturnInfo;
 }
 
-//PipelineBuilder
 PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
 	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo)();
@@ -519,8 +518,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 	}
 	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	t_BuildInfo->rootSigDesc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	{
 		D3D12_RASTERIZER_DESC t_RasterDesc{};

@@ -927,7 +927,9 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0].signalQueueCount = 1;
 
 	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
-
+	RenderWaitCommandsInfo t_Wait{};
+	t_Wait.queues = Slice(&t_TransferQueue, 1);
+	RenderBackend::WaitCommands(t_Wait);
 	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_TransferQueue) - 1;
 
 	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
