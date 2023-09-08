@@ -566,6 +566,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 			t_BlendDesc.RenderTarget[i].BlendOpAlpha = DXConv::BlendOp(t_Bi.blendOpAlpha);
 			t_BlendDesc.RenderTarget[i].SrcBlendAlpha = DXConv::Blend(t_Bi.srcBlendAlpha);
 			t_BlendDesc.RenderTarget[i].DestBlendAlpha = DXConv::Blend(t_Bi.dstBlendAlpha);
+			t_BlendDesc.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 		}
 
 		t_BuildInfo->PSOdesc.BlendState = t_BlendDesc;
@@ -615,7 +616,8 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 			t_Desc[i].ShaderRegister = i;
 			t_Desc[i].RegisterSpace = 0;
 			t_Desc[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			t_Desc[i].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			t_Desc[i].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+			t_Desc[i].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 
 			const SamplerCreateInfo& t_Samp = a_InitInfo.immutableSamplers[i];
 			t_Desc[i].AddressU = DXConv::AddressMode(t_Samp.addressModeU);
@@ -627,7 +629,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 				t_Desc[i].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
 				break;
 			case SAMPLER_FILTER::LINEAR:
-				t_Desc[i].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+				t_Desc[i].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 				break;
 			default:
 				BB_ASSERT(false, "DX12, does not support this type of sampler filter!");
@@ -866,25 +868,17 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	//t_RenderTargetBarrier.pTextureBarriers = &t_TextBarrier;
 	//t_CommandList->List()->Barrier(1, &t_RenderTargetBarrier);
 
+	const size_t t_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	D3D12_CPU_DESCRIPTOR_HANDLE t_RtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
-	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame *
-		s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-	//set depth
-	if (a_RenderInfo.depthStencil.handle != 0)
-	{
-		D3D12_CPU_DESCRIPTOR_HANDLE t_DsvHandle = reinterpret_cast<DXImage*>(a_RenderInfo.depthStencil.ptrHandle)->GetDepthMetaData().dsvHandle;
-		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, &t_DsvHandle);
-		t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-	}
-	else
-	{
-		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, nullptr);
-	}
+	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * t_IncrementSize);
 
 	switch (a_RenderInfo.colorLoadOp)
 	{
 	case RENDER_LOAD_OP::LOAD:
-
+	{
+		const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+		t_CommandList->List()->OMSetBlendFactor(blend_factor);
+	}
 		break;
 	case RENDER_LOAD_OP::CLEAR:
 		t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
@@ -897,13 +891,26 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 		break;
 	}
 
+	//set depth
+	if (a_RenderInfo.depthStencil.handle != 0)
+	{
+		D3D12_CPU_DESCRIPTOR_HANDLE t_DsvHandle = reinterpret_cast<DXImage*>(a_RenderInfo.depthStencil.ptrHandle)->GetDepthMetaData().dsvHandle;
+		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, &t_DsvHandle);
+		t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	}
+	else
+	{
+		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, nullptr);
+	}
+
 
 	D3D12_VIEWPORT t_Viewport{};
 
 	t_Viewport.Width = static_cast<FLOAT>(a_RenderInfo.viewportWidth);
 	t_Viewport.Height = static_cast<FLOAT>(a_RenderInfo.viewportHeight);
 	t_Viewport.MinDepth = .1f;
-	t_Viewport.MaxDepth = 1000.f;
+	t_Viewport.MaxDepth = 1.f;
+	t_Viewport.TopLeftX = t_Viewport.TopLeftY = 0.0f;
 
 	t_CommandList->List()->RSSetViewports(1, &t_Viewport);
 
@@ -1085,7 +1092,7 @@ void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHa
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
 		t_Views[i].SizeInBytes = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResourceSize();
-		t_Views[i].StrideInBytes = sizeof(Vertex);
+		t_Views[i].StrideInBytes = 20;
 		t_Views[i].BufferLocation = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResource()->GetGPUVirtualAddress() + a_BufferOffsets[i];
 	}
 	

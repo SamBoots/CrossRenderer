@@ -102,7 +102,7 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
     RenderBufferCreateInfo t_CreateInfo{};
     t_CreateInfo.name = "Imgui buffer";
     t_CreateInfo.usage = a_Usage;
-    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
     t_CreateInfo.size = a_NewSize;
 
     a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
@@ -137,15 +137,18 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
     // Setup scale and translation:
     // Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
     {
-        float scale[2];
-        scale[0] = 2.0f / a_DrawData.DisplaySize.x;
-        scale[1] = 2.0f / a_DrawData.DisplaySize.y;
-        float translate[2];
-        translate[0] = -1.0f - a_DrawData.DisplayPos.x * scale[0];
-        translate[1] = -1.0f - a_DrawData.DisplayPos.y * scale[1];
-        //Constant index will always be 0 if we use it. Imgui pipeline will always use it.
-        RenderBackend::BindConstant(a_CmdList, 0, 2, 0, &scale);
-        RenderBackend::BindConstant(a_CmdList, 0, 2, 2, &translate);
+        float L = a_DrawData.DisplayPos.x;
+        float R = a_DrawData.DisplayPos.x + a_DrawData.DisplaySize.x;
+        float T = a_DrawData.DisplayPos.y;
+        float B = a_DrawData.DisplayPos.y + a_DrawData.DisplaySize.y;
+        float mvp[4][4] =
+        {
+            { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
+            { 0.0f,         2.0f / (T - B),     0.0f,       0.0f },
+            { 0.0f,         0.0f,           0.5f,       0.0f },
+            { (R + L) / (L - R),  (T + B) / (B - T),    0.5f,       1.0f },
+        };
+        RenderBackend::BindConstant(a_CmdList, 0, 4 * 4, 0, &mvp);
     }
 }
 
@@ -183,12 +186,9 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
             CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
 
-        UploadBufferChunk t_UpVert = rb.uploadBuffer.Alloc(vertex_size);
-        UploadBufferChunk t_UpIndex = rb.uploadBuffer.Alloc(index_size);
-
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UpVert.memory);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(t_UpIndex.memory);
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(RenderBackend::MapMemory(rb.vertexBuffer));
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(RenderBackend::MapMemory(rb.indexBuffer));
        
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -199,21 +199,8 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Reco
             idx_dst += cmd_list->IdxBuffer.Size;
         }
 
-        //copy vertex
-        RenderCopyBufferInfo t_CopyInfo{};
-        t_CopyInfo.src = rb.uploadBuffer.Buffer();
-        t_CopyInfo.srcOffset = t_UpVert.bufferOffset;
-        t_CopyInfo.dst = rb.vertexBuffer;
-        t_CopyInfo.dstOffset = 0;
-        t_CopyInfo.size = vertex_size;
-        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
-
-        //copy index
-        t_CopyInfo.srcOffset = t_UpIndex.bufferOffset;
-        t_CopyInfo.dst = rb.indexBuffer;
-        t_CopyInfo.dstOffset = 0;
-        t_CopyInfo.size = index_size;
-        RenderBackend::CopyBuffer(a_Transfer, t_CopyInfo);
+        RenderBackend::UnmapMemory(rb.vertexBuffer);
+        RenderBackend::UnmapMemory(rb.indexBuffer);
     }
 
     // Setup desired CrossRenderer state
@@ -436,12 +423,12 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
     t_PipeInitInfo.blendLogicOpEnable = false;
     t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
-    t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
+    t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
 
     // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
     t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
     //2 vec2's so 4 dwords.
-    t_PipeInitInfo.constantData.dwordSize = 4;
+    t_PipeInitInfo.constantData.dwordSize = 4 * 4;
 
     SamplerCreateInfo t_SamplerInfo{};
     t_SamplerInfo.name = "Imgui font sampler";
@@ -449,9 +436,9 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
     t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
     t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
-    t_SamplerInfo.maxAnistoropy = 1.0f;
-    t_SamplerInfo.maxLod = 100.f;
-    t_SamplerInfo.minLod = -100.f;
+    t_SamplerInfo.maxAnistoropy = 0.f;
+    t_SamplerInfo.maxLod = 0.f;
+    t_SamplerInfo.minLod = 0.f;
     t_PipeInitInfo.immutableSamplers = Slice(&t_SamplerInfo, 1);
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };

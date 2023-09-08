@@ -224,7 +224,7 @@ void Draw3DFrame()
 		t_ImguiStart.viewportHeight = s_RendererInst.swapchainHeight;
 		t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::CLEAR;
 		t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::UNDEFINED;//t_EndRenderingInfo.colorFinalLayout;
+		t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::PRESENT;//t_EndRenderingInfo.colorFinalLayout;
 		t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		t_ImguiStart.clearColor[0] = 1.0f;
 		t_ImguiStart.clearColor[1] = 0.0f;
@@ -927,9 +927,6 @@ void BB::Render::EndFrame()
 	t_ExecuteInfos[0].signalQueueCount = 1;
 
 	RenderBackend::ExecuteCommands(t_TransferQueue, &t_ExecuteInfos[0], 1);
-	RenderWaitCommandsInfo t_Wait{};
-	t_Wait.queues = Slice(&t_TransferQueue, 1);
-	RenderBackend::WaitCommands(t_Wait);
 	uint64_t t_WaitValue = RenderBackend::NextQueueFenceValue(t_TransferQueue) - 1;
 
 	//We write to vertex information (vertex buffer, index buffer and the storage buffer storing all the matrices.)
@@ -945,6 +942,10 @@ void BB::Render::EndFrame()
 	RenderBackend::ExecutePresentCommands(t_GraphicsQueue, t_ExecuteInfos[1]);
 	PresentFrameInfo t_PresentFrame{};
 	s_CurrentFrame = RenderBackend::PresentFrame(t_PresentFrame);
+
+	RenderWaitCommandsInfo t_WaitCmds{};
+	t_WaitCmds.queues = BB::Slice(&t_GraphicsQueue, 1);
+	RenderBackend::WaitCommands(t_WaitCmds);
 }
 
 const LightHandle BB::Render::AddLights(const BB::Slice<Light> a_Lights, const LIGHT_TYPE a_LightType)
