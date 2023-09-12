@@ -25,10 +25,10 @@ namespace BB
 
 	static inline wchar* UTF8ToUnicodeString(Allocator a_Allocator, const char* a_Char)
 	{
-		//arbitrary limit of 256.
+		//arbitrary limit of 256. 
 		const size_t t_CharSize = strnlen_s(a_Char, 256);
 		wchar* t_Wchar = reinterpret_cast<wchar*>(BBalloc(a_Allocator, t_CharSize * 2 + 2)); //add null terminated string.
-		mbstowcs(t_Wchar, a_Char, t_CharSize);
+		std::mbstowcs(t_Wchar, a_Char, t_CharSize);
 		t_Wchar[t_CharSize] = NULL;
 		return t_Wchar;
 	}
@@ -340,9 +340,6 @@ namespace BB
 		//Optmize Rootsignature and pipelinestate to cache them somewhere and reuse them.
 		ID3D12PipelineState* pipelineState{};
 		ID3D12RootSignature* rootSig{};
-
-		//Each index indicates the start paramindex for a binding.
-		UINT rootParamBindingOffset[BINDING_MAX]{};
 	};
 
 	struct DXDescriptor

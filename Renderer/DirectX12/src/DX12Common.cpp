@@ -308,7 +308,7 @@ RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 		if (t_Binding.descriptorCount > 1)
 			t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
 		else
-			t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			t_TableRanges[i].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
 
 		t_TableRanges[i].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	}
@@ -796,34 +796,21 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 {
 	DXPipelineBuildInfo* t_BuildInfo = reinterpret_cast<DXPipelineBuildInfo*>(a_Handle.ptrHandle);
 
-	uint32_t t_RootParamCount = t_BuildInfo->descriptorSetCount;
-
-	if (t_BuildInfo->rootConstant.Num32BitValues > 0)
-		++t_RootParamCount;
+	const uint32_t t_RootParamCount = t_BuildInfo->descriptorSetCount + 1; //+1 due to root constant
 
 	D3D12_ROOT_PARAMETER1* t_Prams = BBnewArr(t_BuildInfo->buildAllocator, t_RootParamCount, D3D12_ROOT_PARAMETER1);
 
 	{
-		uint32_t t_StartIndex = 0;
-		uint32_t t_EndIndex = t_BuildInfo->descriptorSetCount;
-		if (t_BuildInfo->rootConstant.Num32BitValues > 0)
-		{
-			++t_StartIndex;
-			++t_EndIndex;
-			t_Prams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-			t_Prams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			t_Prams[0].Constants = t_BuildInfo->rootConstant;
-		}
+		t_Prams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		t_Prams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		t_Prams[0].Constants = t_BuildInfo->rootConstant;
 
-		uint32_t t_Index = 0;
-		for (size_t i = t_StartIndex; i < t_EndIndex; i++)
+		for (uint32_t i = 0; i < t_RootParamCount; i++)
 		{
-			t_Prams[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-			t_Prams[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			t_Prams[i].DescriptorTable.pDescriptorRanges = t_BuildInfo->descriptorSets[t_Index].tableEntries;
-			t_Prams[i].DescriptorTable.NumDescriptorRanges = t_BuildInfo->descriptorSets[t_Index].tableEntryCount;
-			t_BuildInfo->buildPipeline.rootParamBindingOffset[t_Index] = i;
-			++t_Index;
+			t_Prams[i + 1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			t_Prams[i + 1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+			t_Prams[i + 1].DescriptorTable.pDescriptorRanges = t_BuildInfo->descriptorSets[i].tableEntries;
+			t_Prams[i + 1].DescriptorTable.NumDescriptorRanges = t_BuildInfo->descriptorSets[i].tableEntryCount;
 		}
 	}
 
@@ -1131,7 +1118,7 @@ void BB::DX12SetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHand
 		const UINT t_Offset = a_Offsets[i] * t_CommandList->heaps[0]->GetIncrementSize();
 		D3D12_GPU_DESCRIPTOR_HANDLE t_GpuHandle{ t_CommandList->heaps[0]->GetGPUStartPtr().ptr + t_Offset};
 		t_CommandList->List()->SetGraphicsRootDescriptorTable(
-			t_CommandList->boundPipeline->rootParamBindingOffset[static_cast<uint32_t>(a_FirstSet)], 
+			static_cast<uint32_t>(a_FirstSet) + 1, //+1 as first root entry is the bundle of Dwords 
 			t_GpuHandle);
 	}
 
