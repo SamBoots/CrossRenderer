@@ -87,7 +87,7 @@ static void CreateOrResizeBuffer(RBufferHandle& a_Buffer, uint64_t& a_BufferSize
     RenderBufferCreateInfo t_CreateInfo{};
     t_CreateInfo.name = "Imgui buffer";
     t_CreateInfo.usage = a_Usage;
-    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::DEVICE_LOCAL;
+    t_CreateInfo.memProperties = RENDER_MEMORY_PROPERTIES::HOST_VISIBLE;
     t_CreateInfo.size = a_NewSize;
 
     a_Buffer = RenderBackend::CreateBuffer(t_CreateInfo);
@@ -168,6 +168,7 @@ void ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const BB::Comm
             CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
         if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
             CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
+
 
         UploadBufferChunk t_UpVert = rb.uploadBuffer.Alloc(vertex_size);
         UploadBufferChunk t_UpIndex = rb.uploadBuffer.Alloc(index_size);
@@ -411,7 +412,7 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_PipeInitInfo.blendLogicOp = RENDER_LOGIC_OP::CLEAR;
     t_PipeInitInfo.blendLogicOpEnable = false;
     t_PipeInitInfo.rasterizerState.cullMode = RENDER_CULL_MODE::NONE;
-    t_PipeInitInfo.rasterizerState.frontCounterClockwise = true;
+    t_PipeInitInfo.rasterizerState.frontCounterClockwise = false;
 
     // Constants: we are using 'vec2 offset' and 'vec2 scale' instead of a full 3d projection matrix
     t_PipeInitInfo.constantData.shaderStage = RENDER_SHADER_STAGE::ALL;
@@ -424,9 +425,9 @@ bool ImGui_ImplCross_Init(const ImGui_ImplCross_InitInfo& a_Info)
     t_SamplerInfo.addressModeV = SAMPLER_ADDRESS_MODE::REPEAT;
     t_SamplerInfo.addressModeW = SAMPLER_ADDRESS_MODE::REPEAT;
     t_SamplerInfo.filter = SAMPLER_FILTER::LINEAR;
-    t_SamplerInfo.maxAnistoropy = 1.0f;
-    t_SamplerInfo.maxLod = 100.f;
-    t_SamplerInfo.minLod = -100.f;
+    t_SamplerInfo.maxAnistoropy = 0.f;
+    t_SamplerInfo.maxLod = 0.f;
+    t_SamplerInfo.minLod = 0.f;
     t_PipeInitInfo.immutableSamplers = Slice(&t_SamplerInfo, 1);
 
     PipelineBuilder t_Builder{ t_PipeInitInfo };

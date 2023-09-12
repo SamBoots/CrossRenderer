@@ -23,7 +23,11 @@ add_library(stb_image INTERFACE
 )
 
 add_library(cgltf INTERFACE
-"cgltf/cgltf.h"
-)
+"cgltf/cgltf.h")
+
+add_library(DX12_agility_sdk INTERFACE
+"agilitySDK/include/d3dx12/d3dx12.h"
+"agilitySDK/src/d3dx12/d3dx12_property_format_table.cpp")
+target_include_directories(DX12_agility_sdk INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory("imgui")

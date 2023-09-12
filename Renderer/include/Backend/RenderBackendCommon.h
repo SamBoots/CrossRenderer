@@ -385,7 +385,7 @@ namespace BB
 
 	struct RenderWaitCommandsInfo
 	{
-		const RFenceHandle* waitFences = nullptr;
+		RFenceHandle* waitFences = nullptr;
 		uint64_t* waitValues = nullptr;
 		uint32_t waitCount = 0;
 	};
@@ -675,8 +675,8 @@ namespace BB
 	{
 		float3 pos{}; //12
 		float3 normal{}; //24
-		float2 uv{}; //32
-		float3 color{}; //44
+		float2 uv{}; //44
+		float3 color{}; //36
 	};
 
 	struct BackendInfo

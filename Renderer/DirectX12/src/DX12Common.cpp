@@ -41,26 +41,6 @@ static void WaitFenceIdle(ID3D12Fence* a_Fence, const uint64_t a_FenceValue)
 	CloseHandle(t_WaitHandle);
 }
 
-static void WaitFencesIdle(ID3D12Fence** a_Fences, const uint64_t* a_FenceValues, const uint32_t a_FenceCount)
-{
-	HANDLE* t_WaitHandles = reinterpret_cast<HANDLE*>(_malloca(a_FenceCount * sizeof(HANDLE)));
-
-	for (size_t i = 0; i < a_FenceCount; i++)
-	{
-		t_WaitHandles[i] = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
-		BB_ASSERT(t_WaitHandles[i] != NULL, "WIN, failed to create event.");
-		a_Fences[i]->SetEventOnCompletion(a_FenceValues[i], t_WaitHandles[i]);
-	}
-
-	WaitForMultipleObjects(a_FenceCount, t_WaitHandles, true, INFINITE);
-
-	for (size_t i = 0; i < a_FenceCount; i++)
-	{
-		CloseHandle(t_WaitHandles[i]);
-	}
-	_freea(t_WaitHandles);
-}
-
 static void WaitFenceCPU(ID3D12Fence* a_Fence, const uint64_t a_FenceValue)
 {
 	if (a_Fence->GetCompletedValue() > a_FenceValue)
@@ -71,11 +51,20 @@ static void WaitFenceCPU(ID3D12Fence* a_Fence, const uint64_t a_FenceValue)
 	WaitFenceIdle(a_Fence, a_FenceValue);
 }
 
+static void CheckFeatureSupport()
+{
+	D3D12_FEATURE_DATA_D3D12_OPTIONS12 t_DeviceOptions{};
+
+	s_DX12B.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &t_DeviceOptions, sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS12));
+
+	//BB_ASSERT(t_DeviceOptions.EnhancedBarriersSupported, "DX12, enhanced barriers not supported!");
+}
+
 static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHandle)
 {
 	s_DX12B.swapWidth = a_Width;
 	s_DX12B.swapHeight = a_Height;
-	
+
 	//Just do a resize if a swapchain already exists.
 	if (s_DX12B.swapchain != nullptr)
 	{
@@ -148,7 +137,6 @@ static void SetupBackendSwapChain(UINT a_Width, UINT a_Height, HWND a_WindowHand
 	}
 }
 
-
 BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 {
 	UINT t_FactoryFlags = 0;
@@ -179,7 +167,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 #pragma region DEVICE_CREATION
 	IDXGIAdapter1* t_CurrentBestAdapter = nullptr;
 	SIZE_T t_BestDedicatedVRAM = 0;
-
+	
 	for (UINT adapterIndex = 0;
 		DXGI_ERROR_NOT_FOUND != s_DX12B.factory->EnumAdapters1(adapterIndex, &s_DX12B.adapter);
 		++adapterIndex)
@@ -200,7 +188,7 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 	s_DX12B.adapter = t_CurrentBestAdapter;
 
 	DXASSERT(D3D12CreateDevice(s_DX12B.adapter,
-		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_12_2,
 		IID_PPV_ARGS(&s_DX12B.device)),
 		"DX12: Failed to create logical device.");
 
@@ -271,6 +259,8 @@ BackendInfo BB::DX12CreateBackend(const RenderBackendCreateInfo& a_CreateInfo)
 		s_DX12B.heap_sampler_size = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	}
 
+	CheckFeatureSupport();
+
 	//Returns some info to the global backend that is important.
 	BackendInfo t_BackendInfo;
 	t_BackendInfo.currentFrame = s_DX12B.currentFrame;
@@ -293,7 +283,7 @@ RDescriptorHeap BB::DX12CreateDescriptorHeap(const DescriptorHeapCreateInfo& a_C
 			a_CreateInfo.descriptorCount,
 			a_GpuVisible, 
 			a_CreateInfo.name);
-	return t_Heap;
+	return (uintptr_t)t_Heap;
 }
 
 RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
@@ -327,13 +317,13 @@ RDescriptor BB::DX12CreateDescriptor(const RenderDescriptorCreateInfo& a_Info)
 	t_Descriptor->tableEntryCount = a_Info.bindings.size();
 	t_Descriptor->tableEntries = t_TableRanges;
 	t_Descriptor->descriptorCount = t_DescriptorCount;
-	return RDescriptor(t_Descriptor);
+	return RDescriptor((uintptr_t)t_Descriptor);
 }
 
 CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo& a_Info)
 {
 	if (a_Info.queue == RENDER_QUEUE_TYPE::GRAPHICS)
-		return CommandQueueHandle(s_DX12B.directpresentqueue);
+		return CommandQueueHandle((uintptr_t)s_DX12B.directpresentqueue);
 
 	D3D12_COMMAND_LIST_TYPE t_Type{};
 	switch (a_Info.queue)
@@ -362,7 +352,7 @@ CommandQueueHandle BB::DX12CreateCommandQueue(const RenderCommandQueueCreateInfo
 	if (a_Info.name)
 		t_Queue->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Info.name));
 
-	return CommandQueueHandle(t_Queue);
+	return CommandQueueHandle((uintptr_t)t_Queue);
 }
 
 CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo)
@@ -371,7 +361,7 @@ CommandAllocatorHandle BB::DX12CreateCommandAllocator(const RenderCommandAllocat
 	DXCommandAllocator* t_CmdAllocator = new (s_DX12B.cmdAllocators.Get())
 		DXCommandAllocator(a_CreateInfo);
 
-	return CommandAllocatorHandle(t_CmdAllocator);
+	return CommandAllocatorHandle((uintptr_t)t_CmdAllocator);
 }
 
 CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a_CreateInfo)
@@ -380,7 +370,7 @@ CommandListHandle BB::DX12CreateCommandList(const RenderCommandListCreateInfo& a
 #ifdef _DEBUG
 	t_Cmdlist->List()->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
 #endif //_DEBUG
-	return CommandListHandle(t_Cmdlist);
+	return CommandListHandle((uintptr_t)t_Cmdlist);
 }
 
 RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
@@ -388,17 +378,17 @@ RBufferHandle BB::DX12CreateBuffer(const RenderBufferCreateInfo& a_CreateInfo)
 	DXResource* t_Resource = new (s_DX12B.renderResources.Get())
 		DXResource(a_CreateInfo);
 
-	return RBufferHandle(t_Resource);
+	return RBufferHandle((uintptr_t)t_Resource);
 }
 
 RImageHandle BB::DX12CreateImage(const RenderImageCreateInfo& a_CreateInfo)
 {
-	return RImageHandle(new (s_DX12B.renderImages.Get()) DXImage(a_CreateInfo));
+	return RImageHandle((uintptr_t)new (s_DX12B.renderImages.Get()) DXImage(a_CreateInfo));
 }
 
 RSamplerHandle BB::DX12CreateSampler(const SamplerCreateInfo& a_Info)
 {
-	return RSamplerHandle(new (s_DX12B.samplerPool.Get()) DXSampler(a_Info));
+	return RSamplerHandle((uintptr_t)new (s_DX12B.samplerPool.Get()) DXSampler(a_Info));
 }
 
 RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
@@ -414,7 +404,12 @@ RFenceHandle BB::DX12CreateFence(const FenceCreateInfo& a_Info)
 		t_Fence->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Info.name));
 #endif
 
-	return RFenceHandle(t_Fence);
+	return RFenceHandle((uintptr_t)t_Fence);
+}
+
+void BB::DX12SetResourceName(const SetResourceNameInfo& a_Info)
+{
+	//todo
 }
 
 DescriptorAllocation BB::DX12AllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo)
@@ -477,7 +472,7 @@ void BB::DX12WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo)
 			t_View.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 			t_View.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			t_View.Buffer.NumElements = t_WriteData.buffer.range / 4;
-			t_View.Buffer.FirstElement = t_WriteData.buffer.offset / 4; //does this work? Maybe
+			t_View.Buffer.FirstElement = t_WriteData.buffer.offset; //does this work? Maybe
 			t_View.Buffer.StructureByteStride = 0;
 			t_View.Format = DXGI_FORMAT_R32_TYPELESS;
 			t_View.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
@@ -571,7 +566,6 @@ ImageReturnInfo BB::DX12GetImageInfo(const RImageHandle a_Handle)
 	return t_ReturnInfo;
 }
 
-//PipelineBuilder
 PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_InitInfo)
 {
 	DXPipelineBuildInfo* t_BuildInfo = BBnew(s_DX12Allocator, DXPipelineBuildInfo)();
@@ -586,8 +580,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 		BB_ASSERT(false, "DX12, root signature version 1.1 not supported! We do not currently support this.")
 	}
 	t_BuildInfo->rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-	t_BuildInfo->rootSigDesc.Desc_1_1.Flags =
-		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	t_BuildInfo->rootSigDesc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	{
 		D3D12_RASTERIZER_DESC t_RasterDesc{};
@@ -635,6 +628,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 			t_BlendDesc.RenderTarget[i].BlendOpAlpha = DXConv::BlendOp(t_Bi.blendOpAlpha);
 			t_BlendDesc.RenderTarget[i].SrcBlendAlpha = DXConv::Blend(t_Bi.srcBlendAlpha);
 			t_BlendDesc.RenderTarget[i].DestBlendAlpha = DXConv::Blend(t_Bi.dstBlendAlpha);
+			t_BlendDesc.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 		}
 
 		t_BuildInfo->PSOdesc.BlendState = t_BlendDesc;
@@ -647,6 +641,28 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 		t_BuildInfo->rootConstant.ShaderRegister = 0;
 		t_BuildInfo->rootConstant.RegisterSpace = 0;
 	}
+
+	if (a_InitInfo.enableDepthTest)
+	{
+		constexpr D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+		{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+		D3D12_DEPTH_STENCIL_DESC t_DepthStencil{};
+		t_DepthStencil.DepthEnable = TRUE;
+		t_DepthStencil.StencilEnable = FALSE;
+		t_DepthStencil.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		t_DepthStencil.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		t_DepthStencil.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+		t_DepthStencil.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+		t_DepthStencil.FrontFace = defaultStencilOp;
+		t_DepthStencil.BackFace = defaultStencilOp;
+		t_BuildInfo->PSOdesc.DepthStencilState = t_DepthStencil;
+	}
+	else
+	{
+		t_BuildInfo->PSOdesc.DepthStencilState.DepthEnable = FALSE;
+		t_BuildInfo->PSOdesc.DepthStencilState.StencilEnable = FALSE;
+	}
+
 
 	//immutable samplers
 	if (a_InitInfo.immutableSamplers.size())
@@ -662,7 +678,8 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 			t_Desc[i].ShaderRegister = i;
 			t_Desc[i].RegisterSpace = 0;
 			t_Desc[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			t_Desc[i].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			t_Desc[i].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+			t_Desc[i].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 
 			const SamplerCreateInfo& t_Samp = a_InitInfo.immutableSamplers[i];
 			t_Desc[i].AddressU = DXConv::AddressMode(t_Samp.addressModeU);
@@ -674,7 +691,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 				t_Desc[i].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
 				break;
 			case SAMPLER_FILTER::LINEAR:
-				t_Desc[i].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+				t_Desc[i].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 				break;
 			default:
 				BB_ASSERT(false, "DX12, does not support this type of sampler filter!");
@@ -695,7 +712,7 @@ PipelineBuilderHandle BB::DX12PipelineBuilderInit(const PipelineInitInfo& a_Init
 	}
 
 
-	return PipelineBuilderHandle(t_BuildInfo);
+	return PipelineBuilderHandle((uintptr_t)t_BuildInfo);
 }
 
 void BB::DX12PipelineBuilderBindDescriptor(const PipelineBuilderHandle a_Handle, const RDescriptor a_Descriptor)
@@ -839,21 +856,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 	}
 
 	t_BuildInfo->PSOdesc.pRootSignature = t_BuildInfo->buildPipeline.rootSig;
-
-	constexpr D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
-	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
-	D3D12_DEPTH_STENCIL_DESC t_DepthStencil{};
-	t_DepthStencil.DepthEnable = TRUE;
-	t_DepthStencil.StencilEnable = FALSE;
-	t_DepthStencil.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	t_DepthStencil.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	t_DepthStencil.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-	t_DepthStencil.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-	t_DepthStencil.FrontFace = defaultStencilOp;
-	t_DepthStencil.BackFace = defaultStencilOp;
-
 	t_BuildInfo->PSOdesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	t_BuildInfo->PSOdesc.DepthStencilState = t_DepthStencil;
 	t_BuildInfo->PSOdesc.DSVFormat = DEPTH_FORMAT;
 	t_BuildInfo->PSOdesc.SampleMask = UINT_MAX;
 	t_BuildInfo->PSOdesc.NumRenderTargets = 1;
@@ -870,7 +873,7 @@ PipelineHandle BB::DX12PipelineBuildPipeline(const PipelineBuilderHandle a_Handl
 
 	BBfree(s_DX12Allocator, t_BuildInfo);
 
-	return PipelineHandle(t_ReturnPipeline);
+	return PipelineHandle((uintptr_t)t_ReturnPipeline);
 }
 
 
@@ -879,14 +882,13 @@ void BB::DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHa
 	reinterpret_cast<DXCommandAllocator*>(a_CmdAllocatorHandle.ptrHandle)->ResetCommandAllocator();
 }
 
-RecordingCommandListHandle BB::DX12StartCommandList(const CommandListHandle a_CmdHandle)
+void BB::DX12StartCommandList(const CommandListHandle a_CmdHandle)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_CmdHandle.ptrHandle);
 	t_CommandList->Reset();
-	return RecordingCommandListHandle(t_CommandList);
 }
 
-void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle)
+void BB::DX12EndCommandList(const CommandListHandle a_RecordingCmdHandle)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->rtv = nullptr;
@@ -894,23 +896,61 @@ void BB::DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_CommandList->Close();
 }
 
-void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
+void BB::DX12StartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	t_CommandList->rtv = s_DX12B.swapchainRenderTargets[s_DX12B.currentFrame];
 
-	D3D12_RESOURCE_BARRIER t_RenderTargetBarrier{};
-	t_RenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	t_RenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	t_RenderTargetBarrier.Transition.pResource = t_CommandList->rtv;
-	t_RenderTargetBarrier.Transition.StateBefore = DXConv::ResourceStates(a_RenderInfo.colorInitialLayout);;
-	t_RenderTargetBarrier.Transition.StateAfter = DXConv::ResourceStates(a_RenderInfo.colorFinalLayout);;
-	t_RenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	t_CommandList->List()->ResourceBarrier(1, &t_RenderTargetBarrier);
+	D3D12_RESOURCE_BARRIER  t_ImageBarrier{};
+	t_ImageBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	t_ImageBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	t_ImageBarrier.Transition.StateBefore = DXConv::ResourceStateImage(a_RenderInfo.colorInitialLayout);
+	t_ImageBarrier.Transition.StateAfter = DXConv::ResourceStateImage(a_RenderInfo.colorFinalLayout);
+	t_ImageBarrier.Transition.pResource = t_CommandList->rtv;
+	t_ImageBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
+	//jank, this is not an issue in Vulkan and maybe also not in enhanced barriers dx12.
+	if(t_ImageBarrier.Transition.StateBefore != t_ImageBarrier.Transition.StateAfter)
+		t_CommandList->List()->ResourceBarrier(1, &t_ImageBarrier);
+
+	//D3D12_TEXTURE_BARRIER t_TextBarrier{};
+	//t_TextBarrier.AccessAfter = D3D12_BARRIER_ACCESS_RENDER_TARGET;
+	//t_TextBarrier.LayoutBefore = DXConv::BarrierLayout(a_RenderInfo.colorInitialLayout);
+	//t_TextBarrier.LayoutAfter = DXConv::BarrierLayout(a_RenderInfo.colorFinalLayout);
+	//t_TextBarrier.pResource = t_CommandList->rtv;
+	//t_TextBarrier.Subresources.FirstPlane = 0;
+	//t_TextBarrier.Subresources.NumPlanes = 1;
+	//t_TextBarrier.Subresources.IndexOrFirstMipLevel = 0;
+	//t_TextBarrier.Subresources.NumMipLevels = 1;
+
+	//D3D12_BARRIER_GROUP t_RenderTargetBarrier{};
+	//t_RenderTargetBarrier.Type = D3D12_BARRIER_TYPE_TEXTURE;
+	//t_RenderTargetBarrier.NumBarriers = 1;
+	//t_RenderTargetBarrier.pTextureBarriers = &t_TextBarrier;
+	//t_CommandList->List()->Barrier(1, &t_RenderTargetBarrier);
+
+	const size_t t_IncrementSize = s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	D3D12_CPU_DESCRIPTOR_HANDLE t_RtvHandle(s_DX12B.swapchainRTVHeap->GetCPUDescriptorHandleForHeapStart());
-	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame *
-		s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+	t_RtvHandle.ptr += static_cast<size_t>(s_DX12B.currentFrame * t_IncrementSize);
+
+	switch (a_RenderInfo.colorLoadOp)
+	{
+	case RENDER_LOAD_OP::LOAD:
+	{
+		const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
+		t_CommandList->List()->OMSetBlendFactor(blend_factor);
+	}
+		break;
+	case RENDER_LOAD_OP::CLEAR:
+		t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
+		break;
+	case RENDER_LOAD_OP::DONT_CARE:
+
+		break;
+	default:
+		BB_ASSERT(false, "DX12, no color load op specified!");
+		break;
+	}
 
 	//set depth
 	if (a_RenderInfo.depthStencil.handle != 0)
@@ -919,6 +959,10 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, &t_DsvHandle);
 		t_CommandList->List()->ClearDepthStencilView(t_DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 	}
+	else
+	{
+		t_CommandList->List()->OMSetRenderTargets(1, &t_RtvHandle, FALSE, nullptr);
+	}
 
 
 	D3D12_VIEWPORT t_Viewport{};
@@ -926,17 +970,17 @@ void BB::DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandl
 	t_Viewport.Width = static_cast<FLOAT>(a_RenderInfo.viewportWidth);
 	t_Viewport.Height = static_cast<FLOAT>(a_RenderInfo.viewportHeight);
 	t_Viewport.MinDepth = .1f;
-	t_Viewport.MaxDepth = 1000.f;
+	t_Viewport.MaxDepth = 1.f;
+	t_Viewport.TopLeftX = t_Viewport.TopLeftY = 0.0f;
 
 	t_CommandList->List()->RSSetViewports(1, &t_Viewport);
 
 	D3D12_RECT t_Rect{ 0, 0, a_RenderInfo.viewportWidth, a_RenderInfo.viewportHeight };
 
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
-	t_CommandList->List()->ClearRenderTargetView(t_RtvHandle, a_RenderInfo.clearColor, 0, nullptr);
 }
 
-void BB::DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
+void BB::DX12SetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -945,11 +989,10 @@ void BB::DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, c
 	t_CommandList->List()->RSSetScissorRects(1, &t_Rect);
 }
 
-void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
+void BB::DX12EndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
-	//// Indicate that the back buffer will now be used to present.
 	D3D12_RESOURCE_BARRIER t_PresentBarrier{};
 	t_PresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	t_PresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -958,10 +1001,27 @@ void BB::DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle,
 	t_PresentBarrier.Transition.StateAfter = DXConv::ResourceStates(a_EndInfo.colorFinalLayout);
 	t_PresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-	t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
+	if (t_PresentBarrier.Transition.StateBefore != t_PresentBarrier.Transition.StateAfter)
+		t_CommandList->List()->ResourceBarrier(1, &t_PresentBarrier);
+
+	//D3D12_TEXTURE_BARRIER t_TextBarrier{};
+	//t_TextBarrier.AccessBefore = D3D12_BARRIER_ACCESS_RENDER_TARGET;
+	//t_TextBarrier.LayoutBefore = DXConv::BarrierLayout(a_EndInfo.colorInitialLayout);
+	//t_TextBarrier.LayoutAfter = DXConv::BarrierLayout(a_EndInfo.colorFinalLayout);
+	//t_TextBarrier.pResource = t_CommandList->rtv;
+	//t_TextBarrier.Subresources.FirstPlane = 0;
+	//t_TextBarrier.Subresources.NumPlanes = 1;
+	//t_TextBarrier.Subresources.IndexOrFirstMipLevel = 0;
+	//t_TextBarrier.Subresources.NumMipLevels = 1;
+
+	//D3D12_BARRIER_GROUP t_PresentBarrier{};
+	//t_PresentBarrier.Type = D3D12_BARRIER_TYPE_TEXTURE;
+	//t_PresentBarrier.NumBarriers = 1;
+	//t_PresentBarrier.pTextureBarriers = &t_TextBarrier;
+	//t_CommandList->List()->Barrier(1, &t_PresentBarrier);
 }
 
-void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
+void BB::DX12CopyBuffer(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferInfo& a_CopyInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -975,7 +1035,7 @@ void BB::DX12CopyBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, c
 		a_CopyInfo.size);
 }
 
-void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
+void BB::DX12CopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1010,20 +1070,31 @@ void BB::DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHand
 		&t_SrcCopy, nullptr);
 }
 
-void BB::DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo)
+void BB::DX12PipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo)
 {
-	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
-	D3D12_RESOURCE_BARRIER t_Barrier{};
-	t_Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	t_Barrier.Transition.pResource = reinterpret_cast<DXImage*>(a_TransitionInfo.image.ptrHandle)->GetResource();
-	t_Barrier.Transition.StateBefore = DXConv::ResourceStateImage(a_TransitionInfo.oldLayout);
-	t_Barrier.Transition.StateAfter = DXConv::ResourceStateImage(a_TransitionInfo.newLayout);
-	t_Barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	//will use enhanced barriers when it becomes a driver requirement. 
+	const size_t t_BarrierCount = a_BarrierInfo.bufferInfoCount + a_BarrierInfo.globalInfoCount + a_BarrierInfo.imageInfoCount;
+	D3D12_RESOURCE_BARRIER* t_Barriers = BBstackAlloc(t_BarrierCount, D3D12_RESOURCE_BARRIER);
 
-	t_CommandList->List()->ResourceBarrier(1, &t_Barrier);
+	size_t t_BarrierIndex = 0;
+	//only transition for now, lazy.
+	for (size_t i = 0; i < a_BarrierInfo.imageInfoCount; i++)
+	{
+		const PipelineBarrierImageInfo& t_ImageInfo = a_BarrierInfo.imageInfos[i];
+		D3D12_RESOURCE_BARRIER& t_B = t_Barriers[t_BarrierIndex++];
+		t_B.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		t_B.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		t_B.Transition.pResource = reinterpret_cast<DXImage*>(t_ImageInfo.image.handle)->GetResource();
+		t_B.Transition.StateBefore = DXConv::ResourceStateImage(t_ImageInfo.oldLayout);
+		t_B.Transition.StateAfter = DXConv::ResourceStateImage(t_ImageInfo.newLayout);
+		t_B.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	}
+
+	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
+	t_CommandList->List()->ResourceBarrier(t_BarrierCount, t_Barriers);
 }
 
-void BB::DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
+void BB::DX12BindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	uint32_t t_HeapCount = 1;
@@ -1040,7 +1111,7 @@ void BB::DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmd
 	t_CommandList->List()->SetDescriptorHeaps(t_HeapCount, t_Heaps);
 }
 
-void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
+void BB::DX12BindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	DXPipeline* t_Pipeline = reinterpret_cast<DXPipeline*>(a_Pipeline.ptrHandle);
@@ -1052,7 +1123,7 @@ void BB::DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle,
 	t_CommandList->List()->SetGraphicsRootSignature(t_Pipeline->rootSig);
 }
 
-void BB::DX12SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
+void BB::DX12SetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	for (size_t i = 0; i < a_SetCount; i++)
@@ -1066,21 +1137,21 @@ void BB::DX12SetDescriptorHeapOffsets(const RecordingCommandListHandle a_Recordi
 
 }
 
-void BB::DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
+void BB::DX12BindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	D3D12_VERTEX_BUFFER_VIEW t_Views[12]{};
 	for (size_t i = 0; i < a_BufferCount; i++)
 	{
 		t_Views[i].SizeInBytes = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResourceSize();
-		t_Views[i].StrideInBytes = sizeof(Vertex);
+		t_Views[i].StrideInBytes = 20;
 		t_Views[i].BufferLocation = reinterpret_cast<DXResource*>(a_Buffers[i].ptrHandle)->GetResource()->GetGPUVirtualAddress() + a_BufferOffsets[i];
 	}
 	
 	t_CommandList->List()->IASetVertexBuffers(0, static_cast<uint32_t>(a_BufferCount), t_Views);
 }
 
-void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
+void BB::DX12BindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 	D3D12_INDEX_BUFFER_VIEW t_View{};
@@ -1091,7 +1162,7 @@ void BB::DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHand
 	t_CommandList->List()->IASetIndexBuffer(&t_View);
 }
 
-void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
+void BB::DX12BindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1101,14 +1172,14 @@ void BB::DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle,
 		a_DwordOffset);
 }
 
-void BB::DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
+void BB::DX12DrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
 	t_CommandList->List()->DrawInstanced(a_VertexCount, a_InstanceCount, a_FirstInstance, a_InstanceCount);
 }
 
-void BB::DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
+void BB::DX12DrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance)
 {
 	DXCommandList* t_CommandList = reinterpret_cast<DXCommandList*>(a_RecordingCmdHandle.ptrHandle);
 
@@ -1223,7 +1294,21 @@ FrameIndex BB::DX12PresentFrame(const PresentFrameInfo& a_PresentInfo)
 
 void BB::DX12WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo)
 {
-	WaitFencesIdle(reinterpret_cast<ID3D12Fence**>(a_WaitInfo.waitFences), a_WaitInfo.waitValues, a_WaitInfo.waitCount);
+	HANDLE* t_WaitHandles = BBstackAlloc(a_WaitInfo.waitCount, HANDLE);
+
+	for (size_t i = 0; i < a_WaitInfo.waitCount; i++)
+	{
+		t_WaitHandles[i] = CreateEventEx(NULL, false, false, EVENT_ALL_ACCESS);
+		BB_ASSERT(t_WaitHandles[i] != NULL, "WIN, failed to create event.");
+		reinterpret_cast<ID3D12Fence*>(a_WaitInfo.waitFences[i].handle)->SetEventOnCompletion(a_WaitInfo.waitValues[i], t_WaitHandles[i]);
+	}
+
+	WaitForMultipleObjects(a_WaitInfo.waitCount, t_WaitHandles, true, INFINITE);
+
+	for (size_t i = 0; i < a_WaitInfo.waitCount; i++)
+	{
+		CloseHandle(t_WaitHandles[i]);
+	}
 }
 
 void BB::DX12DestroyFence(const RFenceHandle a_Handle)
@@ -1317,4 +1402,14 @@ void BB::DX12DestroyBackend()
 		s_DX12B.debugController->Release();
 
 	s_DX12B.factory->Release();
+}
+
+//jank
+D3D12_CPU_DESCRIPTOR_HANDLE DepthDescriptorHeap::Allocate()
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE t_Handle = heap->GetCPUDescriptorHandleForHeapStart();
+	t_Handle.ptr += static_cast<uint64_t>(pos) * s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	++pos;
+	BB_ASSERT(max > pos, "DX12, too many depth allocations!");
+	return t_Handle;
 }

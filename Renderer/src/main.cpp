@@ -60,7 +60,12 @@ int main(int argc, char** argv)
 #else
 	t_RenderInfo.debug = false;
 #endif //_DEBUG
+#ifdef USE_VULKAN
 	t_RenderInfo.renderAPI = RENDER_API::VULKAN;
+#else USE_DIRECTX12
+	t_RenderInfo.renderAPI = RENDER_API::DX12;
+#endif
+
 	Render::InitRenderer(t_RenderInfo);
 
 	Camera t_Cam{ float3{2.0f, 2.0f, 2.0f}, 0.35f };

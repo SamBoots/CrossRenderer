@@ -26,10 +26,10 @@
 
 struct Vertex
 {
-    float3 position;
-    float3 normal;
-    float2 uv;
-    float3 color;
+    float3 position; //12
+    float3 normal; //24
+    float2 uv; //32
+    float3 color; //44 
 };
 
 struct VSOutput
@@ -75,26 +75,26 @@ struct BindlessIndices
     ConstantBuffer<BindlessIndices> indices : register(b0, space0);
 #endif
 
-_BBBIND(0, SPACE_PER_SCENE)     ByteAddressBuffer sceneBuffer;
-_BBBIND(1, SPACE_PER_SCENE)     ByteAddressBuffer modelInstances;
-_BBBIND(0, SPACE_PER_MATERIAL) ByteAddressBuffer vertData;
+_BBBIND(0, SPACE_PER_SCENE)    ByteAddressBuffer sceneBuffer : register(t0, space1);
+_BBBIND(1, SPACE_PER_SCENE)    ByteAddressBuffer modelInstances : register(t1, space1);
+_BBBIND(0, SPACE_PER_MATERIAL) ByteAddressBuffer vertData : register(t0, space2);
 
 VSOutput main(uint VertexIndex : SV_VertexID)
 {
     ModelInstance t_ModelInstance = modelInstances.Load<ModelInstance>(sizeof(ModelInstance) * indices.transform);
     SceneInfo t_SceneInfo = sceneBuffer.Load<SceneInfo>(0);
-    
+    const uint t_VertexOffset = sizeof(Vertex) * VertexIndex;
+    Vertex t_Vertex = vertData.Load<Vertex>(t_VertexOffset);
+#ifdef _VULKAN
+    t_Vertex.position = asfloat(vertData.Load3(t_VertexOffset));
+    t_Vertex.normal = asfloat(vertData.Load3(t_VertexOffset + 12));
+    t_Vertex.uv = asfloat(vertData.Load2(t_VertexOffset + 24));
+    t_Vertex.color = asfloat(vertData.Load3(t_VertexOffset + 32));
+#endif
     float4x4 t_Model = t_ModelInstance.model;
     float4x4 t_InverseModel = t_ModelInstance.inverse;
     
-    const uint t_VertIndex = VertexIndex * sizeof(Vertex);
-    Vertex t_Vertex;// = vertData.Load < Vertex > (t_VertIndex);
-    t_Vertex.position = asfloat(vertData.Load3(t_VertIndex));
-    t_Vertex.normal = asfloat(vertData.Load3(t_VertIndex + 12));
-    t_Vertex.uv = asfloat(vertData.Load2(t_VertIndex + 24));
-    t_Vertex.color = asfloat(vertData.Load3(t_VertIndex + 32));
-    
-    VSOutput output = (VSOutput) 0;
+    VSOutput output = (VSOutput)0;
     output.pos = mul(t_SceneInfo.proj, mul(t_SceneInfo.view, mul(t_Model, float4(t_Vertex.position.xyz, 1.0))));
     output.fragPos = float4(mul(t_Model, float4(t_Vertex.position, 1.0f))).xyz;
     output.uv = t_Vertex.uv;

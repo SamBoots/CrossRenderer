@@ -26,7 +26,11 @@
 *.a
 *.lib
 
+<<<<<<< HEAD
 # Debug symbols
+=======
+# Debug files
+>>>>>>> dx12-old-barrier
 *.pdb
 
 # Executables
@@ -40,3 +44,4 @@ out/
 googletest/
 Lib/
 GLM/
+AgilitySDK/

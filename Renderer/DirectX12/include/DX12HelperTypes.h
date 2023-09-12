@@ -8,8 +8,7 @@
 #ifdef _DEBUG
 #define DXASSERT(a_HRESULT, a_Msg)\
 	if (a_HRESULT != S_OK)\
-		BB_ASSERT(false, a_Msg);\
-
+		BB_ASSERT(false, a_Msg);
 #else
 #define DXASSERT(a_HRESULT, a_Msg) a_HRESULT
 #endif //_DEBUG
@@ -21,9 +20,24 @@ namespace BB
 	constexpr uint64_t COMMAND_BUFFER_STANDARD_COUNT = 32;
 	constexpr UINT INVALID_ROOT_INDEX = UINT_MAX;
 
-
 	static FreelistAllocator_t s_DX12Allocator{ mbSize * 2 };
 	static RingAllocator s_DX12TempAllocator{ s_DX12Allocator, kbSize * 64 };
+
+	static inline wchar* UTF8ToUnicodeString(Allocator a_Allocator, const char* a_Char)
+	{
+		//arbitrary limit of 256.
+		const size_t t_CharSize = strnlen_s(a_Char, 256);
+		wchar* t_Wchar = reinterpret_cast<wchar*>(BBalloc(a_Allocator, t_CharSize * 2 + 2)); //add null terminated string.
+		mbstowcs(t_Wchar, a_Char, t_CharSize);
+		t_Wchar[t_CharSize] = NULL;
+		return t_Wchar;
+	}
+
+	inline static void RenameObj(ID3D12Object* t_Obj, const char* a_Char)
+	{
+		if (a_Char)
+			t_Obj->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Char));
+	}
 
 	namespace DXConv
 	{
@@ -43,9 +57,79 @@ namespace BB
 			}
 		}
 
+		static inline D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+		{
+			switch (a_ImageLayout)
+			{
+			case RENDER_IMAGE_LAYOUT::UNDEFINED:				return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return D3D12_RESOURCE_STATE_RENDER_TARGET;
+			case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return D3D12_RESOURCE_STATE_DEPTH_READ | D3D12_RESOURCE_STATE_DEPTH_WRITE;
+			case RENDER_IMAGE_LAYOUT::GENERAL:					return D3D12_RESOURCE_STATE_COMMON;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return D3D12_RESOURCE_STATE_COPY_SOURCE;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return D3D12_RESOURCE_STATE_COPY_DEST;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			case RENDER_IMAGE_LAYOUT::PRESENT:					return D3D12_RESOURCE_STATE_PRESENT;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_IMAGE_LAYOUT failed to convert to a D3D12_RESOURCE_STATES.");
+				return D3D12_RESOURCE_STATE_COMMON;
+				break;
+			}
+		}
+
+		static inline D3D12_BARRIER_LAYOUT BarrierLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+		{
+			switch (a_ImageLayout)
+			{
+			case RENDER_IMAGE_LAYOUT::UNDEFINED:				return D3D12_BARRIER_LAYOUT_UNDEFINED;
+			case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return D3D12_BARRIER_LAYOUT_RENDER_TARGET;
+			case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return D3D12_BARRIER_LAYOUT_DEPTH_STENCIL_READ;
+			case RENDER_IMAGE_LAYOUT::GENERAL:					return D3D12_BARRIER_LAYOUT_COMMON;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return D3D12_BARRIER_LAYOUT_COPY_SOURCE;
+			case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return D3D12_BARRIER_LAYOUT_COPY_DEST;
+			case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return D3D12_BARRIER_LAYOUT_SHADER_RESOURCE;
+			case RENDER_IMAGE_LAYOUT::PRESENT:					return D3D12_BARRIER_LAYOUT_PRESENT;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_IMAGE_LAYOUT failed to convert to a D3D12_BARRIER_LAYOUT.");
+				return D3D12_BARRIER_LAYOUT_UNDEFINED;
+				break;
+			}
+		}
+
+		static inline D3D12_BARRIER_ACCESS BarrierAccess(const RENDER_ACCESS_MASK a_Type)
+		{
+			switch (a_Type)
+			{
+			case RENDER_ACCESS_MASK::NONE:						return D3D12_BARRIER_ACCESS_NO_ACCESS;
+			case RENDER_ACCESS_MASK::TRANSFER_WRITE:			return D3D12_BARRIER_ACCESS_COPY_DEST;
+			case RENDER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return D3D12_BARRIER_ACCESS_DEPTH_STENCIL_READ | D3D12_BARRIER_ACCESS_DEPTH_STENCIL_WRITE;
+			case RENDER_ACCESS_MASK::SHADER_READ:				return D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_ACCESS_MASK failed to convert to a D3D12_BARRIER_ACCESS.");
+				return D3D12_BARRIER_ACCESS_NO_ACCESS;
+				break;
+			}
+		}
+
+		static inline D3D12_BARRIER_SYNC BarrierSync(const RENDER_PIPELINE_STAGE a_Stage)
+		{
+			switch (a_Stage)
+			{
+			case RENDER_PIPELINE_STAGE::TOP_OF_PIPELINE:		return D3D12_BARRIER_SYNC_ALL;
+			case RENDER_PIPELINE_STAGE::TRANSFER:				return D3D12_BARRIER_SYNC_COPY;
+			case RENDER_PIPELINE_STAGE::VERTEX_INPUT:			return D3D12_BARRIER_SYNC_VERTEX_SHADING;
+			case RENDER_PIPELINE_STAGE::VERTEX_SHADER:			return D3D12_BARRIER_SYNC_VERTEX_SHADING;
+			case RENDER_PIPELINE_STAGE::EARLY_FRAG_TEST:		return D3D12_BARRIER_SYNC_DEPTH_STENCIL;
+			case RENDER_PIPELINE_STAGE::FRAGMENT_SHADER:		return D3D12_BARRIER_SYNC_PIXEL_SHADING;
+			case RENDER_PIPELINE_STAGE::END_OF_PIPELINE:		return D3D12_BARRIER_SYNC_ALL;
+			default:
+				BB_ASSERT(false, "DX12: RENDER_PIPELINE_STAGE failed to convert to a D3D12_BARRIER_SYNC.");
+				return D3D12_BARRIER_SYNC_ALL;
+				break;
+			}
+		}
+
 		const D3D12_SHADER_VISIBILITY ShaderVisibility(const RENDER_SHADER_STAGE a_Stage);
 
-		const D3D12_RESOURCE_STATES ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout);
 		const D3D12_HEAP_TYPE HeapType(const RENDER_MEMORY_PROPERTIES a_Properties);
 		const D3D12_COMMAND_LIST_TYPE CommandListType(const RENDER_QUEUE_TYPE a_RenderQueueType);
 		const D3D12_BLEND Blend(const RENDER_BLEND_FACTOR a_BlendFactor);
@@ -82,16 +166,6 @@ namespace BB
 		}
 	}
 
-	static inline wchar* UTF8ToUnicodeString(Allocator a_Allocator, const char* a_Char)
-	{
-		//arbitrary limit of 256.
-		const size_t t_CharSize = strnlen_s(a_Char, 256);
-		wchar* t_Wchar = reinterpret_cast<wchar*>(BBalloc(a_Allocator, t_CharSize * 2 + 2)); //add null terminated string.
-		mbstowcs(t_Wchar, a_Char, t_CharSize);
-		t_Wchar[t_CharSize] = NULL;
-		return t_Wchar;
-	}
-
 	//Safely releases a DX type
 	inline void DXRelease(IUnknown* a_Obj)
 	{
@@ -119,6 +193,8 @@ namespace BB
 			m_InUse = 0;
 		}
 
+		void Rename(const char* a_Name);
+
 		D3D12_CPU_DESCRIPTOR_HANDLE GetCPUStartPtr() const { return m_HeapCPUStart; }
 		D3D12_GPU_DESCRIPTOR_HANDLE GetGPUStartPtr() const { return m_HeapGPUStart; }
 		const UINT DescriptorsLeft() const { return m_MaxDescriptors - m_InUse; }
@@ -141,6 +217,8 @@ namespace BB
 	public:
 		DXResource(const RenderBufferCreateInfo& a_CreateInfo);
 		~DXResource();
+
+		void Rename(const char* a_Name);
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
 		UINT GetResourceSize() const { return m_Size; };
@@ -167,6 +245,7 @@ namespace BB
 		DXImage(const RenderImageCreateInfo& a_Info);
 		~DXImage();
 
+		void Rename(const char* a_Name);
 
 		ID3D12Resource* GetResource() const { return m_Resource; };
 		//Optionally we can query the descriptor index if it has one. 
@@ -177,11 +256,8 @@ namespace BB
 		ID3D12Resource* m_Resource;
 		D3D12MA::Allocation* m_Allocation;
 		//Some extra metadata.
-		union
-		{
 			TextureData m_TextureData{};
 			DepthMetaData m_DepthData;
-		};
 		
 	};
 
@@ -190,6 +266,8 @@ namespace BB
 	public:
 		DXSampler(const SamplerCreateInfo& a_Info);
 		~DXSampler();
+
+		void Rename(const char* a_Name);
 
 		void UpdateSamplerInfo(const SamplerCreateInfo& a_Info);
 		const D3D12_SAMPLER_DESC* GetDesc() const { return &m_Desc; };
@@ -207,11 +285,13 @@ namespace BB
 		DXCommandList(DXCommandAllocator& a_CmdAllocator);
 		~DXCommandList();
 
+		void Rename(const char* a_Name);
+
 		//Possible caching for efficiency, might go for specific commandlist types.
 		ID3D12Resource* rtv;
 		DXPipeline* boundPipeline;
 
-		ID3D12GraphicsCommandList* List() const { return m_List; }
+		ID3D12GraphicsCommandList7* List() const { return m_List; }
 		//Commandlist holds the allocator info, so use this instead of List()->Reset
 		void Reset(ID3D12PipelineState* a_PipeState = nullptr);
 		//Prefer to use this Close instead of List()->Close() for error testing purposes
@@ -225,7 +305,7 @@ namespace BB
 	private:
 		union
 		{
-			ID3D12GraphicsCommandList* m_List;
+			ID3D12GraphicsCommandList7* m_List;
 		};
 		DXCommandAllocator& m_CmdAllocator;
 	};
@@ -235,6 +315,8 @@ namespace BB
 	public:
 		DXCommandAllocator(const RenderCommandAllocatorCreateInfo& a_CreateInfo);
 		~DXCommandAllocator();
+
+		void Rename(const char* a_Name);
 
 		DXCommandList* GetCommandList();
 		void FreeCommandList(DXCommandList* a_CmdList);
@@ -249,7 +331,6 @@ namespace BB
 		friend class DXCommandList; //The commandlist must be able to access the allocator for a reset.
 	};
 
-	//Maybe create a class and a builder for this?
 	struct DXPipeline
 	{
 		~DXPipeline()
@@ -275,14 +356,12 @@ namespace BB
 		uint32_t descriptorCount = 0;
 	};
 
-	//lazy to make it work for depth.
-	class DepthDescriptorHeap
+	//lazy way to make it work for depth.
+	struct DepthDescriptorHeap
 	{
-	public:
 		~DepthDescriptorHeap()
 		{
 			DXRelease(heap);
-			memset(this, 0, sizeof(*this));
 		}
 		D3D12_CPU_DESCRIPTOR_HANDLE Allocate();
 
@@ -336,9 +415,9 @@ namespace BB
 		{
 			pipelinePool.CreatePool(s_DX12Allocator, 4);
 			descriptorPool.CreatePool(s_DX12Allocator, 16);
-			cmdAllocators.CreatePool(s_DX12Allocator, 16);
-			renderResources.CreatePool(s_DX12Allocator, 32);
-			renderImages.CreatePool(s_DX12Allocator, 8);
+			cmdAllocators.CreatePool(s_DX12Allocator, 64);
+			renderResources.CreatePool(s_DX12Allocator, 64);
+			renderImages.CreatePool(s_DX12Allocator, 1024);
 			samplerPool.CreatePool(s_DX12Allocator, 16);
 		}
 

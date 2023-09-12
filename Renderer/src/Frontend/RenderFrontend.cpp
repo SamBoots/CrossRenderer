@@ -8,6 +8,7 @@
 #include "Storage/Array.h"
 
 #include "../Vulkan/include/VulkanBackend.h"
+#include "../DirectX12/include/DX12Backend.h"
 
 #include "Editor.h"
 #include "AssetLoader.hpp"
@@ -423,6 +424,9 @@ void BB::Render::InitRenderer(const RenderInitInfo& a_InitInfo)
 	case RENDER_API::VULKAN:
 		t_BackendCreateInfo.getApiFuncPtr = GetVulkanAPIFunctions;
 		break;
+	case RENDER_API::DX12:
+		t_BackendCreateInfo.getApiFuncPtr = GetDirectX12APIFunctions;
+		break;
 	default:
 		BB_ASSERT(false, "backend not supported yet");
 		break;
@@ -830,18 +834,25 @@ void BB::Render::StartFrame(const CommandListHandle a_CommandList)
 	{
 		OSWaitAndLockMutex(s_RenderInst->startFrameCommands.mutex);
 
-		PipelineBarrierInfo t_Barrier{};
-		t_Barrier.imageInfoCount = static_cast<uint32_t>(s_RenderInst->startFrameCommands.barriers.size());
-		t_Barrier.imageInfos = s_RenderInst->startFrameCommands.barriers.data();
-		RenderBackend::SetPipelineBarriers(a_CommandList, t_Barrier);
-		s_RenderInst->startFrameCommands.barriers.clear();
+		if (s_RenderInst->startFrameCommands.barriers.size())
+		{
+			PipelineBarrierInfo t_Barrier{};
+			t_Barrier.imageInfoCount = static_cast<uint32_t>(s_RenderInst->startFrameCommands.barriers.size());
+			t_Barrier.imageInfos = s_RenderInst->startFrameCommands.barriers.data();
+			RenderBackend::SetPipelineBarriers(a_CommandList, t_Barrier);
+			s_RenderInst->startFrameCommands.barriers.clear();
+		}
 
-		WriteDescriptorInfos t_WriteInfos;
-		t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
-		t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
-		t_WriteInfos.data = s_RenderInst->startFrameCommands.descriptorWrites;
-		RenderBackend::WriteDescriptors(t_WriteInfos);
-		s_RenderInst->startFrameCommands.descriptorWrites.clear();
+
+		if (s_RenderInst->startFrameCommands.descriptorWrites.size())
+		{
+			WriteDescriptorInfos t_WriteInfos;
+			t_WriteInfos.allocation = s_RenderInst->io.globalDescAllocation;
+			t_WriteInfos.descriptorHandle = s_RenderInst->io.globalDescriptor;
+			t_WriteInfos.data = s_RenderInst->startFrameCommands.descriptorWrites;
+			RenderBackend::WriteDescriptors(t_WriteInfos);
+			s_RenderInst->startFrameCommands.descriptorWrites.clear();
+		}
 
 		OSUnlockMutex(s_RenderInst->startFrameCommands.mutex);
 	}

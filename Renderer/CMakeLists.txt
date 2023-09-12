@@ -23,6 +23,10 @@ add_executable (Renderer
 "Vulkan/src/VulkanBackend.cpp"
 "Vulkan/src/VulkanCommon.cpp"
 
+"DirectX12/src/DX12HelperTypes.cpp"
+"DirectX12/src/DX12Backend.cpp"
+"DirectX12/src/DX12Common.cpp"
+
 #Backend
 "src/Backend/RenderBackend.cpp"
 "src/Backend/ShaderCompiler.cpp"
@@ -77,7 +81,11 @@ target_link_libraries(Renderer
     BBFramework 
     stb_image
     IMGUI
-    #BB_DirectX
+    DX12MA
+    d3d12.lib
+    dxgi.lib
+    dxguid.lib
+    DX12_agility_sdk
 )
 
 #compile Definitions.
@@ -101,4 +109,14 @@ add_custom_command(TARGET Renderer POST_BUILD
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxil.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/D3D12Core.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/AgilitySDK/bin/${CPU_ARCHITECTURE}/d3d12SDKLayers.dll"
         $<TARGET_FILE_DIR:Renderer>)

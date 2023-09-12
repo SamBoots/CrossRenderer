@@ -26,8 +26,8 @@
 struct VSoutput
 {
     float4 pos : SV_POSITION;
-    _BBEXT(0)  float2 uv : TEXCOORD0;
-    _BBEXT(1)  float4 color : COLOR0;
+    _BBEXT(0)  float4 color : COLOR0;
+    _BBEXT(1)  float2 uv : TEXCOORD0;
 };
 
 struct GuiInfo
@@ -43,9 +43,9 @@ struct GuiInfo
     ConstantBuffer<GuiInfo> guiInfo : register(b0, space0);
 #endif
 
-_BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState samplerColor;
+_BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState samplerColor : register(s0, space0);
 //Maybe add in common if I find a way to combine them.
-_BBBIND(0, SPACE_GLOBAL) Texture2D text[];
+_BBBIND(0, SPACE_GLOBAL) Texture2D text[] : register(t0, space0);
 
 float4 main(VSoutput input) : SV_Target
 {

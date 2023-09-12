@@ -60,11 +60,11 @@ struct BindlessIndices
 #endif
 
 //Maybe add in common if I find a way to combine them.
-_BBBIND(0, SPACE_GLOBAL)    Texture2D text[];
-_BBBIND(0, SPACE_PER_SCENE) ByteAddressBuffer sceneBuffer;
-_BBBIND(2, SPACE_PER_SCENE) ByteAddressBuffer lights;
+_BBBIND(0, SPACE_GLOBAL) Texture2D text[] : register(t0, space0);
+_BBBIND(0, SPACE_PER_SCENE) ByteAddressBuffer sceneBuffer : register(t0, space1);
+_BBBIND(2, SPACE_PER_SCENE) ByteAddressBuffer lights : register(t2, space1);
 
-_BBBIND(0, SPACE_IMMUTABLE_SAMPLER)  SamplerState samplerColor;
+_BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState samplerColor : register(s0, space0);
 
 struct VSoutput
 {

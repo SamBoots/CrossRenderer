@@ -332,14 +332,14 @@ LinearRenderBuffer::~LinearRenderBuffer()
 RenderBufferPart LinearRenderBuffer::SubAllocate(const uint64_t a_Size, const uint32_t a_Alignment)
 {
 	//Align the m_Used variable, as it works as the buffer offset.
-	m_Used += static_cast<uint32_t>(Pointer::AlignForwardAdjustment(a_Size, a_Alignment));
-	BB_ASSERT(m_Size >= static_cast<uint64_t>(m_Used + a_Size), "Not enough memory for a linear render buffer!");
+	const size_t t_AdjustSize = static_cast<uint32_t>(Pointer::AlignPad(a_Size, a_Alignment));
+	BB_ASSERT(m_Size >= static_cast<uint64_t>(m_Used + t_AdjustSize), "Not enough memory for a linear render buffer!");
 
 	const RenderBufferPart t_Part{ m_Buffer,
-	static_cast<uint32_t>(a_Size),
+	static_cast<uint32_t>(t_AdjustSize),
 	static_cast<uint32_t>(m_Used) };
 
-	m_Used += a_Size;
+	m_Used += t_AdjustSize;
 
 	return t_Part;
 }

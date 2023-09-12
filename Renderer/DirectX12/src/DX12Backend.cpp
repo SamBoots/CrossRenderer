@@ -11,7 +11,7 @@ void TempResizeWindow(Allocator a_TempAllocator, const uint32_t a_X, const uint3
 
 }
 
-void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
+void BB::GetDirectX12APIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 {
 	a_FuncCreateInfo.createBackend = DX12CreateBackend;
 	a_FuncCreateInfo.createDescriptorHeap = DX12CreateDescriptorHeap;
@@ -23,6 +23,8 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 	a_FuncCreateInfo.createImage = DX12CreateImage;
 	a_FuncCreateInfo.createSampler = DX12CreateSampler;
 	a_FuncCreateInfo.createFence = DX12CreateFence;
+
+	a_FuncCreateInfo.setResourceName = DX12SetResourceName;
 
 	a_FuncCreateInfo.allocateDescriptor = DX12AllocateDescriptor;
 	a_FuncCreateInfo.copyDescriptors = DX12CopyDescriptors;
@@ -37,10 +39,11 @@ void BB::GetRenderAPIFunctions(RenderAPIFunctions& a_FuncCreateInfo)
 
 	a_FuncCreateInfo.copyBuffer = DX12CopyBuffer;
 	a_FuncCreateInfo.copyBufferImage = DX12CopyBufferImage;
-	a_FuncCreateInfo.transitionImage = DX12TransitionImage;
+	a_FuncCreateInfo.setPipelineBarriers = DX12PipelineBarriers;
+
+	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
 
 	a_FuncCreateInfo.startCommandList = DX12StartCommandList;
-	a_FuncCreateInfo.resetCommandAllocator = DX12ResetCommandAllocator;
 	a_FuncCreateInfo.endCommandList = DX12EndCommandList;
 	a_FuncCreateInfo.startRendering = DX12StartRendering;
 	a_FuncCreateInfo.setScissor = DX12SetScissor;

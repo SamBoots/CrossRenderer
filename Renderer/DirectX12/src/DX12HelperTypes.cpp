@@ -19,21 +19,6 @@ const D3D12_SHADER_VISIBILITY BB::DXConv::ShaderVisibility(const RENDER_SHADER_S
 	}
 }
 
-const D3D12_RESOURCE_STATES BB::DXConv::ResourceStateImage(const RENDER_IMAGE_LAYOUT a_ImageLayout)
-{
-	switch (a_ImageLayout)
-	{
-	case RENDER_IMAGE_LAYOUT::UNDEFINED:			return D3D12_RESOURCE_STATE_COMMON;
-	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:			return D3D12_RESOURCE_STATE_COPY_DEST;
-	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:			return D3D12_RESOURCE_STATE_COPY_SOURCE;
-	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:		return D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-	default:
-		BB_ASSERT(false, "DX12, this Image Layout not supported by DX12!");
-		return D3D12_RESOURCE_STATE_COMMON;
-		break;
-	}
-}
-
 const D3D12_HEAP_TYPE BB::DXConv::HeapType(const RENDER_MEMORY_PROPERTIES a_Properties)
 {
 	switch (a_Properties)
@@ -51,8 +36,9 @@ const D3D12_COMMAND_LIST_TYPE BB::DXConv::CommandListType(const RENDER_QUEUE_TYP
 {
 	switch (a_RenderQueueType)
 	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:				return D3D12_COMMAND_LIST_TYPE_DIRECT;
+	case RENDER_QUEUE_TYPE::GRAPHICS:			return D3D12_COMMAND_LIST_TYPE_DIRECT;
 	case RENDER_QUEUE_TYPE::TRANSFER:			return D3D12_COMMAND_LIST_TYPE_COPY;
+	case RENDER_QUEUE_TYPE::COMPUTE:			return D3D12_COMMAND_LIST_TYPE_COMPUTE;
 	default:
 		BB_ASSERT(false, "DX12: Tried to make a commandlist with a queue type that does not exist.");
 		return D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -150,10 +136,7 @@ DXResource::DXResource(const RenderBufferCreateInfo& a_CreateInfo)
 		IID_PPV_ARGS(&m_Resource)),
 		"DX12: Failed to create resource using D3D12 Memory Allocator");
 
-#ifdef _DEBUG
-	if (a_CreateInfo.name)
-		m_Resource->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
-#endif
+	RenameObj(m_Resource, a_CreateInfo.name);
 }
 
 DXResource::~DXResource()
@@ -202,7 +185,7 @@ DXImage::DXImage(const RenderImageCreateInfo& a_CreateInfo)
 		t_ClearValue = BBnew(
 			s_DX12TempAllocator,
 			D3D12_CLEAR_VALUE);
-		t_ClearValue->Format = t_Desc.Format;
+		t_ClearValue->Format = DEPTH_FORMAT;
 		t_ClearValue->DepthStencil.Depth = 1.0f;
 		t_ClearValue->DepthStencil.Stencil = 0;
 		t_IsDepth = true;
@@ -246,10 +229,7 @@ DXImage::DXImage(const RenderImageCreateInfo& a_CreateInfo)
 		s_DX12B.device->CreateDepthStencilView(m_Resource, &t_DepthStencilDesc, m_DepthData.dsvHandle);
 	}
 
-#ifdef _DEBUG
-	if (a_CreateInfo.name)
-		m_Resource->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
-#endif
+	RenameObj(m_Resource, a_CreateInfo.name);
 }
 
 DXImage::~DXImage()
@@ -315,10 +295,7 @@ DXCommandAllocator::DXCommandAllocator(const RenderCommandAllocatorCreateInfo& a
 		new (&m_Lists.data()[i]) DXCommandList(* this);
 	}
 
-#ifdef _DEBUG
-	if (a_CreateInfo.name)
-		m_Allocator->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_CreateInfo.name));
-#endif
+	RenameObj(m_Allocator, a_CreateInfo.name);
 }
 
 DXCommandAllocator::~DXCommandAllocator()
@@ -392,10 +369,8 @@ DXDescriptorHeap::DXDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE a_HeapType, uint32
 
 	DXASSERT(s_DX12B.device->CreateDescriptorHeap(&t_HeapInfo, IID_PPV_ARGS(&m_DescriptorHeap)),
 		"DX12, Failed to create descriptor heap.");
-#ifdef _DEBUG
-	if (a_Name)
-		m_DescriptorHeap->SetName(UTF8ToUnicodeString(s_DX12TempAllocator, a_Name));
-#endif
+
+	RenameObj(m_DescriptorHeap, a_Name);
 
 	m_HeapCPUStart = m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
@@ -425,13 +400,4 @@ DescriptorAllocation DXDescriptorHeap::Allocate(const RDescriptor a_Layout, cons
 
 	m_InUse += t_Allocation.descriptorCount;
 	return t_Allocation;
-}
-
-D3D12_CPU_DESCRIPTOR_HANDLE DepthDescriptorHeap::Allocate()
-{
-	D3D12_CPU_DESCRIPTOR_HANDLE t_Handle = heap->GetCPUDescriptorHandleForHeapStart();
-	t_Handle.ptr += static_cast<uint64_t>(pos) * s_DX12B.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	++pos;
-	BB_ASSERT(max > pos, "DX12, too many depth allocations!");
-	return t_Handle;
 }

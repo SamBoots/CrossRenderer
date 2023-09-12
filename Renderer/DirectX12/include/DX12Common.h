@@ -1,8 +1,7 @@
 #pragma once
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-
-#include <d3d12.h>
+#include "AgilitySDK/include/d3dx12/d3dx12.h"
 #include <dxgi1_6.h>
 
 #include "RenderBackendCommon.h"
@@ -20,6 +19,8 @@ namespace BB
 	RSamplerHandle DX12CreateSampler(const SamplerCreateInfo& a_CreateInfo);
 	RFenceHandle DX12CreateFence(const FenceCreateInfo& a_CreateInfo);
 
+	void DX12SetResourceName(const SetResourceNameInfo& a_Info); //TODO
+
 	DescriptorAllocation DX12AllocateDescriptor(const AllocateDescriptorInfo& a_AllocateInfo);
 	void DX12CopyDescriptors(const CopyDescriptorsInfo& a_CopyInfo);
 	void DX12WriteDescriptors(const WriteDescriptorInfos& a_WriteInfo);
@@ -34,25 +35,25 @@ namespace BB
 
 	void DX12ResetCommandAllocator(const CommandAllocatorHandle a_CmdAllocatorHandle);
 
-	RecordingCommandListHandle DX12StartCommandList(const CommandListHandle a_CmdHandle);
-	void DX12EndCommandList(const RecordingCommandListHandle a_RecordingCmdHandle);
-	void DX12StartRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
-	void DX12SetScissor(const RecordingCommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
-	void DX12EndRendering(const RecordingCommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
+	void DX12StartCommandList(const CommandListHandle a_CmdHandle);
+	void DX12EndCommandList(const CommandListHandle a_RecordingCmdHandle);
+	void DX12StartRendering(const CommandListHandle a_RecordingCmdHandle, const StartRenderingInfo& a_RenderInfo);
+	void DX12SetScissor(const CommandListHandle a_RecordingCmdHandle, const ScissorInfo& a_ScissorInfo);
+	void DX12EndRendering(const CommandListHandle a_RecordingCmdHandle, const EndRenderingInfo& a_EndInfo);
 	
-	void DX12CopyBuffer(const RecordingCommandListHandle transferCommandHandle, const RenderCopyBufferInfo& a_CopyInfo);
-	void DX12CopyBufferImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
-	void DX12TransitionImage(const RecordingCommandListHandle a_RecordingCmdHandle, const RenderTransitionImageInfo& a_TransitionInfo);
+	void DX12CopyBuffer(const CommandListHandle transferCommandHandle, const RenderCopyBufferInfo& a_CopyInfo);
+	void DX12CopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_CopyInfo);
+	void DX12PipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
-	void DX12BindDescriptorHeaps(const RecordingCommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
-	void DX12BindPipeline(const RecordingCommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
-	void DX12SetDescriptorHeapOffsets(const RecordingCommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
-	void DX12BindVertexBuffers(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
-	void DX12BindIndexBuffer(const RecordingCommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
-	void DX12BindConstant(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
+	void DX12BindDescriptorHeaps(const CommandListHandle a_RecordingCmdHandle, const RDescriptorHeap a_ResourceHeap, const RDescriptorHeap a_SamplerHeap);
+	void DX12BindPipeline(const CommandListHandle a_RecordingCmdHandle, const PipelineHandle a_Pipeline);
+	void DX12SetDescriptorHeapOffsets(const CommandListHandle a_RecordingCmdHandle, const RENDER_DESCRIPTOR_SET a_FirstSet, const uint32_t a_SetCount, const uint32_t* a_HeapIndex, const size_t* a_Offsets);
+	void DX12BindVertexBuffers(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle* a_Buffers, const uint64_t* a_BufferOffsets, const uint64_t a_BufferCount);
+	void DX12BindIndexBuffer(const CommandListHandle a_RecordingCmdHandle, const RBufferHandle a_Buffer, const uint64_t a_Offset);
+	void DX12BindConstant(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_ConstantIndex, const uint32_t a_DwordCount, const uint32_t a_DwordOffset, const void* a_Data);
 
-	void DX12DrawVertex(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
-	void DX12DrawIndexed(const RecordingCommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
+	void DX12DrawVertex(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_VertexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstVertex, const uint32_t a_FirstInstance);
+	void DX12DrawIndexed(const CommandListHandle a_RecordingCmdHandle, const uint32_t a_IndexCount, const uint32_t a_InstanceCount, const uint32_t a_FirstIndex, const int32_t a_VertexOffset, const uint32_t a_FirstInstance);
 	
 	void DX12BufferCopyData(const RBufferHandle a_Handle, const void* a_Data, const uint64_t a_Size, const uint64_t a_Offset);
 	void* DX12MapMemory(const RBufferHandle a_Handle);
@@ -64,8 +65,7 @@ namespace BB
 	void DX12ExecutePresentCommand(CommandQueueHandle a_ExecuteQueue, const ExecuteCommandsInfo& a_ExecuteInfo);
 	FrameIndex DX12PresentFrame(const PresentFrameInfo& a_PresentInfo);
 
-	uint64_t DX12NextQueueFenceValue(const CommandQueueHandle a_Handle);
-	uint64_t DX12NextFenceValue(const RFenceHandle a_Handle);
+	void VulkanResizeWindow(const uint32_t a_X, const uint32_t a_Y);
 
 	void DX12WaitCommands(const RenderWaitCommandsInfo& a_WaitInfo);
 
