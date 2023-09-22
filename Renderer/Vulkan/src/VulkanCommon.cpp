@@ -22,13 +22,7 @@ constexpr int SAMPLER_DESCRIPTOR_BUFFER_INDEX = 1;
 #include <iostream>
 
 using namespace BB;
-static PFN_vkGetDescriptorSetLayoutSizeEXT GetDescriptorSetLayoutSizeEXT;
-static PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
-static PFN_vkGetDescriptorEXT GetDescriptorEXT;
-static PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
-static PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT CmdBindDescriptorBufferEmbeddedSamplersEXT;
-static PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
-static PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
+
 
 static inline void VulkanLoadFunctions(VkInstance a_Instance)
 {

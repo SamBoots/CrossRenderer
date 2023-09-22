@@ -7,14 +7,7 @@
 
 namespace BB
 {
-#ifdef _DEBUG
-#define VKASSERT(a_VKResult, a_Msg)\
-	if (a_VKResult != VK_SUCCESS)\
-		BB_ASSERT(false, a_Msg)\
 
-#else
-#define VKASSERT(a_VKResult, a_Msg) a_VKResult
-#endif //_DEBUG
 
 	namespace VKConv
 	{
@@ -328,12 +321,6 @@ namespace BB
 		VkDebugUtilsMessengerEXT debugMessenger;
 		const char** extensions;
 		size_t extensionCount;
-	};
-
-	struct VulkanQueueDeviceInfo
-	{
-		uint32_t index;
-		uint32_t queueCount;
 	};
 
 	VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_QueueProperties, uint32_t a_FamilyPropertyCount, VkQueueFlags a_QueueFlags);

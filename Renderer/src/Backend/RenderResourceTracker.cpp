@@ -37,7 +37,6 @@ struct BB::RenderResourceTracker_Inst
 	uint32_t entries = 0;
 	Entry* headEntry = nullptr;
 
-
 	template<typename T>
 	void AddEntry(Allocator a_Allocator, const T& a_TypeInfo, const RESOURCE_TYPE a_Type, const char* a_Name, const uint64_t a_ID)
 	{

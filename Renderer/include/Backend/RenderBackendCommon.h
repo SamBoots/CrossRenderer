@@ -390,13 +390,7 @@ namespace BB
 		uint32_t waitCount = 0;
 	};
 
-	struct RenderBufferCreateInfo
-	{
-		const char* name = nullptr;
-		uint64_t size = 0;
-		RENDER_BUFFER_USAGE usage{};
-		RENDER_MEMORY_PROPERTIES memProperties{};
-	};
+
 
 	struct RenderImageCreateInfo
 	{
